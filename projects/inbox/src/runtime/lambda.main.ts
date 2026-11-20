@@ -27,6 +27,7 @@ import {
 	CrawlEmailLinkPreview,
 	EmailLinksTriagedEvent,
 	FileArticleIntoReadlistCommand,
+	LinkDequeuedEvent,
 	SubmitLinkCommand,
 } from "@packages/infra-components";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
@@ -146,6 +147,8 @@ const application = express()
 				recordReadlistFitOverride: readlistFitOverrides.recordReadlistFitOverride,
 				deleteReadlistFitOverride: readlistFitOverrides.deleteReadlistFitOverride,
 				deleteReadlistArticleByUrl: readlistFitOverrides.deleteReadlistArticleByUrl,
+				listUserSavesForUrl: savedArticleStore.listUserSavesForUrl,
+				publishLinkDequeued: (input) => publishEvent(LinkDequeuedEvent, input),
 				fitChoiceLog: Logger.fromJSON<ReadlistFitOverriddenLogLine>(),
 				recordEngagementActivity: initDynamoDbEngagementActivity({
 					client,

@@ -231,6 +231,10 @@ async function main(): Promise<void> {
 			recordReadlistFitOverride: fixture.articleStore.recordReadlistFitOverride,
 			deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
 			deleteReadlistArticleByUrl: fixture.articleStore.deleteReadlistArticleByUrl,
+			listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
+			publishLinkDequeued: async (input) => {
+				logger.info("[dev] link-dequeued", input);
+			},
 			fitChoiceLog: Logger.fromJSON<ReadlistFitOverriddenLogLine>(),
 			recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 			logError: (message, error) =>

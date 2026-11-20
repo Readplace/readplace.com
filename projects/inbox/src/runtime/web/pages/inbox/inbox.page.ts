@@ -37,8 +37,10 @@ import type {
 	DeleteReadlistFitOverride,
 	FindSavedArticleForLink,
 	ListReadlistFitOverrides,
+	ListUserSavesForUrl,
 	RecordReadlistFitOverride,
 } from "@packages/provider-contracts/article-store";
+import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
 import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
 import type { Logger, LogError } from "@packages/logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
@@ -112,6 +114,8 @@ export interface InboxReadlistFitDependencies {
 	recordReadlistFitOverride: RecordReadlistFitOverride;
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
+	listUserSavesForUrl: ListUserSavesForUrl;
+	publishLinkDequeued: PublishLinkDequeued;
 	publishFileArticleIntoReadlist: (detail: FileArticleIntoReadlistDetail) => Promise<void>;
 	fitChoiceLog: Logger.Typed<ReadlistFitOverriddenLogLine>;
 }
@@ -169,6 +173,11 @@ const POLL_PANEL_RENDERERS: Record<
 	articles: (vm) => renderInboxArticlesPanel(vm.articles),
 	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
 };
+
+function submittedLinkUrl(link: InboxEmailLinkEntry): string {
+	const unresolved = link.status === "pending" || link.status === "skipped";
+	return unresolved ? link.url : stripUtmParams(link.url);
+}
 
 function tabForLinkRow(link: InboxEmailLinkEntry): MailTabKey {
 	return isExcludedLink(link) ? "excluded" : "articles";
@@ -689,12 +698,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Submits the stored URL, never the resolved one — the save pipeline owns
 			// redirects. Stripping runs after the saveable gate above and only shortens,
 			// so the validated URL cannot grow back past its length cap.
-			const unresolved = link.status === "pending" || link.status === "skipped";
 			const email = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
 			assert(email, "the email a saved link belongs to must still exist");
 			await deps.publishSubmitLink({
 				userId,
-				url: unresolved ? link.url : stripUtmParams(link.url),
+				url: submittedLinkUrl(link),
 				provenance: { kind: "email", senderEmail: email.senderEmail },
 				readlist: DEFAULT_READLIST_SLUG,
 				saveTrigger: "manual",
@@ -823,11 +831,28 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			});
 			if (verdict === "undo" && current === undefined) return notFound();
 			const saved = await deps.findSavedArticleForLink({ userId, url: link.url });
-			const provenance = { kind: "email", senderEmail: email.senderEmail };
+			const provenance = { kind: "email" as const, senderEmail: email.senderEmail };
 			const removeFromReadlist = async () => {
-				if (saved.kind === "saved") {
-					await deps.deleteReadlistArticleByUrl({ userId, readlist, url: saved.resolvedUrl });
+				await deps.deleteReadlistArticleByUrl({ userId, readlist, url: saved.resolvedUrl });
+				const remaining = await deps.listUserSavesForUrl({ userId, url: saved.resolvedUrl });
+				if (remaining.length > 0) return;
+				await deps.inboxSavedLinkStore.retractLinkSaved({ userId, url: link.url });
+				await deps.publishLinkDequeued({ userId, url: saved.resolvedUrl });
+			};
+			let savedToAll = false;
+			const fileIntoReadlist = async (fit: FileArticleIntoReadlistDetail["fit"]) => {
+				if (saved.kind === "not-saved") {
+					savedToAll = true;
+					await deps.publishSubmitLink({
+						userId,
+						url: submittedLinkUrl(link),
+						provenance,
+						readlist: DEFAULT_READLIST_SLUG,
+						saveTrigger: "manual",
+						saveAttemptId: newSaveAttemptId(),
+					});
 				}
+				await deps.publishFileArticleIntoReadlist({ userId, url: link.url, readlist, provenance, fit });
 			};
 			if (verdict === "undo") {
 				assert(current, "an undo reverses the reader's current choice");
@@ -837,17 +862,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				if (engineVerdict === "keep") {
 					assert(engineReason, "an engine keep carries its reason");
 					assert(purposeVersion, "an engine keep carries its purpose version");
-					await deps.publishFileArticleIntoReadlist({
-						userId,
-						url: link.url,
-						readlist,
-						provenance,
-						fit: {
-							verdict: "keep",
-							reason: engineReason,
-							purposeVersion,
-							source: { kind: "email", receivedAtMessageId, ordinal },
-						},
+					await fileIntoReadlist({
+						verdict: "keep",
+						reason: engineReason,
+						purposeVersion,
+						source: { kind: "email", receivedAtMessageId, ordinal },
 					});
 				} else {
 					await removeFromReadlist();
@@ -855,17 +874,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				await deps.deleteReadlistFitOverride({ userId, readlist, id: current.id });
 			} else {
 				if (verdict === "keep") {
-					await deps.publishFileArticleIntoReadlist({
-						userId,
-						url: link.url,
-						readlist,
-						provenance,
-						fit: {
-							verdict: "keep",
-							purposeVersion:
-								outcome.decision === "filtered" ? outcome.purposeVersion : undefined,
-							source: { kind: "reader" },
-						},
+					await fileIntoReadlist({
+						verdict: "keep",
+						purposeVersion: outcome.decision === "filtered" ? outcome.purposeVersion : undefined,
+						source: { kind: "reader" },
 					});
 				} else {
 					await removeFromReadlist();
@@ -917,6 +929,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					maxPolls: MAX_POLLS,
 					...(await findLinkSaves({ userId, links: [link] })),
 					fitOverrides: await readFitOverrides({ userId, meta }),
+					savePollContext: savedToAll
+						? { mode: "save-poll", pollCount: INITIAL_SAVE_POLL_COUNT, maxPolls: MAX_SAVE_SETTLE_POLLS }
+						: { mode: "static" },
 				});
 				const cardHtml = fitView.card === undefined ? "" : renderInboxArticleCard(fitView.card);
 				const lineHtml = renderInboxReadlistLine(fitView.line).replace(

@@ -10,7 +10,11 @@ import {
 	InboxAddressSchema,
 	MessageIdSchema,
 } from "@packages/domain/inbox";
-import { ReadlistPurposeVersionSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	ReadlistPurposeVersionSchema,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -130,6 +134,26 @@ async function saveInto(fixture: Fixture, input: { userId: UserId; url: string }
 	await fixture.articleStore.saveReadlistArticle({ ...params, readlist: WORK });
 }
 
+async function fileOnlyIntoWork(fixture: Fixture, input: { userId: UserId; url: string }) {
+	await fixture.articleStore.saveReadlistArticle({
+		userId: input.userId,
+		url: input.url,
+		metadata: { title: "Filed", siteName: "example.com", excerpt: "Filed", wordCount: 300 },
+		estimatedReadTime: MinutesSchema.parse(2),
+		provenance: { kind: "email" as const, senderEmail: "news@example.com" },
+		savedAt: new Date("2026-06-24T09:01:00.000Z"),
+		readlist: WORK,
+	});
+}
+
+function saveButton(html: string) {
+	const card = parseDoc(html).querySelector("[data-test-inbox-article-card]");
+	assert(card, "the card must render");
+	const save = card.querySelector('[data-test-card-action="save"]');
+	assert(save, "the save button must render for a saveable link");
+	return save;
+}
+
 const countWork = (fixture: Fixture, userId: UserId) =>
 	fixture.articleStore.countReadlistArticles({ userId, readlist: WORK });
 
@@ -215,18 +239,20 @@ describe("Inbox link fit route", () => {
 		expect(response.headers.location).toBe(`${detailPath}?fit=drop&in=work&link=0000`);
 		expect(await countWork(fixture, userId)).toBe(0);
 		expect(harness.filedArticles).toEqual([]);
+		expect(harness.dequeuedLinks).toEqual([]);
 		expect((await overrides()).map(({ readerVerdict, anchorText }) => ({ readerVerdict, anchorText }))).toEqual([
 			{ readerVerdict: "drop", anchorText: "Refactoring" },
 		]);
 	});
 
-	it("remembers a drop of a link that was never saved without deleting anything", async () => {
-		const { harness, choose, overrides } = await setUp();
+	it("remembers a drop of a link that was never saved and announces its dequeue", async () => {
+		const { harness, userId, choose, overrides } = await setUp();
 
 		const response = await choose("0000", "drop");
 
 		expect(response.status).toBe(303);
 		expect(harness.filedArticles).toEqual([]);
+		expect(harness.dequeuedLinks).toEqual([{ userId, url: KEPT_URL }]);
 		expect((await overrides()).map(({ readerVerdict }) => readerVerdict)).toEqual(["drop"]);
 	});
 
@@ -394,6 +420,100 @@ describe("Inbox link fit route", () => {
 			await choose("0000", "undo");
 
 			expect(await countWork(fixture, userId)).toBe(0);
+			expect(await overrides()).toEqual([]);
+		});
+	});
+
+	describe("a link no longer in All", () => {
+		const leaveCopyInWork = (fixture: Fixture, input: { userId: UserId; url: string }) =>
+			fileOnlyIntoWork(fixture, input);
+		const leaveNothing = async (_fixture: Fixture, _input: { userId: UserId; url: string }) => {};
+		const manualSave = (input: { userId: UserId; url: string }) => ({
+			userId: input.userId,
+			url: input.url,
+			readlist: DEFAULT_READLIST_SLUG,
+			provenance: { kind: "email", senderEmail: "news@example.com" },
+			saveTrigger: "manual",
+		});
+
+		it.each([
+			{ name: "whose readlist copy remains", seedWork: leaveCopyInWork },
+			{ name: "the readlist never held", seedWork: leaveNothing },
+		])("drops a link $name, announces the dequeue and stops calling it saved", async ({ seedWork }) => {
+			const { fixture, harness, userId, choose, overrides } = await setUp();
+			await seedWork(fixture, { userId, url: KEPT_URL });
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId, url: KEPT_URL });
+
+			const response = await choose("0000", "drop").set("HX-Request", "true");
+
+			expect(await countWork(fixture, userId)).toBe(0);
+			expect(harness.dequeuedLinks).toEqual([{ userId, url: KEPT_URL }]);
+			const save = saveButton(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
+			expect(save.textContent?.trim()).toBe("Save to All");
+			expect((await overrides()).map(({ readerVerdict }) => readerVerdict)).toEqual(["drop"]);
+		});
+
+		it.each([
+			{ name: "whose readlist copy remains", seedWork: leaveCopyInWork },
+			{ name: "the readlist never held", seedWork: leaveNothing },
+		])("keeps a link $name by saving it to All by hand, filing it and polling for the save", async ({ seedWork }) => {
+			const { fixture, harness, userId, choose } = await setUp();
+			await seedWork(fixture, { userId, url: DROPPED_URL });
+
+			const response = await choose("0001", "keep").set("HX-Request", "true");
+
+			expect(harness.submittedLinks).toEqual([manualSave({ userId, url: DROPPED_URL })]);
+			expect(harness.filedArticles.map(({ url, fit }) => ({ url, source: fit.source }))).toEqual([
+				{ url: DROPPED_URL, source: { kind: "reader" } },
+			]);
+			const card = parseDoc(response.text).querySelector("[data-test-inbox-article-card]");
+			expect(card?.getAttribute("hx-get")).toBe(
+				`/inbox/${encodeURIComponent(SK)}/links/0001/card?poll=1&shown=20&awaitSave=1`,
+			);
+			const save = saveButton(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("saving");
+			expect(save.textContent?.trim()).toBe("Saving…");
+		});
+
+		it("keeps a link All still holds without saving it again", async () => {
+			const { fixture, harness, userId, choose } = await setUp();
+			await saveInto(fixture, { userId, url: DROPPED_URL });
+
+			await choose("0001", "keep");
+
+			expect(harness.submittedLinks).toEqual([]);
+			expect(harness.filedArticles.map(({ url }) => url)).toEqual([DROPPED_URL]);
+		});
+
+		it.each([
+			{ name: "whose readlist copy remains", seedWork: leaveCopyInWork },
+			{ name: "the readlist never held", seedWork: leaveNothing },
+		])("undoes a drop of an engine keep $name by saving the link to All by hand before filing it", async ({ seedWork }) => {
+			const { fixture, harness, userId, choose } = await setUp();
+			await choose("0000", "drop");
+			await seedWork(fixture, { userId, url: KEPT_URL });
+
+			await choose("0000", "undo");
+
+			expect(harness.submittedLinks).toEqual([manualSave({ userId, url: KEPT_URL })]);
+			expect(harness.filedArticles.map(({ url, fit }) => ({ url, source: fit.source }))).toEqual([
+				{ url: KEPT_URL, source: { kind: "email", receivedAtMessageId: SK, ordinal: "0000" } },
+			]);
+		});
+
+		it.each([
+			{ name: "whose readlist copy remains", seedWork: leaveCopyInWork },
+			{ name: "the readlist never held", seedWork: leaveNothing },
+		])("undoes a keep of an engine drop $name by deleting the readlist copy and announcing the dequeue", async ({ seedWork }) => {
+			const { fixture, harness, userId, choose, overrides } = await setUp();
+			await choose("0001", "keep");
+			await seedWork(fixture, { userId, url: DROPPED_URL });
+
+			await choose("0001", "undo");
+
+			expect(await countWork(fixture, userId)).toBe(0);
+			expect(harness.dequeuedLinks).toEqual([{ userId, url: DROPPED_URL }]);
 			expect(await overrides()).toEqual([]);
 		});
 	});

@@ -36,6 +36,7 @@ import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import type { InboxEmailFilter } from "./inbox-email-filter";
 import {
 	type InboxLinkCardViewModel,
+	type LinkCardSavePollContext,
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
 import { buildInboxLinkFitUrl } from "./inbox-link-fit-url";
@@ -663,6 +664,7 @@ export function toInboxLinkFitViewModel(input: {
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	savedDestinations: ReadonlyMap<string, string>;
 	fitOverrides: ReadlistFitOverridesByReadlist;
+	savePollContext: LinkCardSavePollContext;
 }): { card: InboxLinkCardViewModel | undefined; line: ReadlistLineViewModel } {
 	const context = readlistFitContext({
 		emailId: input.emailId,
@@ -693,7 +695,7 @@ export function toInboxLinkFitViewModel(input: {
 			}),
 			linkSaveStates: input.linkSaveStates,
 			savedDestinations: input.savedDestinations,
-			savePollContext: { mode: "static" },
+			savePollContext: input.savePollContext,
 			paidFeaturesLocked: false,
 		}),
 		line,

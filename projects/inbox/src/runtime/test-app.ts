@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { Express } from "express";
 import request from "supertest";
+import type { UserId } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
 import { initFindSavedArticleForLink } from "@packages/article-store";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
@@ -31,6 +32,7 @@ export interface TestAppResult {
 	subscriptionProviders: SubscriptionProvidersBundle;
 	submittedLinks: Array<{ userId: string; url: string; readlist: string }>;
 	filedArticles: FileArticleIntoReadlistDetail[];
+	dequeuedLinks: Array<{ url: string; userId: UserId }>;
 	fitChoiceLines: ReadlistFitOverriddenLogLine[];
 	crawlPreviews: Parameters<Parameters<typeof createInboxApp>[1]["publishCrawlPreview"]>[0][];
 	savedLinkTriages: Parameters<Parameters<typeof createInboxApp>[1]["publishSavedLinkTriaged"]>[0][];
@@ -58,6 +60,7 @@ export function createInboxTestApp(
 	});
 	const submittedLinks: Array<{ userId: string; url: string; readlist: string }> = [];
 	const filedArticles: FileArticleIntoReadlistDetail[] = [];
+	const dequeuedLinks: Array<{ url: string; userId: UserId }> = [];
 	const fitChoiceLines: ReadlistFitOverriddenLogLine[] = [];
 	const crawlPreviews: TestAppResult["crawlPreviews"] = [];
 	const savedLinkTriages: TestAppResult["savedLinkTriages"] = [];
@@ -105,6 +108,9 @@ export function createInboxTestApp(
 			publishFileArticleIntoReadlist: async (detail) => {
 				filedArticles.push(detail);
 			},
+			publishLinkDequeued: async (input) => {
+				dequeuedLinks.push(input);
+			},
 			publishCrawlPreview: async (input) => {
 				crawlPreviews.push(input);
 			},
@@ -125,6 +131,7 @@ export function createInboxTestApp(
 			recordReadlistFitOverride: fixture.articleStore.recordReadlistFitOverride,
 			deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
 			deleteReadlistArticleByUrl: fixture.articleStore.deleteReadlistArticleByUrl,
+			listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
 			fitChoiceLog: {
 				info: captureFitChoice,
 				error: captureFitChoice,
@@ -150,6 +157,7 @@ export function createInboxTestApp(
 		subscriptionProviders: fixture.subscriptionProviders,
 		submittedLinks,
 		filedArticles,
+		dequeuedLinks,
 		fitChoiceLines,
 		crawlPreviews,
 		savedLinkTriages,

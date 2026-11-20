@@ -188,6 +188,8 @@ export function createInboxApp(
 		recordReadlistFitOverride: deps.recordReadlistFitOverride,
 		deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
 		deleteReadlistArticleByUrl: deps.deleteReadlistArticleByUrl,
+		listUserSavesForUrl: deps.listUserSavesForUrl,
+		publishLinkDequeued: deps.publishLinkDequeued,
 		publishFileArticleIntoReadlist: deps.publishFileArticleIntoReadlist,
 		fitChoiceLog: deps.fitChoiceLog,
 	});
