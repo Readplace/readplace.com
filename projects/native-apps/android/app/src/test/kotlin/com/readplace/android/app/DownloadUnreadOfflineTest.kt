@@ -460,11 +460,12 @@ class DownloadUnreadOfflineTest {
 			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
 		)
 		val manifest = manifest(directory)
-		download(RecordingPrefetcher(), manifest = manifest).run(START) {}
+		val copies = readerCopy()
+		download(RecordingPrefetcher(), manifest = manifest, readerCopy = copies).run(START) {}
 		directory.deleteRecursively()
 		val prefetcher = RecordingPrefetcher()
 
-		download(prefetcher, manifest = manifest).run(START) {}
+		download(prefetcher, manifest = manifest, readerCopy = copies).run(START) {}
 
 		assertEquals(listOf(readerUrl("a1"), readerUrl("a2")), prefetcher.urls)
 	}
