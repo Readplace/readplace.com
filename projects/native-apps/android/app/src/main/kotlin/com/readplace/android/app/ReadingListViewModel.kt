@@ -51,6 +51,7 @@ data class ReadingListState(
 	val isLoading: Boolean = false,
 	val hasMore: Boolean = false,
 	val errorText: String? = null,
+	val offlineDownloadFailureText: String? = null,
 	val warningText: String? = null,
 	/** Server-authored messages surfaced to the UI (e.g. a locked-account refusal),
 	 * rendered generically — the client owns no per-feature knowledge of them. */
@@ -756,6 +757,10 @@ class ReadingListViewModel(
 		mutate { it.copy(errorText = null) }
 	}
 
+	fun dismissOfflineDownloadFailure() {
+		mutate { it.copy(offlineDownloadFailureText = null) }
+	}
+
 	fun dismissWarning() {
 		mutate { it.copy(warningText = null) }
 	}
@@ -830,14 +835,18 @@ class ReadingListViewModel(
 		if (offlineDownloadRun != null) return
 		val href = states.value.offlineDownloadHref ?: return
 		mutate {
-			it.copy(offlineDownload = OfflineDownloadProgress(completed = 0, total = 0), interruptedOfflineDownload = null)
+			it.copy(
+				offlineDownload = OfflineDownloadProgress(completed = 0, total = 0),
+				interruptedOfflineDownload = null,
+				offlineDownloadFailureText = null,
+			)
 		}
 		val run = scope.launch(start = CoroutineStart.LAZY) {
 			try {
 				val outcome = downloadUnreadOffline(OfflineDownloadRequest(startHref = href, sessionAction = sessionAction)) { progress ->
 					mutate { it.copy(offlineDownload = progress) }
 				}
-				outcome.failureText?.let { text -> mutate { it.copy(errorText = text) } }
+				outcome.failureText?.let { text -> mutate { it.copy(offlineDownloadFailureText = text) } }
 			} catch (error: Exception) {
 				if (currentCoroutineContext().isActive) handle(error)
 			} finally {

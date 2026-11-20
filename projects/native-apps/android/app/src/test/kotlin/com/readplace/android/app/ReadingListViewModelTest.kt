@@ -5621,8 +5621,74 @@ class ReadingListViewModelTest {
 				listOf(null, null, null),
 			),
 			listOf(partialList, cleanList).map { list ->
-				list.state.value.let { listOf(it.errorText, it.offlineDownload, it.offlineDownloadStatus) }
+				list.state.value.let { listOf(it.offlineDownloadFailureText, it.offlineDownload, it.offlineDownloadStatus) }
 			},
+		)
+	}
+
+	@Test
+	fun `a run's failure sentence survives the foreground reload that follows it`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload(
+			finish = CompletableDeferred(Unit),
+			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 21, total = 43),
+		)
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+		viewModel.handleBackground()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		viewModel.handleForeground()
+
+		assertEquals(
+			"21 of 43 articles couldn't be downloaded for offline reading",
+			viewModel.state.value.offlineDownloadFailureText,
+		)
+	}
+
+	@Test
+	fun `dismissing the failure sentence clears it`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload(
+			finish = CompletableDeferred(Unit),
+			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2),
+		)
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+		val shown = viewModel.state.value.offlineDownloadFailureText
+
+		viewModel.dismissOfflineDownloadFailure()
+
+		assertEquals(
+			listOf("1 of 2 articles couldn't be downloaded for offline reading", null),
+			listOf(shown, viewModel.state.value.offlineDownloadFailureText),
+		)
+	}
+
+	@Test
+	fun `starting a new run clears the last run's failure sentence`() = runTest {
+		server.handle(offlineDownloadHandler())
+		var runs = 0
+		val viewModel = viewModel(
+			downloadUnreadOffline = { _, _ ->
+				runs += 1
+				if (runs == 1) OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2) else awaitCancellation()
+			},
+		)
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+		val shown = viewModel.state.value.offlineDownloadFailureText
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(
+			listOf("1 of 2 articles couldn't be downloaded for offline reading", null),
+			listOf(shown, viewModel.state.value.offlineDownloadFailureText),
 		)
 	}
 

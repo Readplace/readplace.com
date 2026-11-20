@@ -299,6 +299,7 @@ fun ReadingListScreen(
 
 			val messages = state.messages
 			val errorText = state.errorText
+			val offlineDownloadFailureText = state.offlineDownloadFailureText
 			val warningText = state.warningText
 			val bottom = Modifier.align(Alignment.BottomCenter)
 			if (messages.isNotEmpty()) {
@@ -313,6 +314,13 @@ fun ReadingListScreen(
 					text = errorText,
 					tone = BannerTone.ofError(errorText),
 					onDismiss = viewModel::dismissError,
+					modifier = bottom,
+				)
+			} else if (offlineDownloadFailureText != null) {
+				Banner(
+					text = offlineDownloadFailureText,
+					tone = BannerTone.ofError(offlineDownloadFailureText),
+					onDismiss = viewModel::dismissOfflineDownloadFailure,
 					modifier = bottom,
 				)
 			} else if (warningText != null) {
