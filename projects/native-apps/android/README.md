@@ -227,6 +227,16 @@ shows "Couldn't open the reader" under the offline banner. Anything that stores 
 copy for offline reading must call `OfflineReaderCopy.record(readerUrl)` with the exact
 URL the reader loads, once the copy is stored, or that copy never opens offline.
 
+**A downloaded article is kept in app files, not the WebView cache.** iOS keeps a
+downloaded reader page in the WebKit cache. On 2026-11-20 an Android article badged
+"Saved offline" failed to open offline because Chromium had evicted its cache entry, so
+the download keeps each reader page's HTML with its Content-Type and
+Content-Security-Policy under the app's files, and the reader serves it from there when
+offline. A kept page opens for 30 days after it was saved, and the "Saved offline" badge
+comes from the pages on disk. Its images are still served from the WebView cache, so an
+evicted image shows blank. A page the reader opened online but never downloaded still
+depends on the cache and the age record above.
+
 **The reader falls back to its stored copy in a new WebView.** When the reader page
 cannot reach the network after the session mint got through, iOS reloads in place before
 the page commits and opens a new view after; Android always opens a new WebView in the
@@ -288,16 +298,16 @@ login screen holds for its replay tap target (grep the Kotlin sources for
   process, which pauses the run until the reader returns: on 2026-11-20 a run kept
   counting for 30 s after Home, while another sat frozen at 42 of 43 until the app
   came back and finished within seconds of its return.
-- An article counts as stored when its page finished loading within 12 seconds with
-  no main-frame error and no main-frame HTTP error. Android reports no status for a
-  successful load, so this stands in for iOS's "status is 200". WebView cannot await a
-  promise from `evaluateJavascript`, so iOS's single eager-images script is two here:
-  one marks lazy images eager, the other is polled until every image is complete.
-- The download fetches an article again when its stored copy is of the current
-  version but its age record is missing or older than 30 days; iOS skips on the
-  version alone. The reader refuses a stored copy older than 30 days, so skipping it
-  would leave a "Saved offline" badge on an article that cannot open offline. This
-  way the next run refreshes it.
+- An article counts as stored when the server answered its reader page 200 with HTML
+  and the page was written to app files. The page is then also loaded in a WebView so
+  its images reach the cache; that load's outcome does not decide anything. WebView
+  cannot await a promise from `evaluateJavascript`, so iOS's single eager-images script
+  is two here: one marks lazy images eager, the other is polled until every image is
+  complete.
+- The download fetches an article again when its kept page is of the current version
+  but older than 30 days; iOS skips on the version alone. The reader refuses a kept
+  page older than 30 days, so skipping it would leave a "Saved offline" badge on an
+  article that cannot open offline. This way the next run refreshes it.
 
 ## Version pins that are not "the latest"
 

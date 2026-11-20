@@ -11,6 +11,7 @@ import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
+import com.readplace.android.core.OfflineReaderPages
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Readlist
@@ -166,6 +167,7 @@ class ReadingListViewModel(
 	private val now: () -> Instant,
 	private val reportProcessingRefreshFailure: (String) -> Unit,
 	private val readerCopy: OfflineReaderCopy,
+	private val readerPages: OfflineReaderPages,
 	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
@@ -173,8 +175,8 @@ class ReadingListViewModel(
 
 	init {
 		scope.launch {
-			manifest.load()
-			manifest.versions.collect { versions -> mutate { it.copy(downloadedVersions = versions) } }
+			readerPages.load()
+			readerPages.versions.collect { versions -> mutate { it.copy(downloadedVersions = versions) } }
 		}
 	}
 
@@ -905,7 +907,14 @@ class ReadingListViewModel(
 			}
 		}
 
-	suspend fun isStoredCopyShowable(readerUrl: String): Boolean = readerCopy.isShowable(readerUrl)
+	suspend fun offlineSource(readerUrl: String): ReaderOfflineSource {
+		val kept = readerPages.find(readerUrl)
+		return when {
+			kept != null -> ReaderOfflineSource.Kept(kept)
+			readerCopy.isShowable(readerUrl) -> ReaderOfflineSource.CacheRecord
+			else -> ReaderOfflineSource.Missing
+		}
+	}
 
 	fun readerLoadChanged(readerUrl: String, phase: ReaderLoadPhase, cacheMode: ReaderCacheMode) {
 		if (ReaderLoad.confirmsStoredCopy(phase = phase, cacheMode = cacheMode)) scope.launch { readerCopy.record(readerUrl) }

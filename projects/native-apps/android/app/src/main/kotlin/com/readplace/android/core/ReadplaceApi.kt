@@ -15,6 +15,7 @@ import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -199,6 +200,12 @@ class ReadplaceApi(
 	// re-attachment and never via `send()`, so neither the bearer nor the
 	// redirect-preserving re-attachment can leak the Readplace `Authorization`
 	// header to that origin.
+	private val readerHttp: OkHttpClient = client.newBuilder()
+		.followRedirects(false)
+		.followSslRedirects(false)
+		.cookieJar(CookieJar.NO_COOKIES)
+		.build()
+
 	private val externalHttp: OkHttpClient = client.newBuilder()
 		.followRedirects(true)
 		.followSslRedirects(true)
@@ -385,6 +392,40 @@ class ReadplaceApi(
 				null
 			}
 		}
+	}
+
+	suspend fun fetchReaderPage(url: String, cookies: List<Cookie>): ReaderPageResponse? {
+		val target = url.toHttpUrl()
+		val request = Request.Builder()
+			.url(target)
+			.get()
+			.header("Cookie", cookies.filter { it.matches(target) }.joinToString("; ") { "${it.name}=${it.value}" })
+			.header(ReaderPrefetch.PURPOSE_HEADER, ReaderPrefetch.PURPOSE_VALUE)
+			.header("Accept", ReaderPrefetch.DOCUMENT_ACCEPT)
+			.header("User-Agent", AppConfig.WEB_VIEW_USER_AGENT)
+			.build()
+		return withContext(ioDispatcher) {
+			try {
+				readerHttp.newCall(request).execute().use(::readerPageOf)
+			} catch (_: IOException) {
+				null
+			}
+		}
+	}
+
+	private fun readerPageOf(response: Response): ReaderPageResponse? {
+		if (response.code != 200) return null
+		val contentType = response.header("Content-Type") ?: return null
+		val mediaType = contentType.toMediaTypeOrNull() ?: return null
+		if (mediaType.type != "text" || mediaType.subtype != "html") return null
+		val body = response.body.bytes()
+		if (body.isEmpty()) return null
+		return ReaderPageResponse(
+			contentType = contentType,
+			contentSecurityPolicy = response.header(ReaderPrefetch.CONTENT_SECURITY_POLICY_HEADER),
+			contentVersion = response.header(ReaderPrefetch.ARTICLE_VERSION_HEADER),
+			body = body,
+		)
 	}
 
 	private fun boundedBody(response: Response): ByteArray? {

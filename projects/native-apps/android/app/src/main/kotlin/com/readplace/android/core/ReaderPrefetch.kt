@@ -11,6 +11,9 @@ fun interface ReaderPrefetching {
 object ReaderPrefetch {
 	const val PURPOSE_HEADER = "Sec-Purpose"
 	const val PURPOSE_VALUE = "prefetch"
+	const val DOCUMENT_ACCEPT = "text/html"
+	const val ARTICLE_VERSION_HEADER = "Readplace-Article-Version"
+	const val CONTENT_SECURITY_POLICY_HEADER = "Content-Security-Policy"
 	val PAGE_TIMEOUT = 12.seconds
 	val IMAGE_TIMEOUT = 12.seconds
 	val IMAGE_POLL = 250.milliseconds

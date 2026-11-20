@@ -1,9 +1,6 @@
 package com.readplace.android.core
 
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -20,33 +17,9 @@ data class OfflineDownloadRun(val total: Int, val completed: Int) {
 	val isIncomplete: Boolean get() = completed < total
 }
 
-data class DownloadedVersions(val byArticleId: Map<String, String>) {
-	fun isCurrent(articleId: String, contentVersion: String?): Boolean =
-		contentVersion != null && byArticleId[articleId] == contentVersion
-}
-
 class OfflineDownloadManifest(private val directory: File, private val io: CoroutineDispatcher) {
 	private val file = File(directory, "download-manifest.json")
 	private val lock = Mutex()
-	private val published = MutableStateFlow(DownloadedVersions(emptyMap()))
-
-	val versions: StateFlow<DownloadedVersions> = published.asStateFlow()
-
-	suspend fun load() {
-		lock.withLock {
-			published.value = DownloadedVersions(withContext(io) { read() }.versions)
-		}
-	}
-
-	suspend fun recordDownloaded(articleId: String, contentVersion: String) {
-		lock.withLock {
-			val next = withContext(io) {
-				val stored = read()
-				stored.copy(versions = stored.versions + (articleId to contentVersion)).also(::write)
-			}
-			published.value = DownloadedVersions(next.versions)
-		}
-	}
 
 	suspend fun incompleteRun(): OfflineDownloadRun? =
 		lock.withLock { withContext(io) { read() }.run?.takeIf { it.isIncomplete } }
@@ -86,10 +59,7 @@ class OfflineDownloadManifest(private val directory: File, private val io: Corou
 	}
 
 	@Serializable
-	private data class Stored(
-		val versions: Map<String, String> = emptyMap(),
-		val run: OfflineDownloadRun? = null,
-	)
+	private data class Stored(val run: OfflineDownloadRun? = null)
 
 	private companion object {
 		val json = Json {

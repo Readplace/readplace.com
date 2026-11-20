@@ -47,6 +47,7 @@ import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineReaderCopy
+import com.readplace.android.core.OfflineReaderPages
 import com.readplace.android.core.OfflineReadingDiagnostics
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ShareArtifacts
@@ -104,6 +105,7 @@ class MainActivity : ComponentActivity() {
 			now = { Instant.now() },
 			diagnostics = OfflineReadingDiagnostics { failure -> Log.w("OfflineReading", "offline copy failed: $failure") },
 		)
+		val readerPages = OfflineReaderPages(offlineFiles, Dispatchers.IO, now = { Instant.now() }, currentGeneration = { snapshot.generation })
 		val customTabAuth = CustomTabAuth(this, relays)
 		val readerChoices = PreferenceReaderChoiceStorage(
 			getSharedPreferences(PreferenceReaderChoiceStorage.PREFERENCES_NAME, Context.MODE_PRIVATE),
@@ -140,7 +142,7 @@ class MainActivity : ComponentActivity() {
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
 		val prefetcher = ReaderPrefetcher(this) { findViewById(android.R.id.content) }
-		val download = DownloadUnreadOffline(api, snapshot, prefetcher, manifest, readerCopy)
+		val download = DownloadUnreadOffline(api, snapshot, prefetcher, manifest, readerPages)
 		val createReadingList: () -> ReadingListViewModel = {
 			ReadingListViewModel(
 				api = api,
@@ -159,6 +161,7 @@ class MainActivity : ComponentActivity() {
 				now = { Instant.now() },
 				reportProcessingRefreshFailure = { failure -> Log.i("ProcessingRefresh", "row refresh failed: $failure") },
 				readerCopy = readerCopy,
+				readerPages = readerPages,
 				scope = lifecycleScope,
 			)
 		}

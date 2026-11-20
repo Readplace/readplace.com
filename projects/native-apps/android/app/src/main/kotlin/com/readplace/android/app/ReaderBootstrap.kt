@@ -1,5 +1,6 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.StoredReaderPage
 import okhttp3.Cookie
 
 sealed interface ReaderSessionMint {
@@ -13,6 +14,14 @@ sealed interface ReaderSessionMint {
 }
 
 enum class ReaderCacheMode { PROTOCOL, STORED_COPY_FIRST }
+
+sealed interface ReaderOfflineSource {
+	class Kept(val page: StoredReaderPage) : ReaderOfflineSource
+
+	data object CacheRecord : ReaderOfflineSource
+
+	data object Missing : ReaderOfflineSource
+}
 
 sealed interface ReaderBootstrap {
 	data object Loading : ReaderBootstrap
@@ -47,11 +56,11 @@ sealed interface ReaderBootstrap {
 				ReaderSessionMint.Superseded -> Loading
 			}
 
-		fun shown(bootstrap: ReaderBootstrap, storedCopyShowable: Boolean): ReaderBootstrap =
+		fun shown(bootstrap: ReaderBootstrap, offlineSource: ReaderOfflineSource): ReaderBootstrap =
 			when (bootstrap) {
 				is Opens -> when (bootstrap.cacheMode) {
 					ReaderCacheMode.PROTOCOL -> bootstrap
-					ReaderCacheMode.STORED_COPY_FIRST -> if (storedCopyShowable) bootstrap else OfflineUnavailable
+					ReaderCacheMode.STORED_COPY_FIRST -> if (offlineSource == ReaderOfflineSource.Missing) OfflineUnavailable else bootstrap
 				}
 				Loading, Unavailable, OfflineUnavailable -> bootstrap
 			}

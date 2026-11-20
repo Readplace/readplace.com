@@ -13,6 +13,8 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineReaderPages
+import com.readplace.android.core.ReaderPageResponse
 import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Pkce
@@ -547,20 +549,21 @@ class AppSessionTest {
 	}
 
 	@Test
-	fun `after logout the download manifest on the offline reading files loads empty`() = runTest {
+	fun `after logout the kept reader pages on the offline reading files load empty`() = runTest {
 		serveSignOut()
 		val offlineFiles = folder.newFolder()
-		val manifest = OfflineDownloadManifest(offlineFiles, StandardTestDispatcher(testScheduler))
-		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		val pages = OfflineReaderPages(offlineFiles, StandardTestDispatcher(testScheduler), now = { java.time.Instant.EPOCH }, currentGeneration = { 0 })
+		val response = ReaderPageResponse(contentType = "text/html", contentSecurityPolicy = null, contentVersion = "v1", body = "<p>Body</p>".toByteArray())
+		pages.keep(readerUrl = "https://readplace.com/queue/a1/view", articleId = "a1", contentVersion = "v1", response = response, generation = 0)
 		val session = session(store = loggedInStore(), offlineFiles = offlineFiles)
-		val beforeLogout = manifest.versions.value
+		val beforeLogout = pages.versions.value
 
 		session.logout()
-		manifest.load()
+		pages.load()
 
 		assertEquals(
-			listOf(DownloadedVersions(mapOf("a1" to "v1")), DownloadedVersions(emptyMap())),
-			listOf(beforeLogout, manifest.versions.value),
+			listOf(DownloadedVersions(mapOf("a1" to "v1")), DownloadedVersions(emptyMap()), null),
+			listOf(beforeLogout, pages.versions.value, pages.find("https://readplace.com/queue/a1/view")),
 		)
 	}
 

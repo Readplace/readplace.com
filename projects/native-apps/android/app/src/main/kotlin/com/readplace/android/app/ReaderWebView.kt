@@ -46,6 +46,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.Cookie
+import java.io.ByteArrayInputStream
 
 /**
  * Presents the server's authenticated reader in a WebView — the app acting as a
@@ -63,6 +64,7 @@ fun ReaderWebView(
 	url: String,
 	cookies: List<Cookie>,
 	cacheMode: ReaderCacheMode,
+	offlineSource: ReaderOfflineSource,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
 	onCaptureBlocked: () -> Deferred<CaptureEnding>,
@@ -134,6 +136,9 @@ fun ReaderWebView(
 				)
 				webViewClient = ReaderNavigationClient(
 					load = load,
+					readerUrl = url,
+					cacheMode = cacheMode,
+					offlineSource = offlineSource,
 					onClose = onClose,
 					onLogout = onLogout,
 					onOpenExternally = onOpenExternally,
@@ -276,11 +281,24 @@ private fun enqueueArticleDownload(
 
 private class ReaderNavigationClient(
 	private val load: ReaderLoadReporter,
+	private val readerUrl: String,
+	private val cacheMode: ReaderCacheMode,
+	private val offlineSource: ReaderOfflineSource,
 	private val onClose: () -> Unit,
 	private val onLogout: () -> Unit,
 	private val onOpenExternally: (String) -> Unit,
 	private val onCanGoBackChange: (Boolean) -> Unit,
 ) : WebViewClient() {
+	override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+		val replayed = StoredReaderReplay.of(
+			ReaderResourceRequest(url = request.url.toString(), method = request.method, isMainFrame = request.isForMainFrame),
+			readerUrl = readerUrl,
+			cacheMode = cacheMode,
+			source = offlineSource,
+		) ?: return null
+		return WebResourceResponse(replayed.mimeType, replayed.encoding, 200, "OK", replayed.headers, ByteArrayInputStream(replayed.body))
+	}
+
 	override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
 		val decision = ReaderNavigation.decide(
 			url = request.url.toString(),

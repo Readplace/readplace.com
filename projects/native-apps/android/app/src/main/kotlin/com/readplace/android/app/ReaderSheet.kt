@@ -71,7 +71,7 @@ import okhttp3.Cookie
 fun ReaderSheet(
 	readerUrl: String,
 	mintSession: suspend () -> ReaderSessionMint,
-	isStoredCopyShowable: suspend () -> Boolean,
+	offlineSource: suspend () -> ReaderOfflineSource,
 	onLoadChanged: (ReaderLoadPhase, ReaderCacheMode) -> Unit,
 	reduceMotion: Boolean,
 	onMarkedRead: () -> Unit,
@@ -85,7 +85,7 @@ fun ReaderSheet(
 ) {
 	var bootstrap by remember { mutableStateOf<ReaderBootstrap>(ReaderBootstrap.Loading) }
 	var loadPhase by remember { mutableStateOf<ReaderLoadPhase>(ReaderLoadPhase.Loading) }
-	var storedCopyShowable by remember { mutableStateOf(false) }
+	var storedSource by remember { mutableStateOf<ReaderOfflineSource>(ReaderOfflineSource.Missing) }
 	val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 	val scope = rememberCoroutineScope()
 
@@ -94,7 +94,7 @@ fun ReaderSheet(
 	}
 
 	LaunchedEffect(Unit) {
-		storedCopyShowable = isStoredCopyShowable()
+		storedSource = offlineSource()
 		bootstrap = ReaderBootstrap.after(mintSession())
 	}
 
@@ -104,13 +104,14 @@ fun ReaderSheet(
 		containerColor = MaterialTheme.colorScheme.surface,
 	) {
 		Box(modifier = Modifier.fillMaxSize()) {
-			when (val current = ReaderBootstrap.shown(bootstrap, storedCopyShowable = storedCopyShowable)) {
+			when (val current = ReaderBootstrap.shown(bootstrap, offlineSource = storedSource)) {
 				is ReaderBootstrap.Opens -> Column(modifier = Modifier.fillMaxSize()) {
 					if (current.showsOfflineBanner) ReaderOfflineBanner()
 					Reader(
 						url = readerUrl,
 						cookies = current.cookies,
 						cacheMode = current.cacheMode,
+						offlineSource = storedSource,
 						loadPhase = loadPhase,
 						reduceMotion = reduceMotion,
 						onLoadPhaseChange = {
@@ -154,6 +155,7 @@ private fun Reader(
 	url: String,
 	cookies: List<Cookie>,
 	cacheMode: ReaderCacheMode,
+	offlineSource: ReaderOfflineSource,
 	loadPhase: ReaderLoadPhase,
 	reduceMotion: Boolean,
 	onLoadPhaseChange: (ReaderLoadPhase) -> Unit,
@@ -175,6 +177,7 @@ private fun Reader(
 				url = url,
 				cookies = cookies,
 				cacheMode = cacheMode,
+				offlineSource = offlineSource,
 				onMarkedRead = onMarkedRead,
 				onStatusChanged = onStatusChanged,
 				onCaptureBlocked = onCaptureBlocked,

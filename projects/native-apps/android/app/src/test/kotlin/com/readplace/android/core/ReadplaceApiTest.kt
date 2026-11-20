@@ -654,6 +654,83 @@ class ReadplaceApiTest {
 
 	// endregion
 
+	// region Fetching a reader page to keep offline
+
+	private fun readerPageStub(status: Int = 200, contentType: String = "text/html; charset=utf-8", body: String = "<p>Body</p>"): Stub =
+		Stub(
+			status,
+			headers = mapOf(
+				"Content-Type" to contentType,
+				"Content-Security-Policy" to "frame-ancestors 'self'",
+				"Readplace-Article-Version" to "v7",
+			),
+			body = body.toByteArray(),
+		)
+
+	@Test
+	fun `a reader page is fetched as the reader would, with only the cookies the run minted`() = runTest {
+		server.handle { readerPageStub() }
+		val readerUrl = "${server.baseUrl}/queue/a1/view?platform=android"
+
+		val page = api(jar = seeded(sessionCookie("stale-from-jar"))).fetchReaderPage(readerUrl, listOf(sessionCookie("minted")))
+
+		val record = server.records.single()
+		assertEquals(
+			listOf("GET", "/queue/a1/view", "hutch_sid=minted", "prefetch", "text/html", AppConfig.WEB_VIEW_USER_AGENT, null),
+			listOf(
+				record.method,
+				record.path,
+				record.header("Cookie"),
+				record.header("Sec-Purpose"),
+				record.header("Accept"),
+				record.header("User-Agent"),
+				record.header("Authorization"),
+			),
+		)
+		assertEquals(
+			listOf("text/html; charset=utf-8", "frame-ancestors 'self'", "v7", "<p>Body</p>"),
+			listOf(page?.contentType, page?.contentSecurityPolicy, page?.contentVersion, page?.body?.let(::String)),
+		)
+	}
+
+	@Test
+	fun `a reader page fetch sends only the minted cookies that belong to its URL`() = runTest {
+		server.handle { readerPageStub() }
+		val elsewhere = Cookie.Builder().name("hutch_sid").value("for-another-host").domain("other.example").path("/").build()
+		val secureOnly = Cookie.Builder().name("hutch_secure").value("https-only").domain(server.host).path("/").secure().build()
+
+		api().fetchReaderPage("${server.baseUrl}/queue/a1/view", listOf(elsewhere, secureOnly, sessionCookie("minted")))
+
+		assertEquals("hutch_sid=minted", server.records.single().header("Cookie"))
+	}
+
+	@Test
+	fun `a reader page answered with a redirect, an error, another type or no body is not kept`() = runTest {
+		val answers = listOf(
+			Stub.redirect(to = "/login", status = 302),
+			readerPageStub(status = 401),
+			readerPageStub(status = 500),
+			readerPageStub(contentType = "text/markdown"),
+			readerPageStub(body = ""),
+		)
+		var next = 0
+		server.handle { answers[next++] }
+		val api = api()
+
+		val pages = answers.map { api.fetchReaderPage("${server.baseUrl}/queue/a1/view", listOf(sessionCookie("minted"))) }
+
+		assertEquals(List(answers.size) { null }, pages)
+	}
+
+	@Test
+	fun `a reader page that cannot be reached is not kept`() = runTest {
+		val page = api(baseUrl = unreachableBaseUrl()).fetchReaderPage("${unreachableBaseUrl()}/queue/a1/view", listOf(sessionCookie("minted")))
+
+		assertEquals(null, page)
+	}
+
+	// endregion
+
 	// region Fetching content to upload
 
 	@Test

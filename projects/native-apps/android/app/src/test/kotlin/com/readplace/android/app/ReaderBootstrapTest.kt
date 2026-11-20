@@ -1,5 +1,6 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.StoredReaderPage
 import okhttp3.Cookie
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -61,15 +62,15 @@ class ReaderBootstrapTest {
 		assertEquals(
 			"a stored copy older than 30 days, or of unknown age, is not opened",
 			ReaderBootstrap.OfflineUnavailable,
-			ReaderBootstrap.shown(ReaderBootstrap.Offline, storedCopyShowable = false),
+			ReaderBootstrap.shown(ReaderBootstrap.Offline, offlineSource = ReaderOfflineSource.Missing),
 		)
 	}
 
 	@Test
-	fun `an offline open with a showable copy opens it`() {
+	fun `an offline open with a kept page or a cache record opens it`() {
 		assertEquals(
-			ReaderBootstrap.Offline,
-			ReaderBootstrap.shown(ReaderBootstrap.Offline, storedCopyShowable = true),
+			listOf(ReaderBootstrap.Offline, ReaderBootstrap.Offline),
+			OPENABLE.map { ReaderBootstrap.shown(ReaderBootstrap.Offline, offlineSource = it) },
 		)
 	}
 
@@ -81,8 +82,8 @@ class ReaderBootstrapTest {
 			"an online open never depends on a record",
 			listOf(ready, ready),
 			listOf(
-				ReaderBootstrap.shown(ready, storedCopyShowable = false),
-				ReaderBootstrap.shown(ready, storedCopyShowable = true),
+				ReaderBootstrap.shown(ready, offlineSource = ReaderOfflineSource.Missing),
+				ReaderBootstrap.shown(ready, offlineSource = OPENABLE.first()),
 			),
 		)
 	}
@@ -93,8 +94,8 @@ class ReaderBootstrapTest {
 
 		assertEquals(
 			unopened + unopened,
-			unopened.map { ReaderBootstrap.shown(it, storedCopyShowable = false) } +
-				unopened.map { ReaderBootstrap.shown(it, storedCopyShowable = true) },
+			unopened.map { ReaderBootstrap.shown(it, offlineSource = ReaderOfflineSource.Missing) } +
+				unopened.map { ReaderBootstrap.shown(it, offlineSource = OPENABLE.first()) },
 		)
 	}
 
@@ -105,4 +106,20 @@ class ReaderBootstrapTest {
 			.domain("readplace.com")
 			.path("/")
 			.build()
+
+	private companion object {
+		val OPENABLE = listOf(
+			ReaderOfflineSource.Kept(
+				StoredReaderPage(
+					savedAt = java.time.Instant.EPOCH,
+					articleId = "a1",
+					contentVersion = "v1",
+					contentType = "text/html",
+					contentSecurityPolicy = null,
+					body = ByteArray(1),
+				),
+			),
+			ReaderOfflineSource.CacheRecord,
+		)
+	}
 }

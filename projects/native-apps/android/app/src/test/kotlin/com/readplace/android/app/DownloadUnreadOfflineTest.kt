@@ -13,7 +13,8 @@ import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineCopy
 import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineDownloadRun
-import com.readplace.android.core.OfflineReaderCopy
+import com.readplace.android.core.OfflineReaderPages
+import com.readplace.android.core.ReaderPageResponse
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
 import com.readplace.android.core.ReadplaceApi
@@ -102,21 +103,32 @@ class DownloadUnreadOfflineTest {
 	private fun TestScope.download(
 		prefetcher: ReaderPrefetching,
 		snapshot: OfflineReadlistSnapshot = snapshot(),
-		readerCopy: OfflineReaderCopy = readerCopy(),
+		pages: OfflineReaderPages = pages(),
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		manifest: OfflineDownloadManifest = manifest(),
-	): DownloadUnreadOffline = DownloadUnreadOffline(api(ioDispatcher), snapshot, prefetcher, manifest, readerCopy)
+	): DownloadUnreadOffline = DownloadUnreadOffline(api(ioDispatcher), snapshot, prefetcher, manifest, pages)
 
 	private fun TestScope.manifest(directory: File = folder.newFolder()): OfflineDownloadManifest =
 		OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler))
 
-	private fun writeManifest(directory: File, versions: Map<String, String>) {
-		val entries = versions.entries.joinToString(",") { (id, version) -> "\"$id\": \"$version\"" }
-		File(directory, "download-manifest.json").writeText("""{ "versions": { $entries } }""")
+	private fun TestScope.pages(directory: File = folder.newFolder(), now: () -> Instant = { Instant.EPOCH }): OfflineReaderPages =
+		OfflineReaderPages(directory, StandardTestDispatcher(testScheduler), now = now, currentGeneration = { 0 })
+
+	private suspend fun OfflineReaderPages.keepEarlier(id: String, contentVersion: String) {
+		val response = ReaderPageResponse(contentType = "text/html", contentSecurityPolicy = null, contentVersion = null, body = "<p>$id</p>".toByteArray())
+		keep(readerUrl = readerUrl(id), articleId = id, contentVersion = contentVersion, response = response, generation = 0)
 	}
 
-	private fun TestScope.readerCopy(directory: File = folder.newFolder(), now: Instant = Instant.EPOCH): OfflineReaderCopy =
-		OfflineReaderCopy(directory, StandardTestDispatcher(testScheduler), now = { now })
+	private fun readerPage(version: String? = null): Stub =
+		Stub(
+			200,
+			headers = mapOf("Content-Type" to "text/html; charset=utf-8") + listOfNotNull(version?.let { "Readplace-Article-Version" to it }),
+			body = "<p>Article</p>".toByteArray(),
+		)
+
+	private fun refusing(vararg ids: String): (Record) -> Stub = { record ->
+		if (ids.any { record.path == "/queue/$it/view" }) Stub.json(500, "{}") else readerPage()
+	}
 
 	private fun readerUrl(id: String): String = "${server.baseUrl}/queue/$id/view?platform=android"
 
@@ -125,10 +137,12 @@ class DownloadUnreadOfflineTest {
 		gate: Gate? = null,
 		mint: Stub = MINTED,
 		markedNextOn: Set<Int> = emptySet(),
+		reader: (Record) -> Stub = { readerPage() },
 	): (Record) -> Stub = { record ->
 		val number = record.request.url.queryParameter("page")?.toInt() ?: 1
 		when {
 			record.path == "/auth/session" -> mint
+			record.path.endsWith("/view") -> reader(record)
 			record.path == "/queue" && number == 2 && gate != null -> gate.holding(Stub.json(200, page(pages, number, markedNextOn)))
 			record.path == "/queue" && number <= pages.size -> Stub.json(200, page(pages, number, markedNextOn))
 			else -> Stub.json(404, "{}")
@@ -250,22 +264,55 @@ class DownloadUnreadOfflineTest {
 
 	@Test
 	fun `an article that is not stored does not stop the others`() = runTest {
-		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2"), Fixtures.article("a3")))))
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2"), Fixtures.article("a3"))), reader = refusing("a1")))
 		val reports = mutableListOf<OfflineDownloadProgress>()
 
-		download(RecordingPrefetcher(answer = { it != readerUrl("a1") })).run(START) { reports += it }
+		download(RecordingPrefetcher()).run(START) { reports += it }
 
 		assertEquals(OfflineDownloadProgress(completed = 3, total = 3), reports.last())
 	}
 
 	@Test
-	fun `only an article the prefetcher stored is recorded as a stored copy`() = runTest {
+	fun `only an article whose page the server answered is kept, and only it is warmed`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2"))), reader = refusing("a2")))
+		val pages = pages()
+		val prefetcher = RecordingPrefetcher()
+
+		download(prefetcher, pages = pages).run(START) {}
+
+		assertEquals(
+			listOf("<p>Article</p>", null, listOf(readerUrl("a1"))),
+			listOf(pages.find(readerUrl("a1"))?.body?.let(::String), pages.find(readerUrl("a2")), prefetcher.urls),
+		)
+	}
+
+	@Test
+	fun `each page is fetched with the cookies the run minted`() = runTest {
 		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
-		val readerCopy = readerCopy()
 
-		download(RecordingPrefetcher(answer = { it == readerUrl("a1") }), readerCopy = readerCopy).run(START) {}
+		download(RecordingPrefetcher()).run(START) {}
 
-		assertEquals(listOf(true, false), listOf(readerCopy.isShowable(readerUrl("a1")), readerCopy.isShowable(readerUrl("a2"))))
+		assertEquals(listOf("hutch_sid=sess-1", "hutch_sid=sess-1"), server.records.filter { it.path.endsWith("/view") }.map { it.header("Cookie") })
+	}
+
+	@Test
+	fun `a kept page counts as stored even when the warm-up refuses it`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1")))))
+		val pages = pages()
+
+		val outcome = download(RecordingPrefetcher(answer = { false }), pages = pages).run(START) {}
+
+		assertEquals(listOf(OfflineDownloadOutcome.Downloaded, true), listOf(outcome, pages.isCurrent(readerUrl("a1"), contentVersion = "v1")))
+	}
+
+	@Test
+	fun `a page that cannot be written counts as not stored`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1")))))
+		val directory = folder.newFolder().also { File(it, "reader-pages").writeText("a file where the directory belongs") }
+
+		val outcome = download(RecordingPrefetcher(), pages = pages(directory)).run(START) {}
+
+		assertEquals(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 1), outcome)
 	}
 
 	@Test
@@ -354,7 +401,7 @@ class DownloadUnreadOfflineTest {
 	}
 
 	@Test
-	fun `only an article stored with a content version is recorded in the manifest`() = runTest {
+	fun `a kept page is badged at the version the server answered, else the list's`() = runTest {
 		server.handle(
 			listing(
 				listOf(
@@ -362,21 +409,27 @@ class DownloadUnreadOfflineTest {
 						Fixtures.article("a1", contentVersion = "v1"),
 						Fixtures.article("a2", contentVersion = "v2"),
 						Fixtures.article("a3"),
+						Fixtures.article("a4", contentVersion = "v4-list"),
 					),
 				),
+				reader = { record ->
+					when (record.path) {
+						"/queue/a2/view" -> Stub.json(500, "{}")
+						"/queue/a4/view" -> readerPage(version = "v4-served")
+						else -> readerPage()
+					}
+				},
 			),
 		)
-		val manifest = manifest()
+		val pages = pages()
 
-		download(RecordingPrefetcher(answer = { it != readerUrl("a2") }), manifest = manifest).run(START) {}
+		download(RecordingPrefetcher(), pages = pages).run(START) {}
 
-		assertEquals(DownloadedVersions(mapOf("a1" to "v1")), manifest.versions.value)
+		assertEquals(DownloadedVersions(mapOf("a1" to "v1", "a4" to "v4-served")), pages.versions.value)
 	}
 
 	@Test
 	fun `a current stored copy is counted without being fetched again`() = runTest {
-		val directory = folder.newFolder()
-		writeManifest(directory, mapOf("a1" to "v1", "a2" to "v2-old"))
 		server.handle(
 			listing(
 				listOf(
@@ -388,13 +441,13 @@ class DownloadUnreadOfflineTest {
 				),
 			),
 		)
-		val manifest = manifest(directory)
-		val readerCopy = readerCopy()
-		readerCopy.record(readerUrl("a1"))
+		val pages = pages()
+		pages.keepEarlier("a1", contentVersion = "v1")
+		pages.keepEarlier("a2", contentVersion = "v2-old")
 		val prefetcher = RecordingPrefetcher()
 		val reports = mutableListOf<OfflineDownloadProgress>()
 
-		download(prefetcher, manifest = manifest, readerCopy = readerCopy).run(START) { reports += it }
+		download(prefetcher, pages = pages).run(START) { reports += it }
 
 		assertEquals(
 			listOf(
@@ -402,24 +455,22 @@ class DownloadUnreadOfflineTest {
 				OfflineDownloadProgress(completed = 3, total = 3),
 				DownloadedVersions(mapOf("a1" to "v1", "a2" to "v2-new", "a3" to "v3")),
 			),
-			listOf(prefetcher.urls, reports.last(), manifest.versions.value),
+			listOf(prefetcher.urls, reports.last(), pages.versions.value),
 		)
 	}
 
 	@Test
 	fun `a list whose unread copies are all current mints nothing and fetches nothing`() = runTest {
-		val directory = folder.newFolder()
-		writeManifest(directory, mapOf("a1" to "v1", "a2" to "v2"))
 		server.handle(
 			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
 		)
-		val readerCopy = readerCopy()
-		readerCopy.record(readerUrl("a1"))
-		readerCopy.record(readerUrl("a2"))
+		val pages = pages()
+		pages.keepEarlier("a1", contentVersion = "v1")
+		pages.keepEarlier("a2", contentVersion = "v2")
 		val prefetcher = RecordingPrefetcher()
 		val reports = mutableListOf<OfflineDownloadProgress>()
 
-		download(prefetcher, manifest = manifest(directory), readerCopy = readerCopy).run(START) { reports += it }
+		download(prefetcher, pages = pages).run(START) { reports += it }
 
 		assertEquals(
 			listOf(
@@ -437,20 +488,31 @@ class DownloadUnreadOfflineTest {
 
 	@Test
 	fun `a current version whose stored copy is too old to show is fetched again`() = runTest {
-		val manifestDirectory = folder.newFolder()
-		writeManifest(manifestDirectory, mapOf("a1" to "v1", "a2" to "v2"))
-		val copies = folder.newFolder()
-		readerCopy(copies).record(readerUrl("a1"))
-		val later = readerCopy(copies, now = Instant.EPOCH.plus(OfflineCopy.MAXIMUM_AGE).plusSeconds(1))
-		later.record(readerUrl("a2"))
+		var now = Instant.EPOCH
+		val pages = pages(now = { now })
+		pages.keepEarlier("a1", contentVersion = "v1")
+		now = Instant.EPOCH.plus(OfflineCopy.MAXIMUM_AGE).plusSeconds(1)
+		pages.keepEarlier("a2", contentVersion = "v2")
 		server.handle(
 			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
 		)
 		val prefetcher = RecordingPrefetcher()
 
-		download(prefetcher, manifest = manifest(manifestDirectory), readerCopy = later).run(START) {}
+		download(prefetcher, pages = pages).run(START) {}
 
-		assertEquals(listOf(listOf(readerUrl("a1")), true), listOf(prefetcher.urls, later.isShowable(readerUrl("a1"))))
+		assertEquals(listOf(listOf(readerUrl("a1")), true), listOf(prefetcher.urls, pages.isCurrent(readerUrl("a1"), contentVersion = "v1")))
+	}
+
+	@Test
+	fun `an article the old manifest badged but with no kept page is fetched`() = runTest {
+		val directory = folder.newFolder()
+		File(directory, "download-manifest.json").writeText("""{ "versions": { "a1": "v1" } }""")
+		server.handle(listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1")))))
+		val prefetcher = RecordingPrefetcher()
+
+		download(prefetcher, manifest = manifest(directory), pages = pages(directory)).run(START) {}
+
+		assertEquals(listOf(readerUrl("a1")), prefetcher.urls)
 	}
 
 	@Test
@@ -459,49 +521,22 @@ class DownloadUnreadOfflineTest {
 		server.handle(
 			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
 		)
-		val manifest = manifest(directory)
-		val copies = readerCopy()
-		download(RecordingPrefetcher(), manifest = manifest, readerCopy = copies).run(START) {}
+		val pages = pages(directory)
+		download(RecordingPrefetcher(), pages = pages).run(START) {}
 		directory.deleteRecursively()
 		val prefetcher = RecordingPrefetcher()
 
-		download(prefetcher, manifest = manifest, readerCopy = copies).run(START) {}
+		download(prefetcher, pages = pages).run(START) {}
 
 		assertEquals(listOf(readerUrl("a1"), readerUrl("a2")), prefetcher.urls)
 	}
 
 	@Test
-	fun `a cancelled prefetch records nothing in the manifest`() = runTest {
-		server.handle(listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1")))))
-		val prefetcher = object : ReaderPrefetching {
-			val urls = mutableListOf<String>()
-
-			override suspend fun prefetch(url: String, cookies: List<Cookie>): Boolean {
-				urls += url
-				awaitCancellation()
-			}
-		}
-		val manifest = manifest()
-
-		val run = launch { download(prefetcher, manifest = manifest).run(START) {} }
-		runCurrent()
-		val started = prefetcher.urls.toList()
-		run.cancel()
-		run.join()
-		runCurrent()
-
-		assertEquals(
-			listOf(listOf(readerUrl("a1")), DownloadedVersions(emptyMap())),
-			listOf(started, manifest.versions.value),
-		)
-	}
-
-	@Test
-	fun `a run whose prefetch was refused counts it as not stored`() = runTest {
-		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
+	fun `a run whose page the server refused counts it as not stored`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2"))), reader = refusing("a2")))
 		val reports = mutableListOf<OfflineDownloadProgress>()
 
-		val outcome = download(RecordingPrefetcher(answer = { it != readerUrl("a2") })).run(START) { reports += it }
+		val outcome = download(RecordingPrefetcher()).run(START) { reports += it }
 
 		assertEquals(
 			listOf(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2), OfflineDownloadProgress(completed = 2, total = 2)),
@@ -517,7 +552,7 @@ class DownloadUnreadOfflineTest {
 		val outcome = download(RecordingPrefetcher(), manifest = manifest(directory)).run(START) {}
 
 		assertEquals(
-			listOf(OfflineDownloadOutcome.Downloaded, Json.parseToJsonElement("""{"versions":{},"run":null}""")),
+			listOf(OfflineDownloadOutcome.Downloaded, Json.parseToJsonElement("""{"run":null}""")),
 			listOf(outcome, Json.parseToJsonElement(File(directory, "download-manifest.json").readText())),
 		)
 	}

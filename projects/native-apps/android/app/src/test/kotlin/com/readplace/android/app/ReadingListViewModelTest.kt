@@ -17,6 +17,8 @@ import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
+import com.readplace.android.core.OfflineReaderPages
+import com.readplace.android.core.ReaderPageResponse
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReadplaceApi
@@ -154,6 +156,7 @@ class ReadingListViewModelTest {
 		network: OfflineSwitch = OfflineSwitch(),
 		snapshot: OfflineReadlistSnapshot = OfflineReadlistSnapshot(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }, diagnostics = {}),
 		readerCopy: OfflineReaderCopy = OfflineReaderCopy(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }),
+		readerPages: OfflineReaderPages = pagesOn(folder.newFolder()),
 	): ReadingListViewModel =
 		ReadingListViewModel(
 			api = api(store, ioDispatcher, network),
@@ -172,6 +175,7 @@ class ReadingListViewModelTest {
 			now = now,
 			reportProcessingRefreshFailure = reportProcessingRefreshFailure,
 			readerCopy = readerCopy,
+			readerPages = readerPages,
 			scope = backgroundScope,
 		)
 
@@ -311,16 +315,19 @@ class ReadingListViewModelTest {
 		}
 	}
 
-	private fun writeManifest(directory: File, versions: Map<String, String>) {
-		val entries = versions.entries.joinToString(",") { (id, version) -> "\"$id\": \"$version\"" }
-		File(directory, "download-manifest.json").writeText("""{ "versions": { $entries } }""")
+	private fun TestScope.pagesOn(directory: File): OfflineReaderPages =
+		OfflineReaderPages(directory, StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }, currentGeneration = { 0 })
+
+	private suspend fun OfflineReaderPages.keepPage(readerUrl: String, articleId: String, contentVersion: String) {
+		val response = ReaderPageResponse(contentType = "text/html", contentSecurityPolicy = null, contentVersion = null, body = "<p>Body</p>".toByteArray())
+		keep(readerUrl = readerUrl, articleId = articleId, contentVersion = contentVersion, response = response, generation = 0)
 	}
 
 	@Test
-	fun `an article is available offline only at the version the manifest recorded`() = runTest {
+	fun `an article is available offline only at the version of the page kept on disk`() = runTest {
 		val directory = folder.newFolder()
-		writeManifest(directory, mapOf("a1" to "v1"))
-		val viewModel = viewModel(manifest = OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler)))
+		pagesOn(directory).keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
+		val viewModel = viewModel(readerPages = pagesOn(directory))
 		runCurrent()
 
 		assertEquals(
@@ -335,7 +342,7 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `a version recorded during a download marks the loaded row without reloading the list`() = runTest {
+	fun `a page kept during a download marks the loaded row without reloading the list`() = runTest {
 		server.handle { record ->
 			when (record.path) {
 				"/" -> Stub.redirect(to = "/queue")
@@ -343,15 +350,15 @@ class ReadingListViewModelTest {
 				else -> Stub.json(404, "{}")
 			}
 		}
-		val manifest = OfflineDownloadManifest(folder.newFolder(), StandardTestDispatcher(testScheduler))
-		val viewModel = viewModel(manifest = manifest)
+		val pages = pagesOn(folder.newFolder())
+		val viewModel = viewModel(readerPages = pages)
 		viewModel.loadIfNeeded()
 		runCurrent()
 		val loaded = viewModel.state.value.articles.single()
 		val before = viewModel.state.value.isAvailableOffline(loaded)
 		val readsBefore = server.records("/queue").map { it.request.url.toString() }
 
-		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		pages.keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
 		runCurrent()
 
 		assertEquals(
@@ -363,15 +370,15 @@ class ReadingListViewModelTest {
 	@Test
 	fun `a state holder built after the offline files were deleted marks nothing available offline`() = runTest {
 		val directory = folder.newFolder()
-		val manifest = OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler))
-		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		val pages = pagesOn(directory)
+		pages.keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
 		val stored = article(readHref = null, id = "a1", contentVersion = "v1")
-		val first = viewModel(manifest = manifest)
+		val first = viewModel(readerPages = pages)
 		runCurrent()
 		val firstAnswer = first.state.value.isAvailableOffline(stored)
 		directory.deleteRecursively()
 
-		val second = viewModel(manifest = manifest)
+		val second = viewModel(readerPages = pages)
 		runCurrent()
 
 		assertEquals(listOf(true, false), listOf(firstAnswer, second.state.value.isAvailableOffline(stored)))
@@ -1689,7 +1696,20 @@ class ReadingListViewModelTest {
 		viewModel.readerLoadChanged(READER_A, ReaderLoadPhase.Finished, ReaderCacheMode.PROTOCOL)
 		runCurrent()
 
-		assertEquals(true, viewModel.isStoredCopyShowable(READER_A))
+		assertEquals(ReaderOfflineSource.CacheRecord, viewModel.offlineSource(READER_A))
+	}
+
+	@Test
+	fun `an offline open prefers the page kept on disk over a cache record`() = runTest {
+		val pages = pagesOn(folder.newFolder())
+		pages.keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
+		val viewModel = viewModel(readerPages = pages)
+		viewModel.readerLoadChanged(READER_A, ReaderLoadPhase.Finished, ReaderCacheMode.PROTOCOL)
+		runCurrent()
+
+		val source = viewModel.offlineSource(READER_A)
+
+		assertEquals("v1", (source as? ReaderOfflineSource.Kept)?.page?.contentVersion)
 	}
 
 	@Test
@@ -1701,8 +1721,8 @@ class ReadingListViewModelTest {
 		runCurrent()
 
 		assertEquals(
-			listOf(false, true),
-			listOf(viewModel.isStoredCopyShowable(READER_A), viewModel.isStoredCopyShowable(READER_B)),
+			listOf(ReaderOfflineSource.Missing, ReaderOfflineSource.CacheRecord),
+			listOf(viewModel.offlineSource(READER_A), viewModel.offlineSource(READER_B)),
 		)
 	}
 
@@ -1715,8 +1735,8 @@ class ReadingListViewModelTest {
 		runCurrent()
 
 		assertEquals(
-			listOf(false, true),
-			listOf(viewModel.isStoredCopyShowable(READER_A), viewModel.isStoredCopyShowable(READER_B)),
+			listOf(ReaderOfflineSource.Missing, ReaderOfflineSource.CacheRecord),
+			listOf(viewModel.offlineSource(READER_A), viewModel.offlineSource(READER_B)),
 		)
 	}
 

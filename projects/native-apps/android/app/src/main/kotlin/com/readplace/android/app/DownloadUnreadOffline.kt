@@ -2,7 +2,7 @@ package com.readplace.android.app
 
 import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineDownloadRun
-import com.readplace.android.core.OfflineReaderCopy
+import com.readplace.android.core.OfflineReaderPages
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
 import com.readplace.android.core.ReadlistPage
@@ -21,7 +21,7 @@ class DownloadUnreadOffline(
 	private val snapshot: OfflineReadlistSnapshot,
 	private val prefetcher: ReaderPrefetching,
 	private val manifest: OfflineDownloadManifest,
-	private val readerCopy: OfflineReaderCopy,
+	private val pages: OfflineReaderPages,
 ) {
 	suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit): OfflineDownloadOutcome {
 		val tally = Tally(report, manifest)
@@ -29,11 +29,10 @@ class DownloadUnreadOffline(
 			val generation = snapshot.generation
 			val session = Session(api, request.sessionAction)
 			val queue = Channel<QueuedArticle>(Channel.UNLIMITED)
-			manifest.load()
 			repeat(CONCURRENT_ARTICLES) {
 				launch {
 					for (queued in queue) {
-						if (isStored(queued) || store(queued, session)) tally.stored() else tally.refused()
+						if (isStored(queued) || store(queued, session, generation)) tally.stored() else tally.refused()
 					}
 				}
 			}
@@ -48,13 +47,20 @@ class DownloadUnreadOffline(
 	}
 
 	private suspend fun isStored(queued: QueuedArticle): Boolean =
-		manifest.versions.value.isCurrent(articleId = queued.id, contentVersion = queued.contentVersion) &&
-			readerCopy.isShowable(queued.readerUrl)
+		pages.isCurrent(queued.readerUrl, contentVersion = queued.contentVersion)
 
-	private suspend fun store(queued: QueuedArticle, session: Session): Boolean {
-		if (!prefetcher.prefetch(queued.readerUrl, session.cookies())) return false
-		readerCopy.record(queued.readerUrl)
-		queued.contentVersion?.let { manifest.recordDownloaded(articleId = queued.id, contentVersion = it) }
+	private suspend fun store(queued: QueuedArticle, session: Session, generation: Long): Boolean {
+		val cookies = session.cookies()
+		val response = api.fetchReaderPage(queued.readerUrl, cookies) ?: return false
+		val kept = pages.keep(
+			readerUrl = queued.readerUrl,
+			articleId = queued.id,
+			contentVersion = response.contentVersion ?: queued.contentVersion,
+			response = response,
+			generation = generation,
+		)
+		if (!kept) return false
+		prefetcher.prefetch(queued.readerUrl, cookies)
 		return true
 	}
 
