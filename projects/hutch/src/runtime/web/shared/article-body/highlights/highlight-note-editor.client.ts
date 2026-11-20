@@ -28,6 +28,10 @@ function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
 }
 
+function isHtmlElement(target: EventTarget | null): target is HTMLElement {
+	return typeof Reflect.get(Object(target), "matches") === "function";
+}
+
 function onScreen(input: { rects: readonly PassageRect[]; viewport: PlacementViewport }): boolean {
 	const { offsetTop, offsetLeft, width, height } = input.viewport;
 	return input.rects.some(
@@ -71,10 +75,9 @@ export function initHighlightNoteEditors(deps: HighlightNoteEditorDeps): Highlig
 	document.addEventListener(
 		"beforetoggle",
 		(event) => {
-			const editor = Array.from(document.querySelectorAll<HTMLElement>(`[${EDITOR_ATTRIBUTE}]`)).find(
-				(candidate) => candidate === event.target,
-			);
-			if (editor === undefined || Reflect.get(event, "newState") !== "open") return;
+			const editor = event.target;
+			if (!isHtmlElement(editor) || !editor.matches(`[${EDITOR_ATTRIBUTE}]`)) return;
+			if (Reflect.get(event, "newState") !== "open") return;
 			shown = editor;
 			deps.schedule();
 		},
