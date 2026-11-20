@@ -53,7 +53,7 @@ describe("homepage split assignment", () => {
 		assert(saves, "arm B's pricing section must say what happens to saves");
 		expect(saves.textContent).toBe(SAVES_STAY_STATEMENT);
 		expect(saves.previousElementSibling?.textContent).toBe(
-			"Free, with no card. Or upgrade for $60 a year ($5 a month, billed yearly) or $10 a month.",
+			"Free within daily limits, with no card. Or upgrade for $60 a year ($5 a month, billed yearly) or $10 a month.",
 		);
 	});
 

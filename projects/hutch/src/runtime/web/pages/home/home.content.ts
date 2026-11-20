@@ -246,7 +246,7 @@ export const HOME_CONTENT = {
 		signature: "— Fayner Brack, Founder & CEO",
 	},
 	pricing: {
-		titleBefore: "Free, with no card. Or upgrade for",
+		titleBefore: "Free within daily limits, with no card. Or upgrade for",
 		priceAmount: PRICING_PLANS.yearly.periodDisplay,
 		titleAfter: `(${PRICING_PLANS.yearly.monthlyDisplay} a month, billed yearly) or ${PRICING_PLANS.monthly.periodDisplay}.`,
 		savesStay: SAVES_STAY_STATEMENT,

@@ -188,7 +188,7 @@ Not translated by design: the home, landing, help, support, terms and privacy pr
 
 ### Readplace is advertised as free
 
-The home title, both llms files and the free landing page advertise Readplace as "the #1 free read-it-later app" (owner decision, 2026-11-19). The claim is true only while an account that never pays keeps saving and reading. When the free plan shipped that day, the home title, meta description, structured data, signup and both llms files went on describing a 14-day trial of a paid product.
+Readplace is advertised as "the #1 free read-it-later app" (owner decision, 2026-11-19), on the surfaces listed in the positioning-line rule of [Voice & Copy](./brand-guidelines/voice-and-copy.md). The claim is true only while an account that never pays keeps saving and reading. When the free plan shipped that day, the home title, meta description, structured data, signup and both llms files went on describing a 14-day trial of a paid product.
 
 - A change to what the free plan can do changes the public sentences in the same commit: the free-plan sentences (grep the translations package for "Free to use, with no card"), the free landing page, both llms files and the terms page.
 - The wording rules for "free" and "#1" are in [Voice & Copy](./brand-guidelines/voice-and-copy.md).

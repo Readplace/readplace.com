@@ -467,7 +467,7 @@ const FREE_PLAN_PANEL_LABEL = "Create a free account";
 const PAID_PLAN_ORDER = ["monthly", "yearly"] as const;
 
 const PRICING_HEADLINE =
-	"Free, with no card. Or upgrade for $60 a year ($5 a month, billed yearly) or $10 a month.";
+	"Free within daily limits, with no card. Or upgrade for $60 a year ($5 a month, billed yearly) or $10 a month.";
 
 describe("GET / pricing", () => {
 	it("should headline the price statement, with the yearly total highlighted", async () => {
