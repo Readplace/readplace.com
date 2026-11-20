@@ -39,6 +39,7 @@ function createFakeTable(seed: Item[]) {
 	const removedLinks = initDynamoDbRemovedLinks({
 		client: { send } as unknown as DynamoDBDocumentClient,
 		userArticlesTableName: TABLE,
+		articlesTableName: "articles",
 	});
 	return { removedLinks, sent };
 }
@@ -70,7 +71,7 @@ describe("hasNewsletterLink", () => {
 		assert.equal(sent[0].TableName, TABLE);
 		assert.equal(sent[0].KeyConditionExpression, "userId = :userId");
 		assert.equal(sent[0].FilterExpression, undefined);
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt");
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
 		assert.deepEqual(sent[1].ExclusiveStartKey, { userId: READER, url: "a.com/1" });
 	});
 
@@ -87,7 +88,7 @@ describe("hasNewsletterLink", () => {
 });
 
 describe("summariseNewsletterLinks", () => {
-	it("walks the partition once, leaves out issues and store rows, and skips highlighted, opened and unreadable links", async () => {
+	it("walks the partition once, leaves out issues and store rows, and skips highlighted, opened, restored and unreadable links", async () => {
 		const { removedLinks, sent } = createFakeTable([
 			emailLink("a.com/1"),
 			emailLink("a.com/2", { viewedAt: "2026-11-21T00:00:00.000Z" }),
@@ -98,6 +99,8 @@ describe("summariseNewsletterLinks", () => {
 			{ userId: READER, url: "readplace:highlight/a.com/3/h1", highlightOf: "a.com/3" },
 			emailLink("b.com/1", { userId: "reader-2" }),
 			emailLink("a.com/5"),
+			emailLink("a.com/6", { lastSummaryOpenedAt: "2026-11-21T00:00:00.000Z" }),
+			emailLink("a.com/7", { restoredAt: CUTOFF.toISOString() }),
 			{ userId: `${READER}#queue/work`, url: "a.com/5", viewedAt: "2026-11-21T00:00:00.000Z" },
 			{ userId: `${READER}#queue/work`, url: "a.com/1" },
 		]);
@@ -107,14 +110,14 @@ describe("summariseNewsletterLinks", () => {
 		assert.deepEqual(summary, {
 			selected: 1,
 			bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }],
-			skipped: { read: 0, opened: 2, highlighted: 1, changed: 0, unreadable: 1 },
+			skipped: { read: 0, opened: 3, highlighted: 1, changed: 1, unreadable: 1 },
 			earliestEmailSave: new Date("2026-11-20T00:00:00.000Z"),
 			savedBeforeMarker: 0,
 		});
-		assert.equal(sent.length, 5);
-		assert.deepEqual(Object(sent[4].ExpressionAttributeValues), { ":userId": `${READER}#queue/work` });
-		assert.equal(sent[4].ProjectionExpression, "#url, #viewedAt");
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #highlightOf");
+		assert.equal(sent.length, 6);
+		assert.deepEqual(Object(sent[5].ExpressionAttributeValues), { ":userId": `${READER}#queue/work` });
+		assert.equal(sent[5].ProjectionExpression, "#url, #viewedAt");
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt, #highlightOf");
 		assert.equal(sent[0].FilterExpression, undefined);
 	});
 });

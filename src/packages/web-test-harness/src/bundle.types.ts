@@ -16,6 +16,16 @@ import type {
 	SaveReadlistArticleAsRequested,
 	SetArticleEnclosure,
 	SavePrivateItem,
+	MoveNewsletterLinkToHold,
+	RestoreHeldLink,
+	ForEachHeldLinkPage,
+	HasHeldLinks,
+	FindHeldLink,
+	RequestSavedLinksJob,
+	RecordSavedLinksJobProgress,
+	FinishSavedLinksJob,
+	FindSavedLinksJob,
+	WithdrawSavedLinksJob,
 } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { CandidateId, NewsletterLinkRow } from "@packages/domain/article";
@@ -489,6 +499,16 @@ export interface ArticleStoreBundle {
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
+	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
+	restoreHeldLink: RestoreHeldLink;
+	forEachHeldLinkPage: ForEachHeldLinkPage;
+	hasHeldLinks: HasHeldLinks;
+	findHeldLink: FindHeldLink;
+	requestSavedLinksJob: RequestSavedLinksJob;
+	recordSavedLinksJobProgress: RecordSavedLinksJobProgress;
+	finishSavedLinksJob: FinishSavedLinksJob;
+	findSavedLinksJob: FindSavedLinksJob;
+	withdrawSavedLinksJob: WithdrawSavedLinksJob;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
 	allocateSavedAt: AllocateSavedAt;

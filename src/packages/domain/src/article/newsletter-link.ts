@@ -13,6 +13,8 @@ export interface NewsletterLinkRow {
 	handPickedAt?: Date;
 	status: ArticleStatus;
 	viewedAt?: Date;
+	lastSummaryOpenedAt?: Date;
+	restoredAt?: Date;
 	savedAt: Date;
 }
 
@@ -59,8 +61,13 @@ export function classifyForRemoval(params: {
 	const { row, highlighted, openedInReadlists, cutoff } = params;
 	if (!isNewsletterLink(params)) return { kind: "not-a-newsletter-link" };
 	if (row.savedAt.getTime() > cutoff.getTime()) return { kind: "skipped", reason: "changed" };
+	if (row.restoredAt !== undefined && row.restoredAt.getTime() >= cutoff.getTime()) {
+		return { kind: "skipped", reason: "changed" };
+	}
 	if (row.status === "read") return { kind: "skipped", reason: "read" };
-	if (row.viewedAt !== undefined || openedInReadlists.has(row.storedKey)) return { kind: "skipped", reason: "opened" };
+	if (row.viewedAt !== undefined || row.lastSummaryOpenedAt !== undefined || openedInReadlists.has(row.storedKey)) {
+		return { kind: "skipped", reason: "opened" };
+	}
 	if (highlighted.has(row.storedKey)) return { kind: "skipped", reason: "highlighted" };
 	return { kind: "selected" };
 }

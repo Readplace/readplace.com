@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HighlightIdSchema, MinutesSchema, type Highlight } from "@packages/domain/article";
+import { HighlightIdSchema, MinutesSchema, SavedLinksJobIdSchema, type Highlight } from "@packages/domain/article";
 import { emailIssueArticleUrl } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -58,6 +58,20 @@ async function seededStore() {
 		store.readNewsletterLinkRows(READER).find((row) => row.storedKey === "a.com/opened-in-readlist")?.viewedAt,
 		undefined,
 	);
+	await store.saveArticle(emailSave({ url: "https://a.com/summary-opened" }));
+	await store.markSummaryToggled({ userId: READER, url: "https://a.com/summary-opened", state: "open", at: SAVED_AT });
+	await store.saveArticle(emailSave({ url: "https://a.com/restored" }));
+	await store.moveNewsletterLinkToHold({
+		userId: READER,
+		jobId: SavedLinksJobIdSchema.parse("job-1"),
+		storedKey: "a.com/restored",
+		cutoff: SAVED_AT,
+		senders: { kind: "all" },
+		now: SAVED_AT,
+	});
+	const held = await store.findHeldLink({ userId: READER, storedKey: "a.com/restored", now: SAVED_AT });
+	assert(held, "the restored link was held first");
+	await store.restoreHeldLink({ userId: READER, heldKey: held.heldKey, now: CUTOFF });
 	await store.saveArticle(emailSave({ url: "https://a.com/chosen", saveTrigger: "manual" }));
 	await store.saveArticle(emailSave({ url: "https://a.com/web", provenance: { kind: "web" }, saveTrigger: "manual" }));
 	await store.saveArticle(emailSave({ url: "https://a.com/other", userId: OTHER }));
@@ -78,7 +92,7 @@ describe("initInMemoryRemovedLinks", () => {
 		assert.deepEqual(await removedLinks.summariseNewsletterLinks({ userId: READER, cutoff: CUTOFF }), {
 			selected: 1,
 			bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }],
-			skipped: { read: 1, opened: 2, highlighted: 1, changed: 0, unreadable: 0 },
+			skipped: { read: 1, opened: 3, highlighted: 1, changed: 1, unreadable: 0 },
 			earliestEmailSave: SAVED_AT,
 			savedBeforeMarker: 0,
 		});

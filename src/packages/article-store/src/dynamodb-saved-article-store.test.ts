@@ -2136,7 +2136,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		await initStore(client).deleteAllUserArticles(USER);
 
 		const queries = commands.filter((c) => c.name === "QueryCommand");
-		expect(queries).toHaveLength(4);
+		expect(queries).toHaveLength(5);
 		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
 		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
 		expect(queries[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(USER);
@@ -2151,6 +2151,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 			{ userId: USER, url: "a" },
 			{ userId: USER, url: "b" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
 
@@ -2172,6 +2173,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
 			{ userId: USER, url: overrideUrl },
+			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
 
@@ -2183,6 +2185,33 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
+		]);
+	});
+
+	it("deletes the reader's held links and the saved-links job row, neither of which the index sweep owns", async () => {
+		const heldKey = "readplace:removed/job-1/abc";
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+					{ Items: [{ userId: `${USER}#removed`, url: heldKey, removedUrl: "example.com/held" }], Count: 1 },
+				],
+			},
+		});
+
+		await initStore(client).deleteAllUserArticles(USER);
+
+		const heldQuery = queryCommands(commands).at(-1);
+		expect(heldQuery?.input.IndexName).toBeUndefined();
+		expect(heldQuery?.input.ExpressionAttributeValues?.[":userId"]).toBe(`${USER}#removed`);
+		const deletes = commands.filter((c) => c.name === "DeleteCommand");
+		expect(deletes.map((d) => d.input.Key)).toEqual([
+			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
+			{ userId: `${USER}#removed`, url: heldKey },
 		]);
 	});
 });
@@ -2216,6 +2245,26 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
 		const requested = batchGet?.input.RequestItems?.articles.Keys;
 		expect(requested).toEqual([{ url: "example.com/one" }, { url: "example.com/two" }]);
+	});
+
+	it("also lists the URLs of the reader's held links, by the stored key each held row names", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+					{
+						Items: [{ userId: `${USER}#removed`, url: "readplace:removed/job-1/abc", removedUrl: "example.com/held" }],
+						Count: 1,
+					},
+				],
+			},
+			BatchGetCommand: { default: { Responses: { articles: [{ originalUrl: "https://example.com/held" }] } } },
+		});
+
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual(["https://example.com/held"]);
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		expect(batchGet?.input.RequestItems?.articles.Keys).toEqual([{ url: "example.com/held" }]);
 	});
 
 	it("returns an empty list (and issues no batch get) when the user has no saved rows", async () => {
@@ -3457,6 +3506,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 			{ userId: WORK_PARTITION, url: "b" },
 			{ userId: USER, url: "readplace:queue-def/work" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
 

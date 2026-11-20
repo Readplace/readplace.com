@@ -15,6 +15,25 @@ import type {
 	ServedBody,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import {
+	type HeldLink,
+	type SavedLinksJob,
+	decideHold,
+	heldLinkExpiresAt,
+	isHeldLinkLive,
+} from "@packages/domain/article";
+import type {
+	FindHeldLink,
+	FindSavedLinksJob,
+	FinishSavedLinksJob,
+	ForEachHeldLinkPage,
+	HasHeldLinks,
+	MoveNewsletterLinkToHold,
+	RecordSavedLinksJobProgress,
+	RequestSavedLinksJob,
+	RestoreHeldLink,
+	WithdrawSavedLinksJob,
+} from "@packages/provider-contracts/article-store";
 import { type EventInstant, toEventInstant } from "@packages/domain/event-envelope";
 import {
 	ReaderArticleHashId,
@@ -165,6 +184,7 @@ interface UserArticle {
 	lastSummaryClosedAt?: Date;
 	provenance?: SaveProvenance;
 	handPickedAt?: Date;
+	restoredAt?: Date;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
 	ocrPagesHold?: OcrPagesHold;
@@ -221,6 +241,16 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 }
 
 export function initInMemoryArticleStore(): {
+	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
+	restoreHeldLink: RestoreHeldLink;
+	forEachHeldLinkPage: ForEachHeldLinkPage;
+	hasHeldLinks: HasHeldLinks;
+	findHeldLink: FindHeldLink;
+	requestSavedLinksJob: RequestSavedLinksJob;
+	recordSavedLinksJobProgress: RecordSavedLinksJobProgress;
+	finishSavedLinksJob: FinishSavedLinksJob;
+	findSavedLinksJob: FindSavedLinksJob;
+	withdrawSavedLinksJob: WithdrawSavedLinksJob;
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;
 	saveArticle: SaveArticle;
@@ -352,6 +382,8 @@ export function initInMemoryArticleStore(): {
 		for (const listener of defaultRowDeletedListeners) listener(row);
 	};
 	const saveCursors = new Map<UserId, number>();
+	const heldLinks = new Map<string, { userId: UserId; row: UserArticle; link: HeldLink }>();
+	const savedLinksJobs = new Map<UserId, SavedLinksJob>();
 	const readlistDefinitions = new Map<
 		string,
 		{
@@ -621,6 +653,8 @@ export function initInMemoryArticleStore(): {
 				...(row.provenance === undefined ? {} : { provenance: row.provenance }),
 				...(row.handPickedAt === undefined ? {} : { handPickedAt: row.handPickedAt }),
 				...(row.viewedAt === undefined ? {} : { viewedAt: row.viewedAt }),
+				...(row.lastSummaryOpenedAt === undefined ? {} : { lastSummaryOpenedAt: row.lastSummaryOpenedAt }),
+				...(row.restoredAt === undefined ? {} : { restoredAt: row.restoredAt }),
 			}));
 
 	const readOpenedInReadlists = (userId: UserId): ReadonlySet<string> =>
@@ -969,16 +1003,111 @@ export function initInMemoryArticleStore(): {
 			if (removal.userId === userId) readlistRemovals.delete(key);
 		}
 		saveCursors.delete(userId);
+		for (const [key, held] of heldLinks) {
+			if (held.userId === userId) heldLinks.delete(key);
+		}
+		savedLinksJobs.delete(userId);
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
 		const urls = new Set<string>();
-		for (const ua of userArticles.values()) {
-			if (ua.userId !== userId) continue;
-			const article = articles.get(ua.url);
+		const storedKeys = [
+			...[...userArticles.values()].filter((ua) => ua.userId === userId).map((ua) => ua.url),
+			...[...heldLinks.values()].filter((held) => held.userId === userId).map((held) => held.link.storedKey),
+		];
+		for (const storedKey of storedKeys) {
+			const article = articles.get(storedKey);
 			if (article) urls.add(article.originalUrl);
 		}
 		return [...urls];
+	};
+
+	const heldLinkMapKey = (params: { userId: UserId; heldKey: string }) => `${params.userId}|${params.heldKey}`;
+
+	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async ({ userId, jobId, storedKey, cutoff, senders, now }) => {
+		const allKey = userArticleKey(userId, storedKey);
+		const row = userArticles.get(allKey);
+		if (row === undefined) return { outcome: "not-selected" };
+		const decision = decideHold({ row: { ...row, storedKey }, userId, cutoff, senders });
+		if (decision.kind === "not-selected") return { outcome: "not-selected" };
+		if (decision.kind === "skipped") return { outcome: "skipped", reason: decision.reason };
+		assert(row.provenance?.kind === "email", "a held link carries email provenance");
+		const heldKey = `readplace:removed/${jobId}/${createHash("sha256").update(storedKey).digest("hex")}`;
+		const link = {
+			heldKey,
+			storedKey,
+			jobId,
+			removedAt: now,
+			expiresAt: heldLinkExpiresAt(now),
+			senderEmail: row.provenance.senderEmail,
+		};
+		userArticles.delete(allKey);
+		heldLinks.set(heldLinkMapKey({ userId, heldKey }), { userId, row, link });
+		return { outcome: "held" };
+	};
+
+	const restoreHeldLink: RestoreHeldLink = async ({ userId, heldKey, now }) => {
+		const held = heldLinks.get(heldLinkMapKey({ userId, heldKey }));
+		if (held === undefined) return { outcome: "gone" };
+		const article = articles.get(held.link.storedKey);
+		assert(article, "a held link's shared article is kept in memory");
+		if (article.purgedAt !== undefined) return { outcome: "unrestorable" };
+		const allKey = userArticleKey(userId, held.link.storedKey);
+		if (userArticles.has(allKey)) return { outcome: "already-in-all" };
+		userArticles.set(allKey, { ...held.row, restoredAt: now });
+		heldLinks.delete(heldLinkMapKey({ userId, heldKey }));
+		return { outcome: "restored" };
+	};
+
+	const liveHeldLinks = (params: { userId: UserId; now: Date }): HeldLink[] =>
+		[...heldLinks.values()]
+			.filter((held) => held.userId === params.userId && isHeldLinkLive({ link: held.link, now: params.now }))
+			.map((held) => held.link);
+
+	const forEachHeldLinkPage: ForEachHeldLinkPage = async ({ userId, now, onPage }) => {
+		await onPage(liveHeldLinks({ userId, now }));
+	};
+
+	const hasHeldLinks: HasHeldLinks = async (params) => liveHeldLinks(params).length > 0;
+
+	const findHeldLink: FindHeldLink = async ({ userId, storedKey, now }) =>
+		liveHeldLinks({ userId, now }).find((link) => link.storedKey === storedKey);
+
+	const isOpenJob = (job: SavedLinksJob) => job.state === "requested" || job.state === "running";
+
+	const requestSavedLinksJob: RequestSavedLinksJob = async ({ userId, jobId, action, requestedAt }) => {
+		const open = savedLinksJobs.get(userId);
+		if (open !== undefined && isOpenJob(open)) return { outcome: "busy", job: open };
+		savedLinksJobs.set(userId, { jobId, action, state: "requested", requestedAt, counts: {} });
+		return { outcome: "claimed" };
+	};
+
+	const jobHeldBy = (params: { userId: UserId; jobId: SavedLinksJob["jobId"] }) => {
+		const job = savedLinksJobs.get(params.userId);
+		return job?.jobId === params.jobId ? job : undefined;
+	};
+
+	const recordSavedLinksJobProgress: RecordSavedLinksJobProgress = async ({ userId, jobId, counts }) => {
+		const job = jobHeldBy({ userId, jobId });
+		if (job === undefined || !isOpenJob(job)) return { outcome: "stale" };
+		savedLinksJobs.set(userId, { ...job, state: "running", counts });
+		return { outcome: "recorded" };
+	};
+
+	const finishSavedLinksJob: FinishSavedLinksJob = async ({ userId, jobId, state, counts, finishedAt }) => {
+		const job = jobHeldBy({ userId, jobId });
+		if (job === undefined || job.state === "completed") return { outcome: "stale" };
+		savedLinksJobs.set(userId, { ...job, state, counts, finishedAt });
+		return { outcome: "recorded" };
+	};
+
+	const findSavedLinksJob: FindSavedLinksJob = async ({ userId }) => savedLinksJobs.get(userId);
+
+	const withdrawSavedLinksJob: WithdrawSavedLinksJob = async ({ userId, jobId }) => {
+		const job = jobHeldBy({ userId, jobId });
+		if (job?.state !== "requested") return { outcome: "stale" };
+		savedLinksJobs.delete(userId);
+		return { outcome: "withdrawn" };
 	};
 
 	const assignSavedArticleToReadlist: AssignSavedArticleToReadlist = async ({
@@ -1612,6 +1741,16 @@ export function initInMemoryArticleStore(): {
 		stampRelatedPassesRequested,
 		deleteAllUserArticles,
 		listUserArticleUrls,
+		moveNewsletterLinkToHold,
+		restoreHeldLink,
+		forEachHeldLinkPage,
+		hasHeldLinks,
+		findHeldLink,
+		requestSavedLinksJob,
+		recordSavedLinksJobProgress,
+		finishSavedLinksJob,
+		findSavedLinksJob,
+		withdrawSavedLinksJob,
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
