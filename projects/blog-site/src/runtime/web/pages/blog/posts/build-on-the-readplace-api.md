@@ -17,11 +17,11 @@ The documentation is now public at [readplace.com/developers](/developers?utm_so
 
 The server learned almost nothing new for the occasion.
 
-The page is the news, and so is the policy behind it: the page's own tests pin what it says against what the API answers, and a change to the API ships with its description there in the same commit.
+The page is the news, and so is the policy behind it: the page's own tests pin what it says, and a change to the API ships with its description there in the same commit.
 
 ## One URL and a short list of names
 
-Each request sends a bearer token and asks for [Siren](/view/github.com/kevinswiber/siren?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=read-siren-spec), a JSON hypermedia format. `GET /` answers with the reading list itself, and inside that answer are the moves available next: the readlists, the tabs, the pages, a `save-article` action with its fields spelled out, a `read` link on each article.
+A request for the reading list sends a bearer token and asks for [Siren](/view/github.com/kevinswiber/siren?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=read-siren-spec), a JSON hypermedia format. `GET /` answers with the reading list itself, and inside that answer are the moves available next: the readlists, the tabs, the pages, a `save-article` action with its fields spelled out, a `read` link on each article.
 
 > **Every answer carries the requests that can follow it.**
 
@@ -31,7 +31,7 @@ That rule is what lets the API grow without stepping on the integrations already
 
 When a kept href does answer 404, the recovery is in the docs too: start again from `/` and retry once.
 
-## Registering is a POST, not a key to copy
+## Registering takes 1 POST
 
 There's no developer portal and no API key. A client registers the way AI assistants already register [for the MCP server](/blog/connect-ai-assistant-without-an-api-key?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=post-connect-ai-assistant-without-an-api-key): 1 POST to `/oauth/register` with the redirect URI the app listens on, per [RFC 7591](/view/datatracker.ietf.org/doc/html/rfc7591?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=read-rfc-7591), answers with a `client_id`. The reader approves the connection in their browser, through ordinary OAuth 2.0 with PKCE and no client secret.
 
@@ -67,6 +67,6 @@ Not every integration fits inside that list. One that needs push, or full-text s
 
 ## The first request to send
 
-The page at [readplace.com/developers](/developers?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=developers-cta) reads top to bottom in one sitting, and its language tabs rewrite the samples in HTTP, TypeScript or Swift. Registration needs nothing beyond the POST, so the distance between reading the page and a `200` from `/` is one approval screen.
+The page at [readplace.com/developers](/developers?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=developers-cta) reads top to bottom in one sitting, and its language tabs rewrite the samples in HTTP, TypeScript or Swift. Registration needs nothing beyond the POST, so the distance between reading the page and a `200` from `/` is 1 approval screen and a token exchange.
 
 The token acts for a reader, and the reader starts at [readplace.com](/?utm_source=blog-build-on-the-readplace-api&utm_medium=internal&utm_content=home).
