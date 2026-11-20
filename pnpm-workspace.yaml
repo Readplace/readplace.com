@@ -4,4 +4,4 @@ packages:
   - 'src/packages/*'
 
 catalog:
-  esbuild: 0.28.0
+  esbuild: 0.28.1
