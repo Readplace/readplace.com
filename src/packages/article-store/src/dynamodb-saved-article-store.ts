@@ -53,8 +53,6 @@ import type {
 	DeleteArticle,
 	DeleteReadlistArticle,
 	FileIntoLiveReadlist,
-	FileIntoLiveReadlistOutcome,
-	FileOwnSaveIntoReadlist,
 	FindReadlistFiling,
 	FindReadlistRemoval,
 	PurgeReadlistArticle,
@@ -306,7 +304,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
-	fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
@@ -1222,20 +1219,16 @@ export function initDynamoDbSavedArticleStore(deps: {
 					set: ", suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)",
 					values: { ":attribution": params.suggestionAttribution },
 				};
-		const provenance =
-			params.provenance === undefined
-				? { set: "", values: {} }
-				: { set: ", provenance = :provenance", values: { ":provenance": params.provenance } };
-		const shared = { ":savedAt": params.savedAt.toISOString(), ...provenance.values, ...attribution.values };
+		const shared = { ":savedAt": params.savedAt.toISOString(), ":provenance": params.provenance, ...attribution.values };
 		if (params.landsAs.status === "read") {
 			return {
-				UpdateExpression: `SET savedAt = :savedAt${provenance.set}, #status = :read, readAt = :readAt${attribution.set}`,
+				UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = :read, readAt = :readAt${attribution.set}`,
 				ConditionExpression: "attribute_not_exists(savedAt)",
 				ExpressionAttributeValues: { ...shared, ":read": "read", ":readAt": params.landsAs.readAt.toISOString() },
 			};
 		}
 		return {
-			UpdateExpression: `SET savedAt = :savedAt${provenance.set}, #status = if_not_exists(#status, :unread)${attribution.set}`,
+			UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${attribution.set}`,
 			ConditionExpression: "attribute_not_exists(savedAt) OR savedAt < :savedAt",
 			ExpressionAttributeValues: { ...shared, ":unread": "unread" },
 		};
@@ -1244,13 +1237,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const isNeitherPassedNorConditionFailed = (code: string | undefined) =>
 		code !== "None" && code !== "ConditionalCheckFailed";
 
-	const fileIntoReadlistPartition = async ({
-		params,
-		definition,
-	}: {
-		params: Parameters<FileIntoLiveReadlist>[0];
-		definition: { ConditionExpression: string; ExpressionAttributeNames: Record<string, string> };
-	}): Promise<{ outcome: FileIntoLiveReadlistOutcome }> => {
+	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
 		const { userId, readlist } = params;
 		const key = ArticleResourceUniqueId.parse(params.url).value;
 		try {
@@ -1261,7 +1248,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 							ConditionCheck: {
 								TableName: userArticlesTableName,
 								Key: { userId, url: readlistDefinitionKey(readlist) },
-								...definition,
+								ConditionExpression: "attribute_exists(#url)",
+								ExpressionAttributeNames: { "#url": "url" },
 							},
 						},
 						{
@@ -1297,26 +1285,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 			}
 			return { outcome: "newer-row-won" };
 		}
+		await bumpArticleSavedAt({ url: params.url, savedAt: now() });
 		return { outcome: "filed" };
 	};
-
-	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
-		const filing = await fileIntoReadlistPartition({
-			params,
-			definition: { ConditionExpression: "attribute_exists(#url)", ExpressionAttributeNames: { "#url": "url" } },
-		});
-		if (filing.outcome === "filed") await bumpArticleSavedAt({ url: params.url, savedAt: now() });
-		return filing;
-	};
-
-	const fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist = (params) =>
-		fileIntoReadlistPartition({
-			params,
-			definition: {
-				ConditionExpression: "attribute_exists(#url) AND attribute_exists(#ownSavesSince)",
-				ExpressionAttributeNames: { "#url": "url", "#ownSavesSince": "ownSavesSince" },
-			},
-		});
 
 	const forEachPartitionRow = (
 		partition: string,
@@ -1856,7 +1827,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findReadlistFiling,
 		findReadlistRemoval: initFindReadlistRemoval({ client, userArticlesTableName }),
 		fileIntoLiveReadlist,
-		fileOwnSaveIntoReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		listUserSavesForUrls,

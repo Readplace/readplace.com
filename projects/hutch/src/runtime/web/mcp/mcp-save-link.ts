@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { newSaveAttemptId, type withNewSavePreparation } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, ownSavesFiling } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { initFileArticleIntoReadlist, initSaveArticleAtReadlistTop } from "@packages/save-article";
 import type { AppDependencies } from "../../server";
 import type { ClaimDailySaves } from "../pages/readlist/daily-save-allowance";
@@ -10,7 +10,7 @@ import type { initResolveReadlistMembership } from "./readlist-membership";
 import type { initResolveSaveAccess } from "./save-access";
 
 export function initMcpSaveLink(
-	deps: Pick<AppDependencies, "refreshArticleIfStale" | "publishSubmitLink" | "logError" | "baseUrl" | "listReadlistDefinitions"> & {
+	deps: Pick<AppDependencies, "refreshArticleIfStale" | "publishSubmitLink" | "logError" | "baseUrl"> & {
 		resolveSaveAccess: ReturnType<typeof initResolveSaveAccess>;
 		claimDailySaves: ClaimDailySaves;
 		validateNewSaveUrl: ReturnType<typeof withNewSavePreparation>;
@@ -46,10 +46,8 @@ export function initMcpSaveLink(
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const provenance = await resolveMcpSaveProvenance(oauthClientId);
 			const saveAttemptId = newSaveAttemptId();
-			const ownSaves = ownSavesFiling({ readlists: await deps.listReadlistDefinitions(userId), provenance, trigger: "manual" });
-			const filedReadlists = new Set([...readlists, ...(ownSaves === undefined ? [] : [ownSaves.slug])]);
 			if (freshness.action === "unresolved") {
-				for (const readlist of new Set([DEFAULT_READLIST_SLUG, ...filedReadlists])) {
+				for (const readlist of new Set([DEFAULT_READLIST_SLUG, ...readlists])) {
 					await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, saveTrigger: "manual", saveAttemptId });
 				}
 				return { ok: true, pending: true };
@@ -62,7 +60,7 @@ export function initMcpSaveLink(
 				provenance,
 				saveTrigger: "manual",
 			});
-			for (const readlist of filedReadlists) {
+			for (const readlist of readlists) {
 				if (readlist === DEFAULT_READLIST_SLUG) continue;
 				await fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
 			}

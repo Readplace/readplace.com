@@ -7,7 +7,7 @@ import type { initMcpReadlistOperations } from "./readlist-operations";
 import type { initMcpHighlightOperations } from "./highlight-operations";
 
 export function mcpServerDependenciesFrom(
-	deps: Pick<AppDependencies, "now" | "logError" | "findReadlistArticles" | "findArticlesByUser" | "findArticlesAcrossReadlists" | "readArticleContent" | "findGeneratedSummary" | "findRelatedArticles" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "refreshArticleIfStale" | "publishSubmitLink" | "baseUrl" | "consumeRateLimit" | "rateLimitRules" | "listReadlistDefinitions">,
+	deps: Pick<AppDependencies, "now" | "logError" | "findReadlistArticles" | "findArticlesByUser" | "findArticlesAcrossReadlists" | "readArticleContent" | "findGeneratedSummary" | "findRelatedArticles" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "refreshArticleIfStale" | "publishSubmitLink" | "baseUrl" | "consumeRateLimit" | "rateLimitRules">,
 	built: {
 		appOrigin: McpServerDeps["appOrigin"];
 		resolveToolAccess: McpServerDeps["resolveToolAccess"];
@@ -78,7 +78,6 @@ export function mcpServerDependenciesFrom(
 			resolveReadlistMembership,
 			logError: deps.logError,
 			baseUrl: deps.baseUrl,
-			listReadlistDefinitions: deps.listReadlistDefinitions,
 		}),
 		...initMcpArticleOperations({
 			resolveOwnedArticle,

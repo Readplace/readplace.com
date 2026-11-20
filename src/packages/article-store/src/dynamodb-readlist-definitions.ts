@@ -7,22 +7,18 @@ import {
 } from "@packages/domain/readlist";
 import {
 	writeIfCondition,
-	TransactionCanceledException,
-	TransactWriteCommand,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
 } from "@packages/storage-client";
 import type {
 	ClearReadlistDefinitionPurpose,
-	ClearReadlistOwnSaves,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
 	PinReadlistDefinition,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
-	SetReadlistOwnSaves,
 	UnpinReadlistDefinition,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
@@ -35,7 +31,6 @@ const ReadlistDefinitionRow = z.object({
 	starterCampaignId: z.string().optional(),
 	createdAt: z.string(),
 	pinnedAt: z.string().optional(),
-	ownSavesSince: z.string().optional(),
 });
 
 export function initDynamoDbReadlistDefinitions(deps: {
@@ -43,14 +38,12 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	userArticlesTableName: string;
 }): {
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
-	clearReadlistOwnSaves: ClearReadlistOwnSaves;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	pinReadlistDefinition: PinReadlistDefinition;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
-	setReadlistOwnSaves: SetReadlistOwnSaves;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 } {
 	const readlistDefinitions = defineDynamoTable({
@@ -86,7 +79,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 					: { starterCampaignId: row.starterCampaignId }),
 				createdAt: new Date(row.createdAt),
 				...(row.pinnedAt === undefined ? {} : { pinnedAt: new Date(row.pinnedAt) }),
-				...(row.ownSavesSince === undefined ? {} : { ownSavesSince: new Date(row.ownSavesSince) }),
 			}))
 			.sort(
 				(a, b) =>
@@ -180,61 +172,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		return { cleared: true };
 	};
 
-	const setReadlistOwnSaves: SetReadlistOwnSaves = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const owned = await listReadlistDefinitions(params.userId);
-		const target = owned.find((definition) => definition.slug === params.slug);
-		if (target === undefined) return { outcome: "readlist-gone" };
-		if (target.starterCampaignId !== undefined) return { outcome: "starter-readlist" };
-		const others = owned.filter((definition) => definition.slug !== params.slug);
-		if (others.some((definition) => definition.ownSavesSince !== undefined)) return { outcome: "held-by-another" };
-		try {
-			await deps.client.send(
-				new TransactWriteCommand({
-					TransactItems: [
-						{
-							Update: {
-								TableName: deps.userArticlesTableName,
-								Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-								UpdateExpression: "SET #ownSavesSince = if_not_exists(#ownSavesSince, :since)",
-								ConditionExpression: "attribute_exists(#url)",
-								ExpressionAttributeNames: { "#url": "url", "#ownSavesSince": "ownSavesSince" },
-								ExpressionAttributeValues: { ":since": params.since.toISOString() },
-							},
-						},
-						...others.map((other) => ({
-							ConditionCheck: {
-								TableName: deps.userArticlesTableName,
-								Key: { userId: params.userId, url: readlistDefinitionKey(other.slug) },
-								ConditionExpression: "attribute_not_exists(#ownSavesSince)",
-								ExpressionAttributeNames: { "#ownSavesSince": "ownSavesSince" },
-							},
-						})),
-					],
-				}),
-			);
-		} catch (error) {
-			if (!(error instanceof TransactionCanceledException)) throw error;
-			const codes = (error.CancellationReasons ?? []).map((reason) => reason.Code);
-			if (codes[0] === "ConditionalCheckFailed") return { outcome: "readlist-gone" };
-			if (codes.includes("ConditionalCheckFailed")) return { outcome: "held-by-another" };
-			throw error;
-		}
-		return { outcome: "set" };
-	};
-
-	const clearReadlistOwnSaves: ClearReadlistOwnSaves = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.update({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "REMOVE #ownSavesSince",
-			ConditionExpression: "attribute_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url", "#ownSavesSince": "ownSavesSince" },
-		}));
-		if (outcome.kind === "condition-failed") return { cleared: false };
-		return { cleared: true };
-	};
-
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => readlistDefinitions.delete({
@@ -248,14 +185,12 @@ export function initDynamoDbReadlistDefinitions(deps: {
 
 	return {
 		clearReadlistDefinitionPurpose,
-		clearReadlistOwnSaves,
 		createReadlistDefinition,
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
 		pinReadlistDefinition,
 		renameReadlistDefinition,
 		setReadlistDefinitionPurpose,
-		setReadlistOwnSaves,
 		unpinReadlistDefinition,
 	};
 }

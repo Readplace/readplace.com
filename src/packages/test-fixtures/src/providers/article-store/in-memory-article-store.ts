@@ -70,7 +70,6 @@ import type {
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	ClearReadlistDefinitionPurpose,
-	ClearReadlistOwnSaves,
 	CountArticlesByUser,
 	CountReadlistArticles,
 	CreateReadlistDefinition,
@@ -81,8 +80,6 @@ import type {
 	DeleteArticle,
 	DeleteReadlistArticle,
 	FileIntoLiveReadlist,
-	FileIntoLiveReadlistOutcome,
-	FileOwnSaveIntoReadlist,
 	FindReadlistFiling,
 	FindReadlistRemoval,
 	PurgeReadlistArticle,
@@ -94,7 +91,6 @@ import type {
 	PinReadlistDefinition,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
-	SetReadlistOwnSaves,
 	UnpinReadlistDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
@@ -316,7 +312,6 @@ export function initInMemoryArticleStore(): {
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
-	fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	findQueueRowKeys: FindQueueRowKeys;
@@ -337,8 +332,6 @@ export function initInMemoryArticleStore(): {
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
-	setReadlistOwnSaves: SetReadlistOwnSaves;
-	clearReadlistOwnSaves: ClearReadlistOwnSaves;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -409,7 +402,6 @@ export function initInMemoryArticleStore(): {
 			createdAt: Date;
 			starterCampaignId?: string;
 			pinnedAt?: Date;
-			ownSavesSince?: Date;
 		}
 	>();
 	const readlistFitOverrides = new Map<
@@ -573,9 +565,7 @@ export function initInMemoryArticleStore(): {
 		overtakes,
 	}: {
 		readlist: ReadlistSlug | undefined;
-		params: Pick<SaveArticleParams, "userId" | "url" | "savedAt" | "suggestionAttribution"> & {
-			provenance: SaveProvenance | undefined;
-		};
+		params: Pick<SaveArticleParams, "userId" | "url" | "savedAt" | "provenance" | "suggestionAttribution">;
 		saveTrigger: SaveTrigger | undefined;
 		overtakes: (existing: UserArticle) => boolean;
 	}) => {
@@ -592,7 +582,7 @@ export function initInMemoryArticleStore(): {
 					provenance:
 						saveTrigger === "automatic" && isProtectedAgainstAutomaticSave(existing)
 							? existing.provenance
-							: params.provenance ?? existing.provenance,
+							: params.provenance,
 					suggestionAttribution: existing.suggestionAttribution ?? params.suggestionAttribution,
 					handPickedAt: saveTrigger === "manual" ? existing.handPickedAt ?? params.savedAt : existing.handPickedAt,
 				}
@@ -969,15 +959,8 @@ export function initInMemoryArticleStore(): {
 	const findReadlistRemoval: FindReadlistRemoval = async (params) =>
 		readlistRemovals.get(readlistRemovalKey(params))?.removedAt;
 
-	const fileIntoReadlistPartition = ({
-		params,
-		definitionAccepts,
-	}: {
-		params: Parameters<FileIntoLiveReadlist>[0];
-		definitionAccepts: (definition: { ownSavesSince?: Date }) => boolean;
-	}): { outcome: FileIntoLiveReadlistOutcome } => {
-		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.readlist));
-		if (definition === undefined || !definitionAccepts(definition)) {
+	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
+		if (!readlistDefinitions.has(readlistDefinitionKey(params.userId, params.readlist))) {
 			return { outcome: "readlist-gone" };
 		}
 		if (!userArticles.has(userArticleKey(params.userId, ArticleResourceUniqueId.parse(params.url).value))) {
@@ -1010,20 +993,9 @@ export function initInMemoryArticleStore(): {
 			});
 			if (!wroteUserArticle) return { outcome: "newer-row-won" };
 		}
+		await bumpArticleSavedAt({ url: params.url, savedAt: new Date() });
 		return { outcome: "filed" };
 	};
-
-	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
-		const filing = fileIntoReadlistPartition({ params, definitionAccepts: () => true });
-		if (filing.outcome === "filed") await bumpArticleSavedAt({ url: params.url, savedAt: new Date() });
-		return filing;
-	};
-
-	const fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist = async (params) =>
-		fileIntoReadlistPartition({
-			params,
-			definitionAccepts: (definition) => definition.ownSavesSince !== undefined,
-		});
 
 	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
 		for (const [key, ua] of userArticles) {
@@ -1355,27 +1327,6 @@ export function initInMemoryArticleStore(): {
 		return { cleared: true };
 	};
 
-	const setReadlistOwnSaves: SetReadlistOwnSaves = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { outcome: "readlist-gone" };
-		if (definition.starterCampaignId !== undefined) return { outcome: "starter-readlist" };
-		const heldByAnother = [...readlistDefinitions.values()].some(
-			(other) => other.userId === params.userId && other.slug !== params.slug && other.ownSavesSince !== undefined,
-		);
-		if (heldByAnother) return { outcome: "held-by-another" };
-		definition.ownSavesSince ??= params.since;
-		return { outcome: "set" };
-	};
-
-	const clearReadlistOwnSaves: ClearReadlistOwnSaves = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { cleared: false };
-		definition.ownSavesSince = undefined;
-		return { cleared: true };
-	};
-
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		return { deleted: readlistDefinitions.delete(readlistDefinitionKey(params.userId, params.slug)) };
@@ -1424,14 +1375,13 @@ export function initInMemoryArticleStore(): {
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, purpose, createdAt, starterCampaignId, pinnedAt, ownSavesSince }) => ({
+			.map(({ slug, label, purpose, createdAt, starterCampaignId, pinnedAt }) => ({
 				slug,
 				label,
 				purpose,
 				createdAt,
 				...(starterCampaignId === undefined ? {} : { starterCampaignId }),
 				...(pinnedAt === undefined ? {} : { pinnedAt }),
-				...(ownSavesSince === undefined ? {} : { ownSavesSince }),
 			}))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
 
@@ -1856,7 +1806,6 @@ export function initInMemoryArticleStore(): {
 		findReadlistFiling,
 		findReadlistRemoval,
 		fileIntoLiveReadlist,
-		fileOwnSaveIntoReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		findQueueRowKeys,
@@ -1877,8 +1826,6 @@ export function initInMemoryArticleStore(): {
 		unpinReadlistDefinition,
 		setReadlistDefinitionPurpose,
 		clearReadlistDefinitionPurpose,
-		setReadlistOwnSaves,
-		clearReadlistOwnSaves,
 		getSummaryToggleState,
 		readContent,
 		findItemOwner,

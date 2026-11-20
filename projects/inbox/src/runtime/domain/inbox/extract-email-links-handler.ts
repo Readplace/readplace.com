@@ -30,7 +30,6 @@ import {
 } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_SLUG,
-	ownSavesReadlist,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -361,8 +360,6 @@ export function initExtractEmailLinksHandler(deps: {
 					customReadlists.size > 0
 						? await listReadlistDefinitions(userId)
 						: [];
-				const ownSaves = ownSavesReadlist(definitions);
-				if (ownSaves !== undefined) customReadlists.delete(ownSaves.slug);
 				const fanOut = resolveEmailFanOut({ routing });
 				const triagedLinks: {
 					ordinal: EmailLinkOrdinal;

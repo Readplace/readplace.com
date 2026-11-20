@@ -137,7 +137,6 @@ export function createInboxTestApp(
 				findArticleById: fixture.articleStore.findArticleById,
 			}),
 			listReadlistFitOverrides: fixture.articleStore.listReadlistFitOverrides,
-			listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 			recordReadlistFitOverride: fixture.articleStore.recordReadlistFitOverride,
 			deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
 			deleteReadlistArticleByUrl: fixture.articleStore.deleteReadlistArticleByUrl,

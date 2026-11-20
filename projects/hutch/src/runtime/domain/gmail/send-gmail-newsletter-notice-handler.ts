@@ -2,7 +2,6 @@ import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { ForwardableSender, GmailConnectionStore, GmailMappingStore } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
-import { routableReadlists } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
@@ -165,7 +164,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		}
 		const pending = notices.filter((notice) => notice.status === "pending");
 		if (pending.length === 0) return;
-		if (routableReadlists(await deps.listReadlistDefinitions(userId)).length === 0) {
+		if ((await deps.listReadlistDefinitions(userId)).length === 0) {
 			deps.logger.info("[gmail-newsletter-notice] held until the reader has a readlist besides All", { userId, pending: pending.length });
 			return;
 		}

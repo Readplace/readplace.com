@@ -1522,25 +1522,6 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		);
 	});
 
-	it("refuses to route an inbox into the readlist that holds the reader's own saves", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "My Saves");
-		const userId = await readerId(harness);
-		assert.deepEqual(
-			await fixture.articleStore.setReadlistOwnSaves({ userId, slug: ReadlistSlugSchema.parse(slug), since: new Date() }),
-			{ outcome: "set" },
-		);
-		const address = await mintInbox(fixture, { userId, name: "news" });
-
-		const response = await routeInbox(agent, slug, { address, send_here: "1" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_error=unknown-inbox`);
-		expect(await routingOf(fixture, address)).toBeUndefined();
-	});
-
 	it("refuses to route an inbox to the built-in readlist, which every newsletter already reaches", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -1636,24 +1617,6 @@ describe("POST /queue/queues/:slug/preferences/inboxes/create", () => {
 		expect(doc.querySelector("#status-toast [data-test-toast-message]")?.textContent).toBe(
 			'Created the custom email "work-news" for this readlist',
 		);
-	});
-
-	it("refuses to create an inbox sent to the readlist that holds the reader's own saves", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "My Saves");
-		const userId = await readerId(harness);
-		assert.deepEqual(
-			await fixture.articleStore.setReadlistOwnSaves({ userId, slug: ReadlistSlugSchema.parse(slug), since: new Date() }),
-			{ outcome: "set" },
-		);
-
-		const response = await createInbox(agent, slug, { name: "Work News" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
-		expect(await liveInboxes(fixture, userId)).not.toContainEqual({ name: "work-news", readlist: slug });
 	});
 
 	it("drops the one-shot confirmation from the address bar of a boosted create", async () => {

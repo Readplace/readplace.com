@@ -39,10 +39,7 @@ import {
 	READLIST_PATH,
 } from "./readlist.url";
 import {
-	DEFAULT_READLIST,
 	DEFAULT_READLIST_SLUG,
-	ownSavesFiling,
-	withOwnSaves,
 } from "@packages/domain/readlist";
 import { HtmlPage } from "@packages/web-shell";
 import { renderReaderShareUpgradeOob } from "../reader/reader.component";
@@ -69,14 +66,14 @@ const HTMX_STOP_POLLING_STATUS = 286;
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent" | "getEffectiveAccess" | "fileArticleIntoReadlist"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent" | "getEffectiveAccess"
 	>,
 	shared: ReadlistShared,
 ): Router {
 	const router = express.Router();
 	const requestRelatedPasses = initRequestRelatedPasses(deps);
 	const readerHighlightOptions = initReaderHighlightOptions(deps);
-	const { saveArticleAtReadlistTop, resolveReadlistContext, requestReadlistContext, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
+	const { saveArticleAtReadlistTop, requestReadlistContext, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
 		isAppPlatform(req)
@@ -291,24 +288,17 @@ export function initReaderPanelRoutes(
 		}
 		const freshness = await deps.refreshArticleIfStale({ url: target.url, requester: { account: userId } });
 		const saveAttemptId = newSaveAttemptId();
-		const provenance = target.article.provenance;
-		const ownSaves = ownSavesFiling({ readlists: (await resolveReadlistContext(req, userId)).readlists, provenance, trigger: "manual" });
 		if (freshness.action === "unresolved") {
-			for (const readlist of withOwnSaves({ destinations: [DEFAULT_READLIST], ownSaves })) {
-				await deps.publishSubmitLink({ url: target.url, userId, provenance, readlist: readlist.slug, saveTrigger: "manual", saveAttemptId });
-			}
+			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
 		} else {
-			const { saved } = await saveArticleAtReadlistTop({
+			await saveArticleAtReadlistTop({
 				userId,
 				url: target.url,
 				freshness,
-				provenance,
+				provenance: target.article.provenance,
 				saveTrigger: "manual",
 				saveAttemptId,
 			});
-			if (ownSaves !== undefined) {
-				await deps.fileArticleIntoReadlist({ userId, readlist: ownSaves.slug, article: saved, provenance });
-			}
 		}
 		returnTo.searchParams.set(ISSUE_LINK_SAVED_PARAM, target.ordinal);
 		res.redirect(303, `${returnTo.pathname}${returnTo.search}#issue-links`);

@@ -172,7 +172,7 @@ import type {
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import { initCreateReaderHighlight } from "./web/shared/article-body/highlights/create-reader-highlight";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { FileOwnSaveIntoReadlist, FindIdentityRow, PinContentSource, SavePrivateItem, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
+import type { FindIdentityRow, PinContentSource, SavePrivateItem, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -644,7 +644,6 @@ export interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	savePrivateItem: SavePrivateItem;
-	fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist;
 	mediaKinds: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	readDurationByMeter: ReadonlyMap<Meter, ReadTimedDuration>;
 	transcriptAllowanceSeconds: number;
@@ -1701,8 +1700,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			}),
 			settle: initCommitReceivedUpload({
 				savePrivateItem: deps.savePrivateItem,
-				listReadlistDefinitions: deps.listReadlistDefinitions,
-				fileOwnSaveIntoReadlist: deps.fileOwnSaveIntoReadlist,
 				publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
 				markMediaUploadCommitted: deps.markMediaUploadCommitted,
 				now: deps.now,
@@ -1782,8 +1779,6 @@ export function createApp(dependencies: AppDependencies): Express {
 				claimDailySaves,
 				refreshArticleIfStale: deps.refreshArticleIfStale,
 				saveArticleAtReadlistTop,
-				listReadlistDefinitions: deps.listReadlistDefinitions,
-				fileArticleIntoReadlist,
 				createHighlightByQuote: initCreateHighlightByQuote({
 					readArticleContent: deps.readArticleContent,
 					readCanonicalSnapshot: deps.readCanonicalSnapshot,

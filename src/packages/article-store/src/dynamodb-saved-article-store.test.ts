@@ -3965,47 +3965,6 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 	});
 
 	it.each([
-		["unread", { status: "unread" as const }, "SET savedAt = :savedAt, #status = if_not_exists(#status, :unread)"],
-		["read", { status: "read" as const, readAt: new Date("2026-11-03T10:02:00Z") }, "SET savedAt = :savedAt, #status = :read, readAt = :readAt"],
-	])("files an %s copy with no provenance when the All row carries none", async (_name, landsAs, updateExpression) => {
-		const { client, commands } = createFakeClient();
-
-		await initStore(client).fileIntoLiveReadlist(filing({ provenance: undefined, landsAs }));
-
-		const update = itemsOf(commands)[2]?.Update;
-		expect(update?.UpdateExpression).toBe(updateExpression);
-		expect(update?.ExpressionAttributeValues).not.toHaveProperty(":provenance");
-	});
-
-	it("files an own save only while the readlist holds the own-saves choice, and leaves the shared article's savedAt alone", async () => {
-		const { client, commands } = createFakeClient();
-
-		const result = await initStore(client).fileOwnSaveIntoReadlist(filing());
-
-		expect(result).toEqual({ outcome: "filed" });
-		const [definition, allRow, readlistRow] = itemsOf(commands);
-		expect(definition?.ConditionCheck?.Key).toEqual({ userId: USER, url: "readplace:queue-def/work" });
-		expect(definition?.ConditionCheck?.ConditionExpression).toBe(
-			"attribute_exists(#url) AND attribute_exists(#ownSavesSince)",
-		);
-		expect(definition?.ConditionCheck?.ExpressionAttributeNames).toEqual({
-			"#url": "url",
-			"#ownSavesSince": "ownSavesSince",
-		});
-		expect(allRow?.ConditionCheck?.ConditionExpression).toContain("#removedAt <= :requestedAt");
-		expect(readlistRow?.Update?.Key).toEqual({ userId: `${USER}#queue/work`, url: RESOURCE_ID });
-		expect(commands.map((c) => c.name)).toEqual(["TransactWriteCommand"]);
-	});
-
-	it("answers readlist-gone to an own save once the choice is cleared", async () => {
-		const { client } = createFakeClient({
-			TransactWriteCommand: { default: cancelled(["ConditionalCheckFailed", "None", "None"]) },
-		});
-
-		expect(await initStore(client).fileOwnSaveIntoReadlist(filing())).toEqual({ outcome: "readlist-gone" });
-	});
-
-	it.each([
 		["the readlist definition", ["ConditionalCheckFailed", "None", "None"], "readlist-gone"],
 		["the definition and the All row together", ["ConditionalCheckFailed", "ConditionalCheckFailed", "None"], "readlist-gone"],
 		["the readlist row, to a newer write", ["None", "None", "ConditionalCheckFailed"], "newer-row-won"],

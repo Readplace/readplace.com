@@ -1,4 +1,3 @@
-import { routableReadlists } from "../readlist/reader-readlists";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "../readlist/readlist-name.schema";
 import { type AliasNameDecision, decideAliasName } from "./inbox-address-name";
 import { isCappedAddress, isLiveAddress } from "./inbox-address.live";
@@ -16,7 +15,7 @@ export function decideInboxRouting(params: {
 	address: string;
 	destination: string;
 	inboxes: readonly InboxAddressEntry[];
-	readlists: readonly { slug: ReadlistSlug; ownSavesSince?: Date }[];
+	readlists: readonly { slug: ReadlistSlug }[];
 }): InboxRoutingDecision {
 	if (params.slug === DEFAULT_READLIST_SLUG) return { ok: false, reason: "unknown-readlist" };
 	if (!params.readlists.some((readlist) => readlist.slug === params.slug)) {
@@ -31,10 +30,6 @@ export function decideInboxRouting(params: {
 	if (params.destination !== params.slug && params.destination !== DEFAULT_READLIST_SLUG) {
 		return { ok: false, reason: "invalid-destination" };
 	}
-	const intoOwnSaves =
-		params.destination === params.slug &&
-		!routableReadlists(params.readlists).some((readlist) => readlist.slug === params.slug);
-	if (intoOwnSaves) return { ok: false, reason: "invalid-destination" };
 	return {
 		ok: true,
 		address: address.data,
@@ -50,10 +45,10 @@ export function decideRoutedAliasCreation(params: {
 	slug: ReadlistSlug;
 	requested: string;
 	owned: readonly InboxAddressEntry[];
-	readlists: readonly { slug: ReadlistSlug; ownSavesSince?: Date }[];
+	readlists: readonly { slug: ReadlistSlug }[];
 }): RoutedAliasCreationDecision {
 	if (params.slug === DEFAULT_READLIST_SLUG) return { ok: false, reason: "unknown-readlist" };
-	if (!routableReadlists(params.readlists).some((readlist) => readlist.slug === params.slug)) {
+	if (!params.readlists.some((readlist) => readlist.slug === params.slug)) {
 		return { ok: false, reason: "unknown-readlist" };
 	}
 	return { ...decideAliasName({ requested: params.requested, owned: params.owned }), readlist: params.slug };

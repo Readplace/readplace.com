@@ -2387,15 +2387,6 @@ describe("initInMemoryArticleStore", () => {
 			expect(starterReadlist.articles[0]).toMatchObject(firstPick);
 		});
 
-		it("never lets the starter readlist take the own-saves choice", async () => {
-			const store = await storeWithReadablePicks();
-			await saveStarterPack(store);
-
-			expect(await store.setReadlistOwnSaves({ userId: USER_A, slug: HN_PICKS, since: new Date() })).toEqual({
-				outcome: "starter-readlist",
-			});
-		});
-
 		it("counts only the reader's own saves toward their personal library", async () => {
 			const store = await storeWithReadablePicks();
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/personal" }));
@@ -2894,68 +2885,6 @@ describe("initInMemoryArticleStore readlist filing", () => {
 		await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: future() }), readlist: WORK });
 
 		expect(await store.fileIntoLiveReadlist(filing({ savedAt: new Date() }))).toEqual({ outcome: "newer-row-won" });
-	});
-
-	describe("own saves", () => {
-		const HOME = ReadlistSlugSchema.parse("home");
-		const SINCE = new Date("2026-11-20T09:00:00.000Z");
-
-		it("holds the choice on one readlist per reader, keeping the first time it was set", async () => {
-			const store = await liveStore();
-			await store.createReadlistDefinition({ userId: USER_A, slug: HOME, label: "Home", createdAt: new Date() });
-			await store.createReadlistDefinition({ userId: USER_B, slug: HOME, label: "Home", createdAt: new Date() });
-
-			expect(await store.setReadlistOwnSaves({ userId: USER_A, slug: WORK, since: SINCE })).toEqual({ outcome: "set" });
-			expect(await store.setReadlistOwnSaves({ userId: USER_A, slug: WORK, since: new Date() })).toEqual({ outcome: "set" });
-			expect(await store.setReadlistOwnSaves({ userId: USER_A, slug: HOME, since: SINCE })).toEqual({
-				outcome: "held-by-another",
-			});
-			expect(await store.setReadlistOwnSaves({ userId: USER_B, slug: HOME, since: SINCE })).toEqual({ outcome: "set" });
-			expect(await store.setReadlistOwnSaves({ userId: USER_B, slug: WORK, since: SINCE })).toEqual({
-				outcome: "readlist-gone",
-			});
-
-			const definitions = await store.listReadlistDefinitions(USER_A);
-			expect(definitions.find((d) => d.slug === WORK)?.ownSavesSince).toEqual(SINCE);
-			expect(definitions.find((d) => d.slug === HOME)).not.toHaveProperty("ownSavesSince");
-		});
-
-		it("clears the choice, and reports a readlist with no definition", async () => {
-			const store = await liveStore();
-			await store.setReadlistOwnSaves({ userId: USER_A, slug: WORK, since: SINCE });
-
-			expect(await store.clearReadlistOwnSaves({ userId: USER_A, slug: WORK })).toEqual({ cleared: true });
-			expect(await store.clearReadlistOwnSaves({ userId: USER_A, slug: HOME })).toEqual({ cleared: false });
-			expect((await store.listReadlistDefinitions(USER_A))[0]).not.toHaveProperty("ownSavesSince");
-		});
-
-		it("files an own save only while the readlist holds the choice, leaving the shared article's savedAt alone", async () => {
-			const store = await liveStore();
-			const savedAt = new Date("2026-01-01T00:00:00.000Z");
-			await store.bumpArticleSavedAt({ url: URL, savedAt });
-
-			expect(await store.fileOwnSaveIntoReadlist(filing())).toEqual({ outcome: "readlist-gone" });
-			await store.setReadlistOwnSaves({ userId: USER_A, slug: WORK, since: SINCE });
-			expect(await store.fileOwnSaveIntoReadlist(filing())).toEqual({ outcome: "filed" });
-
-			expect(await store.findReadlistFiling({ userId: USER_A, readlist: WORK, url: URL })).toEqual(
-				expect.objectContaining({ status: "unread" }),
-			);
-			expect((await store.findArticleByUrl(URL))?.savedAt).toEqual(savedAt);
-		});
-
-		it("files a copy with no provenance, and keeps the provenance a readlist copy already carries", async () => {
-			const store = await liveStore();
-
-			await store.fileIntoLiveReadlist(filing({ provenance: undefined }));
-			const [bare] = (await store.findReadlistArticles({ userId: USER_A, readlist: WORK })).articles;
-			expect(bare?.provenance).toBeUndefined();
-
-			await store.fileIntoLiveReadlist(filing({ savedAt: future() }));
-			await store.fileIntoLiveReadlist(filing({ provenance: undefined, savedAt: new Date(Date.now() + 120_000) }));
-			const [kept] = (await store.findReadlistArticles({ userId: USER_A, readlist: WORK })).articles;
-			expect(kept?.provenance).toEqual({ kind: "web" });
-		});
 	});
 
 	it("lands a new row read under the read variant, and leaves an existing row alone", async () => {

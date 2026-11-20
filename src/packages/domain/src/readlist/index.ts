@@ -13,13 +13,9 @@ export { generateReadlistSlug } from "./generate-readlist-slug";
 export {
 	DEFAULT_READLIST_LABEL,
 	DEFAULT_READLIST,
-	ownSavesFiling,
-	ownSavesReadlist,
 	type ReadlistRef,
 	readerReadlists,
 	readlistsHoldingArticle,
-	routableReadlists,
-	withOwnSaves,
 } from "./reader-readlists";
 export {
 	decideReadlistCreate,

@@ -5,12 +5,7 @@ import type {
 	PublishMediaUploadCommitted,
 } from "@packages/domain";
 import { type MediaKindManifest, mintPrivateItemUrl } from "@packages/media-contracts";
-import { ownSavesFiling } from "@packages/domain/readlist";
-import type {
-	FileOwnSaveIntoReadlist,
-	ListReadlistDefinitions,
-	SavePrivateItem,
-} from "@packages/provider-contracts/article-store";
+import type { SavePrivateItem } from "@packages/provider-contracts/article-store";
 import type { UploadOutcome } from "./upload.outcome";
 import type { UploadRefusalReason } from "./upload.refusal";
 
@@ -39,8 +34,6 @@ export function defaultFileNameOf(kind: MediaKindManifest): string {
 
 export function initCommitReceivedUpload(deps: {
 	savePrivateItem: SavePrivateItem;
-	listReadlistDefinitions: ListReadlistDefinitions;
-	fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist;
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	now: () => Date;
@@ -52,25 +45,12 @@ export function initCommitReceivedUpload(deps: {
 			kind: kind.name,
 			fileName: session.fileName ?? defaultFileNameOf(kind),
 		};
-		const savedAt = deps.now();
-		await deps.savePrivateItem({ url, ownerUserId: userId, media, savedAt });
-		const provenance = { kind: "upload" as const };
-		const ownSaves = ownSavesFiling({
-			readlists: await deps.listReadlistDefinitions(userId),
-			provenance,
-			trigger: "manual",
+		await deps.savePrivateItem({
+			url,
+			ownerUserId: userId,
+			media,
+			savedAt: deps.now(),
 		});
-		if (ownSaves !== undefined) {
-			await deps.fileOwnSaveIntoReadlist({
-				userId,
-				readlist: ownSaves.slug,
-				url,
-				savedAt,
-				provenance,
-				requestedAt: savedAt,
-				landsAs: { status: "unread" },
-			});
-		}
 		const committed = { uploadId, kind: kind.name, url, userId, saveAttemptId, etag, attempt: COMMIT_ATTEMPT };
 		await deps.publishMediaUploadCommitted(
 			charge === undefined ? committed : { ...committed, chargedSeconds: charge.seconds, chargedDay: charge.day },

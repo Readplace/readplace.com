@@ -5,11 +5,9 @@ import {
 	type SaveProvenance,
 	type ValidateSaveableUrl,
 } from "@packages/domain/article";
-import { ownSavesFiling } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
-import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
-import type { FileArticleIntoReadlist, SaveArticleAtReadlistTop } from "@packages/save-article";
+import type { SaveArticleAtReadlistTop } from "@packages/save-article";
 import type { ClaimDailySaves } from "../readlist/daily-save-allowance";
 import type { PendingViewHighlights } from "../../../providers/pending-view-highlights/pending-view-highlights.types";
 import type {
@@ -44,8 +42,6 @@ export function initClaimViewHighlights(deps: {
 	claimDailySaves: ClaimDailySaves;
 	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
 	saveArticleAtReadlistTop: SaveArticleAtReadlistTop;
-	listReadlistDefinitions: ListReadlistDefinitions;
-	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	createHighlightByQuote: CreateHighlightByQuote;
 }): ClaimViewHighlights {
 	const saveForClaim = async (input: {
@@ -63,19 +59,6 @@ export function initClaimViewHighlights(deps: {
 			saveTrigger: "manual",
 			saveAttemptId: newSaveAttemptId(),
 		});
-		const ownSaves = ownSavesFiling({
-			readlists: await deps.listReadlistDefinitions(input.userId),
-			provenance: input.provenance,
-			trigger: "manual",
-		});
-		if (ownSaves !== undefined) {
-			await deps.fileArticleIntoReadlist({
-				userId: input.userId,
-				readlist: ownSaves.slug,
-				article: saved,
-				provenance: input.provenance,
-			});
-		}
 		return { id: saved.id.value, url: saved.url };
 	};
 

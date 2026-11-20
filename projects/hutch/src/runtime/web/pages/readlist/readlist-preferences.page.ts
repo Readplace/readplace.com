@@ -356,7 +356,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				address: body.address,
 				destination: body.send_here === undefined ? DEFAULT_READLIST_SLUG : slug,
 				inboxes,
-				readlists: definitions,
+				readlists: readerReadlists(definitions),
 			});
 			if (!decision.ok) {
 				rejections[decision.reason]();
@@ -401,7 +401,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				slug,
 				requested: body.name,
 				owned,
-				readlists: definitions,
+				readlists: readerReadlists(definitions),
 			});
 			if (!decision.ok) {
 				const nameErrors = {

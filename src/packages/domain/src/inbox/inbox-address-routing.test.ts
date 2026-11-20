@@ -12,13 +12,7 @@ import type { InboxAddressEntry } from "./inbox-address.types";
 
 const slug = (value: string) => ReadlistSlugSchema.parse(value);
 const WORK = slug("a1b2c3d4");
-const OWN_SAVES = slug("c9d0e1f2");
-const readlists = [
-	{ slug: DEFAULT_READLIST_SLUG },
-	{ slug: WORK },
-	{ slug: slug("e5f6a7b8") },
-	{ slug: OWN_SAVES, ownSavesSince: new Date("2026-11-20T00:00:00.000Z") },
-];
+const readlists = [{ slug: DEFAULT_READLIST_SLUG }, { slug: WORK }, { slug: slug("e5f6a7b8") }];
 
 function inbox(input: {
 	address: string;
@@ -176,32 +170,6 @@ describe("decideInboxRouting", () => {
 			{ ok: false, reason: "invalid-destination" },
 		);
 	});
-
-	it("refuses to route an inbox into the readlist that holds the reader's own saves", () => {
-		assert.deepEqual(
-			decideInboxRouting({
-				slug: OWN_SAVES,
-				address: "news-abc123@read.place",
-				destination: "c9d0e1f2",
-				inboxes,
-				readlists,
-			}),
-			{ ok: false, reason: "invalid-destination" },
-		);
-	});
-
-	it("lets an inbox leave the readlist that holds the reader's own saves for All", () => {
-		assert.deepEqual(
-			decideInboxRouting({
-				slug: OWN_SAVES,
-				address: "news-abc123@read.place",
-				destination: "default",
-				inboxes,
-				readlists,
-			}),
-			{ ok: true, address: "news-abc123@read.place", readlist: undefined },
-		);
-	});
 });
 
 describe("decideRoutedAliasCreation", () => {
@@ -223,13 +191,6 @@ describe("decideRoutedAliasCreation", () => {
 	it("refuses a readlist the reader does not have", () => {
 		assert.deepEqual(
 			decideRoutedAliasCreation({ slug: slug("ffffffff"), requested: "work", owned: inboxes, readlists }),
-			{ ok: false, reason: "unknown-readlist" },
-		);
-	});
-
-	it("refuses the readlist that holds the reader's own saves", () => {
-		assert.deepEqual(
-			decideRoutedAliasCreation({ slug: OWN_SAVES, requested: "work", owned: inboxes, readlists }),
 			{ ok: false, reason: "unknown-readlist" },
 		);
 	});

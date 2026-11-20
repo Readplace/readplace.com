@@ -196,7 +196,6 @@ import type {
 	DeleteReadlistArticle,
 	PurgeReadlistArticle,
 	FileIntoLiveReadlist,
-	FileOwnSaveIntoReadlist,
 	FindReadlistFiling,
 	FindReadlistRemoval,
 	MarkReadlistArticleViewed,
@@ -217,8 +216,6 @@ import type {
 	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
-	ClearReadlistOwnSaves,
-	SetReadlistOwnSaves,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
@@ -568,7 +565,6 @@ export interface ArticleStoreBundle {
 	deleteReadlistArticle: DeleteReadlistArticle;
 	purgeReadlistArticle: PurgeReadlistArticle;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
-	fileOwnSaveIntoReadlist: FileOwnSaveIntoReadlist;
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
@@ -589,8 +585,6 @@ export interface ArticleStoreBundle {
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
-	setReadlistOwnSaves: SetReadlistOwnSaves;
-	clearReadlistOwnSaves: ClearReadlistOwnSaves;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;
