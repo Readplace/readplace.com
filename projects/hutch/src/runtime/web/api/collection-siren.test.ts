@@ -621,6 +621,23 @@ describe("toArticleCollectionEntity", () => {
 		expect(handoffAction?.title).toBeUndefined();
 	});
 
+	it("advertises a title-less report-age-range action so the apps can report the store's age signal", () => {
+		const empty: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
+
+		const entity = toArticleCollectionEntity(empty, { readlistKey: "readlist" }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
+
+		expect(entity.actions?.find((a) => a.name === "report-age-range")).toEqual({
+			name: "report-age-range",
+			href: "/queue/age-range",
+			method: "POST",
+			type: "application/x-www-form-urlencoded",
+			fields: [
+				{ name: "ageRange", type: "text" },
+				{ name: "parentalApproval", type: "text" },
+			],
+		});
+	});
+
 	describe("readlist management actions", () => {
 		const empty: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
 
@@ -651,6 +668,7 @@ describe("toArticleCollectionEntity", () => {
 			"search",
 			"create-session",
 			"create-browser-handoff",
+			"report-age-range",
 			"create-readlist",
 		];
 

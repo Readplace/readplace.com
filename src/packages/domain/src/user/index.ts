@@ -9,3 +9,12 @@ export { APPEARANCE_PREFERENCES, AppearancePreferenceSchema } from "./appearance
 export type { AppearancePreference } from "./appearance";
 export { DISPLAY_NAME_MAX_LENGTH, DisplayNameSchema, parseDisplayNameInput } from "./display-name";
 export type { DisplayName } from "./display-name";
+export {
+	AGE_LOCK_DELETION_DELAY_MS,
+	AGE_RANGES,
+	AgeRangeSchema,
+	PARENTAL_APPROVALS,
+	ParentalApprovalSchema,
+	decideAgeAccess,
+} from "./age-access";
+export type { AgeAccessDecision, AgeRange, ParentalApproval } from "./age-access";

@@ -49,6 +49,8 @@ import type {
 	FindUserPasswordStatus,
 	GetSessionUserId,
 	MarkAccountDeleted,
+	MarkAgeLocked,
+	ClearAgeLock,
 	MarkEmailVerified,
 	RenewSession,
 	MarkSessionEmailVerified,
@@ -99,6 +101,7 @@ const UserRow = z.object({
 	activationThresholdReachedAt: dynamoField(z.string()),
 	keepOfferDismissedAt: dynamoField(z.string()),
 	exportDeliveredRequestedAt: dynamoField(z.string()),
+	ageLockedAt: dynamoField(z.string()),
 });
 
 const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
@@ -135,6 +138,8 @@ export function initDynamoDbAuth(deps: {
 	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
+	markAgeLocked: MarkAgeLocked;
+	clearAgeLock: ClearAgeLock;
 	findExportRecipient: FindExportRecipient;
 	markExportDelivered: MarkExportDelivered;
 	countUsers: CountUsers;
@@ -370,12 +375,27 @@ export function initDynamoDbAuth(deps: {
 		return { ok: true, userId: row.userId, emailVerified: row.emailVerified === true };
 	};
 
+	const isAgeLocked = async (userId: UserId): Promise<boolean> => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return false;
+		const row = await users.get({ email }, { projection: ["email", "userId", "ageLockedAt"], consistentRead: true });
+		return row?.ageLockedAt !== undefined;
+	};
+
 	const createSession: CreateSession = async ({ userId, emailVerified, oauthGrantId }) => {
 		const sessionId = randomBytes(32).toString("hex");
 		const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+		const ageLocked = await isAgeLocked(userId);
 
 		await sessions.put({
-			Item: { sessionId, userId, emailVerified, expiresAt, ...(oauthGrantId === undefined ? {} : { oauthGrantId }) },
+			Item: {
+				sessionId,
+				userId,
+				emailVerified,
+				expiresAt,
+				...(oauthGrantId === undefined ? {} : { oauthGrantId }),
+				...(ageLocked ? { ageLocked } : {}),
+			},
 		});
 		deps.observeSession({ event: "session_created", sessionId, userId, expiresAt });
 
@@ -578,6 +598,30 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
+	const markAgeLocked: MarkAgeLocked = async ({ userId, at }) => {
+		const email = await findEmailByUserId(userId);
+		assert(email !== null, "markAgeLocked: no user row for userId");
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET ageLockedAt = if_not_exists(ageLockedAt, :at)",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":at": at },
+		});
+	};
+
+	const clearAgeLock: ClearAgeLock = async (userId) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return "not-locked";
+		const outcome = await writeIfCondition(() =>
+			users.update({
+				Key: { email },
+				UpdateExpression: "REMOVE ageLockedAt",
+				ConditionExpression: "attribute_exists(ageLockedAt) AND attribute_not_exists(deletedAt)",
+			}),
+		);
+		return outcome.kind === "condition-failed" ? "not-locked" : "unlocked";
+	};
+
 	const findExportRecipient: FindExportRecipient = async (userId) => {
 		const email = await findEmailByUserId(userId);
 		if (email === null) return null;
@@ -645,6 +689,7 @@ export function initDynamoDbAuth(deps: {
 			activationThresholdReachedAt: row.activationThresholdReachedAt,
 			keepOfferDismissedAt: row.keepOfferDismissedAt,
 			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
+			ageLockedAt: row.ageLockedAt,
 		};
 	};
 
@@ -794,6 +839,8 @@ export function initDynamoDbAuth(deps: {
 		destroyOAuthGrantSessions,
 		closeUserAccount,
 		markAccountDeleted,
+		markAgeLocked,
+		clearAgeLock,
 		findExportRecipient,
 		markExportDelivered,
 		countUsers,

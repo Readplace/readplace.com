@@ -1,5 +1,6 @@
 package com.readplace.android.core
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
@@ -273,6 +274,27 @@ class ReadplaceApi(
 		val answer = send(invocationRequest(action, fields))
 		if (answer.status !in 200..399) throw apiError(answer)
 		return postActionCollection(answer)
+	}
+
+	suspend fun reportAgeRange(range: AgeRange, approval: ParentalApproval): AgeReport {
+		val answer = try {
+			val action = loadReadlist().action(named = REPORT_AGE_RANGE) ?: return AgeReport.Unknown
+			send(
+				invocationRequest(
+					action,
+					mapOf("ageRange" to range.wire, "parentalApproval" to approval.wire),
+				),
+			)
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			return AgeReport.Unknown
+		}
+		if (answer.status in 200..299) return AgeReport.Allowed
+		if (answer.status != 403) return AgeReport.Unknown
+		val messages = jsonElementOf(answer.body)?.let { SirenDecoding.errorBody(it) }?.properties?.messages
+			?: return AgeReport.Unknown
+		return AgeReport.Refused(messages.firstOrNull { it.isRenderable }?.plainText)
 	}
 
 	/** The collection the server drove a successful action back to, or null when
@@ -711,6 +733,7 @@ class ReadplaceApi(
 		const val DEFAULT_MAX_EXTERNAL_CONTENT_BYTES: Long = 25L * 1024 * 1024
 		private const val MAX_REDIRECT_HOPS = 20
 		private const val READLISTS_FIELD = "readlists"
+		private const val REPORT_AGE_RANGE = "report-age-range"
 		private const val READ_CHUNK_BYTES = 8 * 1024
 		private val EMPTY_BODY: RequestBody = ByteArray(0).toRequestBody(null)
 	}

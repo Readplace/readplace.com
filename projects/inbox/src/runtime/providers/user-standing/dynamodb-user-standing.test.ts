@@ -70,7 +70,7 @@ describe("initDynamoDbUserStanding", () => {
 			expect(captured.TableName).toBe(TABLES.users);
 			expect(captured.IndexName).toBe("userId-index");
 			expect(captured.ProjectionExpression).toBe(
-				"userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId, activationThresholdReachedAt, keepOfferDismissedAt, earlyIntentionalSaves",
+				"userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId, activationThresholdReachedAt, keepOfferDismissedAt, ageLockedAt, earlyIntentionalSaves",
 			);
 			expect(captured.ExpressionAttributeValues).toEqual({ ":userId": USER_ID });
 		});

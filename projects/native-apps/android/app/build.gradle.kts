@@ -98,6 +98,7 @@ dependencies {
 	implementation(libs.okhttp)
 	implementation(libs.media3.exoplayer)
 	implementation(libs.media3.ui)
+	implementation(libs.age.signals)
 
 	testImplementation(libs.junit)
 	testImplementation(libs.robolectric)

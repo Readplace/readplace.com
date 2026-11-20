@@ -104,6 +104,7 @@ function buildSubject(
 	const trialFeedbackCalls: UserId[] = [];
 	const trialReminderCalls: UserId[] = [];
 	const chargeReminderCalls: UserId[] = [];
+	const ageLockDeletionCalls: UserId[] = [];
 	const trialNudgeCalls: { userId: UserId; kind: TrialNudgeKind }[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
 	const rawEmailPrefixDeleteArgs: string[][] = [];
@@ -216,6 +217,9 @@ function buildSubject(
 		},
 		deleteTrialNudgeSchedule: async (input: { userId: UserId; kind: TrialNudgeKind }) => {
 			trialNudgeCalls.push(input);
+		},
+		deleteAgeLockDeletionSchedule: async ({ userId }: { userId: UserId }) => {
+			ageLockDeletionCalls.push(userId);
 		},
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
@@ -354,6 +358,7 @@ function buildSubject(
 		trialFeedbackCalls,
 		trialReminderCalls,
 		chargeReminderCalls,
+		ageLockDeletionCalls,
 		trialNudgeCalls,
 		rawEmailDeleteArgs,
 		rawEmailPrefixDeleteArgs,
@@ -981,6 +986,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
+		assert.deepEqual(s.ageLockDeletionCalls, [account.userId]);
 		assert.deepEqual(s.trialNudgeCalls, [
 			{ userId: account.userId, kind: "trial_day3" },
 			{ userId: account.userId, kind: "trial_day7" },
@@ -1005,6 +1011,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
+		assert.deepEqual(s.ageLockDeletionCalls, [account.userId]);
 		assert.deepEqual(s.trialNudgeCalls, [
 			{ userId: account.userId, kind: "trial_day3" },
 			{ userId: account.userId, kind: "trial_day7" },

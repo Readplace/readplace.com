@@ -34,7 +34,7 @@ const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
  * without standing up a real session store (DI, not mocks). */
 const authedResolver: ResolveLogin = async (cookieHeader) =>
 	cookieHeader === "hutch_sid=valid"
-		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true, sessionExpiresAt: 1_800_000_000 }
+		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true, ageLocked: false, sessionExpiresAt: 1_800_000_000 }
 		: { isAuthenticated: false };
 
 const STATIC_BASE_URL = "https://static.readplace.test";

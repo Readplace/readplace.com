@@ -235,4 +235,19 @@ describe("the public API's documented contract", () => {
 		expect(response.body.properties.code).toBe("upload-not-found");
 		expect(response.body.properties.message).toBe("The uploaded content has expired; please re-upload");
 	});
+
+	it("answers report-age-range with 204 for a reader the store reports as 13 or over", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const root = await sirenGet(harness, { path: "/", token });
+
+		const response = await request(harness.server)
+			.post(actionNamed(root.body, "report-age-range").href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.type("form")
+			.send({ ageRange: "18-plus", parentalApproval: "none-reported" });
+
+		expect(response.status).toBe(204);
+	});
 });

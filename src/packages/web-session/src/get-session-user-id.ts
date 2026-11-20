@@ -40,6 +40,7 @@ export function initGetSessionUserId(deps: {
 		return {
 			userId: authenticatedUserIdFrom(row.userId),
 			emailVerified: row.emailVerified === true,
+			ageLocked: row.ageLocked === true,
 			expiresAt: row.expiresAt,
 		};
 	};

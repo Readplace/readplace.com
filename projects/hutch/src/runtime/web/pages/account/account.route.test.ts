@@ -3917,6 +3917,24 @@ describe("POST /account/delete", () => {
 		expect(after.headers.location).toBe("/login?return=%2Faccount");
 	});
 
+	it("publishes DeleteAccountCommand for the confirmed account so the asynchronous scrub runs", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const published: Array<{ userId: string }> = [];
+		fixture.events.publishDeleteAccountCommand = async (params) => {
+			published.push(params);
+		};
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "delete-publish@example.com");
+
+		const response = await agent
+			.post("/account/delete")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(303);
+		expect(published).toEqual([{ userId }]);
+	});
+
 	it("marks the identity deleted before publishing, so the same password cannot mint a fresh session while the scrub runs", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const email = "delete-then-login@example.com";

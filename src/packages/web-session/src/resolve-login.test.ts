@@ -34,7 +34,7 @@ describe("initResolveLogin", () => {
 	it("resolves to authenticated for a valid session cookie", async () => {
 		const getSessionUserId: GetSessionUserId = async (sessionId) => {
 			expect(sessionId).toBe("valid");
-			return { userId: USER, emailVerified: true, expiresAt: 1_800_000_000 };
+			return { userId: USER, emailVerified: true, ageLocked: false, expiresAt: 1_800_000_000 };
 		};
 
 		const state = await resolverWith(getSessionUserId)("hutch_sid=valid");
@@ -43,6 +43,7 @@ describe("initResolveLogin", () => {
 			isAuthenticated: true,
 			userId: USER,
 			emailVerified: true,
+			ageLocked: false,
 			sessionExpiresAt: 1_800_000_000,
 		});
 	});

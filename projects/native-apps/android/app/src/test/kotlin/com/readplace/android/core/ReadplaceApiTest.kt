@@ -1876,6 +1876,89 @@ class ReadplaceApiTest {
 		assertEquals(1, server.records("/queue/a1/card").size)
 	}
 
+	// region Age range report
+
+	private val reportAgeRangeAction =
+		""", { "name": "report-age-range", "href": "/elsewhere/age", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "ageRange", "type": "text" }, { "name": "parentalApproval", "type": "text" }] }"""
+
+	private fun ageReportServer(answer: Stub) {
+		server.handle { record ->
+			if (record.path == "/elsewhere/age") return@handle answer
+			Stub.json(200, Fixtures.collection(emptyList(), actionsJson = Fixtures.COLLECTION_ACTIONS + reportAgeRangeAction))
+		}
+	}
+
+	@Test
+	fun `an age report posts the range and approval to the action found by name, and a 204 allows`() = runTest {
+		ageReportServer(Stub(204))
+
+		val outcome = api().reportAgeRange(AgeRange.FROM_13_TO_15, ParentalApproval.PENDING)
+
+		assertEquals(AgeReport.Allowed, outcome)
+		val posted = server.records("/elsewhere/age").single()
+		assertEquals("POST", posted.method)
+		assertEquals(mapOf("ageRange" to "13-15", "parentalApproval" to "pending"), formFields(posted.body))
+	}
+
+	@Test
+	fun `a 403 refusal carries the server's sentence`() = runTest {
+		ageReportServer(Stub.json(403, Fixtures.accountLockedError(message = "Readplace is for people 13 and over.")))
+
+		assertEquals(
+			AgeReport.Refused("Readplace is for people 13 and over."),
+			api().reportAgeRange(AgeRange.UNDER_13, ParentalApproval.NONE_REPORTED),
+		)
+	}
+
+	@Test
+	fun `a 403 refusal with no message the app can render leaves the sentence to the app`() = runTest {
+		ageReportServer(Stub.json(403, Fixtures.messageRefusal(listOf(Triple("warning", "text/markdown", "**no**")))))
+
+		assertEquals(AgeReport.Refused(null), api().reportAgeRange(AgeRange.UNDER_13, ParentalApproval.NONE_REPORTED))
+	}
+
+	@Test
+	fun `a 403 that is no refusal, any other status, or a revoked session is unknown`() = runTest {
+		for (answer in listOf(Stub.json(403, Fixtures.sirenError("forbidden", "No.")), Stub(500), Stub(401))) {
+			ageReportServer(answer)
+			assertEquals(AgeReport.Unknown, api().reportAgeRange(AgeRange.UNDER_13, ParentalApproval.NONE_REPORTED))
+		}
+	}
+
+	@Test
+	fun `a server that advertises no age report, or cannot be reached, is unknown`() = runTest {
+		server.handle { Stub.json(200, Fixtures.collection(emptyList())) }
+		assertEquals(AgeReport.Unknown, api().reportAgeRange(AgeRange.UNDER_13, ParentalApproval.NONE_REPORTED))
+
+		assertEquals(
+			AgeReport.Unknown,
+			api(baseUrl = unreachableBaseUrl()).reportAgeRange(AgeRange.UNDER_13, ParentalApproval.NONE_REPORTED),
+		)
+	}
+
+	@Test
+	fun `an age report cancelled on the wire is cancelled, not unknown`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			if (record.path == "/elsewhere/age") return@handle gate.holding(Stub(204))
+			Stub.json(200, Fixtures.collection(emptyList(), actionsJson = Fixtures.COLLECTION_ACTIONS + reportAgeRangeAction))
+		}
+		var outcome: AgeReport? = null
+		val report = launch(start = CoroutineStart.UNDISPATCHED) {
+			outcome = api(ioDispatcher = Dispatchers.IO).reportAgeRange(AgeRange.UNDER_13, ParentalApproval.NONE_REPORTED)
+		}
+		withContext(Dispatchers.IO) { gate.awaitArrival() }
+
+		report.cancel()
+		gate.release()
+		report.join()
+
+		assertTrue(report.isCancelled)
+		assertNull(outcome)
+	}
+
+	// endregion
+
 	private object Fixtures {
 		fun article(
 			id: String = "a1",

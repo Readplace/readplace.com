@@ -826,6 +826,15 @@ export const SavedLinksJobFailedEvent = defineEvent({
 });
 export type SavedLinksJobFailedDetail = z.infer<typeof SavedLinksJobFailedEvent.detailSchema>;
 
+export const AgeLockDeletionDueCommand = defineEvent({
+	name: "age-lock-deletion-due-command",
+	source: "hutch.api",
+	detailType: "AgeLockDeletionDueCommand",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+	}),
+});
+
 export const UserDataExportedEvent = defineEvent({
 	name: "user-data-exported",
 	source: "hutch.export-user-data",

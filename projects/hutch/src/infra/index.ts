@@ -14,6 +14,7 @@ import {
 	CheckoutCompletedEvent,
 	DeleteAccountCommand,
 	ExportUserDataCommand,
+	AgeLockDeletionDueCommand,
 	RunSavedLinksJobCommand,
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
@@ -1008,7 +1009,7 @@ const userDataJobsWithSQS = new SqsBackedLambda("user-data-jobs", {
 });
 
 eventBus.subscribeAll(
-	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand],
+	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, AgeLockDeletionDueCommand],
 	userDataJobsWithSQS,
 	{ name: "user-data-jobs" },
 );

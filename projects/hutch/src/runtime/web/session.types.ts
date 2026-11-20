@@ -4,6 +4,7 @@ declare global {
 	namespace Express {
 		interface Request {
 			emailVerified?: boolean;
+			ageLocked?: boolean;
 			oauthClientId?: string;
 			sessionExpiresAt?: number;
 			/** Set by resolveVerificationStatus for unverified sessions only.

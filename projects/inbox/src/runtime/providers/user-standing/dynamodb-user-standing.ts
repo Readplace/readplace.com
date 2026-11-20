@@ -25,6 +25,7 @@ const UserStandingRow = z.object({
 	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
 	activationThresholdReachedAt: dynamoField(z.string()),
 	keepOfferDismissedAt: dynamoField(z.string()),
+	ageLockedAt: dynamoField(z.string()),
 	earlyIntentionalSaves: dynamoField(z.number()),
 });
 
@@ -49,7 +50,7 @@ export function initDynamoDbUserStanding(deps: {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": userId },
-			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId, activationThresholdReachedAt, keepOfferDismissedAt, earlyIntentionalSaves",
+			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId, activationThresholdReachedAt, keepOfferDismissedAt, ageLockedAt, earlyIntentionalSaves",
 			Limit: 1,
 		});
 		const row = items[0];
@@ -64,6 +65,7 @@ export function initDynamoDbUserStanding(deps: {
 			signupOAuthClientId: row.signupOAuthClientId ?? null,
 			activationThresholdReachedAt: row.activationThresholdReachedAt,
 			keepOfferDismissedAt: row.keepOfferDismissedAt,
+			ageLockedAt: row.ageLockedAt,
 			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
 		};
 	};

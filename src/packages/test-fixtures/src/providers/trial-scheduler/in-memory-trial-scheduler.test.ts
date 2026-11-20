@@ -412,4 +412,29 @@ describe("initInMemoryTrialScheduler", () => {
 		);
 		assert.equal(scheduler.getTrialNudgeSchedule({ userId, kind: "trial_day7" }), undefined);
 	});
+
+	it("createAgeLockDeletionSchedule records the fire time and rejects a duplicate name, as CreateSchedule does", async () => {
+		const userId = UserIdSchema.parse("e".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+		const input = { userId, firesAt: "2026-12-20T00:00:00.000Z" };
+		await scheduler.createAgeLockDeletionSchedule(input);
+
+		assert.equal(scheduler.getAgeLockDeletionSchedule(userId), "2026-12-20T00:00:00.000Z");
+		await assert.rejects(() => scheduler.createAgeLockDeletionSchedule(input), {
+			name: "ConflictException",
+			message: `Schedule age-lock-delete-${userId} already exists`,
+		});
+	});
+
+	it("deleteAgeLockDeletionSchedule removes the schedule idempotently and records each call", async () => {
+		const userId = UserIdSchema.parse("f".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+		await scheduler.createAgeLockDeletionSchedule({ userId, firesAt: "2026-12-20T00:00:00.000Z" });
+
+		await scheduler.deleteAgeLockDeletionSchedule({ userId });
+		await assert.doesNotReject(scheduler.deleteAgeLockDeletionSchedule({ userId }));
+
+		assert.equal(scheduler.getAgeLockDeletionSchedule(userId), undefined);
+		assert.deepEqual(scheduler.ageLockDeletionDeleteCalls(), [userId, userId]);
+	});
 });

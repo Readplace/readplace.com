@@ -41,6 +41,7 @@ describe("initResolveWebsiteLogin", () => {
 			isAuthenticated: true,
 			userId: authenticatedUserIdFrom("user-1"),
 			emailVerified: true,
+			ageLocked: false,
 			sessionExpiresAt: FUTURE,
 		});
 	});

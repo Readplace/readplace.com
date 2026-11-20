@@ -1,4 +1,13 @@
 export const enUS = {
+	ageLockEmail: {
+		subject: "your Readplace account is paused",
+		title: "Your Readplace account is paused",
+		reported:
+			"The Readplace app reported that the person using your account is under 13. Readplace is for people 13 and over, so the account is paused: it is signed out everywhere and cannot use Readplace.",
+		deletion:
+			"Unless you confirm within 30 days that this is your account and that you are 13 or over, the account and its data are deleted.",
+		cta: "This is my account and I am 13 or over",
+	},
 	trialReminderEmail: {
 		trialEnds:
 			"Your trial of Readplace ends in {days} days. I don't ask for a card up front, so nothing gets charged.",

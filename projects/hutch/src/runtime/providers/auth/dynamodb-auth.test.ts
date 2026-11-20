@@ -1336,6 +1336,95 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("createSession for an age-locked account", () => {
+		function lockedUserClient(userRow: Record<string, unknown>) {
+			const commands: CapturedCommand[] = [];
+			const client = {
+				send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+					commands.push({ name: command.constructor.name, input: command.input });
+					if (command.constructor.name === "QueryCommand") return { Items: [userRow], Count: 1 };
+					if (command.constructor.name === "GetCommand") return { Item: userRow };
+					return {};
+				}) as DynamoDBDocumentClient["send"],
+			};
+			return { client: client as typeof client & DynamoDBDocumentClient, commands };
+		}
+
+		it("marks the session locked when the user row holds a lock, read consistently", async () => {
+			const { client, commands } = lockedUserClient({ email: "user@example.com", userId: "abc123", ageLockedAt: "2026-11-20T00:00:00.000Z" });
+
+			const sessionId = await initAuth(client).createSession({ userId: USER, emailVerified: true });
+
+			const get = commands.find((command) => command.name === "GetCommand");
+			expect(get?.input).toMatchObject({ Key: { email: "user@example.com" }, ConsistentRead: true });
+			const put = commands.find((command) => command.name === "PutCommand");
+			assert(put, "createSession issues a PutCommand");
+			expect(put.input.Item).toStrictEqual({ sessionId, userId: "abc123", emailVerified: true, expiresAt: expect.any(Number), ageLocked: true });
+		});
+
+		it("leaves the session unlocked when the user row holds no lock", async () => {
+			const { client, commands } = lockedUserClient({ email: "user@example.com", userId: "abc123" });
+
+			const sessionId = await initAuth(client).createSession({ userId: USER, emailVerified: true });
+
+			const put = commands.find((command) => command.name === "PutCommand");
+			assert(put, "createSession issues a PutCommand");
+			expect(put.input.Item).toStrictEqual({ sessionId, userId: "abc123", emailVerified: true, expiresAt: expect.any(Number) });
+		});
+	});
+
+	describe("markAgeLocked", () => {
+		it("sets the lock once, conditionally on the row existing", async () => {
+			const { client, commands } = createQueryFakeClient({ row: { email: "user@example.com", userId: "abc123" } });
+
+			await initAuth(client).markAgeLocked({ userId: USER, at: "2026-11-20T00:00:00.000Z" });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET ageLockedAt = if_not_exists(ageLockedAt, :at)",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":at": "2026-11-20T00:00:00.000Z" },
+			});
+		});
+
+		it("refuses a user with no row", async () => {
+			const { client } = createQueryFakeClient({});
+
+			await expect(initAuth(client).markAgeLocked({ userId: USER, at: "2026-11-20T00:00:00.000Z" })).rejects.toThrow(
+				"markAgeLocked: no user row for userId",
+			);
+		});
+	});
+
+	describe("clearAgeLock", () => {
+		it("removes a lock from a live account", async () => {
+			const { client, commands } = createQueryFakeClient({ row: { email: "user@example.com", userId: "abc123" } });
+
+			expect(await initAuth(client).clearAgeLock(USER)).toBe("unlocked");
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "user@example.com" },
+				UpdateExpression: "REMOVE ageLockedAt",
+				ConditionExpression: "attribute_exists(ageLockedAt) AND attribute_not_exists(deletedAt)",
+			});
+		});
+
+		it("reports not-locked when the condition fails or the user row is gone", async () => {
+			const conditionFailed = {
+				send: (async (command: { constructor: { name: string } }) => {
+					if (command.constructor.name === "QueryCommand") return { Items: [{ email: "user@example.com", userId: "abc123" }], Count: 1 };
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" });
+				}) as DynamoDBDocumentClient["send"],
+			};
+			const { client: noRow } = createQueryFakeClient({});
+
+			expect(await initAuth(conditionFailed as typeof conditionFailed & DynamoDBDocumentClient).clearAgeLock(USER)).toBe("not-locked");
+			expect(await initAuth(noRow).clearAgeLock(USER)).toBe("not-locked");
+		});
+	});
+
 	describe("renewSession", () => {
 		it("attributes renewal and deletion to the previous session row", async () => {
 			const observations: unknown[] = [];

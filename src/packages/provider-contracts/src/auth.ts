@@ -53,7 +53,7 @@ export type CreateSession = (session: {
 
 export type GetSessionUserId = (
 	sessionId: string,
-) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean; expiresAt: number } | null>;
+) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean; ageLocked: boolean; expiresAt: number } | null>;
 
 export type RenewSession = (session: { sessionId: string; oauthGrantId?: OAuthGrantId }) => Promise<"renewed" | "session-gone">;
 
@@ -77,6 +77,10 @@ export type ObserveSession = (event: SessionObservation) => void;
 export type CloseUserAccount = (userId: UserId) => Promise<void>;
 
 export type MarkAccountDeleted = (input: { userId: UserId; at: string }) => Promise<void>;
+
+export type MarkAgeLocked = (input: { userId: UserId; at: string }) => Promise<void>;
+
+export type ClearAgeLock = (userId: UserId) => Promise<"unlocked" | "not-locked">;
 
 export type CountUsers = () => Promise<number>;
 
@@ -121,6 +125,7 @@ export type FindUserByIdResult =
 			activationThresholdReachedAt: string | undefined;
 			keepOfferDismissedAt: string | undefined;
 			earlyIntentionalSaves: number;
+			ageLockedAt: string | undefined;
 		}
 	| null;
 

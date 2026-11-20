@@ -10,7 +10,8 @@
     "ReaderSheet.swift": "pure SwiftUI layout",
     "ArticleRow.swift": "pure SwiftUI layout",
     "ReadingListView.swift": "pure SwiftUI layout",
-    "ShareViewController.swift": "UIKit share-extension shell (OS boundary)"
+    "ShareViewController.swift": "UIKit share-extension shell (OS boundary)",
+    "DeclaredAgeRangeSignals.swift": "DeclaredAgeRange AgeRangeService + SwiftUI requestAgeRange environment glue (OS boundary); the age decision it feeds is covered by AgeGateTests"
   },
   "floors": {
     "AppConfig.swift": 100,

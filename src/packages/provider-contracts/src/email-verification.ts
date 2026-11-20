@@ -16,3 +16,10 @@ export type VerifyEmailToken = (token: VerificationToken) => Promise<
  * has a TTL, but deletion must remove the `{userId, email}` remnant immediately
  * rather than let it linger for the verification window. */
 export type DeleteVerificationTokensByUserId = (userId: UserId) => Promise<void>;
+
+export type CreateAgeUnlockToken = (args: { userId: UserId; email: string }) => Promise<VerificationToken>;
+
+export type ConsumeAgeUnlockToken = (token: VerificationToken) => Promise<
+	| { ok: true; userId: UserId }
+	| { ok: false; reason: "invalid-token" }
+>;

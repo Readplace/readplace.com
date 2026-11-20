@@ -141,6 +141,8 @@ import type {
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
+	CreateAgeLockDeletionSchedule,
+	DeleteAgeLockDeletionSchedule,
 	CreateCheckoutSession,
 	CreateDeferredCancellationSchedule,
 	CreateGoogleUser,
@@ -234,6 +236,8 @@ import type {
 	MarkArticleViewed,
 	MarkCrawlPending,
 	MarkEmailVerified,
+	MarkAgeLocked,
+	ClearAgeLock,
 	MarkReaderReadyEmailSent,
 	MarkOcrPagesHeld,
 	MarkRelatedDismissed,
@@ -329,6 +333,8 @@ import type {
 	ValidateAccessToken,
 	VerifyCredentials,
 	VerifyEmailToken,
+	CreateAgeUnlockToken,
+	ConsumeAgeUnlockToken,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
@@ -363,6 +369,8 @@ export interface AuthBundle {
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
 	markEmailVerified: MarkEmailVerified;
+	markAgeLocked: MarkAgeLocked;
+	clearAgeLock: ClearAgeLock;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
@@ -440,6 +448,10 @@ export interface TrialSchedulerBundle {
 	allTrialReminderSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	trialReminderDeleteCalls: () => readonly UserId[];
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
+	createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule;
+	deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
+	getAgeLockDeletionSchedule: (userId: UserId) => string | undefined;
+	ageLockDeletionDeleteCalls: () => readonly UserId[];
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	getChargeReminderSchedule: (
 		userId: UserId,
@@ -738,6 +750,8 @@ export interface EmailBundle {
 export interface EmailVerificationBundle {
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
+	createAgeUnlockToken: CreateAgeUnlockToken;
+	consumeAgeUnlockToken: ConsumeAgeUnlockToken;
 }
 
 export interface BrowserHandoffBundle {

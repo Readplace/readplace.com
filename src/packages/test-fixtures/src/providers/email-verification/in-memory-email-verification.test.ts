@@ -1,4 +1,4 @@
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema, type UserId } from "@packages/domain/user";
 import type { VerificationToken } from "./email-verification.types";
 import { initInMemoryEmailVerification } from "./in-memory-email-verification";
 
@@ -47,5 +47,17 @@ describe("initInMemoryEmailVerification", () => {
 			userId: other,
 			email: "o@example.com",
 		});
+	});
+
+	it("keeps age-unlock tokens and email tokens apart, and consumes each once", async () => {
+		const verification = initInMemoryEmailVerification();
+		const userId = UserIdSchema.parse("user-1");
+		const unlockToken = await verification.createAgeUnlockToken({ userId, email: "t@example.com" });
+		const emailToken = await verification.createVerificationToken({ userId, email: "t@example.com" });
+
+		expect(await verification.verifyEmailToken(unlockToken)).toEqual({ ok: false, reason: "invalid-token" });
+		expect(await verification.consumeAgeUnlockToken(emailToken)).toEqual({ ok: false, reason: "invalid-token" });
+		expect(await verification.consumeAgeUnlockToken(unlockToken)).toEqual({ ok: true, userId });
+		expect(await verification.consumeAgeUnlockToken(unlockToken)).toEqual({ ok: false, reason: "invalid-token" });
 	});
 });

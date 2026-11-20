@@ -30,7 +30,7 @@ describe("GET /terms", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/terms");
 
-		expect(response.text).toContain("Last updated: 19 November 2026");
+		expect(response.text).toContain("Last updated: 20 November 2026");
 		for (const heading of [
 			"Subscriptions, billing and renewals",
 			"Using Readplace with AI assistants",
@@ -38,6 +38,13 @@ describe("GET /terms", () => {
 		]) {
 			expect(response.text).toContain(heading);
 		}
+	});
+
+	it("states the minimum age", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/terms");
+
+		expect(response.text).toContain("You must be at least 13 years old to use Readplace.");
 	});
 
 	it("moves a lapsed account to the free plan within daily limits it does not number, and with its paid-only features", async () => {

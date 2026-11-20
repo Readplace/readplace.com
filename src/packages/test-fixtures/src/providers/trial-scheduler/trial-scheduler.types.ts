@@ -1,7 +1,9 @@
 export type {
+	CreateAgeLockDeletionSchedule,
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
+	DeleteAgeLockDeletionSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,

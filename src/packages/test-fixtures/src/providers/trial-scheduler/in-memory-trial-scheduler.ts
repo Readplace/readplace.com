@@ -1,12 +1,14 @@
 import type { UserId } from "@packages/domain/user";
 import type { CancelSubscriptionReason } from "@packages/provider-contracts/events";
 import type {
+	CreateAgeLockDeletionSchedule,
 	CreateChargeReminderSchedule,
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
 	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
+	DeleteAgeLockDeletionSchedule,
 	DeleteChargeReminderSchedule,
 	DeleteTrialNudgeSchedule,
 	DeleteDeferredCancellationSchedule,
@@ -59,6 +61,10 @@ export function initInMemoryTrialScheduler(opts?: {
 		chargeAt: string;
 	}[];
 	chargeReminderDeleteCalls: () => readonly UserId[];
+	createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule;
+	deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
+	getAgeLockDeletionSchedule: (userId: UserId) => string | undefined;
+	ageLockDeletionDeleteCalls: () => readonly UserId[];
 } {
 	const trialEndSchedules = new Map<UserId, string>();
 	const trialEndDeletes: UserId[] = [];
@@ -79,6 +85,8 @@ export function initInMemoryTrialScheduler(opts?: {
 	} satisfies Record<TrialNudgeKind, string>;
 	const chargeReminderSchedules = new Map<UserId, { firesAt: string; chargeAt: string }>();
 	const chargeReminderDeletes: UserId[] = [];
+	const ageLockDeletionSchedules = new Map<UserId, string>();
+	const ageLockDeletionDeletes: UserId[] = [];
 
 	/** EventBridge Scheduler has no upsert: CreateSchedule rejects a name that
 	 * already exists, and IAM grants no UpdateSchedule. A fake that silently
@@ -188,6 +196,16 @@ export function initInMemoryTrialScheduler(opts?: {
 		chargeReminderSchedules.delete(userId);
 	};
 
+	const createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule = async ({ userId, firesAt }) => {
+		assertNoConflict(`age-lock-delete-${userId}`, ageLockDeletionSchedules.has(userId));
+		ageLockDeletionSchedules.set(userId, firesAt);
+	};
+
+	const deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule = async ({ userId }) => {
+		ageLockDeletionDeletes.push(userId);
+		ageLockDeletionSchedules.delete(userId);
+	};
+
 	return {
 		createTrialEndSchedule,
 		deleteTrialEndSchedule,
@@ -225,5 +243,9 @@ export function initInMemoryTrialScheduler(opts?: {
 				...schedule,
 			})),
 		chargeReminderDeleteCalls: () => [...chargeReminderDeletes],
+		createAgeLockDeletionSchedule,
+		deleteAgeLockDeletionSchedule,
+		getAgeLockDeletionSchedule: (userId) => ageLockDeletionSchedules.get(userId),
+		ageLockDeletionDeleteCalls: () => [...ageLockDeletionDeletes],
 	};
 }

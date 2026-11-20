@@ -56,6 +56,22 @@ describe("Inbox app composition", () => {
 		expect(errors.some((m) => m.includes("session lookup failed"))).toBe(true);
 	});
 
+	it("sends a session the age lock paused to /login, where hutch shows the paused page", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const getSessionUserId = fixture.auth.getSessionUserId;
+		fixture.auth.getSessionUserId = async (sessionId) => {
+			const session = await getSessionUserId(sessionId);
+			return session && { ...session, ageLocked: true };
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/inbox");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+
 	it("leaves the changelog banner for the browser to fetch from the blog, returning to the inbox page it is shown on", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

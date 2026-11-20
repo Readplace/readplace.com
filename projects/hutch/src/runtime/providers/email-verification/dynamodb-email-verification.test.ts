@@ -93,7 +93,7 @@ describe("initDynamoDbEmailVerification", () => {
 			expect(result).toEqual({ ok: true, userId: USER, email: "user@example.com" });
 			const del = commands.find((c) => c.name === "DeleteCommand");
 			expect(del?.input.ReturnValues).toBe("ALL_OLD");
-			expect(del?.input.ConditionExpression).toContain("attribute_exists");
+			expect(del?.input.ConditionExpression).toBe("attribute_exists(#tk) AND attribute_not_exists(purpose)");
 		});
 
 		it("rejects with invalid-token when no row was deleted", async () => {
@@ -135,6 +135,62 @@ describe("initDynamoDbEmailVerification", () => {
 			});
 
 			await expect(initVerification(client).verifyEmailToken(TOKEN)).rejects.toThrow(failure);
+		});
+	});
+
+	describe("createAgeUnlockToken", () => {
+		it("persists an age-unlock token that lives 30 days, the deletion window it can stop", async () => {
+			const { client, commands } = createFakeClient();
+			const before = Math.floor(Date.now() / 1000);
+
+			const token = await initVerification(client).createAgeUnlockToken({ userId: USER, email: "user@example.com" });
+
+			expect(token).toMatch(/^[a-f0-9]{64}$/);
+			const put = commands.find((c) => c.name === "PutCommand");
+			expect(put?.input.Item).toEqual({
+				token,
+				userId: USER,
+				email: "user@example.com",
+				expiresAt: expect.any(Number),
+				purpose: "age-unlock",
+			});
+			const item = z.object({ expiresAt: z.number() }).parse(put?.input.Item);
+			expect(item.expiresAt - before).toBeGreaterThanOrEqual(30 * 24 * 60 * 60);
+			expect(item.expiresAt - before).toBeLessThanOrEqual(30 * 24 * 60 * 60 + 5);
+		});
+	});
+
+	describe("consumeAgeUnlockToken", () => {
+		it("consumes only a row whose purpose is age-unlock", async () => {
+			const { client, commands } = createFakeClient({ DeleteCommand: rowAttributes({ purpose: "age-unlock" }) });
+
+			const result = await initVerification(client).consumeAgeUnlockToken(TOKEN);
+
+			expect(result).toEqual({ ok: true, userId: USER });
+			const del = commands.find((c) => c.name === "DeleteCommand");
+			expect(del?.input).toMatchObject({
+				ConditionExpression: "attribute_exists(#tk) AND purpose = :purpose",
+				ExpressionAttributeValues: { ":purpose": "age-unlock" },
+				ReturnValues: "ALL_OLD",
+			});
+		});
+
+		it("rejects a token already used or not an age-unlock token", async () => {
+			const { client } = createFakeClient({
+				DeleteCommand: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "missing" });
+				},
+			});
+
+			expect(await initVerification(client).consumeAgeUnlockToken(TOKEN)).toEqual({ ok: false, reason: "invalid-token" });
+		});
+
+		it("rejects an expired age-unlock token", async () => {
+			const { client } = createFakeClient({
+				DeleteCommand: rowAttributes({ purpose: "age-unlock", expiresAt: Math.floor(Date.now() / 1000) - 1 }),
+			});
+
+			expect(await initVerification(client).consumeAgeUnlockToken(TOKEN)).toEqual({ ok: false, reason: "invalid-token" });
 		});
 	});
 

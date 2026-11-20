@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
 	private val foreground = MutableStateFlow(false)
 
 	private lateinit var session: AppSession
+	private lateinit var ageGate: AgeGate
 	private lateinit var intro: LaunchIntroModel
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,6 +140,14 @@ class MainActivity : ComponentActivity() {
 		)
 
 		val api = session.makeApi()
+		ageGate = AgeGate(
+			source = PlayAgeSignalSource(this),
+			isLoggedIn = { session.isLoggedIn.value },
+			report = { range, approval -> api.reportAgeRange(range, approval) },
+			forceLogout = { session.forceLogout() },
+			scope = lifecycleScope,
+		)
+		ageGate.start()
 		val captor = HtmlCaptor(this) { findViewById(android.R.id.content) }
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
@@ -215,6 +225,7 @@ class MainActivity : ComponentActivity() {
 				Surface(modifier = Modifier.fillMaxSize()) {
 					Root(
 						session = session,
+						ageGate = ageGate,
 						createReadingList = createReadingList,
 						intro = intro,
 						rotation = rotation,
@@ -223,6 +234,7 @@ class MainActivity : ComponentActivity() {
 						isForeground = foreground.collectAsStateWithLifecycle().value,
 						loadSlogans = { session.makeSloganSource().load() },
 						onOpenExternally = ::openExternally,
+						onOpenPlay = { openExternally("market://details?id=$packageName") },
 						applySystemBarIcons = ::applySystemBarIcons,
 					)
 				}
@@ -240,6 +252,7 @@ class MainActivity : ComponentActivity() {
 		super.onResume()
 		foreground.value = true
 		relays.onResume()
+		ageGate.onForeground()
 	}
 
 	override fun onPause() {
@@ -312,6 +325,7 @@ private class SystemReduceMotion(private val resolver: ContentResolver) : Reduce
 @Composable
 private fun Root(
 	session: AppSession,
+	ageGate: AgeGate,
 	createReadingList: () -> ReadingListViewModel,
 	intro: LaunchIntroModel,
 	rotation: SloganRotation,
@@ -319,9 +333,11 @@ private fun Root(
 	isForeground: Boolean,
 	loadSlogans: suspend () -> List<String>,
 	onOpenExternally: (String) -> Unit,
+	onOpenPlay: () -> Unit,
 	applySystemBarIcons: (needLightIcons: Boolean) -> Unit,
 ) {
 	val isLoggedIn by session.isLoggedIn.collectAsState()
+	val ageState by ageGate.state.collectAsState()
 	val introPhase by intro.phase.collectAsState()
 	val introBackdropIsDark = LaunchIntro.overlay(introPhase).usesDarkBackdrop
 	val brand = LocalBrandColors.current
@@ -340,6 +356,7 @@ private fun Root(
 		authErrorText = null
 		scope.launch {
 			try {
+				if (!ageGate.awaitAllowsSignIn()) return@launch
 				authErrorText = signInErrorText(start())
 			} finally {
 				authBusy = false
@@ -348,7 +365,10 @@ private fun Root(
 	}
 
 	Box(modifier = Modifier.fillMaxSize()) {
-		if (isLoggedIn) {
+		val refused = ageState as? AgeGateState.Refused
+		if (refused != null) {
+			AgeRefusedScreen(text = ageRefusalText(refused.refusal, refused.serverMessage))
+		} else if (isLoggedIn) {
 			val listViewModel = remember { createReadingList() }
 			val appearance = listViewModel.state.collectAsState().value.appearance
 			val listIsDark = AppearancePresentation.isDark(appearance, isSystemInDarkTheme())
@@ -401,6 +421,13 @@ private fun Root(
 					context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppConfig.privacyPolicyUrl)))
 				},
 				busy = authBusy,
+			)
+		}
+		if (ageState == AgeGateState.VerificationPrompt) {
+			AgeVerificationPrompt(
+				onOpenPlay = onOpenPlay,
+				onDismiss = ageGate::dismissVerification,
+				modifier = Modifier.align(Alignment.BottomCenter),
 			)
 		}
 		LaunchIntroOverlay(model = intro, brand = brand)

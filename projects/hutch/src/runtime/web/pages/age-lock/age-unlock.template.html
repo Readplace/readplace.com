@@ -1,0 +1,10 @@
+    <main class="auth-page">
+      <div class="auth-card" data-test-age-unlock>
+        <h1 class="auth-card__title">{{t "ageLock.unlock.title"}}</h1>
+        <p class="auth-card__subtitle">{{t "ageLock.unlock.body"}}</p>
+        <form method="POST" action="{{unlockUrl}}">
+          <input type="hidden" name="token" value="{{token}}">
+          <button class="btn btn--primary auth-form__submit" type="submit">{{t "ageLock.unlock.confirm"}}</button>
+        </form>
+      </div>
+    </main>

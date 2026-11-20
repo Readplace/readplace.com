@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <style>
+      @media (min-width: 768px) {
+        .email-card__body {
+          padding: 40px !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background-color:{{colors.muted}};font-family:{{fontStack}};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.muted}};padding:40px 20px;font-family:{{fontStack}};table-layout:fixed;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:100%;background-color:{{colors.card}};border:1px solid {{colors.border}};border-radius:12px;">
+            <tr>
+              <td class="email-card__body" style="padding:24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td>
+                      {{#each paragraphs}}
+                      <p style="margin:0 0 {{#if @last}}24px{{else}}16px{{/if}};font-size:16px;line-height:1.6;color:{{../colors.mutedForeground}};">{{this}}</p>
+                      {{/each}}
+                      <table role="presentation" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="border-radius:6px;background-color:{{colors.primary}};">
+                            <a href="{{ctaUrl}}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{colors.primaryForeground}};text-decoration:none;border-radius:6px;">{{ctaLabel}}</a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

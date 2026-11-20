@@ -13,7 +13,8 @@ import { buildTabList, type StatusTab, type TabListEntry } from "./tab-list";
 import { buildSortList, type SortListEntry, type SortOption } from "./sort-list";
 import { buildReadlistList, type ReadlistListEntry, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
-import { READLIST_CREATE_PATH, readlistDeletePath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
@@ -221,6 +222,16 @@ export function toArticleCollectionEntity(
 				name: "create-browser-handoff",
 				href: "/auth/handoff",
 				method: "POST",
+			},
+			{
+				name: "report-age-range",
+				href: `${READLIST_PATH}${AGE_RANGE_PATH}`,
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [
+					{ name: "ageRange", type: "text" },
+					{ name: "parentalApproval", type: "text" },
+				],
 			},
 			{
 				name: "create-readlist",

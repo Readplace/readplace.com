@@ -9,7 +9,7 @@ import { SESSION_COOKIE_NAME } from "./session-cookie";
  * fields hang off the `isAuthenticated: true` arm without touching call sites
  * that only branch on `isAuthenticated`. */
 export type LoginState =
-	| { isAuthenticated: true; userId: AuthenticatedUserId; emailVerified: boolean; sessionExpiresAt: number }
+	| { isAuthenticated: true; userId: AuthenticatedUserId; emailVerified: boolean; ageLocked: boolean; sessionExpiresAt: number }
 	| { isAuthenticated: false };
 
 const GUEST: LoginState = { isAuthenticated: false };
@@ -40,6 +40,7 @@ export function initResolveLogin(deps: {
 				isAuthenticated: true,
 				userId: session.userId,
 				emailVerified: session.emailVerified,
+				ageLocked: session.ageLocked,
 				sessionExpiresAt: session.expiresAt,
 			};
 		} catch (error) {

@@ -10,6 +10,7 @@ import {
 	gmailIdentityKey,
 } from "@packages/domain/user";
 import type {
+	ClearAgeLock,
 	CloseUserAccount,
 	FindExportRecipient,
 	MarkExportDelivered,
@@ -34,6 +35,7 @@ import type {
 	FindUserPasswordStatus,
 	GetSessionUserId,
 	MarkAccountDeleted,
+	MarkAgeLocked,
 	RenewSession,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -69,11 +71,13 @@ interface StoredUser {
 	activationThresholdReachedAt?: string;
 	keepOfferDismissedAt?: string;
 	exportDeliveredRequestedAt?: string;
+	ageLockedAt?: string;
 }
 
 interface StoredSession {
 	userId: UserId;
 	emailVerified: boolean;
+	ageLocked: boolean;
 	expiresAt: number;
 	readlistFilter?: ReadlistFilter;
 	oauthGrantId: OAuthGrantId | undefined;
@@ -112,6 +116,8 @@ export function initInMemoryAuth(opts: {
 	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
+	markAgeLocked: MarkAgeLocked;
+	clearAgeLock: ClearAgeLock;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
@@ -293,7 +299,14 @@ export function initInMemoryAuth(opts: {
 
 	const createSession: CreateSession = async ({ userId, emailVerified, oauthGrantId }) => {
 		const sessionId = randomBytes(32).toString("hex");
-		sessions.set(sessionId, { userId, emailVerified, expiresAt: nowSeconds() + SESSION_TTL_SECONDS, oauthGrantId });
+		const ageLocked = [...users.values()].some((user) => user.id === userId && user.ageLockedAt !== undefined);
+		sessions.set(sessionId, {
+			userId,
+			emailVerified,
+			ageLocked,
+			expiresAt: nowSeconds() + SESSION_TTL_SECONDS,
+			oauthGrantId,
+		});
 		return sessionId;
 	};
 
@@ -303,6 +316,7 @@ export function initInMemoryAuth(opts: {
 		return {
 			userId: authenticatedUserIdFrom(session.userId),
 			emailVerified: session.emailVerified,
+			ageLocked: session.ageLocked,
 			expiresAt: session.expiresAt,
 		};
 	};
@@ -349,6 +363,21 @@ export function initInMemoryAuth(opts: {
 				return;
 			}
 		}
+	};
+
+	const markAgeLocked: MarkAgeLocked = async ({ userId, at }) => {
+		const user = [...users.values()].find((candidate) => candidate.id === userId);
+		assert(user, `markAgeLocked: no user ${userId}`);
+		user.ageLockedAt ??= at;
+	};
+
+	const clearAgeLock: ClearAgeLock = async (userId) => {
+		const user = [...users.values()].find(
+			(candidate) => candidate.id === userId && candidate.ageLockedAt !== undefined && candidate.deletedAt === undefined,
+		);
+		if (!user) return "not-locked";
+		user.ageLockedAt = undefined;
+		return "unlocked";
 	};
 
 	const findExportRecipient: FindExportRecipient = async (userId) => {
@@ -453,6 +482,7 @@ export function initInMemoryAuth(opts: {
 					displayName: user.displayName,
 					signupOAuthClientId: user.signupOAuthClientId,
 					deletedAt: user.deletedAt,
+					ageLockedAt: user.ageLockedAt,
 					activationThresholdReachedAt: user.activationThresholdReachedAt,
 					keepOfferDismissedAt: user.keepOfferDismissedAt,
 					earlyIntentionalSaves: earlyIntentionalSaves.get(user.id) ?? 0,
@@ -575,6 +605,8 @@ export function initInMemoryAuth(opts: {
 		destroyOAuthGrantSessions,
 		closeUserAccount,
 		markAccountDeleted,
+		markAgeLocked,
+		clearAgeLock,
 		findExportRecipient,
 		markExportDelivered,
 		countUsers,

@@ -5,13 +5,16 @@ import {
 	type SchedulerClient,
 } from "@aws-sdk/client-scheduler";
 import type { UserId } from "@packages/domain/user";
+import { AgeLockDeletionDueCommand } from "@packages/infra-components";
 import type {
+	CreateAgeLockDeletionSchedule,
 	CreateChargeReminderSchedule,
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
 	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
+	DeleteAgeLockDeletionSchedule,
 	DeleteChargeReminderSchedule,
 	DeleteTrialNudgeSchedule,
 	DeleteDeferredCancellationSchedule,
@@ -69,6 +72,10 @@ function chargeReminderScheduleName(userId: UserId): string {
 	return `charge-reminder-${userId}`;
 }
 
+function ageLockDeletionScheduleName(userId: UserId): string {
+	return `age-lock-delete-${userId}`;
+}
+
 export function initAwsTrialScheduler(deps: {
 	client: Pick<SchedulerClient, "send">;
 	scheduleGroupName: string;
@@ -87,6 +94,8 @@ export function initAwsTrialScheduler(deps: {
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	deleteTrialNudgeSchedule: DeleteTrialNudgeSchedule;
+	createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule;
+	deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
 } {
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
 		assert(deps.eventBusArn, "eventBusArn is required for createTrialEndSchedule");
@@ -368,6 +377,52 @@ export function initAwsTrialScheduler(deps: {
 		}
 	};
 
+	const createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule = async ({
+		userId,
+		firesAt,
+	}) => {
+		assert(deps.eventBusArn, "eventBusArn is required for createAgeLockDeletionSchedule");
+		assert(
+			deps.schedulerRoleArn,
+			"schedulerRoleArn is required for createAgeLockDeletionSchedule",
+		);
+		await deps.client.send(
+			new CreateScheduleCommand({
+				Name: ageLockDeletionScheduleName(userId),
+				GroupName: deps.scheduleGroupName,
+				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
+				FlexibleTimeWindow: { Mode: "OFF" },
+				ActionAfterCompletion: "DELETE",
+				State: "ENABLED",
+				Target: {
+					Arn: deps.eventBusArn,
+					RoleArn: deps.schedulerRoleArn,
+					EventBridgeParameters: {
+						Source: AgeLockDeletionDueCommand.source,
+						DetailType: AgeLockDeletionDueCommand.detailType,
+					},
+					Input: JSON.stringify({ userId }),
+				},
+			}),
+		);
+	};
+
+	const deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule = async ({ userId }) => {
+		try {
+			await deps.client.send(
+				new DeleteScheduleCommand({
+					Name: ageLockDeletionScheduleName(userId),
+					GroupName: deps.scheduleGroupName,
+				}),
+			);
+		} catch (err) {
+			if (err instanceof Error && err.name === "ResourceNotFoundException") {
+				return;
+			}
+			throw err;
+		}
+	};
+
 	return {
 		createTrialEndSchedule,
 		deleteTrialEndSchedule,
@@ -381,5 +436,7 @@ export function initAwsTrialScheduler(deps: {
 		createChargeReminderSchedule,
 		deleteChargeReminderSchedule,
 		deleteTrialNudgeSchedule,
+		createAgeLockDeletionSchedule,
+		deleteAgeLockDeletionSchedule,
 	};
 }

@@ -258,6 +258,45 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("markAgeLocked and clearAgeLock", () => {
+		it("marks new sessions locked and keeps the first lock time", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "young@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.markAgeLocked({ userId: created.userId, at: "2026-11-20T00:00:00.000Z" });
+			await auth.markAgeLocked({ userId: created.userId, at: "2026-12-01T00:00:00.000Z" });
+			const sessionId = await auth.createSession({ userId: created.userId, emailVerified: false, oauthGrantId: undefined });
+
+			expect((await auth.findUserById(created.userId))?.ageLockedAt).toBe("2026-11-20T00:00:00.000Z");
+			expect((await auth.getSessionUserId(sessionId))?.ageLocked).toBe(true);
+		});
+
+		it("refuses to lock an unknown user", async () => {
+			const auth = makeAuth();
+
+			await expect(
+				auth.markAgeLocked({ userId: UserIdSchema.parse("nobody"), at: "2026-11-20T00:00:00.000Z" }),
+			).rejects.toThrow("markAgeLocked: no user nobody");
+		});
+
+		it("unlocks a locked account once, and leaves a deleted one locked", async () => {
+			const auth = makeAuth();
+			const kept = await auth.createUser({ email: "kept@example.com", password: "password123" });
+			const gone = await auth.createUser({ email: "gone@example.com", password: "password123" });
+			assert(kept.ok && gone.ok, "User creation failed");
+			await auth.markAgeLocked({ userId: kept.userId, at: "2026-11-20T00:00:00.000Z" });
+			await auth.markAgeLocked({ userId: gone.userId, at: "2026-11-20T00:00:00.000Z" });
+			await auth.markAccountDeleted({ userId: gone.userId, at: "2026-11-21T00:00:00.000Z" });
+
+			expect(await auth.clearAgeLock(kept.userId)).toBe("unlocked");
+			expect(await auth.clearAgeLock(kept.userId)).toBe("not-locked");
+			expect(await auth.clearAgeLock(gone.userId)).toBe("not-locked");
+			const sessionId = await auth.createSession({ userId: kept.userId, emailVerified: false, oauthGrantId: undefined });
+			expect((await auth.getSessionUserId(sessionId))?.ageLocked).toBe(false);
+		});
+	});
+
 	describe("findExportRecipient and markExportDelivered", () => {
 		it("returns the address with no deletedAt and no marker before a first delivery", async () => {
 			const auth = makeAuth();
@@ -440,7 +479,7 @@ describe("initInMemoryAuth", () => {
 			await auth.markSessionEmailVerified(sessionId);
 			const session = await auth.getSessionUserId(sessionId);
 
-			expect(session).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
+			expect(session).toEqual({ userId, emailVerified: true, ageLocked: false, expiresAt: expect.any(Number) });
 		});
 
 		it("should be a no-op for unknown sessions", async () => {
@@ -598,10 +637,10 @@ describe("initInMemoryAuth", () => {
 
 			expect(await auth.getSessionUserId(minted)).toBe(null);
 			expect(await auth.getSessionUserId(renewedOnto)).toBe(null);
-			expect(await auth.getSessionUserId(webLogin)).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
-			expect(await auth.getSessionUserId(otherPhone)).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
-			expect(await auth.getSessionUserId(reboundAway)).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
-			expect(await auth.getSessionUserId(otherUser)).toEqual({ userId: otherUserId, emailVerified: true, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(webLogin)).toEqual({ userId, emailVerified: true, ageLocked: false, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(otherPhone)).toEqual({ userId, emailVerified: true, ageLocked: false, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(reboundAway)).toEqual({ userId, emailVerified: true, ageLocked: false, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(otherUser)).toEqual({ userId: otherUserId, emailVerified: true, ageLocked: false, expiresAt: expect.any(Number) });
 		});
 	});
 
@@ -1184,6 +1223,7 @@ describe("initInMemoryAuth", () => {
 				signupOAuthClientId: null,
 				activationThresholdReachedAt: undefined,
 				keepOfferDismissedAt: undefined,
+				ageLockedAt: undefined,
 				earlyIntentionalSaves: 0,
 			});
 		});
@@ -1210,6 +1250,7 @@ describe("initInMemoryAuth", () => {
 				signupOAuthClientId: null,
 				activationThresholdReachedAt: undefined,
 				keepOfferDismissedAt: undefined,
+				ageLockedAt: undefined,
 				earlyIntentionalSaves: 0,
 			});
 		});
@@ -1282,7 +1323,7 @@ describe("initInMemoryAuth", () => {
 
 			const resolved = await auth.getSessionUserId(sessionId);
 
-			expect(resolved).toEqual({ userId, emailVerified: false, expiresAt: expect.any(Number) });
+			expect(resolved).toEqual({ userId, emailVerified: false, ageLocked: false, expiresAt: expect.any(Number) });
 		});
 
 		it("should return null for unknown session", async () => {

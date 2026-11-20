@@ -12,7 +12,7 @@ import {
 	initEventBridgePublisher,
 	initHandleByDetailType,
 } from "@packages/infra-components/runtime";
-import { DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
+import { AgeLockDeletionDueCommand, DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
 import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
@@ -36,6 +36,9 @@ import { initDynamoDbEmailVerification } from "./providers/email-verification/dy
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
+import { initAgeLockDeletionDueHandler } from "./age-lock-deletion/age-lock-deletion-due-handler";
+import { initDeleteAccount } from "./domain/account/delete-account";
+import { initEventBridgeDeleteAccountCommand } from "./providers/events/eventbridge-delete-account-command";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
 import { initReleasePrivateItems } from "./media-release/release-private-items";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
@@ -349,6 +352,7 @@ export const handler = initHandleByDetailType({
 				deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 				deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 				deleteTrialNudgeSchedule: trialScheduler.deleteTrialNudgeSchedule,
+				deleteAgeLockDeletionSchedule: trialScheduler.deleteAgeLockDeletionSchedule,
 				listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 				deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 				deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
@@ -387,6 +391,19 @@ export const handler = initHandleByDetailType({
 				revokeAllUserOAuthTokens,
 				destroyUserSessions: auth.destroyUserSessions,
 				closeUserAccount: auth.closeUserAccount,
+				logger,
+			}),
+		],
+		[AgeLockDeletionDueCommand.detailType]: [
+			initAgeLockDeletionDueHandler({
+				findUserById: auth.findUserById,
+				deleteAccount: initDeleteAccount({
+					markAccountDeleted: auth.markAccountDeleted,
+					revokeAllUserOAuthTokens,
+					destroyUserSessions: auth.destroyUserSessions,
+					publishDeleteAccountCommand: initEventBridgeDeleteAccountCommand({ publishEvent }).publishDeleteAccountCommand,
+					now,
+				}),
 				logger,
 			}),
 		],

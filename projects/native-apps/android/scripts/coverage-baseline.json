@@ -17,7 +17,8 @@
     "LoginScreen.kt": "Compose layout",
     "ArticleRow.kt": "Compose layout",
     "AddLinkInstructions.kt": "Compose layout",
-    "ShareActivity.kt": "activity shell + composition root; no logic of its own"
+    "ShareActivity.kt": "activity shell + composition root; no logic of its own",
+    "PlayAgeSignalSource.kt": "Play Age Signals API glue; the age-range mapping and decision it feeds are tested"
   },
   "floors": {}
 }

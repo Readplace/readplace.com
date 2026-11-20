@@ -33,6 +33,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type { DeleteCustomer } from "@packages/provider-contracts/subscription-billing";
 import type {
+	DeleteAgeLockDeletionSchedule,
 	DeleteChargeReminderSchedule,
 	DeleteTrialNudgeSchedule,
 	DeleteDeferredCancellationSchedule,
@@ -69,6 +70,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	deleteTrialNudgeSchedule: DeleteTrialNudgeSchedule;
+	deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
 	listInboxDeletionReferences: InboxEmailStore["listDeletionReferencesByUserId"];
 	deleteAllInboxEmails: InboxEmailStore["deleteAllEmailsByUserId"];
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
@@ -146,6 +148,7 @@ async function processCommand(
 	await deps.deleteChargeReminderSchedule({ userId });
 	await deps.deleteTrialNudgeSchedule({ userId, kind: "trial_day3" });
 	await deps.deleteTrialNudgeSchedule({ userId, kind: "trial_day7" });
+	await deps.deleteAgeLockDeletionSchedule({ userId });
 
 	// Inbox: read the pointers the email rows hold (S3 keys + link message-ids)
 	// while the rows still exist, then delete the S3 objects and link rows, and

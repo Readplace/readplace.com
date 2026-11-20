@@ -5,11 +5,9 @@ import { z } from "zod";
 import type { Logger } from "@packages/logger";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import type {
-	DestroyUserSessions,
 	FindEmailByUserId,
 	FindUserById,
 	FindUserPasswordStatus,
-	MarkAccountDeleted,
 	SetUserAppearance,
 	SetUserDisplayName,
 } from "@packages/provider-contracts/auth";
@@ -19,10 +17,8 @@ import {
 	parseDisplayNameInput,
 } from "@packages/domain/user";
 import { OAuthClientIdSchema } from "@packages/domain/oauth";
-import type {
-	RevokeAllUserOAuthTokens,
-	RevokeUserOAuthClient,
-} from "@packages/provider-contracts/oauth";
+import type { RevokeUserOAuthClient } from "@packages/provider-contracts/oauth";
+import type { DeleteAccount } from "../../../domain/account/delete-account";
 import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
 import {
 	CHECKOUT_OFFERS,
@@ -46,7 +42,6 @@ import {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishCancelSubscriptionCommand,
-	PublishDeleteAccountCommand,
 	PublishSubscriptionReactivated,
 } from "@packages/provider-contracts/events";
 import type {
@@ -164,12 +159,9 @@ interface AccountDependencies {
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
-	destroyUserSessions: DestroyUserSessions;
-	markAccountDeleted: MarkAccountDeleted;
-	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	deleteAccount: DeleteAccount;
 	listConnectedOAuthClients: ListConnectedOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
-	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	createCheckoutSession: CreateCheckoutSession;
@@ -695,12 +687,9 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			);
 			return;
 		}
-		await deps.markAccountDeleted({ userId, at: deps.now().toISOString() });
-		await deps.revokeAllUserOAuthTokens(userId, "account-deletion");
-		await deps.destroyUserSessions(userId);
+		await deps.deleteAccount(userId);
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
 		res.set("Clear-Site-Data", '"storage"');
-		await deps.publishDeleteAccountCommand({ userId });
 		// Deletion logs the user out, so the whole page (nav, banner) must reset to
 		// the guest view. A boosted form would only swap <main> and leave a stale
 		// signed-in chrome, so force a full navigation to the logged-out home —

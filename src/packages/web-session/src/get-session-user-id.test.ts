@@ -38,7 +38,7 @@ describe("initGetSessionUserId", () => {
 			emailVerified: true,
 		});
 
-		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true, expiresAt: FUTURE });
+		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true, ageLocked: false, expiresAt: FUTURE });
 	});
 
 	it("treats a missing emailVerified attribute as not verified", async () => {
@@ -48,7 +48,19 @@ describe("initGetSessionUserId", () => {
 			expiresAt: FUTURE,
 		});
 
-		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: false, expiresAt: FUTURE });
+		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: false, ageLocked: false, expiresAt: FUTURE });
+	});
+
+	it("carries the age lock the session was created with", async () => {
+		const getSessionUserId = initWith({
+			sessionId: "sid",
+			userId: "user-1",
+			expiresAt: FUTURE,
+			emailVerified: true,
+			ageLocked: true,
+		});
+
+		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true, ageLocked: true, expiresAt: FUTURE });
 	});
 
 	it("returns null when no row exists", async () => {

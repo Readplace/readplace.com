@@ -1,6 +1,7 @@
 import { Logger } from "@packages/logger";
 import type { AppDependencies } from "../../../server";
 import { ignoreLogLine } from "../../ignore-log-line";
+import { initDeleteAccount } from "../../../domain/account/delete-account";
 import type { initAccountRoutes } from "./account.page";
 
 export function accountDependenciesFrom(
@@ -33,12 +34,15 @@ export function accountDependenciesFrom(
 		findUserPasswordStatus: deps.findUserPasswordStatus,
 		setUserAppearance: deps.setUserAppearance,
 		setUserDisplayName: deps.setUserDisplayName,
-		destroyUserSessions: deps.destroyUserSessions,
-		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+		deleteAccount: initDeleteAccount({
+			markAccountDeleted: deps.markAccountDeleted,
+			revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+			destroyUserSessions: deps.destroyUserSessions,
+			publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
+			now: deps.now,
+		}),
 		listConnectedOAuthClients,
 		revokeUserOAuthClient: deps.revokeUserOAuthClient,
-		markAccountDeleted: deps.markAccountDeleted,
-		publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
 		createCheckoutSession: deps.createCheckoutSession,

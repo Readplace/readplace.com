@@ -5,7 +5,7 @@ import {
 	type SchedulerClient,
 } from "@aws-sdk/client-scheduler";
 import { UserIdSchema } from "@packages/domain/user";
-import { SendTrialFeedbackEmailCommand } from "@packages/infra-components";
+import { AgeLockDeletionDueCommand, SendTrialFeedbackEmailCommand } from "@packages/infra-components";
 import { initAwsTrialScheduler } from "./aws-trial-scheduler";
 
 const USER_ID = UserIdSchema.parse("a".repeat(32));
@@ -627,6 +627,76 @@ describe("initAwsTrialScheduler", () => {
 
 			await assert.rejects(
 				scheduler.deleteTrialReminderSchedule({ userId: USER_ID }),
+				/Internal failure/,
+			);
+		});
+	});
+
+	describe("createAgeLockDeletionSchedule", () => {
+		it("issues a CreateScheduleCommand named age-lock-delete-<userId> targeting AgeLockDeletionDueCommand", async () => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
+			});
+
+			await scheduler.createAgeLockDeletionSchedule({
+				userId: USER_ID,
+				firesAt: "2026-12-20T08:15:30.123Z",
+			});
+
+			assert.equal(captured.commands.length, 1);
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof CreateScheduleCommand);
+			const input = cmd.input;
+			assert.equal(input.Name, `age-lock-delete-${USER_ID}`);
+			assert.equal(input.GroupName, GROUP_NAME);
+			assert.equal(input.ScheduleExpression, "at(2026-12-20T08:15:30)");
+			assert.equal(input.FlexibleTimeWindow?.Mode, "OFF");
+			assert.equal(input.ActionAfterCompletion, "DELETE");
+			assert.equal(input.State, "ENABLED");
+			assert.equal(input.Target?.Arn, EVENT_BUS_ARN);
+			assert.equal(input.Target?.RoleArn, ROLE_ARN);
+			assert.equal(input.Target?.EventBridgeParameters?.Source, "hutch.api");
+			assert.equal(input.Target?.EventBridgeParameters?.DetailType, "AgeLockDeletionDueCommand");
+			const detail = JSON.parse(input.Target?.Input ?? "{}");
+			assert.deepEqual(AgeLockDeletionDueCommand.detailSchema.parse(detail), { userId: USER_ID });
+		});
+	});
+
+	describe("deleteAgeLockDeletionSchedule", () => {
+		it("issues a DeleteScheduleCommand with name=age-lock-delete-<userId> + group", async () => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+
+			await scheduler.deleteAgeLockDeletionSchedule({ userId: USER_ID });
+
+			assert.equal(captured.commands.length, 1);
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof DeleteScheduleCommand);
+			assert.equal(cmd.input.Name, `age-lock-delete-${USER_ID}`);
+			assert.equal(cmd.input.GroupName, GROUP_NAME);
+		});
+
+		it("swallows ResourceNotFoundException — delete is idempotent", async () => {
+			const notFound = new Error("Schedule not found");
+			notFound.name = "ResourceNotFoundException";
+			const { client } = buildFakeClient({ deleteThrows: notFound });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+
+			await assert.doesNotReject(scheduler.deleteAgeLockDeletionSchedule({ userId: USER_ID }));
+		});
+
+		it("re-throws any other error", async () => {
+			const wrenchInGears = new Error("Internal failure");
+			wrenchInGears.name = "InternalServerException";
+			const { client } = buildFakeClient({ deleteThrows: wrenchInGears });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+
+			await assert.rejects(
+				scheduler.deleteAgeLockDeletionSchedule({ userId: USER_ID }),
 				/Internal failure/,
 			);
 		});

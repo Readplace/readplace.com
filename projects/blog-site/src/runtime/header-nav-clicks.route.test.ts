@@ -23,6 +23,7 @@ const signedIn: ResolveLogin = async () => ({
 	isAuthenticated: true,
 	userId: authenticatedUserIdFrom("user-1"),
 	emailVerified: true,
+	ageLocked: false,
 	sessionExpiresAt: 1_800_000_000,
 });
 

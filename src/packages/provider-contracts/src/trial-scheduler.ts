@@ -60,3 +60,12 @@ export type DeleteTrialNudgeSchedule = (input: {
 	userId: UserId;
 	kind: TrialNudgeKind;
 }) => Promise<void>;
+
+export type CreateAgeLockDeletionSchedule = (input: {
+	userId: UserId;
+	firesAt: string;
+}) => Promise<void>;
+
+export type DeleteAgeLockDeletionSchedule = (input: {
+	userId: UserId;
+}) => Promise<void>;

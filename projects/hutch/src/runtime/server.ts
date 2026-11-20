@@ -37,6 +37,8 @@ import type {
 	GetSessionUserId,
 	RenewSession,
 	MarkEmailVerified,
+	MarkAgeLocked,
+	ClearAgeLock,
 	MarkSessionEmailVerified,
 	FindSessionReadlistFilter,
 	FindSessionOAuthGrant,
@@ -73,6 +75,8 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateChargeReminderSchedule,
+	CreateAgeLockDeletionSchedule,
+	DeleteAgeLockDeletionSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
@@ -213,6 +217,8 @@ import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
 	VerifyEmailToken,
+	CreateAgeUnlockToken,
+	ConsumeAgeUnlockToken,
 } from "@packages/provider-contracts/email-verification";
 import type {
 	CreatePasswordResetToken,
@@ -426,6 +432,11 @@ import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscrip
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
 import { initCanSaveContent } from "./web/middleware/can-save-content";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
+import { requireNotAgeLocked } from "./web/middleware/require-not-age-locked.middleware";
+import { initAgeLockAccount } from "./web/pages/age-lock/age-lock-account";
+import { AGE_UNLOCK_PATH } from "./web/pages/age-lock/age-lock.url";
+import { initAgeRangeRoutes } from "./web/pages/age-lock/age-range.page";
+import { initAgeUnlockRoutes } from "./web/pages/age-lock/age-unlock.page";
 import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { requireEnv, getEnv } from "@packages/require-env";
 import "./web/session.types";
@@ -456,6 +467,8 @@ export interface AppDependencies {
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
+	markAgeLocked: MarkAgeLocked;
+	clearAgeLock: ClearAgeLock;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
@@ -544,6 +557,8 @@ export interface AppDependencies {
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
+	createAgeUnlockToken: CreateAgeUnlockToken;
+	consumeAgeUnlockToken: ConsumeAgeUnlockToken;
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	mintBrowserHandoffCode: MintBrowserHandoffCode;
@@ -685,6 +700,8 @@ export interface AppDependencies {
 		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 		createTrialNudgeSchedule: CreateTrialNudgeSchedule;
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
+		createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule;
+		deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
@@ -962,6 +979,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			req.userId = login.userId;
 			req.emailVerified = login.emailVerified;
 			req.sessionExpiresAt = login.sessionExpiresAt;
+			req.ageLocked = login.ageLocked;
 		}
 		next();
 	});
@@ -981,6 +999,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 	app.use(resolveVerificationStatus);
+	app.use(requireNotAgeLocked);
 
 	const markExtensionInstalled = initMarkExtensionInstalled({ secureCookies });
 	app.use(markExtensionInstalled);
@@ -1631,6 +1650,25 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * stay publicly reachable. Shared reader permalinks (people copy them from
 	 * the browser URL bar) redirect non-owners and anonymous visitors to
 	 * `/view/<url>` instead of bouncing them to /login. */
+	app.use(
+		READLIST_PATH,
+		extensionCors,
+		initAgeRangeRoutes({
+			dualAuth: dualAuthMiddleware,
+			revokeUserOAuthClient: deps.revokeUserOAuthClient,
+			ageLockAccount: initAgeLockAccount({
+				markAgeLocked: deps.markAgeLocked,
+				revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+				destroyUserSessions: deps.destroyUserSessions,
+				createAgeLockDeletionSchedule: deps.trialScheduler.createAgeLockDeletionSchedule,
+				findEmailByUserId: deps.findEmailByUserId,
+				createAgeUnlockToken: deps.createAgeUnlockToken,
+				sendEmail: deps.sendEmail,
+				baseUrl: deps.baseUrl,
+				now: deps.now,
+			}),
+		}),
+	);
 	app.use(READLIST_PATH, stampOfflineOwner, extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes(importSessionDependenciesFrom(deps, {
@@ -1842,6 +1880,15 @@ export function createApp(dependencies: AppDependencies): Express {
 		}
 		res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
 	});
+	app.use(
+		AGE_UNLOCK_PATH,
+		initAgeUnlockRoutes({
+			consumeAgeUnlockToken: deps.consumeAgeUnlockToken,
+			clearAgeLock: deps.clearAgeLock,
+			deleteAgeLockDeletionSchedule: deps.trialScheduler.deleteAgeLockDeletionSchedule,
+			destroyUserSessions: deps.destroyUserSessions,
+		}),
+	);
 	app.use("/account", requireAuth, accountRouter);
 
 	const integrationsRoutes = initIntegrationsRoutes({

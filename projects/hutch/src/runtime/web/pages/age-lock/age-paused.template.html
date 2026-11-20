@@ -1,0 +1,17 @@
+    <main class="auth-page">
+      <div class="auth-card" data-test-age-paused>
+        <h1 class="auth-card__title">{{t "ageLock.paused.title"}}</h1>
+        <p class="auth-card__subtitle">{{t "ageLock.paused.body"}}</p>
+        <p class="auth-card__subtitle"><a class="auth-card__link" href="{{exportUrl}}">{{t "ageLock.paused.export"}}</a></p>
+        <form method="POST" action="{{deleteUrl}}" class="auth-form">
+          <div class="form-field">
+            <label class="form-field__label" for="age-paused-confirmation">{{t "ageLock.paused.deleteLabel" phrase=deletePhrase}}</label>
+            <input class="form-input" id="age-paused-confirmation" type="text" name="{{deleteField}}" autocomplete="off" required>
+          </div>
+          <button class="btn btn--destructive auth-form__submit" type="submit">{{t "ageLock.paused.deleteSubmit"}}</button>
+        </form>
+        <form method="POST" action="/logout">
+          <button class="btn btn--neutral auth-form__submit" type="submit">{{t "ageLock.paused.logout"}}</button>
+        </form>
+      </div>
+    </main>

@@ -1181,7 +1181,7 @@ describe("OAuth routes", () => {
 				.send({ token: "phone-a-refresh" });
 
 			expect(response.status).toBe(200);
-			const signedIn = { userId: TEST_USER_ID, emailVerified: true, expiresAt: expect.any(Number) };
+			const signedIn = { userId: TEST_USER_ID, emailVerified: true, ageLocked: false, expiresAt: expect.any(Number) };
 			expect(await harness.auth.getSessionUserId(webLogin)).toEqual(signedIn);
 			expect(await harness.auth.getSessionUserId(extensionRenewedLogin)).toEqual(signedIn);
 			expect(await harness.auth.getSessionUserId(phoneAMinted)).toBeNull();
@@ -1244,6 +1244,7 @@ describe("OAuth routes", () => {
 			expect(await harness.auth.getSessionUserId(session)).toEqual({
 				userId: TEST_USER_ID,
 				emailVerified: true,
+				ageLocked: false,
 				expiresAt: expect.any(Number),
 			});
 			expect(await harness.oauthModel.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "extension-revoke-refresh", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });

@@ -6,6 +6,11 @@ export const enUS = {
 	paidFeature: {
 		refused: "This feature isn't on the free plan.",
 	},
+	ageAccess: {
+		refusedUnder13: "Readplace is for people 13 and over.",
+		refusedParentalApproval: "A parent or guardian needs to approve Readplace in the app store before you can use it.",
+		accountPaused: "This account is paused. Check its email for how to unlock it.",
+	},
 	ocrPagesHeld: {
 		warning: "This PDF has {pages} pages, more than are left in today's allowance.",
 	},

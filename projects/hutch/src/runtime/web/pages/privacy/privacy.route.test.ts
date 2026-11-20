@@ -114,6 +114,13 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("Audio and video files you upload are transcribed by AWS's transcription service, which may keep them and their transcripts to improve its services, and may store that copy in an AWS region outside Sydney.");
 	});
 
+	it("says what happens to an account an app store reports as under 13", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Readplace is not directed at children under 13 and does not knowingly collect their personal information. When the Readplace app runs on a device whose app store reports that its user is under 13, Readplace signs that account out everywhere, stops it from using Readplace, and emails the account holder. Unless the holder confirms within 30 days that they are 13 or over, the account and its data are deleted. Readplace keeps a record that an account was paused for this reason until the account is unlocked or deleted.");
+	});
+
 	it("carries the date of its latest change", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");

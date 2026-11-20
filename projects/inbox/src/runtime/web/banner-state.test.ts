@@ -159,7 +159,7 @@ describe("initBuildBannerState (signed-in user)", () => {
 				displayName: DisplayNameSchema.parse("James Davis"),
 				signupOAuthClientId: null,
 				activationThresholdReachedAt: undefined,
-				keepOfferDismissedAt: undefined,
+				keepOfferDismissedAt: undefined, ageLockedAt: undefined,
 				earlyIntentionalSaves: 0,
 			}),
 		});
@@ -183,7 +183,7 @@ describe("initBuildBannerState (signed-in appearance)", () => {
 				displayName: undefined,
 				signupOAuthClientId: null,
 				activationThresholdReachedAt: undefined,
-				keepOfferDismissedAt: undefined,
+				keepOfferDismissedAt: undefined, ageLockedAt: undefined,
 				earlyIntentionalSaves: 0,
 			}),
 		});

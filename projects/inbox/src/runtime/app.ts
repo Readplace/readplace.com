@@ -146,7 +146,7 @@ export function createInboxApp(
 
 	app.use(async (req: Request, _res: Response, next: NextFunction) => {
 		const login = await deps.resolveLogin(req.headers.cookie);
-		if (login.isAuthenticated) {
+		if (login.isAuthenticated && !login.ageLocked) {
 			req.userId = login.userId;
 			req.emailVerified = login.emailVerified;
 		}

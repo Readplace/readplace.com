@@ -4,7 +4,14 @@ import UIKit
 @main
 struct ReadplaceApp: App {
 	@UIApplicationDelegateAdaptor(BackgroundSessionAppDelegate.self) private var backgroundSessions
-	@StateObject private var session = ReadplaceApp.makeSession()
+	@StateObject private var session: AppSession
+	@StateObject private var ageGate: AgeGate
+
+	init() {
+		let session = ReadplaceApp.makeSession()
+		_session = StateObject(wrappedValue: session)
+		_ageGate = StateObject(wrappedValue: AgeGate(session: session))
+	}
 
 	private static func makeSession() -> AppSession {
 		let store = TokenStore()
@@ -18,7 +25,7 @@ struct ReadplaceApp: App {
 
 	var body: some Scene {
 		WindowGroup {
-			RootView(launchedLoggedIn: session.isLoggedIn)
+			RootView(launchedLoggedIn: session.isLoggedIn, ageGate: ageGate)
 				.environmentObject(session)
 		}
 	}
@@ -34,6 +41,7 @@ struct ReadplaceApp: App {
 
 struct RootView: View {
 	@EnvironmentObject private var session: AppSession
+	@ObservedObject var ageGate: AgeGate
 	@State private var authErrorText: String?
 	@Environment(\.scenePhase) private var scenePhase
 	@StateObject private var intro: LaunchIntroModel
@@ -44,13 +52,16 @@ struct RootView: View {
 		startedAt: Date()
 	)
 
-	init(launchedLoggedIn: Bool) {
+	init(launchedLoggedIn: Bool, ageGate: AgeGate) {
+		self.ageGate = ageGate
 		_intro = StateObject(wrappedValue: makeLaunchIntroModel(reduceMotion: UIAccessibility.isReduceMotionEnabled, isLoggedIn: launchedLoggedIn))
 	}
 
 	var body: some View {
 		Group {
-			if session.isLoggedIn {
+			if let refusalText = ageGate.refusalText {
+				AgeRefusalView(text: refusalText)
+			} else if session.isLoggedIn {
 				ReadingListView(session: session, onSignedOut: { intro.replay() })
 			} else {
 				LoginView(
@@ -61,15 +72,19 @@ struct RootView: View {
 					intro: intro,
 					rotation: sloganRotation
 				)
+				.disabled(ageGate.isChecking)
 			}
 		}
 		.tint(.brandAmber)
 		.overlay(LaunchIntroOverlayView(model: intro))
+		.modifier(AgeGateReading(gate: ageGate))
 		.onChange(of: session.isLoggedIn) { isLoggedIn in
 			intro.sync(isLoggedIn: isLoggedIn, isForeground: scenePhase == .active)
 		}
 		.onChange(of: scenePhase) { phase in
 			intro.sync(isLoggedIn: session.isLoggedIn, isForeground: phase == .active)
+			guard phase == .active else { return }
+			Task { await ageGate.retryReport() }
 		}
 	}
 }

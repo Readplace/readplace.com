@@ -105,7 +105,7 @@ describe("initResolveVerificationStatus", () => {
 			displayName: undefined,
 			signupOAuthClientId: null,
 			activationThresholdReachedAt: undefined,
-			keepOfferDismissedAt: undefined,
+			keepOfferDismissedAt: undefined, ageLockedAt: undefined,
 			earlyIntentionalSaves: 0,
 		}));
 		expect(nextCalls).toBe(1);
@@ -129,7 +129,7 @@ describe("initResolveVerificationStatus", () => {
 			displayName: undefined,
 			signupOAuthClientId: null,
 			activationThresholdReachedAt: undefined,
-			keepOfferDismissedAt: undefined,
+			keepOfferDismissedAt: undefined, ageLockedAt: undefined,
 			earlyIntentionalSaves: 0,
 		}));
 		expect(req.emailVerified).toBe(true);
@@ -139,14 +139,14 @@ describe("initResolveVerificationStatus", () => {
 	it("sets a counting-down status within the verification window", async () => {
 		const registeredAt = new Date(NOW.getTime() - 2 * ONE_DAY_MS).toISOString();
 		const req: Partial<Request> = { userId: USER_ID, emailVerified: false };
-		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }));
+		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, ageLockedAt: undefined, earlyIntentionalSaves: 0 }));
 		expect(req.verificationStatus).toEqual({ state: "counting-down", daysLeft: 5 });
 	});
 
 	it("sets a locked status once the window has lapsed", async () => {
 		const registeredAt = new Date(NOW.getTime() - 8 * ONE_DAY_MS).toISOString();
 		const req: Partial<Request> = { userId: USER_ID, emailVerified: false };
-		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }));
+		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, ageLockedAt: undefined, earlyIntentionalSaves: 0 }));
 		expect(req.verificationStatus).toEqual({ state: "locked" });
 	});
 
@@ -163,7 +163,7 @@ describe("initResolveVerificationStatus", () => {
 			displayName: undefined,
 			signupOAuthClientId: null,
 			activationThresholdReachedAt: undefined,
-			keepOfferDismissedAt: undefined,
+			keepOfferDismissedAt: undefined, ageLockedAt: undefined,
 			earlyIntentionalSaves: 0,
 		}));
 		await run(req, finder.findUserById);

@@ -69,6 +69,7 @@ export {
 	type UpdateFetchTimestampDetail,
 	ExportUserDataCommand,
 	type ExportUserDataDetail,
+	AgeLockDeletionDueCommand,
 	DeleteAccountCommand,
 	type DeleteAccountDetail,
 	RunSavedLinksJobCommand,
