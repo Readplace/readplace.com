@@ -272,7 +272,7 @@ ampersand in the same vector, written as an arc starting at cx+r, and the dot ce
 login screen holds for its replay tap target (grep the Kotlin sources for
 `DOT_CENTER_X`); iOS holds the same constants by hand.
 
-**"Download unread for offline reading" differs from iOS in three ways.**
+**"Download unread for offline reading" differs from iOS in four ways.**
 - The download does not wait for the first two pages' rows to settle, and shows no
   "open online to get content" banner. A row still processing is stored as served;
   the reader URL carries no `v=`, so the server answers it `private, no-cache` and the
@@ -290,6 +290,11 @@ login screen holds for its replay tap target (grep the Kotlin sources for
   successful load, so this stands in for iOS's "status is 200". WebView cannot await a
   promise from `evaluateJavascript`, so iOS's single eager-images script is two here:
   one marks lazy images eager, the other is polled until every image is complete.
+- The download fetches an article again when its stored copy is of the current
+  version but its age record is missing or older than 30 days; iOS skips on the
+  version alone. The reader refuses a stored copy older than 30 days, so skipping it
+  would leave a "Saved offline" badge on an article that cannot open offline. This
+  way the next run refreshes it.
 
 ## Version pins that are not "the latest"
 
