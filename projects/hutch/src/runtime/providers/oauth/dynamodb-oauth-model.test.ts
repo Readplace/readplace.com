@@ -5,7 +5,7 @@ import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
 import OAuthServer from "@node-oauth/oauth2-server";
 import { z } from "zod";
-import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/storage-client";
+import { ConditionalCheckFailedException, TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { OAuthClientIdSchema, type OAuthGrantId, OAuthGrantIdSchema, type RefreshCredential, getBuiltInClient } from "@packages/domain/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
@@ -25,6 +25,7 @@ const commandSchema = z.object({
 	Item: z.record(z.string(), z.unknown()).optional(),
 	ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
 	UpdateExpression: z.string().optional(),
+	ConditionExpression: z.string().optional(),
 	TransactItems: z.array(z.object({
 		Put: z.object({ Item: z.record(z.string(), z.unknown()), ConditionExpression: z.string().optional(), ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional() }).optional(),
 		ConditionCheck: z.object({ Key: z.object({ pk: z.string() }), ConditionExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional() }).optional(),
@@ -96,7 +97,12 @@ function setup() {
 		switch (command.constructor.name) {
 			case "PutCommand": assert(input.Item); rows.set(String(input.Item.pk), input.Item); return {};
 			case "GetCommand": assert(input.Key); return { Item: rows.get(input.Key.pk) };
-			case "DeleteCommand": assert(input.Key); rows.delete(input.Key.pk); return {};
+			case "DeleteCommand": {
+				assert(input.Key);
+				if (input.ConditionExpression === "attribute_exists(pk)" && !rows.has(input.Key.pk)) throw new ConditionalCheckFailedException({ $metadata: {}, message: "The conditional request failed" });
+				rows.delete(input.Key.pk);
+				return {};
+			}
 			case "UpdateCommand": assert(input.Key); assert(input.ExpressionAttributeValues); assert(input.UpdateExpression); return { Attributes: update(input.Key.pk, input.ExpressionAttributeValues, input.UpdateExpression) };
 			case "QueryCommand": {
 				const matching = [...rows.values()].filter(row => row.userId === input.ExpressionAttributeValues?.[":userId"] && !controls.unindexed?.has(String(row.pk))).sort((a, b) => String(a.pk).localeCompare(String(b.pk)));
@@ -167,6 +173,32 @@ it("getAccessToken returns the grant the token belongs to", async () => {
 	const found = await model.getAccessToken("a");
 	assert(found);
 	expect(found.user.grantId).toBe(saved.user.grantId);
+});
+
+it("revokes an authorization code once and answers false when it is revoked again", async () => {
+	const { model, rows } = setup();
+	await model.saveAuthorizationCode(authorizationCode("code"), client, user);
+	const code = await model.getAuthorizationCode("code"); assert(code);
+	expect(await model.revokeAuthorizationCode(code)).toBe(true);
+	expect(rows.has("code#code")).toBe(false);
+	expect(await model.revokeAuthorizationCode(code)).toBe(false);
+});
+
+it("lets only one of two concurrent revokes of the same authorization code succeed", async () => {
+	const { model } = setup();
+	await model.saveAuthorizationCode(authorizationCode("code"), client, user);
+	const code = await model.getAuthorizationCode("code"); assert(code);
+	const outcomes = await Promise.all([model.revokeAuthorizationCode(code), model.revokeAuthorizationCode(code)]);
+	expect(outcomes.sort()).toEqual([false, true]);
+});
+
+it("propagates a delete failure other than a failed condition when revoking an authorization code", async () => {
+	const { model, controls } = setup();
+	await model.saveAuthorizationCode(authorizationCode("code"), client, user);
+	const code = await model.getAuthorizationCode("code"); assert(code);
+	const failure = new Error("throttled");
+	controls.beforeSend = async input => { if (input.ConditionExpression === "attribute_exists(pk)") throw failure; };
+	await expect(model.revokeAuthorizationCode(code)).rejects.toBe(failure);
 });
 
 it("issues a token under the grant its authorization code was minted for", async () => {

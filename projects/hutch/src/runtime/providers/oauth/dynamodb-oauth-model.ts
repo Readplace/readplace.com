@@ -11,6 +11,7 @@ import { OAuthTokenRow, initOAuthCredentialLifecycle } from "./oauth-credential-
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import type {
@@ -158,11 +159,13 @@ export function initDynamoDbOAuthModel(deps: {
 		},
 
 		async revokeAuthorizationCode(code: AuthorizationCode): Promise<boolean> {
-			const existing = await authCodes.get({ pk: `code#${code.authorizationCode}` });
-			if (!existing) return false;
-
-			await authCodes.delete({ Key: { pk: `code#${code.authorizationCode}` } });
-			return true;
+			const outcome = await writeIfCondition(() =>
+				authCodes.delete({
+					Key: { pk: `code#${code.authorizationCode}` },
+					ConditionExpression: "attribute_exists(pk)",
+				}),
+			);
+			return outcome.kind === "written";
 		},
 
 		async saveToken(token: Token, oauthClient: Client, user: User): Promise<Token> {

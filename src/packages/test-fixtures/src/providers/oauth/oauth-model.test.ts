@@ -163,6 +163,26 @@ describe("createOAuthModel", () => {
 			expect(revocationResult).toBe(true);
 		});
 
+		it("revokeAuthorizationCode answers false when the same code is revoked a second time", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps);
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			const saved = await model.saveAuthorizationCode(
+				createTestAuthCode({ authorizationCode: "revoke-twice-code" }),
+				client,
+				{ id: TEST_USER_ID },
+			);
+			assert(saved, "Code should be saved");
+
+			await model.revokeAuthorizationCode(saved);
+			const secondRevocation = await model.revokeAuthorizationCode(saved);
+
+			expect(secondRevocation).toBe(false);
+		});
+
 		it("defaults codeChallengeMethod to S256 when not provided", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps);
