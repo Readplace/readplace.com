@@ -284,7 +284,10 @@ login screen holds for its replay tap target (grep the Kotlin sources for
   a cancel, or an error such as losing the network), the list offers to continue it
   once its first page has loaded. Continue starts a new run that counts from 0 rather
   than showing the last run's total; like every run, it skips articles whose stored
-  copy is still current.
+  copy is still current. While the app is in the background Android may freeze its
+  process, which pauses the run until the reader returns: on 2026-11-20 a run kept
+  counting for 30 s after Home, while another sat frozen at 42 of 43 until the app
+  came back and finished within seconds of its return.
 - An article counts as stored when its page finished loading within 12 seconds with
   no main-frame error and no main-frame HTTP error. Android reports no status for a
   successful load, so this stands in for iOS's "status is 200". WebView cannot await a
