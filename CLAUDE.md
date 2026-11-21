@@ -658,6 +658,10 @@ A small cleanup or refactor that is unrelated to the change being worked on — 
 
 Never save a learning to an agent's local memory, the per-machine auto-memory directory. Other sessions, other machines and CI's `@claude` runs never see it, and nobody reviews it. A guideline, a clarification or a correction a human makes goes into CLAUDE.md, a skill, a runbook, or the code itself (a test, a type, a name), so every instance gets it.
 
+### Quote the "All" readlist when talking to a human
+
+In messages, reports and summaries, write the readlist as the "All" readlist, quoted, never a bare All: a bare All reads as the word, not the readlist (owner request, 2026-11-22). This is how agents talk; product copy follows [Voice & Copy](./brand-guidelines/voice-and-copy.md).
+
 ### Workflows are opt-in and sized to the task
 
 A multi-agent workflow spawns many agents at once, and the tokens they burn are the human's to spend. Run one only when the human asks for it in their own words, invokes a skill or command that calls for one, or has turned ultracode on for the session. A task that would merely go faster in parallel is not a request for a workflow: do it inline, or delegate the independent parts to single subagents and relay what they find.
