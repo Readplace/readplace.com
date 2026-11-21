@@ -101,6 +101,8 @@ const PINNED_DETAIL_RECIPIENT = [
 	{ selector: "[data-test-inbox-detail-recipient]", text: "to e2e-pinned@read.place" },
 ];
 
+const PINNED_LIST_RECIPIENT = [{ selector: ".inbox-emails__recipient-name", text: "e2e-pinned@read.place" }];
+
 async function copyableAddressReady(page: Page): Promise<void> {
 	await expect(page.locator(".inbox-copyable__copy").first()).toBeVisible();
 }
@@ -482,6 +484,137 @@ function emailsPager(theme: "light" | "dark"): VisualCheckpoint {
 	};
 }
 
+const NEWSLETTER_SENDER = "news@example.com";
+const NEWSLETTER_LINE = "#newsletter-links-line";
+const NEWSLETTER_COUNT = "#newsletter-links-count";
+
+const DESKTOP_VIEWPORT = { name: "desktop", viewport: { width: 1280, height: 900 } } as const;
+const LAYOUTS = [DESKTOP_VIEWPORT, { name: "mobile", viewport: { width: 390, height: 844 } }] as const;
+
+async function seedNewsletterLinks(
+	page: Page,
+	seed: { newsletterLink: boolean; held: readonly string[] },
+): Promise<void> {
+	await seedEmail(page, { links: TWO_CRAWLED_LINKS });
+	for (const url of seed.held) {
+		const linked = await page.request.post("/e2e/seed-newsletter-link", {
+			data: { url, senderEmail: NEWSLETTER_SENDER },
+		});
+		assert.equal(linked.status(), 200, await linked.text());
+		const held = await page.request.post("/e2e/hold-newsletter-link", { data: { url } });
+		assert.equal(held.status(), 200, await held.text());
+		assert.deepEqual(await held.json(), { outcome: "held" }, `the harness must hold ${url}`);
+	}
+	if (seed.newsletterLink) {
+		const linked = await page.request.post("/e2e/seed-newsletter-link", {
+			data: { url: "https://example.com/newsletter-link", senderEmail: NEWSLETTER_SENDER },
+		});
+		assert.equal(linked.status(), 200, await linked.text());
+	}
+}
+
+type NewsletterLinksCountState = "counting" | "counted" | "failed";
+type NewsletterLinksLineState = "offer" | "working" | "result" | "failed";
+type SenderCount = { senderEmail: string; count: number };
+
+interface NewsletterLinksJobFinish {
+	selected?: number;
+	state?: "completed" | "failed";
+	counts?: Record<string, number>;
+	issues?: number;
+	held?: { bySender: SenderCount[]; unrestorable: string[] };
+	skipped?: { read: number; opened: number; highlighted: number; changed: number; unreadable: number };
+	savedBeforeMarker?: number;
+	extraSenders?: SenderCount[];
+}
+
+async function finishNewsletterLinksJob(page: Page, job: NewsletterLinksJobFinish): Promise<void> {
+	const finished = await page.request.post("/e2e/finish-saved-links-job", {
+		data: { selected: 3, senderEmail: NEWSLETTER_SENDER, ...job },
+	});
+	assert.equal(finished.status(), 200, await finished.text());
+}
+
+async function openNewsletterLinksPage(page: Page, button: "remove" | "restore"): Promise<void> {
+	await page.goto("/inbox");
+	await page.locator(`${NEWSLETTER_LINE} [data-test-newsletter-links-${button}]`).click();
+	await expect(page.locator(NEWSLETTER_COUNT)).toHaveAttribute("data-newsletter-links-count", "counting");
+}
+
+async function reloadUntilCount(page: Page, state: NewsletterLinksCountState): Promise<void> {
+	await page.reload();
+	await expect(page.locator(NEWSLETTER_COUNT)).toHaveAttribute("data-newsletter-links-count", state);
+}
+
+async function reloadUntilLine(page: Page, state: NewsletterLinksLineState): Promise<void> {
+	await page.goto("/inbox");
+	await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", state);
+}
+
+async function useLayout(
+	page: Page,
+	layout: { viewport: { width: number; height: number } },
+	theme: "light" | "dark",
+): Promise<void> {
+	await page.setViewportSize(layout.viewport);
+	await page.emulateMedia({ colorScheme: theme });
+}
+
+async function pageFitsTheViewport(page: Page): Promise<void> {
+	const html = page.locator("html");
+	const overflow = await html.evaluate((root) => ({ scrollWidth: root.scrollWidth, clientWidth: root.clientWidth }));
+	assert.ok(
+		overflow.scrollWidth <= overflow.clientWidth,
+		`the page must not scroll sideways, measured ${JSON.stringify(overflow)}`,
+	);
+}
+
+async function lineSitsOneGapFromItsNeighbours(page: Page): Promise<void> {
+	const header = await measuredBox(page, ".inbox-emails__header");
+	const line = await measuredBox(page, NEWSLETTER_LINE);
+	const listing = await measuredBox(page, "[data-test-inbox-emails-listing]");
+	assert.ok(
+		Math.abs(line.y - (header.y + header.height) - 16) <= 0.5,
+		`the line must sit 16px below the header, measured header=${JSON.stringify(header)} line=${JSON.stringify(line)}`,
+	);
+	assert.ok(
+		Math.abs(listing.y - (line.y + line.height) - 16) <= 0.5,
+		`the listing must sit 16px below the line, measured line=${JSON.stringify(line)} listing=${JSON.stringify(listing)}`,
+	);
+}
+
+function newsletterLinksLine(name: string, state: NewsletterLinksLineState): VisualCheckpoint {
+	return {
+		name: `inbox-newsletter-links-${name}`,
+		settled: async (page) => {
+			await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", state);
+		},
+		geometry: NO_GEOMETRY,
+		target: NEWSLETTER_LINE,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+function newsletterLinksPage(
+	name: string,
+	settled: (page: Page) => Promise<void>,
+	geometry: (page: Page) => Promise<void>,
+): VisualCheckpoint {
+	return {
+		name: `inbox-newsletter-links-${name}`,
+		settled,
+		geometry,
+		target: "main",
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+const countState = (state: NewsletterLinksCountState) => async (page: Page) => {
+	await expect(page.locator(NEWSLETTER_COUNT)).toHaveAttribute("data-newsletter-links-count", state);
+};
+
 test.describe("Inbox visual checkpoints", () => {
 	test.use({ timezoneId: "UTC" });
 
@@ -767,5 +900,171 @@ test.describe("Inbox visual checkpoints", () => {
 			await page.goto("/inbox");
 			await captureCheckpoint(page, emailsPager(theme));
 		}
+	});
+
+	test("captures the newsletter-links line offering Remove and Restore between the header and the listing", async ({
+		page,
+	}) => {
+		await seedNewsletterLinks(page, {
+			newsletterLink: true,
+			held: ["https://example.com/held-1", "https://example.com/held-2"],
+		});
+		for (const layout of LAYOUTS) {
+			for (const theme of ["light", "dark"] as const) {
+				await useLayout(page, layout, theme);
+				await page.goto("/inbox");
+				await captureCheckpoint(page, {
+					name: `inbox-newsletter-links-offer-${layout.name}-${theme}`,
+					settled: async (settling) => {
+						const line = settling.locator(NEWSLETTER_LINE);
+						await expect(line).toHaveAttribute("data-newsletter-links-state", "offer");
+						await expect(line.locator("[data-test-newsletter-links-remove]")).toBeVisible();
+						await expect(line.locator("[data-test-newsletter-links-restore]")).toBeVisible();
+					},
+					geometry: lineSitsOneGapFromItsNeighbours,
+					target: "main",
+					capture: "element",
+					pinnedText: PINNED_LIST_RECIPIENT,
+				});
+			}
+		}
+	});
+
+	test("captures the remove page while counting and once counted, then the line removing and its result", async ({
+		page,
+	}) => {
+		await seedNewsletterLinks(page, { newsletterLink: true, held: [] });
+		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await openNewsletterLinksPage(page, "remove");
+		await page.route("**/inbox/newsletter-links/remove", (route) => route.abort());
+		await captureCheckpoint(
+			page,
+			newsletterLinksPage("remove-counting", countState("counting"), pageFitsTheViewport),
+		);
+		await page.unroute("**/inbox/newsletter-links/remove");
+
+		await finishNewsletterLinksJob(page, {
+			selected: 15,
+			issues: 4,
+			skipped: { read: 2, opened: 1, highlighted: 1, changed: 1, unreadable: 1 },
+			savedBeforeMarker: 2,
+			extraSenders: [{ senderEmail: "digest@another-newsletter.example", count: 12 }],
+		});
+		await reloadUntilCount(page, "counted");
+		for (const layout of LAYOUTS) {
+			for (const theme of ["light", "dark"] as const) {
+				await useLayout(page, layout, theme);
+				await captureCheckpoint(
+					page,
+					newsletterLinksPage(
+						`remove-counted-${layout.name}-${theme}`,
+						async (settling) => {
+							await countState("counted")(settling);
+							await expect(settling.locator("[data-test-newsletter-links-skipped-reason]")).toHaveCount(5);
+							await expect(settling.locator("[data-test-newsletter-links-before-marker]")).toHaveCount(1);
+							await expect(settling.locator("[data-test-newsletter-links-sender]")).toHaveCount(2);
+						},
+						pageFitsTheViewport,
+					),
+				);
+			}
+		}
+
+		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await page.locator("[data-test-newsletter-links-submit]").click();
+		await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", "working");
+		await page.route("**/inbox", (route) => route.abort());
+		await captureCheckpoint(page, newsletterLinksLine("working", "working"));
+		await page.unroute("**/inbox");
+
+		await finishNewsletterLinksJob(page, { counts: { held: 3, read: 2, opened: 1, unreadable: 1 } });
+		await reloadUntilLine(page, "result");
+		await captureCheckpoint(page, newsletterLinksLine("result", "result"));
+	});
+
+	test("captures the remove page with nothing to remove, then a count that failed", async ({ page }) => {
+		await seedNewsletterLinks(page, { newsletterLink: true, held: [] });
+		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await openNewsletterLinksPage(page, "remove");
+		await finishNewsletterLinksJob(page, { selected: 0 });
+		await reloadUntilCount(page, "counted");
+		await captureCheckpoint(
+			page,
+			newsletterLinksPage(
+				"remove-nothing",
+				async (settling) => {
+					await countState("counted")(settling);
+					await expect(settling.locator("[data-test-newsletter-links-remove-form]")).toHaveCount(0);
+				},
+				pageFitsTheViewport,
+			),
+		);
+
+		await openNewsletterLinksPage(page, "remove");
+		await finishNewsletterLinksJob(page, { state: "failed" });
+		await reloadUntilCount(page, "failed");
+		await captureCheckpoint(
+			page,
+			newsletterLinksPage("count-failed", countState("failed"), pageFitsTheViewport),
+		);
+	});
+
+	test("captures the line after a removal failed", async ({ page }) => {
+		await seedNewsletterLinks(page, { newsletterLink: true, held: [] });
+		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await openNewsletterLinksPage(page, "remove");
+		await finishNewsletterLinksJob(page, {});
+		await reloadUntilCount(page, "counted");
+		await page.locator("[data-test-newsletter-links-submit]").click();
+		await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", "working");
+		await finishNewsletterLinksJob(page, { state: "failed" });
+		for (const theme of ["light", "dark"] as const) {
+			await useLayout(page, DESKTOP_VIEWPORT, theme);
+			await reloadUntilLine(page, "failed");
+			await captureCheckpoint(page, newsletterLinksLine(`failed-${theme}`, "failed"));
+		}
+	});
+
+	test("captures the restore page listing links it cannot restore, without sideways scroll down to 320px", async ({
+		page,
+	}) => {
+		await seedNewsletterLinks(page, {
+			newsletterLink: false,
+			held: ["https://example.com/held-1", "https://example.com/held-2"],
+		});
+		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await openNewsletterLinksPage(page, "restore");
+		await finishNewsletterLinksJob(page, {
+			held: {
+				bySender: [
+					{ senderEmail: NEWSLETTER_SENDER, count: 2 },
+					{ senderEmail: "digest@another-newsletter.example", count: 5 },
+				],
+				unrestorable: [
+					"https://example.com/gone-article",
+					"https://another.example/a/very/long/path/that/should/wrap/somewhere-on-a-narrow-phone-screen",
+				],
+			},
+		});
+		await reloadUntilCount(page, "counted");
+		for (const layout of LAYOUTS) {
+			for (const theme of ["light", "dark"] as const) {
+				await useLayout(page, layout, theme);
+				await captureCheckpoint(
+					page,
+					newsletterLinksPage(
+						`restore-counted-${layout.name}-${theme}`,
+						async (settling) => {
+							await countState("counted")(settling);
+							await expect(settling.locator("[data-test-newsletter-links-unrestorable]")).toBeVisible();
+							await expect(settling.locator(".newsletter-links-page__unrestorable-list li")).toHaveCount(2);
+						},
+						pageFitsTheViewport,
+					),
+				);
+			}
+		}
+		await page.setViewportSize({ width: 320, height: 844 });
+		await pageFitsTheViewport(page);
 	});
 });

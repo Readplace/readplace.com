@@ -20,7 +20,8 @@ import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxTestApp } from "../runtime/test-app";
-import { MinutesSchema } from "@packages/domain/article";
+import { MinutesSchema, SavedLinksJobIdSchema } from "@packages/domain/article";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 
 const PORT = Number(requireEnv("E2E_PORT"));
 const origin = `http://127.0.0.1:${PORT}`;
@@ -263,9 +264,46 @@ server.post("/e2e/seed-newsletter-link", async (req, res) => {
 	res.json({ ok: true });
 });
 
+const senderCountSchema = z.object({
+	senderEmail: z.string().min(1),
+	count: z.number().int().nonnegative(),
+});
+
 const finishSavedLinksJobSchema = z.object({
 	selected: z.number().int().nonnegative(),
 	senderEmail: z.string().min(1),
+	state: z.enum(["completed", "failed"]).default("completed"),
+	counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
+	issues: z.number().int().nonnegative().default(0),
+	held: z
+		.object({ bySender: z.array(senderCountSchema), unrestorable: z.array(z.string()) })
+		.default({ bySender: [], unrestorable: [] }),
+	skipped: z
+		.object({
+			read: z.number().int().nonnegative(),
+			opened: z.number().int().nonnegative(),
+			highlighted: z.number().int().nonnegative(),
+			changed: z.number().int().nonnegative(),
+			unreadable: z.number().int().nonnegative(),
+		})
+		.default({ read: 0, opened: 0, highlighted: 0, changed: 0, unreadable: 0 }),
+	savedBeforeMarker: z.number().int().nonnegative().default(0),
+	extraSenders: z.array(senderCountSchema).default([]),
+});
+
+server.post("/e2e/hold-newsletter-link", async (req, res) => {
+	const { url } = z.object({ url: z.string().url() }).parse(req.body);
+	const userId = UserIdSchema.parse(await userIdFromSession(req));
+	const now = new Date();
+	const outcome = await fixture.articleStore.moveNewsletterLinkToHold({
+		userId,
+		jobId: SavedLinksJobIdSchema.parse(`${now.toISOString()}-e2e`),
+		storedKey: ArticleResourceUniqueId.parse(url).value,
+		cutoff: now,
+		senders: { kind: "all" },
+		now,
+	});
+	res.json(outcome);
 });
 
 server.post("/e2e/finish-saved-links-job", async (req, res) => {
@@ -273,26 +311,26 @@ server.post("/e2e/finish-saved-links-job", async (req, res) => {
 	const userId = UserIdSchema.parse(await userIdFromSession(req));
 	const job = await fixture.articleStore.findSavedLinksJob({ userId });
 	assert(job, "a saved-links job must be open before the harness finishes it");
-	if (job.action === "count") {
+	if (job.action === "count" && input.state === "completed") {
+		const firstSenderCount =
+			input.selected - input.extraSenders.reduce((total, sender) => total + sender.count, 0);
+		assert(firstSenderCount >= 0, "the extra senders must not count more links than are selected");
 		await fixture.articleStore.recordCountedNewsletterLinks({
 			userId,
 			jobId: job.jobId,
 			counted: {
 				cutoff: job.requestedAt,
-				issues: 0,
-				held: { bySender: [], unrestorable: [] },
+				issues: input.issues,
+				held: input.held,
 				summary: {
 					selected: input.selected,
-					bySender: [{ senderEmail: input.senderEmail, count: input.selected }],
-					skipped: {
-						read: 0,
-						opened: 0,
-						highlighted: 0,
-						changed: 0,
-						unreadable: 0,
-					},
+					bySender: [
+						{ senderEmail: input.senderEmail, count: firstSenderCount },
+						...input.extraSenders,
+					],
+					skipped: input.skipped,
 					earliestEmailSave: new Date(RECEIVED_LINK_SAVED_AT),
-					savedBeforeMarker: 0,
+					savedBeforeMarker: input.savedBeforeMarker,
 				},
 			},
 		});
@@ -300,8 +338,8 @@ server.post("/e2e/finish-saved-links-job", async (req, res) => {
 	await fixture.articleStore.finishSavedLinksJob({
 		userId,
 		jobId: job.jobId,
-		state: "completed",
-		counts: job.action === "count" ? {} : { held: input.selected },
+		state: input.state,
+		counts: input.counts ?? (job.action === "count" ? {} : { held: input.selected }),
 		finishedAt: new Date(),
 	});
 	res.json({ ok: true });

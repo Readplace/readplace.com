@@ -39,8 +39,6 @@ const REMOVE_PATH = "/inbox/newsletter-links/remove";
 const COUNT_PATH = "/inbox/newsletter-links/count";
 const RESTORE_PATH = "/inbox/newsletter-links/restore";
 const OTHER_READLISTS = "Copies in your other readlists stay there.";
-const LATER_EMAILS =
-	"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.";
 
 async function readerId(fixture: Fixture): Promise<UserId> {
 	const user = await fixture.auth.findUserByEmail("test@example.com");
@@ -240,6 +238,14 @@ function scopeLabelOf(doc: Document, form: Element): string | null | undefined {
 	return doc.getElementById(scope)?.textContent;
 }
 
+function scopeLegendOf(form: Element): string | null | undefined {
+	const scope = form.querySelector('input[name="senders"]')?.closest("fieldset");
+	assert(scope, "the sender choice must sit in a fieldset");
+	expect(scope.hasAttribute("aria-labelledby")).toBe(false);
+	expect(scope.firstElementChild?.tagName).toBe("LEGEND");
+	return scope.firstElementChild?.textContent;
+}
+
 function failedCountOf(doc: Document): {
 	alert: string | null | undefined;
 	button: string | null | undefined;
@@ -410,7 +416,7 @@ describe("Newsletter links line on the inbox", () => {
 		expect(line.hasAttribute("hx-get")).toBe(false);
 		expect(sentencesOf(line)).toEqual([
 			"Removed 3 newsletter links from All.",
-			"Skipped 2 links you read, opened, highlighted or saved again.",
+			"Skipped 2 links you used or that couldn't be read.",
 			"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
 		]);
 		expect(line.querySelector("form")).toBeNull();
@@ -476,7 +482,7 @@ describe("Newsletter links line on the inbox", () => {
 		assert(line, "the result line must render");
 		expect(sentencesOf(line)).toEqual([
 			"Restored 4 links to All.",
-			"1 link could not be restored.",
+			"1 link couldn't be restored, because its article is no longer stored.",
 		]);
 	});
 
@@ -542,7 +548,8 @@ describe("Newsletter links line on the inbox", () => {
 
 		assert(line, "the failed line must render");
 		expect(failedLineOf(line)).toEqual({
-			alert: "Couldn't finish restoring removed links.",
+			alert:
+				"Couldn't finish restoring removed links. Restore again to finish the rest.",
 			alertBeforeActions: false,
 			sentences: [],
 		});
@@ -643,7 +650,7 @@ describe("Newsletter links confirm page", () => {
 					opened: 0,
 					highlighted: 1,
 					changed: 0,
-					unreadable: 0,
+					unreadable: 1,
 				},
 				savedBeforeMarker: 3,
 			}),
@@ -661,7 +668,7 @@ describe("Newsletter links confirm page", () => {
 			"5 unread newsletter links in All will be removed.",
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-skipped]")).toEqual([
-			"3 links will be skipped:",
+			"4 links will be skipped:",
 		]);
 		const reasons = Array.from(
 			doc.querySelectorAll("[data-test-newsletter-links-skipped-reason]"),
@@ -675,6 +682,7 @@ describe("Newsletter links confirm page", () => {
 		).toEqual([
 			["LI", "UL", "2 you read"],
 			["LI", "UL", "1 you highlighted"],
+			["LI", "UL", "1 that couldn't be read"],
 		]);
 		const details = doc.querySelector("[data-test-newsletter-links-details]");
 		assert(details, "the details group must render");
@@ -682,9 +690,17 @@ describe("Newsletter links confirm page", () => {
 			"All holds 2 newsletter issues. Every one stays.",
 			"Links you saved yourself from an issue or its email page before Nov 18, 2026, and links you saved by hand before a newsletter linked them, are in the total.",
 			"Removed links can be restored for 30 days.",
-			"Restoring them is part of a paid plan: if your plan ends, renew it within those 30 days or the removed links expire.",
+			"Restoring them is part of a paid plan: if your plan ends, upgrade again within those 30 days or the removed links expire.",
 			OTHER_READLISTS,
-			LATER_EMAILS,
+		]);
+		const lead = section.querySelector("[data-test-newsletter-links-lead]");
+		assert(lead, "the counted section must open with its lead");
+		expect(section.firstElementChild).toBe(lead);
+		expect(
+			Array.from(lead.children).map((el) => [el.tagName, el.textContent]),
+		).toEqual([
+			["H2", "Remove these links from All?"],
+			["P", "5 unread newsletter links in All will be removed."],
 		]);
 		expect(
 			Array.from(
@@ -699,9 +715,15 @@ describe("Newsletter links confirm page", () => {
 			["checkbox", true],
 			["checkbox", true],
 		]);
-		expect(scopeLabelOf(doc, form)).toBe(
-			"5 unread newsletter links in All will be removed.",
-		);
+		expect(scopeLegendOf(form)).toBe("Which links to remove");
+		expect(
+			Array.from(
+				form.querySelectorAll(".newsletter-links-page__scope > label"),
+			).map((label) => label.textContent?.trim()),
+		).toEqual([
+			"From every newsletter",
+			"Only from the newsletters selected below",
+		]);
 		expect(
 			form.querySelector('input[name="count"]')?.getAttribute("value"),
 		).toBe(COUNT_JOB_ID);
@@ -730,6 +752,9 @@ describe("Newsletter links confirm page", () => {
 		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
 			"All holds 1 newsletter issue. It stays.",
 		]);
+		const lead = doc.querySelector("[data-test-newsletter-links-lead]");
+		assert(lead, "the counted section must open with its lead");
+		expect(Array.from(lead.children).map((el) => el.tagName)).toEqual(["P"]);
 		expect(
 			doc.querySelector("[data-test-newsletter-links-skipped]"),
 		).toBeNull();
@@ -808,7 +833,7 @@ describe("Newsletter links page header", () => {
 		expect(header.firstElementChild).toBe(back);
 		expect(header.lastElementChild?.tagName).toBe("H1");
 		expect(header.lastElementChild?.textContent).toBe(title);
-		expect(back.textContent?.trim()).toBe("Back to Inbox");
+		expect(back.textContent?.trim()).toBe("Inbox");
 		const href = new URL(back.getAttribute("href") ?? "", TEST_APP_ORIGIN);
 		expect(href.pathname).toBe("/inbox");
 		expect(href.searchParams.get("utm_content")).toBe("back");

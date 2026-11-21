@@ -30,7 +30,7 @@
 
 **Readplace is free; the paid plan is an upgrade.** Public pages lead with the free account: a new account is a "free account", and its first 14 days are "the paid plan for its first 14 days". "Trial" stays for the in-app countdown, its emails and the terms page. A page that offers the free account names the daily limits on that page. Where copy states the offer itself (a price line, a pricing panel, an answer about cost, an offer paragraph), the limits are in the same sentence, the next one, or the same panel, answer or paragraph. A title, an eyebrow, a button label and the positioning line carry no qualifier, and a passing mention that a free plan exists needs none. A limit's number is printed only where a test reads it from the constant that enforces it, as both llms files do for OCR pages. The paid plan is "without the free plan's daily limits", never "no limits": audio and video transcripts have a daily allowance on every plan.
 
-**All keeps every save.** An article can sit in several readlists: **Add** puts it in another readlist as well, and **Move** takes it out of one custom readlist and puts it in another. Nothing moves an article out of All; removing it from All is Delete.
+**All keeps every save.** An article can sit in several readlists: **Add** puts it in another readlist as well, and **Move** takes it out of one custom readlist and puts it in another. Nothing moves an article out of All; removing it from All is Delete. The one exception is **Remove newsletter links** on the Inbox: it takes unread newsletter links out of All and holds them for 30 days, during which **Restore removed links** puts them back.
 
 ### Numbers, Counts and Dates
 

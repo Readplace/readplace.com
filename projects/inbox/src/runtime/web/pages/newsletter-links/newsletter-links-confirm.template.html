@@ -23,7 +23,12 @@
       </form>
       {{/if}}
       {{#if counted}}
-      <p class="newsletter-links-page__lede" id="newsletter-links-total" data-test-newsletter-links-total>{{counted.total}}</p>
+      <div class="newsletter-links-page__lead" data-test-newsletter-links-lead>
+        {{#if counted.removeAction}}
+        <h2 class="newsletter-links-page__decision" data-test-newsletter-links-decision>{{t "newsletterLinks.confirm.decision"}}</h2>
+        {{/if}}
+        <p class="newsletter-links-page__lede" data-test-newsletter-links-total>{{counted.total}}</p>
+      </div>
       {{#if counted.skipped}}
       <div class="newsletter-links-page__skipped">
         <p data-test-newsletter-links-skipped>{{counted.skipped.heading}}</p>
@@ -43,13 +48,13 @@
         <p data-test-newsletter-links-restore-window>{{t "newsletterLinks.confirm.restoreWindow"}}</p>
         <p data-test-newsletter-links-restore-needs-plan>{{t "newsletterLinks.confirm.restoreNeedsPlan"}}</p>
         <p>{{t "newsletterLinks.confirm.otherReadlists"}}</p>
-        <p>{{t "newsletterLinks.line.laterEmails"}}</p>
         {{/if}}
       </div>
       {{#if counted.removeAction}}
       <form method="POST" action="{{counted.removeAction}}" data-test-newsletter-links-remove-form>
         <input type="hidden" name="count" value="{{counted.jobId}}">
-        <fieldset class="newsletter-links-page__scope" aria-labelledby="newsletter-links-total">
+        <fieldset class="newsletter-links-page__scope">
+          <legend class="newsletter-links-page__scope-legend">{{t "newsletterLinks.confirm.scopeLegend"}}</legend>
           <label class="newsletter-links-page__choice"><input class="form-choice" type="radio" name="senders" value="all" checked> <span>{{t "newsletterLinks.confirm.allSenders"}}</span></label>
           <label class="newsletter-links-page__choice"><input class="form-choice" type="radio" name="senders" value="chosen"> <span>{{t "newsletterLinks.confirm.chosenSenders"}}</span></label>
           <fieldset class="newsletter-links-page__senders">

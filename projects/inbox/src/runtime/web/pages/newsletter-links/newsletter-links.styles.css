@@ -135,12 +135,34 @@
   }
 }
 
+.newsletter-links-page__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.newsletter-links-page__decision {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
 .newsletter-links-page__lede {
   font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.4;
   color: var(--foreground);
   text-wrap: pretty;
+}
+
+.newsletter-links-page__decision + .newsletter-links-page__lede {
+  font-size: var(--text-md);
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .newsletter-links-page__skipped-reasons {
@@ -184,6 +206,7 @@
   margin-top: 8px;
 }
 
+.newsletter-links-page__scope-legend,
 .newsletter-links-page__senders-legend {
   padding: 0;
   margin-bottom: 8px;
