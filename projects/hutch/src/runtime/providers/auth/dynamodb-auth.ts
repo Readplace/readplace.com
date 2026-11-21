@@ -530,7 +530,17 @@ export function initDynamoDbAuth(deps: {
 		return row?.oauthGrantId;
 	};
 
-	const markSessionAdminMfaVerified: MarkSessionAdminMfaVerified = async ({ sessionId, at }) => {
+	const markSessionAdminMfaVerified: MarkSessionAdminMfaVerified = async ({ sessionId, at, email, totpStep }) => {
+		const claim = await writeIfCondition(() =>
+			users.update({
+				Key: { email: normalizeEmail(email) },
+				UpdateExpression: "SET adminTotpLastStep = :step",
+				ConditionExpression:
+					"attribute_exists(email) AND (attribute_not_exists(adminTotpLastStep) OR adminTotpLastStep < :step)",
+				ExpressionAttributeValues: { ":step": totpStep },
+			}),
+		);
+		if (claim.kind === "condition-failed") return { kind: "code-already-used" };
 		await writeIfCondition(() =>
 			sessions.update({
 				Key: { sessionId },
@@ -539,6 +549,7 @@ export function initDynamoDbAuth(deps: {
 				ExpressionAttributeValues: { ":at": at },
 			}),
 		);
+		return { kind: "verified" };
 	};
 
 	const findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt = async (sessionId) => {

@@ -42,7 +42,7 @@ function buildHarness(input: {
 		assert(wrong, "one of four distinct codes is outside the three accepted ones");
 		return wrong;
 	};
-	return { ...harness, currentCode, wrongCode, serviceToken: fixture.admin.recrawlServiceToken };
+	return { ...harness, codeAt, currentCode, wrongCode, serviceToken: fixture.admin.recrawlServiceToken };
 }
 
 async function loginAs(input: { server: Server; email: string; password: string }) {
@@ -225,6 +225,49 @@ describe("POST /admin/mfa", () => {
 
 		assert.equal(response.status, 303);
 		assert.equal(response.headers.location, "/admin/mfa");
+	});
+
+	it("refuses a code the admin already used, from another session", async () => {
+		const harness = buildHarness();
+		const firstAgent = await signedInAdmin(harness);
+		const code = harness.currentCode();
+		await firstAgent.post("/admin/mfa").type("form").send({ code });
+		const secondAgent = await loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+
+		const challenge = await secondAgent.post("/admin/mfa").type("form").send({ code });
+
+		assert.equal(challenge.status, 422);
+		assert.equal(challengeErrorOf(challenge.text), "That code did not match. Enter the current code from your authenticator app.");
+		const admin = await secondAgent.get("/admin");
+		assert.equal(admin.status, 303);
+		assert.equal(admin.headers.location, "/admin/mfa");
+	});
+
+	it("refuses the previous step's code once the current one was accepted", async () => {
+		const harness = buildHarness();
+		const firstAgent = await signedInAdmin(harness);
+		await firstAgent.post("/admin/mfa").type("form").send({ code: harness.currentCode() });
+		const secondAgent = await loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+
+		const challenge = await secondAgent.post("/admin/mfa").type("form").send({ code: harness.codeAt(-1) });
+
+		assert.equal(challenge.status, 422);
+	});
+
+	it("accepts the next step's code after a refusal", async () => {
+		const clock = { now: new Date("2026-11-21T04:00:07Z") };
+		const harness = buildHarness({ now: () => clock.now });
+		const firstAgent = await signedInAdmin(harness);
+		const code = harness.currentCode();
+		await firstAgent.post("/admin/mfa").type("form").send({ code });
+		const secondAgent = await loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		await secondAgent.post("/admin/mfa").type("form").send({ code });
+		clock.now = new Date(clock.now.getTime() + 30_000);
+
+		const challenge = await secondAgent.post("/admin/mfa").type("form").send({ code: harness.currentCode() });
+
+		assert.equal(challenge.status, 303);
+		assert.equal(challenge.headers.location, "/admin");
 	});
 
 	it("answers 429 once the attempts are spent, even for the correct code", async () => {

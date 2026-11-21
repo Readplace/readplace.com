@@ -20,11 +20,11 @@ export function totpCodeAt({ secret, atMs }: { secret: Buffer; atMs: number }): 
 	return codeForStep({ secret, step: stepAt(atMs) });
 }
 
-export function isValidTotpCode({ secret, code, atMs }: { secret: Buffer; code: string; atMs: number }): boolean {
+export function matchedTotpStep({ secret, code, atMs }: { secret: Buffer; code: string; atMs: number }): number | undefined {
 	const presented = Buffer.from(code);
 	const current = stepAt(atMs);
-	return DRIFT_STEPS.some((drift) => {
-		const expected = Buffer.from(codeForStep({ secret, step: current + drift }));
+	return DRIFT_STEPS.map((drift) => current + drift).find((step) => {
+		const expected = Buffer.from(codeForStep({ secret, step }));
 		return expected.length === presented.length && timingSafeEqual(expected, presented);
 	});
 }

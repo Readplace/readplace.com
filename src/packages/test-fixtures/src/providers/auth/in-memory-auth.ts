@@ -433,11 +433,20 @@ export function initInMemoryAuth(opts: {
 	const findSessionOAuthGrant: FindSessionOAuthGrant = async (sessionId) =>
 		liveSession(sessionId)?.oauthGrantId;
 
-	const markSessionAdminMfaVerified: MarkSessionAdminMfaVerified = async ({ sessionId, at }) => {
+	const adminTotpLastSteps = new Map<string, number>();
+
+	const markSessionAdminMfaVerified: MarkSessionAdminMfaVerified = async ({ sessionId, at, email, totpStep }) => {
+		const normalizedEmail = normalizeEmail(email);
+		const lastStep = adminTotpLastSteps.get(normalizedEmail);
+		if (!users.has(normalizedEmail) || (lastStep !== undefined && lastStep >= totpStep)) {
+			return { kind: "code-already-used" };
+		}
+		adminTotpLastSteps.set(normalizedEmail, totpStep);
 		const session = liveSession(sessionId);
 		if (session) {
 			session.adminMfaVerifiedAt = at;
 		}
+		return { kind: "verified" };
 	};
 
 	const findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt = async (sessionId) =>

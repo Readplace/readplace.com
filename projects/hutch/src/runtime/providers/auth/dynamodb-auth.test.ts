@@ -63,7 +63,7 @@ function createQueryFakeClient(opts: {
 }
 
 /** Records write commands and optionally fails every send with a given error. */
-function createWriteFakeClient(opts: { fail?: Error } = {}): {
+function createWriteFakeClient(opts: { fail?: Error; failOnTable?: string } = {}): {
 	client: DynamoDBDocumentClient;
 	commands: CapturedCommand[];
 } {
@@ -71,7 +71,9 @@ function createWriteFakeClient(opts: { fail?: Error } = {}): {
 	const client = {
 		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			commands.push({ name: command.constructor.name, input: command.input });
-			if (opts.fail) throw opts.fail;
+			if (opts.fail && (opts.failOnTable === undefined || command.input.TableName === opts.failOnTable)) {
+				throw opts.fail;
+			}
 			if (command.constructor.name === "ScanCommand") return { Count: 3 };
 			return {};
 		}) as DynamoDBDocumentClient["send"],
@@ -1549,16 +1551,32 @@ describe("initDynamoDbAuth", () => {
 	});
 
 	describe("markSessionAdminMfaVerified", () => {
-		it("stamps the time on the session row, only while the row exists", async () => {
+		const mark = { sessionId: "sid", at: 1_800_000_000, email: "Ops@Readplace.com", totpStep: 60_000_000 };
+		const conditionFailed = () => new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" });
+
+		it("claims the code's step on the admin's row, then stamps the time on the session row", async () => {
 			const { client, commands } = createWriteFakeClient();
 			const auth = initAuth(client);
 
-			await auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 });
+			const outcome = await auth.markSessionAdminMfaVerified(mark);
 
+			expect(outcome).toEqual({ kind: "verified" });
 			expect(commands).toEqual([
 				{
 					name: "UpdateCommand",
 					input: expect.objectContaining({
+						TableName: "users",
+						Key: { email: "ops@readplace.com" },
+						UpdateExpression: "SET adminTotpLastStep = :step",
+						ConditionExpression:
+							"attribute_exists(email) AND (attribute_not_exists(adminTotpLastStep) OR adminTotpLastStep < :step)",
+						ExpressionAttributeValues: { ":step": 60_000_000 },
+					}),
+				},
+				{
+					name: "UpdateCommand",
+					input: expect.objectContaining({
+						TableName: "sessions",
 						Key: { sessionId: "sid" },
 						UpdateExpression: "SET adminMfaVerifiedAt = :at",
 						ConditionExpression: "attribute_exists(sessionId)",
@@ -1568,24 +1586,34 @@ describe("initDynamoDbAuth", () => {
 			]);
 		});
 
-		it("writes nothing when the session was already destroyed", async () => {
-			const { client } = createWriteFakeClient({
-				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" }),
-			});
+		it("refuses a step that is not newer than the last accepted one and leaves the session unmarked", async () => {
+			const { client, commands } = createWriteFakeClient({ fail: conditionFailed(), failOnTable: "users" });
 			const auth = initAuth(client);
 
-			await auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 });
+			const outcome = await auth.markSessionAdminMfaVerified(mark);
+
+			expect(outcome).toEqual({ kind: "code-already-used" });
+			expect(commands.map((command) => command.input.TableName)).toEqual(["users"]);
+		});
+
+		it("writes nothing to a session that was already destroyed", async () => {
+			const { client } = createWriteFakeClient({ fail: conditionFailed(), failOnTable: "sessions" });
+			const auth = initAuth(client);
+
+			const outcome = await auth.markSessionAdminMfaVerified(mark);
+
+			expect(outcome).toEqual({ kind: "verified" });
 		});
 
 		it("survives a renewal, which only sets the session's other fields", async () => {
 			const { client, commands } = createWriteFakeClient();
 			const auth = initAuth(client);
-			await auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 });
+			await auth.markSessionAdminMfaVerified(mark);
 
 			await auth.renewSession({ sessionId: "sid" });
 			await auth.renewSession({ sessionId: "sid", oauthGrantId: OAuthGrantIdSchema.parse("grant-1") });
 
-			const renewals = commands.slice(1);
+			const renewals = commands.slice(2);
 			expect(renewals.map((command) => command.name)).toEqual(["UpdateCommand", "UpdateCommand"]);
 			expect(renewals.map((command) => command.input.UpdateExpression)).toEqual([
 				"SET expiresAt = :expiresAt",
@@ -1597,9 +1625,7 @@ describe("initDynamoDbAuth", () => {
 			const { client } = createWriteFakeClient({ fail: new Error("dynamo unavailable") });
 			const auth = initAuth(client);
 
-			await expect(auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 })).rejects.toThrow(
-				"dynamo unavailable",
-			);
+			await expect(auth.markSessionAdminMfaVerified(mark)).rejects.toThrow("dynamo unavailable");
 		});
 	});
 

@@ -48,6 +48,7 @@ import {
 	GMAIL_SCOPES,
 	GMAIL_SETTINGS_SCOPE,
 } from '@packages/provider-contracts/gmail-oauth'
+import type { MarkSessionAdminMfaVerified } from '@packages/provider-contracts/auth'
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from '@packages/provider-contracts/newsletter-catalog'
 import { type SavedCard, PaymentMethodIdSchema } from '@packages/provider-contracts/payment-methods'
 import { type InvoiceSummary, InvoiceIdSchema } from '@packages/provider-contracts/subscription-billing'
@@ -418,8 +419,15 @@ const e2eHostedCheckout: typeof e2eStripe = {
 const e2eLogsInsights = initInMemoryLogsInsights()
 for (const answer of e2eDashboardAnswers()) e2eLogsInsights.answerQuery(answer)
 
+let e2eAdminTotpStep = 0
+const markEveryE2eAdminChallengeOnAFreshStep: MarkSessionAdminMfaVerified = (input) => {
+	e2eAdminTotpStep += 1
+	return fixture.auth.markSessionAdminMfaVerified({ ...input, totpStep: e2eAdminTotpStep })
+}
+
 const { app: readplaceApp, auth, email } = createTestApp({
 	...fixture,
+	auth: { ...fixture.auth, markSessionAdminMfaVerified: markEveryE2eAdminChallengeOnAFreshStep },
 	// The default fixture allowlist is empty (fail-closed); the admin
 	// extend-trial flow signs in as this address to pass the /admin gate.
 	admin: {

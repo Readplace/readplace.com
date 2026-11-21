@@ -15,7 +15,7 @@ import { sendRateLimited } from "../../middleware/rate-limit";
 import { ADMIN_MFA_STYLES } from "./admin-mfa.styles";
 import { type ReadAdminTotpSecrets, adminTotpSecretFor } from "./admin-totp-secrets";
 import { ADMIN_MFA_PATH, findAllowlistedAdminEmail } from "./require-admin.middleware";
-import { isValidTotpCode } from "./totp";
+import { matchedTotpStep } from "./totp";
 
 const TEMPLATE = readFileSync(join(__dirname, "admin-mfa.template.html"), "utf-8");
 
@@ -57,7 +57,10 @@ export function initAdminMfaRoutes(deps: AdminMfaDependencies): Router {
 		);
 	}
 
-	async function isAcceptedCode(input: { userId: string; code: string }): Promise<boolean> {
+	async function acceptedCode(input: {
+		userId: string;
+		code: string;
+	}): Promise<{ email: string; totpStep: number } | undefined> {
 		const email = await findAllowlistedAdminEmail({
 			findUserByEmail: deps.findUserByEmail,
 			adminEmails: deps.adminEmails,
@@ -65,8 +68,10 @@ export function initAdminMfaRoutes(deps: AdminMfaDependencies): Router {
 		});
 		assert(email, "the admin gate only lets an allowlisted admin reach the challenge");
 		const secret = adminTotpSecretFor({ secrets: await deps.readAdminTotpSecrets(), email });
-		if (secret === undefined) return false;
-		return isValidTotpCode({ secret, code: input.code, atMs: deps.now().getTime() });
+		if (secret === undefined) return undefined;
+		const totpStep = matchedTotpStep({ secret, code: input.code, atMs: deps.now().getTime() });
+		if (totpStep === undefined) return undefined;
+		return { email, totpStep };
 	}
 
 	router.get("/", async (req: Request, res: Response) => {
@@ -82,13 +87,22 @@ export function initAdminMfaRoutes(deps: AdminMfaDependencies): Router {
 			return;
 		}
 		const parsed = AdminMfaSchema.safeParse(req.body);
-		if (!parsed.success || !(await isAcceptedCode({ userId, code: parsed.data.code }))) {
+		const accepted = parsed.success ? await acceptedCode({ userId, code: parsed.data.code }) : undefined;
+		if (accepted === undefined) {
 			await respond(req, res, { error: true, statusCode: 422 });
 			return;
 		}
 		const sessionId = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
 		assert(sessionId, "the admin gate only lets a cookie session reach the challenge");
-		await deps.markSessionAdminMfaVerified({ sessionId, at: Math.floor(deps.now().getTime() / 1000) });
+		const mark = await deps.markSessionAdminMfaVerified({
+			sessionId,
+			at: Math.floor(deps.now().getTime() / 1000),
+			...accepted,
+		});
+		if (mark.kind === "code-already-used") {
+			await respond(req, res, { error: true, statusCode: 422 });
+			return;
+		}
 		res.redirect(303, "/admin");
 	});
 

@@ -94,7 +94,14 @@ export type FindSessionReadlistFilter = (sessionId: string) => Promise<ReadlistF
 
 export type FindSessionOAuthGrant = (sessionId: string) => Promise<OAuthGrantId | undefined>;
 
-export type MarkSessionAdminMfaVerified = (input: { sessionId: string; at: number }) => Promise<void>;
+export type AdminMfaMark = { kind: "verified" } | { kind: "code-already-used" };
+
+export type MarkSessionAdminMfaVerified = (input: {
+	sessionId: string;
+	at: number;
+	email: string;
+	totpStep: number;
+}) => Promise<AdminMfaMark>;
 
 export type FindSessionAdminMfaVerifiedAt = (sessionId: string) => Promise<number | undefined>;
 

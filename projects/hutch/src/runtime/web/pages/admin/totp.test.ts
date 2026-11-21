@@ -1,4 +1,4 @@
-import { isValidTotpCode, totpCodeAt } from "./totp";
+import { matchedTotpStep, totpCodeAt } from "./totp";
 
 const rfc6238Secret = Buffer.from("12345678901234567890", "ascii");
 
@@ -15,43 +15,44 @@ describe("totpCodeAt", () => {
 	});
 });
 
-describe("isValidTotpCode", () => {
+describe("matchedTotpStep", () => {
 	const atMs = 1111111111 * 1000;
 	const stepMs = 30_000;
+	const currentStep = Math.floor(1111111111 / 30);
 
-	it("accepts the code of the current step", () => {
+	it("returns the current step for its code", () => {
 		const code = totpCodeAt({ secret: rfc6238Secret, atMs });
 
-		expect(isValidTotpCode({ secret: rfc6238Secret, code, atMs })).toBe(true);
+		expect(matchedTotpStep({ secret: rfc6238Secret, code, atMs })).toBe(currentStep);
 	});
 
-	it("accepts the code of the previous step", () => {
+	it("returns the previous step for its code", () => {
 		const code = totpCodeAt({ secret: rfc6238Secret, atMs: atMs - stepMs });
 
-		expect(isValidTotpCode({ secret: rfc6238Secret, code, atMs })).toBe(true);
+		expect(matchedTotpStep({ secret: rfc6238Secret, code, atMs })).toBe(currentStep - 1);
 	});
 
-	it("accepts the code of the next step", () => {
+	it("returns the next step for its code", () => {
 		const code = totpCodeAt({ secret: rfc6238Secret, atMs: atMs + stepMs });
 
-		expect(isValidTotpCode({ secret: rfc6238Secret, code, atMs })).toBe(true);
+		expect(matchedTotpStep({ secret: rfc6238Secret, code, atMs })).toBe(currentStep + 1);
 	});
 
 	it("refuses the code of a step two steps behind", () => {
 		const code = totpCodeAt({ secret: rfc6238Secret, atMs: atMs - 2 * stepMs });
 
-		expect(isValidTotpCode({ secret: rfc6238Secret, code, atMs })).toBe(false);
+		expect(matchedTotpStep({ secret: rfc6238Secret, code, atMs })).toBe(undefined);
 	});
 
 	it("refuses the code of a step two steps ahead", () => {
 		const code = totpCodeAt({ secret: rfc6238Secret, atMs: atMs + 2 * stepMs });
 
-		expect(isValidTotpCode({ secret: rfc6238Secret, code, atMs })).toBe(false);
+		expect(matchedTotpStep({ secret: rfc6238Secret, code, atMs })).toBe(undefined);
 	});
 
 	it("refuses a code of the wrong length", () => {
 		const code = totpCodeAt({ secret: rfc6238Secret, atMs });
 
-		expect(isValidTotpCode({ secret: rfc6238Secret, code: `${code}0`, atMs })).toBe(false);
+		expect(matchedTotpStep({ secret: rfc6238Secret, code: `${code}0`, atMs })).toBe(undefined);
 	});
 });

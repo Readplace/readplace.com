@@ -568,20 +568,28 @@ describe("initInMemoryAuth", () => {
 
 	describe("session admin MFA mark", () => {
 		const userId = UserIdSchema.parse("user-admin");
+		const email = "ops@readplace.com";
+
+		async function adminAuth() {
+			const auth = makeAuth();
+			await auth.createUser({ email, password: "password123" });
+			return auth;
+		}
 
 		it("reads back the time the session passed the challenge", async () => {
-			const auth = makeAuth();
+			const auth = await adminAuth();
 			const sessionId = await auth.createSession({ userId, emailVerified: true });
 
-			await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000 });
+			const outcome = await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000, email, totpStep: 10 });
 
+			expect(outcome).toEqual({ kind: "verified" });
 			expect(await auth.findSessionAdminMfaVerifiedAt(sessionId)).toBe(1_800_000_000);
 		});
 
 		it("starts every new session without the mark", async () => {
-			const auth = makeAuth();
+			const auth = await adminAuth();
 			const first = await auth.createSession({ userId, emailVerified: true });
-			await auth.markSessionAdminMfaVerified({ sessionId: first, at: 1_800_000_000 });
+			await auth.markSessionAdminMfaVerified({ sessionId: first, at: 1_800_000_000, email, totpStep: 10 });
 
 			const second = await auth.createSession({ userId, emailVerified: true });
 
@@ -589,9 +597,9 @@ describe("initInMemoryAuth", () => {
 		});
 
 		it("keeps the mark when the session is renewed", async () => {
-			const auth = makeAuth();
+			const auth = await adminAuth();
 			const sessionId = await auth.createSession({ userId, emailVerified: true });
-			await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000 });
+			await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000, email, totpStep: 10 });
 
 			expect(await auth.renewSession({ sessionId })).toBe("renewed");
 
@@ -599,11 +607,50 @@ describe("initInMemoryAuth", () => {
 		});
 
 		it("writes nothing for a session that no longer exists", async () => {
-			const auth = makeAuth();
+			const auth = await adminAuth();
 
-			await auth.markSessionAdminMfaVerified({ sessionId: "gone", at: 1_800_000_000 });
+			await auth.markSessionAdminMfaVerified({ sessionId: "gone", at: 1_800_000_000, email, totpStep: 10 });
 
 			expect(await auth.findSessionAdminMfaVerifiedAt("gone")).toBe(undefined);
+		});
+
+		it("refuses a step the admin already used, or an older one, and leaves the session unmarked", async () => {
+			const auth = await adminAuth();
+			const first = await auth.createSession({ userId, emailVerified: true });
+			await auth.markSessionAdminMfaVerified({ sessionId: first, at: 1_800_000_000, email, totpStep: 10 });
+			const second = await auth.createSession({ userId, emailVerified: true });
+
+			const same = await auth.markSessionAdminMfaVerified({ sessionId: second, at: 1_800_000_001, email, totpStep: 10 });
+			const older = await auth.markSessionAdminMfaVerified({ sessionId: second, at: 1_800_000_001, email, totpStep: 9 });
+
+			expect([same, older]).toEqual([{ kind: "code-already-used" }, { kind: "code-already-used" }]);
+			expect(await auth.findSessionAdminMfaVerifiedAt(second)).toBe(undefined);
+		});
+
+		it("accepts a newer step, and keeps each admin's steps apart", async () => {
+			const auth = await adminAuth();
+			await auth.createUser({ email: "second@readplace.com", password: "password123" });
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+			await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000, email, totpStep: 10 });
+
+			const newer = await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_030, email, totpStep: 11 });
+			const otherAdmin = await auth.markSessionAdminMfaVerified({
+				sessionId,
+				at: 1_800_000_030,
+				email: "Second@Readplace.com",
+				totpStep: 10,
+			});
+
+			expect([newer, otherAdmin]).toEqual([{ kind: "verified" }, { kind: "verified" }]);
+		});
+
+		it("refuses an address with no account", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+
+			const outcome = await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000, email, totpStep: 10 });
+
+			expect(outcome).toEqual({ kind: "code-already-used" });
 		});
 	});
 
