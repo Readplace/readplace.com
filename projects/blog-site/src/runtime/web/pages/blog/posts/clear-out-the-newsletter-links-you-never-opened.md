@@ -1,7 +1,7 @@
 ---
 title: "Clear out the newsletter links you never opened"
 description: "All keeps every link a newsletter saves, and the unread ones pile up. The Newsletter Links Removal page counts them, shows which newsletters sent the most, and removes only the untouched links in one pass. Issues and readlist copies stay, and each removed link can be restored for 30 days."
-excerpt: "One pass clears the unread newsletter links, and every removed link can come back for 30 days."
+excerpt: "On the paid plan, one pass clears the unread newsletter links, and each can come back for 30 days."
 tldr: "Every newsletter issue saves its links to All, and the unread ones outnumber the read. Readplace now clears them in one pass: the Newsletter Links Removal page behind the Inbox counts them first, removes only the links that were not read, opened, highlighted or changed, keeps every issue and every copy filed in another readlist, and holds each removed link for 30 days with a Restore that puts it back."
 slug: "clear-out-the-newsletter-links-you-never-opened"
 date: "2026-11-21"
@@ -29,13 +29,13 @@ A link that was [filed into another readlist](/blog/newsletter-articles-land-in-
 
 Pressing the button removes nothing. The page counts first: how many unread newsletter links All holds, which newsletters sent the most of them, and how many links will be skipped, with the reason beside each number. That count is the same work that took 21.5 seconds on the largest account, so it runs in the background and the page fills in when the numbers land.
 
-The decision then has a scope. The removal covers every newsletter, or only the senders ticked in the list the page draws, heaviest first. Remove newsletter links is the last button, and after it the Inbox line shows the job working, then the result: how many links went, how many were skipped.
+The decision then has a scope. The removal covers every newsletter, or only the senders ticked in the list the page draws, heaviest first. Remove newsletter links is the last button. Removing and restoring are part of the paid plan, so on the free plan that button leads to the plans page instead. After it the Inbox line shows the job working, then the result: how many links went, how many were skipped.
 
 TBH, the edge of the count is fuzzy for older saves: a link saved by hand before a newsletter ever linked to it can sit in the total, because nothing from back then recorded who saved it first. The confirm page says so beside the number, and the hold below exists for exactly that case.
 
 ## Held for 30 days, not deleted
 
-A removed link moves into a hold, and for 30 days the Inbox line offers Restore removed links. Restore writes each held link back into All and leaves out any that already made it back, so running it twice can't double a row. A held link whose article is no longer stored can't be restored. The page lists it with its URL instead, ready to be saved again.
+A removed link moves into a hold, and for 30 days the Inbox line offers Restore removed links. A plan that ends inside those 30 days has to be upgraded again before Restore works, or the held links expire. Restore writes each held link back into All and leaves out any that already made it back, so running it twice can't double a row. A held link whose article is no longer stored can't be restored. The page lists it with its URL instead, ready to be saved again.
 
 A removal that fails partway strands nothing either. The line says it couldn't finish, and whatever was already removed sits in the same hold, restorable like the rest.
 
@@ -47,6 +47,6 @@ The pass cleans up the past and changes nothing about what arrives next. Newslet
 
 ## Behind the Inbox line
 
-The line waits on [the Inbox](/inbox?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=inbox) of any account whose All holds newsletter links, and the count is one click behind it. Nothing is removed until the numbers are on screen and the button under them gets pressed.
+The line waits on [the Inbox](/inbox?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=inbox) of any account whose All holds newsletter links, and the count is one click behind it. The removal itself runs on [the paid plan](/?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=pricing#pricing). Nothing is removed until the numbers are on screen and the button under them gets pressed.
 
 An All with nothing in it has nothing to clear. The saving starts at [readplace.com](/?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=home).
