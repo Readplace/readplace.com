@@ -688,7 +688,6 @@ describe("Newsletter links confirm page", () => {
 			"All holds 2 newsletter issues. Every one stays.",
 			"Links you saved yourself from an issue or its email page before Nov 18, 2026, and links you saved by hand before a newsletter linked them, are in the total.",
 			"Removed links can be restored for 30 days.",
-			"Restoring them is part of a paid plan: if your plan ends, upgrade again within those 30 days or the removed links expire.",
 			OTHER_READLISTS,
 		]);
 		const lead = section.querySelector("[data-test-newsletter-links-lead]");
@@ -713,7 +712,7 @@ describe("Newsletter links confirm page", () => {
 			["checkbox", true],
 			["checkbox", true],
 		]);
-		expect(scopeLegendOf(form)).toBe("Which links to remove");
+		expect(scopeLegendOf(form)).toBe("Which links to remove:");
 		expect(
 			Array.from(
 				form.querySelectorAll(".newsletter-links-page__scope > label"),
@@ -813,7 +812,7 @@ describe("Newsletter links confirm page", () => {
 
 describe("Newsletter links page header", () => {
 	it.each([
-		{ page: "remove", path: REMOVE_PATH, title: "Remove newsletter links" },
+		{ page: "remove", path: REMOVE_PATH, title: "Newsletter Links Removal" },
 		{ page: "restore", path: RESTORE_PATH, title: "Restore removed links" },
 	])("puts the link back to the inbox above the $page page's title, and nothing after the count", async ({
 		path,

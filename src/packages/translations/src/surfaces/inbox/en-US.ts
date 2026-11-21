@@ -68,7 +68,7 @@ export const enUS = {
 				"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
 		},
 		confirm: {
-			title: "Remove newsletter links",
+			title: "Newsletter Links Removal",
 			counting: "Counting the newsletter links in All…",
 			countingLink: "Check again",
 			none: "Count the newsletter links in All to see what would be removed.",
@@ -80,7 +80,7 @@ export const enUS = {
 				other: "{count} unread newsletter links in All will be removed.",
 			},
 			decision: "Remove these links from All?",
-			scopeLegend: "Which links to remove",
+			scopeLegend: "Which links to remove:",
 			sendersLegend: "Newsletters with the most links",
 			allSenders: "From every newsletter",
 			chosenSenders: "Only from the newsletters selected below",
@@ -104,8 +104,6 @@ export const enUS = {
 				other: "All holds {count} newsletter issues. Every one stays.",
 			},
 			restoreWindow: "Removed links can be restored for 30 days.",
-			restoreNeedsPlan:
-				"Restoring them is part of a paid plan: if your plan ends, upgrade again within those 30 days or the removed links expire.",
 			otherReadlists: "Copies in your other readlists stay there.",
 			beforeMarker:
 				"Links you saved yourself from an issue or its email page before {date}, and links you saved by hand before a newsletter linked them, are in the total.",
