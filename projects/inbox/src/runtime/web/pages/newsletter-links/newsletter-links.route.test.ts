@@ -354,9 +354,7 @@ describe("Newsletter links line on the inbox", () => {
 		const line = lineOf(doc);
 		assert(line, "the offer line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("offer");
-		expect(sentencesOf(line)).toEqual([
-			"All holds links saved from your newsletters.",
-		]);
+		expect(sentencesOf(line)).toEqual([]);
 		expect(line.hasAttribute("hx-get")).toBe(false);
 		const form = line.querySelector("form");
 		assert(form, "the offer carries the Remove button");
@@ -1125,9 +1123,7 @@ describe("Restore on the newsletter links line", () => {
 		const line = lineOf(documentOf((await agent.get("/inbox")).text));
 
 		assert(line, "the offer line must render");
-		expect(sentencesOf(line)).toEqual([
-			"All holds links saved from your newsletters.",
-		]);
+		expect(sentencesOf(line)).toEqual([]);
 		const actions = line.querySelectorAll(".newsletter-links-line__actions");
 		expect(actions).toHaveLength(1);
 		expect(
@@ -1136,7 +1132,7 @@ describe("Restore on the newsletter links line", () => {
 				button.className,
 			]),
 		).toEqual([
-			["Remove newsletter links", "btn btn--neutral btn--m"],
+			["Newsletter Links Removal", "btn btn--neutral btn--m"],
 			["Restore removed links", "btn btn--secondary btn--m"],
 		]);
 	});

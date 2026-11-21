@@ -35,9 +35,8 @@ export const enUS = {
 	},
 	newsletterLinks: {
 		line: {
-			offer: "All holds links saved from your newsletters.",
 			offerHeld: "Newsletter links you removed can be restored to All for 30 days.",
-			removeButton: "Remove newsletter links",
+			removeButton: "Newsletter Links Removal",
 			restoreButton: "Restore removed links",
 			working: {
 				remove: "Removing newsletter links from All…",

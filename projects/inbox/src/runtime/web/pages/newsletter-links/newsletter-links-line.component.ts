@@ -92,11 +92,7 @@ function lineView(line: Exclude<NewsletterLinksLine, { kind: "hidden" }>): {
 	switch (line.kind) {
 		case "offer":
 			return {
-				sentences: [
-					line.offer
-						? t("newsletterLinks.line.offer")
-						: t("newsletterLinks.line.offerHeld"),
-				],
+				sentences: line.offer ? [] : [t("newsletterLinks.line.offerHeld")],
 				working: undefined,
 				failedAlertHtml: undefined,
 				...offerActions(line),
