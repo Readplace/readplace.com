@@ -225,8 +225,33 @@
 }
 
 .readlist-choices__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border);
+}
+
+.readlist-choices__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 9999px;
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.readlist-choices__info svg {
+  width: 16px;
+  height: 16px;
+}
+
+.readlist-choices__info:hover,
+.readlist-choices__info:focus-visible {
+  color: var(--foreground);
 }
 
 .readlist-choices__title {

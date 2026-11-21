@@ -115,6 +115,28 @@ describe("renderReadlistFitChoices", () => {
 		expect(action.searchParams.get("utm_content")).toBe("remove-choice");
 	});
 
+	it("puts an info button beside the title that opens the explaining popover", () => {
+		const doc = renderChoices({ choices: [DOVETAIL], purpose: "Woodworking" });
+		const button = doc.querySelector(".readlist-choices__header [data-test-action='readlist-choices-info']");
+		const panel = doc.querySelector("[data-test-confirm-popover='readlist-choices-info']");
+		assert(button, "the header carries the info button");
+		assert(panel, "the section carries the info popover");
+
+		expect(button.getAttribute("popovertarget")).toBe(panel.id);
+		expect(button.textContent).toBe("What are your choices?");
+	});
+
+	it("explains the section in one paragraph inside the popover", () => {
+		const doc = renderChoices({ choices: [DOVETAIL], purpose: "Woodworking" });
+		const panel = doc.querySelector("[data-test-confirm-popover='readlist-choices-info']");
+		assert(panel, "the section carries the info popover");
+
+		expect(panel.textContent).toContain("About your choices");
+		expect(panel.textContent).toContain(
+			"The next time it sorts an issue, the AI reads your 20 newest choices as examples of what you keep and skip.",
+		);
+	});
+
 	it("renders nothing for a readlist without a purpose", () => {
 		const doc = renderChoices({ choices: [DOVETAIL] });
 

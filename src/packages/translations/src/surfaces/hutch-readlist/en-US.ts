@@ -93,6 +93,13 @@ export const enUS = {
 			dismiss: "Dismiss the free plan banner",
 		},
 	},
+	readlistChoices: {
+		info: {
+			button: "What are your choices?",
+			title: "About your choices",
+			body: "When a newsletter issue reaches this readlist, the AI decides which of its links fit the purpose. Each time you tap Keep or Doesn't fit on an email, Readplace saves your call here. The next time it sorts an issue, the AI reads your 20 newest choices as examples of what you keep and skip. Remove a choice to stop it counting.",
+		},
+	},
 	readlistKeepOffer: {
 		withoutCard: "Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.",
 	},

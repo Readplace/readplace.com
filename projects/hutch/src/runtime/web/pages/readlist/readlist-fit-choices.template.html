@@ -1,7 +1,9 @@
 <section class="readlist-listing readlist-choices" aria-labelledby="readlist-choices-title" data-test-readlist-choices>
   <header class="readlist-choices__header">
     <h3 class="readlist-choices__title" id="readlist-choices-title">Your choices</h3>
+    <button class="readlist-choices__info" type="button" popovertarget="{{infoPopoverId}}" aria-haspopup="dialog" data-test-action="readlist-choices-info">{{icon "info"}}<span class="sr-only">{{infoButtonLabel}}</span></button>
   </header>
+  {{{infoPopoverHtml}}}
   <ul class="readlist-choices__list">
     {{#each rows}}
     <li class="readlist-choices__row" data-test-readlist-choice="{{id}}">
