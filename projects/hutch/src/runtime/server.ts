@@ -415,7 +415,6 @@ import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { initIntegrationsRoutes } from "./web/pages/integrations";
 import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-integration.types";
-import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
 import { initListConnectedOAuthClients } from "./domain/oauth/connected-oauth-clients";
 import {
@@ -499,11 +498,6 @@ export interface AppDependencies {
 	writeNewsletterCatalog: WriteNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
 	findCanaryReport: FindCanaryReport;
-	adminDashboards: {
-		runLogsInsightsQuery: RunLogsInsightsQuery;
-		readExcludedIdentities: ReadExcludedIdentities;
-		now: () => Date;
-	};
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;

@@ -45,7 +45,6 @@ import { initInMemoryImportSession } from "./providers/import-session/in-memory-
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
 import { initInMemoryNewsletterCatalog } from "./providers/newsletter-catalog/in-memory-newsletter-catalog";
 import { initInMemoryCanaryReports } from "./providers/canary-report/in-memory-canary-report";
-import { initInMemoryLogsInsights } from "./providers/logs-insights/in-memory-logs-insights";
 import { initInMemoryInboxEmail } from "./providers/inbox-email/in-memory-inbox-email";
 import { initInMemoryInboxEmailLink } from "./providers/inbox-email/in-memory-inbox-email-link";
 import { initInMemoryInboxSavedLink } from "./providers/inbox-email/in-memory-inbox-saved-link";
@@ -646,11 +645,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			secondFactorAttemptRule: { limit: 1000, windowSeconds: 900 },
 		},
 		canaryReports: initInMemoryCanaryReports(),
-		adminDashboards: {
-			runLogsInsightsQuery: initInMemoryLogsInsights().runLogsInsightsQuery,
-			readExcludedIdentities: async () => ({ excludedVisitorIds: [], excludedUserIds: [] }),
-			now: () => new Date(),
-		},
 		mediaUpload: {
 			...initInMemoryMediaUploadSessions(),
 			...initInMemoryMediaPending({ uploadBaseUrl: `${appOrigin}/e2e/s3-media` }),

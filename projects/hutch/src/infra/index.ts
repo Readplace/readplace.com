@@ -1,4 +1,4 @@
-import { AUTH_DIAGNOSTICS_LOG_GROUP, buildAuthDiagnosticsDashboard } from "../runtime/auth-diagnostics/dashboard";
+import { ANALYTICS_LOG_GROUP, AUTH_DIAGNOSTICS_LOG_GROUP, assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "@packages/dashboard-widgets";
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
@@ -58,10 +58,9 @@ import { allowanceSeconds, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { USER_DATA_JOBS_MAX_RECEIVE_COUNT } from "../runtime/saved-links-job/max-receive-count";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, HIGHLIGHTS_REANCHORED_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, HIGHLIGHTS_REANCHORED_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, DEEPSEEK_COST_METRIC, DEEPSEEK_COST_METRIC_FILTER, deepseekCostMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern, openAiScanToolsListedPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
-import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import { ADMIN_TOTP_SECRETS_PARAMETER_NAME, adminTotpSecretsParameterValue } from "../runtime/web/pages/admin/admin-totp-secrets";
@@ -112,7 +111,7 @@ const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
 assertExcludedUserIds(excludedUserIds);
 const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
 assertExcludedVisitorIds(excludedVisitorIds);
-const excludedIdentitiesParameter = new aws.ssm.Parameter("excluded-identities", {
+new aws.ssm.Parameter("excluded-identities", {
 	name: EXCLUDED_IDENTITIES_PARAMETER_NAME,
 	type: "String",
 	value: JSON.stringify({ excludedVisitorIds, excludedUserIds }),
@@ -2558,39 +2557,6 @@ new aws.iam.RolePolicy("hutch-admin-totp-secrets-read", {
 			],
 		}),
 	),
-});
-
-new aws.iam.RolePolicy("hutch-admin-dashboards-read", {
-	role: lambda.role.name,
-	policy: pulumi
-		.all([analyticsLogGroup.arn, authDiagnosticsLogGroup.arn, excludedIdentitiesParameter.arn])
-		.apply(([analyticsArn, authDiagnosticsArn, parameterArn]) =>
-			JSON.stringify({
-				Version: "2012-10-17",
-				Statement: [
-					{
-						Effect: "Allow",
-						Action: ["logs:StartQuery"],
-						Resource: [analyticsArn, `${analyticsArn}:*`, authDiagnosticsArn, `${authDiagnosticsArn}:*`],
-					},
-					{
-						Effect: "Allow",
-						Action: ["logs:GetQueryResults", "logs:StopQuery"],
-						Resource: ["*"],
-					},
-					{
-						Effect: "Allow",
-						Action: ["ssm:GetParameter"],
-						Resource: [parameterArn],
-					},
-				],
-			}),
-		),
-});
-
-new aws.cloudwatch.Dashboard("auth-diagnostics-dashboard", {
-	dashboardName: "readplace-authentication",
-	dashboardBody: authDiagnosticsLogGroup.name.apply(logGroupName => buildAuthDiagnosticsDashboard({ region, logGroupName })),
 });
 
 // Async invokes that still fail after their retries park the original awslogs

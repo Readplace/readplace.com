@@ -1,16 +1,12 @@
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
+import { ADMIN_MFA_PATH, initRequireAdmin, type SecondFactorPolicy, serviceTokenPolicy } from "@packages/admin-gate";
 import { CANARY_REPORTS_PATH } from "@packages/provider-contracts/canary-report";
 import { withSyntacticUnwrap } from "@packages/save-article";
 import type { AppDependencies } from "../../../server";
-import { AUTH_DIAGNOSTICS_LOG_GROUP } from "../../../auth-diagnostics/dashboard";
 import { initUpdateNewsletterCatalog } from "../../../domain/newsletter-catalog/update-newsletter-catalog";
-import { buildAdminDashboards } from "../../../observability/admin-dashboards";
-import { ANALYTICS_LOG_GROUP } from "../../../observability/events";
 import type { EmitLifecycleEmailSent } from "../../../observability/lifecycle-email-events";
 import type { BuildBannerState } from "../../banner-state";
-import { initAdminDashboardsRoutes } from "./admin-dashboards.page";
-import { ADMIN_DASHBOARDS_PATH } from "./admin-dashboards.url";
 import { initRefuseAdminAccess } from "./admin-forbidden.page";
 import { initAdminIndexHandler } from "./admin-index.page";
 import { initAdminNewslettersRoutes } from "./admin-newsletters.page";
@@ -19,7 +15,6 @@ import { initAdminExtendTrialRoutes } from "./extend-trial.page";
 import { initAdminFounderNotesRoutes } from "./founder-notes.page";
 import { initAdminRecrawlRoutes } from "./recrawl.page";
 import { initAdminMfaRoutes } from "./admin-mfa.page";
-import { ADMIN_MFA_PATH, type SecondFactorPolicy, initRequireAdmin, serviceTokenPolicy } from "./require-admin.middleware";
 
 function noStore(_req: Request, res: Response, next: NextFunction): void {
 	res.setHeader("Cache-Control", "no-store");
@@ -50,7 +45,6 @@ export function initAdminRoutes(
 		| "writeNewsletterCatalog"
 		| "newsletterCatalogSeed"
 		| "findCanaryReport"
-		| "adminDashboards"
 		| "adminEmails"
 		| "readAdminTotpSecrets"
 		| "adminMfaAttemptRule"
@@ -177,19 +171,6 @@ export function initAdminRoutes(
 		initAdminCanaryReportRoutes({
 			findCanaryReport: deps.findCanaryReport,
 			buildBannerState,
-		}),
-	);
-	router.use(
-		ADMIN_DASHBOARDS_PATH,
-		noStore,
-		sessionOnly,
-		initAdminDashboardsRoutes({
-			buildBannerState,
-			dashboards: buildAdminDashboards({
-				analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-				authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-			}),
-			...deps.adminDashboards,
 		}),
 	);
 	router.get("/admin", noStore, sessionOnly, initAdminIndexHandler({ buildBannerState }));

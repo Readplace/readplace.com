@@ -1,14 +1,10 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { SSMClient } from "@aws-sdk/client-ssm";
-import { EXCLUDED_IDENTITIES_PARAMETER_NAME, parseExcludedIdentities } from "../observability/excluded-identities";
-import { initSsmExcludedIdentities } from "./excluded-identities/ssm-excluded-identities";
 import { initSsmAdminTotpSecrets } from "./admin-totp-secrets/ssm-admin-totp-secrets";
 import {
 	ADMIN_TOTP_SECRETS_PARAMETER_NAME,
 	parseAdminTotpSecretsParameter,
 } from "../web/pages/admin/admin-totp-secrets";
-import { initCloudWatchLogsInsights } from "./logs-insights/cloudwatch-logs-insights";
 import { initAuthDiagnosticRecorder } from "../auth-diagnostics/record";
 import assert from "node:assert";
 import {
@@ -166,8 +162,6 @@ import { initReportReadlistCap } from "../observability/readlist-cap";
 import type { ReadlistCapApproachedLine } from "../observability/events";
 import { initDynamoDbPendingViewHighlights } from "./pending-view-highlights/dynamodb-pending-view-highlights";
 
-const ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS = 25_000;
-
 /** `appOrigin` is threaded in rather than read from the environment because the
  * dev server may have bound a different port than `APP_ORIGIN` names, and every
  * absolute URL handed to a client has to point back at this process. */
@@ -217,7 +211,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
 	const eventBusArn = requireEnv("EVENT_BUS_ARN");
 	const client = createDynamoDocumentClient();
-	const logsClient = new CloudWatchLogsClient({});
 	const ssmClient = new SSMClient({});
 	const s3Client = new S3Client({});
 	const schedulerClient = new SchedulerClient({});
@@ -686,23 +679,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
 		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
 		findCanaryReport: initDynamoDbCanaryReports({ client, tableName: tables.canaryReports }).findCanaryReport,
-		adminDashboards: {
-			runLogsInsightsQuery: initCloudWatchLogsInsights({
-				startQuery: (command) => logsClient.send(command),
-				getQueryResults: (command) => logsClient.send(command),
-				stopQuery: (command) => logsClient.send(command),
-				sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-				now: () => Date.now(),
-				pollIntervalMs: 1000,
-				maxWaitMs: ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS,
-			}),
-			readExcludedIdentities: initSsmExcludedIdentities({
-				getParameter: (command) => ssmClient.send(command),
-				parameterName: EXCLUDED_IDENTITIES_PARAMETER_NAME,
-				parseExcludedIdentities,
-			}),
-			now: () => new Date(),
-		},
 		readAdminTotpSecrets: initSsmAdminTotpSecrets({
 			getParameter: (command) => ssmClient.send(command),
 			parameterName: ADMIN_TOTP_SECRETS_PARAMETER_NAME,

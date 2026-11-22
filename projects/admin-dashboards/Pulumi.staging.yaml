@@ -1,0 +1,11 @@
+config:
+  aws:region: ap-southeast-2
+  aws:allowedAccountIds:
+    - '572337278115'
+  admin-dashboards:nodeEnv: development
+  admin-dashboards:hutchStack: organization/hutch/staging
+  admin-dashboards:platformStack: organization/platform/staging
+  admin-dashboards:dynamodbSessionsTable: hutch-sessions-d17dbb3
+  admin-dashboards:dynamodbUsersTable: hutch-users-f90c09e
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwH26Jkweq3Nc+B9mABffmeYAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMj93xI0mtUQpChRMeAgEQgDsfT7ge9dTMSkIQSKuQt4uYhKY3ETCe3f9i+ysnYtxZEOuCmHYdVlvOqJpt1ibrcoezGfektPlJ/oYr7A==

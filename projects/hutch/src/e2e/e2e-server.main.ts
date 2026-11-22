@@ -88,8 +88,6 @@ import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_TOTP_SECRET } from './admin-extend-trial/admin-e2e-user'
-import { E2E_DASHBOARDS_NOW, e2eDashboardAnswers } from './admin-dashboards/admin-dashboards-fixture'
-import { initInMemoryLogsInsights } from '@packages/test-fixtures/providers/logs-insights'
 import { renderChangelogBannerShell } from '@packages/web-shell'
 import { E2E_CHANGELOG_BANNER, E2E_CHANGELOG_BANNER_HEADER } from './changelog-banner-fixture'
 
@@ -416,9 +414,6 @@ const e2eHostedCheckout: typeof e2eStripe = {
 	},
 }
 
-const e2eLogsInsights = initInMemoryLogsInsights()
-for (const answer of e2eDashboardAnswers()) e2eLogsInsights.answerQuery(answer)
-
 let e2eAdminTotpStep = 0
 const markEveryE2eAdminChallengeOnAFreshStep: MarkSessionAdminMfaVerified = (input) => {
 	e2eAdminTotpStep += 1
@@ -435,11 +430,6 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		totpSecrets: new Map([[E2E_ADMIN_EMAIL.toLowerCase(), E2E_ADMIN_TOTP_SECRET]]),
 		secondFactorAttemptRule: fixture.admin.secondFactorAttemptRule,
-	},
-	adminDashboards: {
-		runLogsInsightsQuery: e2eLogsInsights.runLogsInsightsQuery,
-		readExcludedIdentities: fixture.adminDashboards.readExcludedIdentities,
-		now: () => E2E_DASHBOARDS_NOW,
 	},
 	hostedCheckout: e2eHostedCheckout,
 	gmailIntegration: gmailIntegration.bundle,

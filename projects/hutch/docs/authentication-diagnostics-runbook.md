@@ -1,6 +1,6 @@
 # Authentication diagnostics runbook
 
-Use `/readplace/auth-diagnostics` and the `readplace-authentication` CloudWatch dashboard to investigate repeated sign-ins across the website, Chrome, Firefox, iOS and Android. Diagnostics start with the upgraded release; they cannot establish which interruption caused the October 15 incident retrospectively.
+Use `/readplace/auth-diagnostics` and the Login dashboard at `/admin/dashboards/login` to investigate repeated sign-ins across the website, Chrome, Firefox, iOS and Android. The dashboard opens for an admin account that has passed the second factor at `/admin/mfa`. Diagnostics start with the upgraded release; they cannot establish which interruption caused the October 15 incident retrospectively.
 
 ## Build one timeline
 
@@ -43,7 +43,7 @@ Filter the account timeline to an `operation_id`, keeping server and client even
 - `session_deleted` identifies explicit web logout, native logout, account switch, password reset or account deletion when initiated by those routes. `session_unavailable` distinguishes an expired row, a missing row, a lookup failure and an absent cookie at an authentication boundary. An absent cookie alone does not establish why the browser omitted it.
 - `session_bridge_completed` links native or extension authentication to website session creation. Rows with `reason=browser_handoff` come from `/auth/handoff`, where the app hands its sign-in to the external browser: a `POST` is the app minting a code, a `GET` is the browser redeeming it, and a redeem that issued no session cookie (an invalid, expired or replayed code) is a `failure`. Callback failures use validated reason codes, and an Apple consent cancellation is recorded separately from a failed login.
 
-Use the dashboard's repeated transport requests, session deletion, bridge failures and storage health views to compare the reported incident with other clients and versions. External OAuth clients have server-side evidence only.
+Use the Login dashboard's "Repeated transport requests", "Session deletion and bridge failures" and "Journal and storage health" tables to compare the reported incident with other clients and versions. The page offers the last 1, 7, 30 or 90 days; for another window (the group keeps 365 days), run the same query in Logs Insights against `/readplace/auth-diagnostics`. External OAuth clients have server-side evidence only.
 
 iOS distinguishes the app and share extension. Android refreshes use the shared process coordinator and report `surface=app`, including refreshes requested by the share UI; that field alone cannot identify which Android screen initiated the request.
 

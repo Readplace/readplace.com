@@ -6,7 +6,6 @@ import { CANARY_REPORTS_PATH } from "@packages/provider-contracts/canary-report"
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import { useTestServer } from "../../../test-app";
-import { ADMIN_DASHBOARDS_PATH } from "./admin-dashboards.url";
 import { totpCodeAt } from "./totp";
 
 const ADMIN_EMAIL = "ops@readplace.com";
@@ -71,7 +70,6 @@ describe("every admin mount requires the second factor", () => {
 		"/admin/founder-notes",
 		"/admin/newsletters",
 		`${CANARY_REPORTS_PATH}/2026-11-13`,
-		ADMIN_DASHBOARDS_PATH,
 	];
 
 	it.each(adminMounts)("redirects an admin who has not passed the challenge away from GET %s", async (path) => {

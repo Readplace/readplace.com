@@ -14,20 +14,24 @@ import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import {
 	ANALYTICS_EVENTS,
-	ANALYTICS_LOG_GROUP,
-	CONVERSION_EVENTS,
 	ERRORS_LOG_GROUP,
 	LAMBDA_NAMES,
-	LIFECYCLE_EMAIL_EVENTS,
 	LOG_GROUPS,
 	METRICS,
 	QUEUE_DIGEST_EVENTS,
 	SAVE_SURFACES,
 	STREAMS,
-	SUBSCRIPTION_EVENTS,
 } from "./events";
 import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
-import type { ExcludedIdentities } from "./excluded-identities";
+import {
+	ANALYTICS_LOG_GROUP,
+	AUTH_DIAGNOSTICS_LOG_GROUP,
+	buildAdminDashboards,
+	CONVERSION_EVENTS,
+	type ExcludedIdentities,
+	LIFECYCLE_EMAIL_EVENTS,
+	SUBSCRIPTION_EVENTS,
+} from "@packages/dashboard-widgets";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
 import { ENGAGEMENT_EVENTS } from "../domain/engagement/engagement-events";
 
@@ -74,9 +78,16 @@ function collectReferencedStreams(): Set<string> {
 	return found;
 }
 
-function collectReferencedEvents(): Set<string> {
+function adminDashboardQueries(): string[] {
+	const identities: ExcludedIdentities = { excludedVisitorIds: [EXCLUDED_VISITOR_ID], excludedUserIds: [EXCLUDED_USER_ID] };
+	return Object.values(buildAdminDashboards({ analyticsLogGroupName: ANALYTICS_LOG_GROUP, authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP }))
+		.flatMap((dashboard) => dashboard.widgets(identities))
+		.map((spec) => spec.query);
+}
+
+function collectReferencedEvents(queries: readonly string[]): Set<string> {
 	const found = new Set<string>();
-	for (const q of widgetQueries()) {
+	for (const q of queries) {
 		for (const name of collectMatches(ANY_EVENT_RE, q)) found.add(name);
 		for (const list of collectMatches(EVENT_IN_LIST_RE, q)) {
 			for (const item of list.split(",")) {
@@ -89,9 +100,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 82 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored, 1 logged-out-highlights) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 69 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 1 oauth-client-acquisition, 1 save-refusals, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored, 1 logged-out-highlights) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(82);
+		expect(body.widgets).toHaveLength(69);
 	});
 
 	it.each([
@@ -183,29 +194,6 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain('if(event = "user_created", toMillis(@timestamp), 0) as signup_ms');
 		expect(query).toContain("| filter screens > 0");
 		expect(query).toContain("count(*) as visitors_shown, sum(signup_clicks > 0) as visitors_clicked_create_account, sum(login_clicks > 0) as visitors_clicked_log_in, sum(last_signup_ms > first_seen_ms) as signups_after_screen");
-	});
-
-	it("splits the starter activity widget by whether the activity acted on a suggestion", () => {
-		const widget = buildBody().widgets.find(
-			({ properties }) =>
-				properties.title === "Hacker News starter — reader visits, suggestion reads and personal saves",
-		);
-		assert(widget, "the starter activity widget must exist");
-		expect(String(widget.properties.query)).toContain(
-			"| stats count(*) as actions, count_distinct(user_id) as accounts by campaign_id, arm, activity_kind, marked_read, on_suggestion",
-		);
-	});
-
-	it("reads the latest whole-experiment starter report and keeps cohorts on their own widget", () => {
-		const queries = buildBody()
-			.widgets.filter(({ properties }) => String(properties.query).includes('event = "starter_report"'))
-			.map(({ properties }) => String(properties.query));
-
-		expect(queries).toHaveLength(3);
-		expect(queries.filter((query) => query.includes('cohort = "all"'))).toHaveLength(2);
-		expect(queries.filter((query) => query.includes('cohort != "all"'))).toHaveLength(1);
-		expect(queries[0]).toContain("latest(conclusion) as verdict");
-		expect(queries[2]).toContain("by bin(6h)");
 	});
 
 	describe("Queue digest widgets", () => {
@@ -650,8 +638,8 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(missing).toEqual([]);
 	});
 
-	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS / QUEUE_DIGEST_EVENTS is referenced by at least one widget query, except the events kept query-only on purpose", () => {
-		const referenced = collectReferencedEvents();
+	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS / QUEUE_DIGEST_EVENTS is referenced by at least one widget query on the analytics dashboard or an /admin/dashboards page, except the events kept query-only on purpose", () => {
+		const referenced = collectReferencedEvents([...widgetQueries(), ...adminDashboardQueries()]);
 		const queryOnlyEvents: readonly { event: string; reason: string }[] = [
 			{
 				event: ANALYTICS_EVENTS.epubImagesOverBudget,
@@ -685,7 +673,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 	});
 
 	it("every event literal in a widget query is a declared *_EVENTS value (no manual-edit drift back to raw strings)", () => {
-		const referenced = collectReferencedEvents();
+		const referenced = collectReferencedEvents(widgetQueries());
 		const declared = new Set<string>([
 			...Object.values(ANALYTICS_EVENTS),
 			...Object.values(CONVERSION_EVENTS),
@@ -959,6 +947,18 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 					.toEqual(expect.objectContaining({ overlap: false }));
 			}
 		}
+	});
+
+	it("puts the OAuth-client signups table and the save-refusals table side by side on one row", () => {
+		const body = buildBody();
+		const placeOf = (title: string) => {
+			const widget = body.widgets.find(({ properties }) => properties.title === title);
+			assert(widget, `${title} must exist`);
+			return { x: widget.x, y: widget.y, width: widget.width, height: widget.height };
+		};
+
+		expect(placeOf("Signups by OAuth client (consent-screen acquisition)")).toEqual({ x: 0, y: 202, width: 12, height: 8 });
+		expect(placeOf("Save refusals by code × client")).toEqual({ x: 12, y: 202, width: 12, height: 8 });
 	});
 
 	it("respects the CloudWatch 24-column grid (no widget exceeds the right edge)", () => {

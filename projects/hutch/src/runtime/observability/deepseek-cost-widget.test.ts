@@ -1,6 +1,7 @@
 import { buildAnalyticsDashboardBody } from "./analytics-dashboard";
 import { deepseekCostWidget } from "./deepseek-cost-widget";
-import { ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, LOG_GROUPS } from "./events";
+import { ANALYTICS_LOG_GROUP } from "@packages/dashboard-widgets";
+import { ERRORS_LOG_GROUP, LOG_GROUPS } from "./events";
 
 describe("DeepSeek cost widget", () => {
 	it("plots one Readplace/DeepSeek CostUsd row per feature, keyed by the feature dimension and labelled with the display text plus the range total CloudWatch fills in for ${SUM}, with no colour pinned to any row", () => {

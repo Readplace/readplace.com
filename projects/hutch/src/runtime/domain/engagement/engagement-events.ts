@@ -4,17 +4,10 @@ import type {
 	RecordEngagementActivity,
 } from "@packages/provider-contracts/engagement-starter";
 import type { UserId } from "@packages/domain/user";
+import { ENGAGEMENT_EVENTS } from "@packages/dashboard-widgets";
 import { STARTER_CAMPAIGN_ID } from "./starter-policy";
 
-export const ENGAGEMENT_EVENTS = {
-	assigned: "starter_assigned",
-	inserted: "starter_inserted",
-	suppressed: "starter_suppressed",
-	failure: "starter_failure",
-	sent: "starter_sent",
-	activity: "engagement_activity",
-	report: "starter_report",
-} as const;
+export { ENGAGEMENT_EVENTS };
 
 export interface EngagementEvent {
 	stream: "analytics";

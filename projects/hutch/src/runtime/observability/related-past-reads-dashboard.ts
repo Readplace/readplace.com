@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "./events";
-import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
+import { type ExcludedIdentities, excludeNonAudienceClauses } from "@packages/dashboard-widgets";
 import type { DashboardBody, DashboardWidget } from "./analytics-dashboard";
 
 export interface BuildRelatedPastReadsDashboardDeps extends ExcludedIdentities {

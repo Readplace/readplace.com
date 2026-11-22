@@ -80,7 +80,6 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			apple: fixture.apple,
 			admin: fixture.admin,
 			canaryReports: fixture.canaryReports,
-			adminDashboards: fixture.adminDashboards,
 			importSession: fixture.importSession,
 			inboxAddress: fixture.inboxAddress,
 			inboxEmail: fixture.inboxEmail,

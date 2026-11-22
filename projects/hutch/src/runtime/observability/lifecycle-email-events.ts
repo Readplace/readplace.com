@@ -1,6 +1,7 @@
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
-import { LIFECYCLE_EMAIL_EVENTS, STREAMS } from "./events";
+import { LIFECYCLE_EMAIL_EVENTS } from "@packages/dashboard-widgets";
+import { STREAMS } from "./events";
 
 export const LIFECYCLE_EMAIL_KINDS = [
 	"welcome",

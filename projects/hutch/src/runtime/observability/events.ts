@@ -10,7 +10,6 @@ export {
 	SAVE_CLIENTS,
 	SAVE_OUTCOMES,
 	SIGNUP_OUTCOMES,
-	MCP_TOOL_OUTCOMES,
 	PAGE_EXIT_KINDS,
 	type SaveSurface,
 	type SaveClient,
@@ -19,27 +18,9 @@ export {
 	type McpToolOutcome,
 } from "@packages/web-analytics";
 
-export const CONVERSION_EVENTS = {
-	userCreated: "user_created",
-} as const;
-
-export const SUBSCRIPTION_EVENTS = {
-	chargeSucceeded: "charge_succeeded",
-	chargeFailed: "charge_failed",
-	cancelled: "cancelled",
-	checkoutStarted: "checkout_started",
-	checkoutCompleted: "checkout_completed",
-	checkoutReturnFailed: "checkout_return_failed",
-	resubscribeCompleted: "resubscribe_completed",
-} as const;
-
 export const QUEUE_DIGEST_EVENTS = {
 	sent: "queue_digest_sent",
 	skipped: "queue_digest_skipped",
-} as const;
-
-export const LIFECYCLE_EMAIL_EVENTS = {
-	sent: "lifecycle_email_sent",
 } as const;
 
 // The variant union lives in provider-contracts because it is persisted on the
@@ -131,17 +112,6 @@ export interface GmailConnectionsCountLine {
 	event: typeof GMAIL_CONNECTIONS_COUNT_EVENT;
 	count: number;
 }
-
-/**
- * Destination log group for the never-expire analytics feed. The forward-analytics
- * Lambda copies the JSON payload of every FORWARDED_STREAMS line from each source
- * group into here (preamble stripped so Logs Insights can query the fields), so
- * business/analytics history is retained forever while each source Lambda's own
- * group keeps its 30-day operational retention. A fixed string is safe because
- * staging and prod are separate AWS accounts, so the name never collides across
- * environments.
- */
-export const ANALYTICS_LOG_GROUP = "/readplace/analytics";
 
 /**
  * Destination log group for the error feed. Every source group funnels its error

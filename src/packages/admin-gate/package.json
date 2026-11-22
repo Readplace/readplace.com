@@ -1,0 +1,37 @@
+{
+  "name": "@packages/admin-gate",
+  "version": "1.0.0",
+  "description": "The /admin gate: session, admin-email allowlist and second-factor age, shared by every deployable that serves an /admin page",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js'",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/admin-gate:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "@packages/provider-contracts": "workspace:*",
+    "@packages/web-analytics": "workspace:*",
+    "@packages/web-session": "workspace:*"
+  },
+  "devDependencies": {
+    "@packages/domain": "workspace:*",
+    "@packages/test-fixtures": "workspace:*",
+    "@types/express": "5.0.6",
+    "@types/jest": "30.0.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.7",
+    "jest": "30.5.2",
+    "typescript": "6.0.3"
+  }
+}
