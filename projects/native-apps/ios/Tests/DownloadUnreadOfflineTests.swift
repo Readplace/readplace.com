@@ -16,7 +16,7 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 
 	@MainActor
 	private final class WaitClock {
-		private(set) var current = Date(timeIntervalSince1970: 1_000_000)
+		private(set) var current = Date()
 		private(set) var pauses: [TimeInterval] = []
 		var onPause: (Int) -> Void = { _ in }
 
