@@ -201,6 +201,16 @@ export function toArticleCollectionEntity(
 				],
 			},
 			{
+				name: "stage-upload",
+				href: "/upload",
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [
+					{ name: "fileName", type: "text" },
+					{ name: "byteLength", type: "number" },
+				],
+			},
+			{
 				name: "search",
 				title: "Search",
 				href: "/queue",
