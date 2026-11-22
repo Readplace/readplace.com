@@ -4,6 +4,7 @@ import request from "supertest";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { UploadIdSchema, mintPrivateItemUrl } from "@packages/media-contracts";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { noopLogger } from "@packages/logger";
 import { BROWSER_REQUEST_HEADERS, useTestServer, loginAgent } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -548,5 +549,36 @@ describe("Upload routes", () => {
 		const doc = documentOf(response.text);
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent?.trim()).toBe("Dune");
 		expect(doc.querySelector("[data-test-reader-content]")?.textContent).toContain("Arrakis.");
+	});
+});
+
+describe("Upload refusal log line", () => {
+	const uploadLines: unknown[][] = [];
+	const useAppWithUploadLogger = useTestServer({
+		uploadLogger: { ...noopLogger, info: (...args: unknown[]) => { uploadLines.push(args); } },
+	});
+	beforeEach(() => {
+		uploadLines.length = 0;
+	});
+
+	async function refusedUpload(fileName: string) {
+		const harness = useAppWithUploadLogger(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const staged = await agent.post("/upload").type("form").send({ fileName });
+		const uploadId = stagedUploadId(documentOf(staged.text));
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: Buffer.from("not a zip at all") });
+		return agent.post(`/upload/${uploadId}/received`);
+	}
+
+	it("logs the lower-cased extension of a file no kind recognises, and never its name", async () => {
+		const received = await refusedUpload("Dune Messiah.MOBI");
+		expect(received.status).toBe(422);
+		expect(uploadLines).toEqual([["[Upload] unsupported type", { extension: ".mobi" }]]);
+	});
+
+	it("logs an empty extension for a refused file with none", async () => {
+		const received = await refusedUpload("README");
+		expect(received.status).toBe(422);
+		expect(uploadLines).toEqual([["[Upload] unsupported type", { extension: "" }]]);
 	});
 });

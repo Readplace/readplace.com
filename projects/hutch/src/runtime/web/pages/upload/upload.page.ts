@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { extname } from "node:path";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
@@ -13,6 +14,7 @@ import type {
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
 import { type MediaKindManifest, type MediaKindName, type UploadId, UploadIdSchema } from "@packages/media-contracts";
+import type { Logger } from "@packages/logger";
 import { sendComponent } from "@packages/web-shell";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -173,6 +175,7 @@ export interface UploadRouteDependencies {
 	pickUploadProtocol: (req: Request) => UploadProtocol;
 	buildBannerState: BuildBannerState;
 	appOrigin: string;
+	logger: Logger;
 }
 
 export function initUploadRouter(deps: UploadRouteDependencies): Router {
@@ -312,6 +315,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			prefix,
 		});
 		if (!kind) {
+			deps.logger.info("[Upload] unsupported type", { extension: extname(session.fileName ?? "").toLowerCase() });
 			await write(req, res, { outcome: "upload_unsupported_type" }, metered);
 			return;
 		}

@@ -725,6 +725,7 @@ export interface AppDependencies {
 	analytics: Logger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
 	signupLogger: Logger;
+	uploadLogger: Logger;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -1758,6 +1759,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
+			logger: deps.uploadLogger,
 			buildBannerState,
 			appOrigin,
 		}),
