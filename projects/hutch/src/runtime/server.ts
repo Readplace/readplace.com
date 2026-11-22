@@ -380,6 +380,7 @@ import {
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
+import { forBearerSirenRequests } from "./web/bearer-siren-requests.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
@@ -1707,6 +1708,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			refund: deps.refundUnstartedCharge,
 		}),
 	});
+	app.use("/upload", forBearerSirenRequests(dualAuthMiddleware), forBearerSirenRequests(resolveVerificationStatus));
 	app.use(
 		"/upload",
 		initAnonymousUploadRoutes({
