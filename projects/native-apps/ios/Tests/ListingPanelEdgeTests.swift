@@ -16,6 +16,7 @@ final class ListingPanelEdgeTests: XCTestCase {
 			isRead: false,
 			savedAt: nil,
 			contentVersion: nil,
+			contentState: nil,
 			actions: [],
 			links: [],
 			readHref: nil,

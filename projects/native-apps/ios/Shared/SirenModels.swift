@@ -168,12 +168,19 @@ struct ArticleProperties: Decodable {
 	/// (e.g. a save confirmation). Optional so an older server still decodes.
 	let messages: [ServerMessage]?
 	let processing: ProcessingProperty?
+	let contentState: ContentState?
+}
+
+enum ContentState: String, Codable {
+	case available, processing, unavailable
+
+	var lacksContent: Bool { self != .available }
 }
 
 extension ArticleProperties {
 	private enum CodingKeys: String, CodingKey {
 		case id, url, title, siteName, excerpt, wordCount, imageUrl
-		case readTime, status, savedAt, readAt, isRead, contentVersion, messages, processing
+		case readTime, status, savedAt, readAt, isRead, contentVersion, messages, processing, contentState
 	}
 
 	init(from decoder: Decoder) throws {
@@ -193,6 +200,7 @@ extension ArticleProperties {
 		contentVersion = try container.decodeIfPresent(String.self, forKey: .contentVersion)
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
 		processing = try container.decodeLossyIfPresent(ProcessingProperty.self, forKey: .processing)
+		contentState = try container.decodeLossyIfPresent(ContentState.self, forKey: .contentState)
 	}
 }
 
@@ -490,6 +498,7 @@ struct Article: Identifiable, Hashable {
 	let isRead: Bool
 	let savedAt: Date?
 	let contentVersion: String?
+	let contentState: ContentState?
 	/// Every action the server advertised on this item (e.g. `update-status`),
 	/// in the order the server listed them. The row renders one control
 	/// per actionable entry by iterating this — it never cherry-picks an action by
@@ -540,6 +549,7 @@ extension Article {
 		isRead = props.isRead ?? (props.status == "read" || props.readAt != nil)
 		savedAt = props.savedAt.flatMap(SirenDate.parse)
 		contentVersion = props.contentVersion
+		contentState = props.contentState
 		actions = entity.actions ?? []
 		links = entity.links ?? []
 		readHref = links.first { $0.rel.contains("read") }?.href
