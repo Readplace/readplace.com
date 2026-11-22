@@ -53,6 +53,10 @@ struct OfflineArticle {
 	let contentVersion: String?
 	let contentState: ContentState?
 	let request: URLRequest
+
+	var withUnknownContentState: OfflineArticle {
+		OfflineArticle(id: id, contentVersion: contentVersion, contentState: nil, request: request)
+	}
 }
 
 @MainActor
@@ -129,6 +133,12 @@ struct DownloadUnreadOffline {
 		let pageHref: String
 	}
 
+	private struct ResolvingPages {
+		let hrefs: [String]
+		let held: [HeldRow]
+		let next: NextLink?
+	}
+
 	private struct NextLink {
 		let href: String
 		let isOfflinePrefetch: Bool
@@ -201,18 +211,41 @@ struct DownloadUnreadOffline {
 		from href: String,
 		into queue: OfflineArticleQueue,
 		tally: Tally,
-		report: () -> Void
+		report: @escaping () -> Void
 	) async throws {
 		defer { queue.close() }
-		let ledger = Ledger()
-		var link: NextLink? = NextLink(href: href, isOfflinePrefetch: false)
-		while let current = link {
-			link = current.isOfflinePrefetch
-				? try await storeAsLastSeen(current.href, into: queue, ledger: ledger, tally: tally, report: report)
-				: try await resolve(from: current.href, into: queue, ledger: ledger, tally: tally, report: report)
-		}
+		try await walkPages(
+			from: NextLink(href: href, isOfflinePrefetch: false), into: queue, ledger: Ledger(), tally: tally, report: report
+		)
 		tally.walking = false
 		report()
+	}
+
+	private func walkPages(
+		from start: NextLink?,
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: @escaping () -> Void
+	) async throws {
+		var link = start
+		while let current = link {
+			guard !current.isOfflinePrefetch else {
+				link = try await storeAsLastSeen(current.href, into: queue, ledger: ledger, tally: tally, report: report)
+				continue
+			}
+			let resolving = try await loadResolvingPages(from: current.href, into: queue, ledger: ledger, tally: tally, report: report)
+			try await withThrowingTaskGroup(of: Void.self) { group in
+				group.addTask {
+					try await finishResolution(of: resolving, into: queue, ledger: ledger, tally: tally, report: report)
+				}
+				group.addTask {
+					try await walkPages(from: resolving.next, into: queue, ledger: ledger, tally: tally, report: report)
+				}
+				try await group.waitForAll()
+			}
+			return
+		}
 	}
 
 	private func storeAsLastSeen(
@@ -231,13 +264,13 @@ struct DownloadUnreadOffline {
 		return nextLink(of: page)
 	}
 
-	private func resolve(
+	private func loadResolvingPages(
 		from href: String,
 		into queue: OfflineArticleQueue,
 		ledger: Ledger,
 		tally: Tally,
 		report: () -> Void
-	) async throws -> NextLink? {
+	) async throws -> ResolvingPages {
 		var resolvingPages: [String] = []
 		var held: [HeldRow] = []
 		var link: NextLink? = NextLink(href: href, isOfflinePrefetch: false)
@@ -260,11 +293,20 @@ struct DownloadUnreadOffline {
 			queue.push(ledger.unqueued(settled))
 			link = nextLink(of: page)
 		}
+		return ResolvingPages(hrefs: resolvingPages, held: held, next: link)
+	}
+
+	private func finishResolution(
+		of resolving: ResolvingPages,
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: () -> Void
+	) async throws {
 		let unsettled = try await waitForResolution(
-			of: held, on: resolvingPages, into: queue, ledger: ledger, tally: tally, report: report
+			of: resolving.held, on: resolving.hrefs, into: queue, ledger: ledger, tally: tally, report: report
 		)
 		queue.push(ledger.unqueued(unsettled.map(\.article)))
-		return link
 	}
 
 	private func waitForResolution(
@@ -306,7 +348,7 @@ struct DownloadUnreadOffline {
 			}
 			let unobservable = held.filter { reloaded.contains($0.pageHref) && !observed.contains($0.article.id) }
 			held.removeAll { row in unobservable.contains { $0.article.id == row.article.id } }
-			queue.push(ledger.unqueued(unobservable.map(\.article)))
+			queue.push(ledger.unqueued(unobservable.map(\.article.withUnknownContentState)))
 		}
 		return held
 	}
