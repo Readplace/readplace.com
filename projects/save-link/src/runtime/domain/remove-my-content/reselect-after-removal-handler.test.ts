@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { noopLogger } from "@packages/logger";
@@ -43,6 +44,14 @@ describe("content reselection after erasure", () => {
 		const { handler, savedInputs } = setup();
 		expect(await handler(event({ url: URL }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(savedInputs[0]).toMatchObject({ tier: "tier-1", metadata: { title: "Article" } });
+	});
+	it("derives the reselect's save attempt from the ingress SQS message ID", async () => {
+		const info = jest.fn();
+		const { handler } = setup({ logger: { ...noopLogger, info } });
+		await handler(event({ url: URL }), buildLambdaContext(), () => {});
+		const comparison = info.mock.calls.map(([line]) => line).find((line): line is string => typeof line === "string" && line.includes('"saveAttemptId"'));
+		assert(comparison);
+		expect(JSON.parse(comparison.slice(comparison.indexOf("{"))).saveAttemptId).toBe("message");
 	});
 	it("rejects malformed erasure events before invoking selection", async () => {
 		const listAvailableTierSources = jest.fn(async () => [source]);
