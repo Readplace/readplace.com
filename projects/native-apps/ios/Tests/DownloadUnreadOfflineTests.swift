@@ -507,7 +507,12 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 			"the marked page is read while the wait is still paused"
 		)
 		XCTAssertEqual(listingRequests(), ["status=unread none", "status=unread&page=2 prefetch", "status=unread prefetch"])
-		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view", "/queue/p2/view"])
+		XCTAssertEqual(
+			Set(prefetcher.prefetched.compactMap { $0.request.url?.path }),
+			["/queue/p1/view", "/queue/p2/view"],
+			"the marked page's row is not held behind the wait, so the two copies arrive in either order"
+		)
+		XCTAssertEqual(prefetcher.prefetched.count, 2, "each copy is downloaded once")
 	}
 
 	func testARowStillProcessingWhenTheWaitCapElapsesIsDownloadedOnceAsLastSeen() async throws {
