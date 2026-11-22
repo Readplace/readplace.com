@@ -2981,7 +2981,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
 			imageURL: nil, readTimeLabel: nil, isRead: false, savedAt: nil, contentVersion: nil,
-			actions: [], links: [], readHref: readHref, processing: nil, notice: nil
+			contentState: nil, actions: [], links: [], readHref: readHref, processing: nil, notice: nil
 		)
 	}
 
