@@ -36,4 +36,26 @@ describe("forBearerSirenRequests", () => {
 		await request(recordingApp(calls)).post("/upload").set("Accept", "text/html").set("Authorization", "Bearer x");
 		expect(calls).toEqual(["next"]);
 	});
+
+	it("hands a rejection from an async handler to the error handler", async () => {
+		const app = express();
+		app.use(
+			forBearerSirenRequests(async () => {
+				throw new Error("token lookup failed");
+			}),
+		);
+		const errors: string[] = [];
+		app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+			errors.push(err.message);
+			res.sendStatus(500);
+		});
+
+		const response = await request(app)
+			.post("/upload")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", "Bearer x");
+
+		expect(response.status).toBe(500);
+		expect(errors).toEqual(["token lookup failed"]);
+	});
 });
