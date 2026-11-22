@@ -1,6 +1,7 @@
 import { matchingSiteRuleUrl } from "@packages/site-rules";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
+import { githubPullRequestSiteRules } from "./github-pull-request-site-rules";
 import { granolaSiteRules } from "./granola-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
@@ -36,6 +37,7 @@ describe("initArticleSiteRules", () => {
 			substackSiteRules,
 			granolaSiteRules,
 			youtubeSiteRules,
+			githubPullRequestSiteRules,
 			...crawlClaimingSiteRules,
 		]);
 		expect(crawlClaimingSiteRules).toHaveLength(8);
