@@ -21,6 +21,7 @@ import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
+import type { ReaderProvenance } from "../shared/article-body/article-header/provenance-label";
 import { saveInProgressNotice } from "./save-notice-siren";
 import { isOfflinePrefetchPage } from "../shared/offline-prefetch";
 
@@ -75,6 +76,7 @@ export function toArticleCollectionEntity(
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
+		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		totalLabel?: (input: { total: number }) => string;
 		sort?: { options: readonly SortOption[]; current: SortOrder };
 	},
@@ -172,6 +174,7 @@ export function toArticleCollectionEntity(
 				crawl: options.crawlByUrl?.get(article.url),
 				summary: options.summaryByUrl?.get(article.url),
 				enclosure: options.enclosureByUrl?.get(article.url),
+				readerProvenance: options.readerProvenanceByUrl?.get(article.url),
 				collectionQuery: { readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
 			}),
 		),

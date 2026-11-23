@@ -90,6 +90,7 @@ import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.SharedArticlesDropPresentation
 import com.readplace.android.core.SirenAction
+import com.readplace.android.core.SirenLink
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -290,6 +291,8 @@ fun ReadingListScreen(
 							state = state,
 							clock = clock,
 							onOpen = viewModel::openReader,
+							onOpenOriginal = onOpenExternally,
+							onRecover = viewModel::open,
 							onActivate = ::activate,
 							onLoadMore = viewModel::loadMore,
 						)
@@ -643,6 +646,8 @@ private fun ArticleList(
 	state: ReadingListState,
 	clock: Clock,
 	onOpen: (Article) -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: (SirenLink) -> Unit,
 	onActivate: (Affordance) -> Unit,
 	onLoadMore: suspend () -> Unit,
 ) {
@@ -655,6 +660,8 @@ private fun ArticleList(
 				processingReceivedAt = state.processingReceivedAt[article.id],
 				isAvailableOffline = state.isAvailableOffline(article),
 				onOpen = { onOpen(article) },
+				onOpenOriginal = onOpenOriginal,
+				onRecover = { article.uploadAgainLink?.let(onRecover) },
 				onActivate = onActivate,
 			)
 		}
@@ -691,6 +698,8 @@ private fun ArticleItem(
 	processingReceivedAt: Instant?,
 	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: () -> Unit,
 	onActivate: (Affordance) -> Unit,
 ) {
 	val scope = rememberCoroutineScope()
@@ -720,6 +729,8 @@ private fun ArticleItem(
 					processingReceivedAt = processingReceivedAt,
 					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
+					onOpenOriginal = onOpenOriginal,
+					onRecover = onRecover,
 				)
 			}
 		}
@@ -764,6 +775,8 @@ private fun ArticleItem(
 					processingReceivedAt = processingReceivedAt,
 					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
+					onOpenOriginal = onOpenOriginal,
+					onRecover = onRecover,
 					modifier = Modifier
 						.semantics {
 							customActions = controls.map { affordance ->

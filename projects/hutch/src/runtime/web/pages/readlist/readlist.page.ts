@@ -174,6 +174,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				now: deps.now,
 				setKeepOfferDismissed: deps.setKeepOfferDismissed,
 				recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
+				resolveReaderProvenances: deps.resolveReaderProvenances,
 				findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
 				logError: deps.logError,
 				findGeneratedSummaries: deps.findGeneratedSummaries,

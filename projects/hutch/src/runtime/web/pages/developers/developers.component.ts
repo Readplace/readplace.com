@@ -124,6 +124,10 @@ const ARTICLE_PROPERTY_DOCS = {
 	processing:
 		"present only while Readplace is still working on the article. <code>label</code> is display text, <code>estimate</code> is an optional time left, an object whose <code>kind</code> is <code>quiet</code>, with <code>seconds</code> left and <code>revealInSeconds</code> before a countdown is worth showing, <code>counting</code>, with <code>seconds</code> left, or <code>almost-there</code>, with nothing more. <code>refresh</code> gives the <code>href</code> to fetch after <code>afterSeconds</code> for the article's next version. When the next version has no <code>processing</code>, the work has settled or Readplace has stopped waiting, and a <code>messages</code> warning may say why.",
 	messages: "server-authored messages to show the reader, present only when there are any; see Save links and pages.",
+	kindLabel:
+		"display text for an uploaded file's kind and length, such as <code>Book · 12 chapters · 3 h read</code>. Present only when <code>mediaKind</code> isn't <code>null</code>; show it in place of <code>readTime</code>'s label.",
+	suggestion: "display text, present only on an article Readplace suggested rather than one the reader saved.",
+	via: "present only on an article that reached the reader by email. <code>label</code> is display text such as <code>via The Weekly</code>. <code>sender</code>, present only for a recognised newsletter, is <code>{name, address}</code>: show it only when the reader asks for it.",
 } satisfies Record<keyof ArticleEntityProperties, string>;
 
 const FRONTMATTER_DOCS = {
