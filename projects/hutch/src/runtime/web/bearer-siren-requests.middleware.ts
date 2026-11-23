@@ -1,10 +1,12 @@
-import type { RequestHandler } from "express";
+import { type RequestHandler, Router } from "express";
 import { wantsSiren } from "./content-negotiation";
 
-export function forBearerSirenRequests(handler: RequestHandler): RequestHandler {
+export function forBearerSirenRequests(...handlers: RequestHandler[]): RequestHandler {
+	const bearerRequests = Router();
+	bearerRequests.use(handlers);
 	return (req, res, next) => {
 		if (wantsSiren(req) && req.headers.authorization?.startsWith("Bearer ")) {
-			return handler(req, res, next);
+			return bearerRequests(req, res, next);
 		}
 		next();
 	};

@@ -37,6 +37,31 @@ describe("forBearerSirenRequests", () => {
 		expect(calls).toEqual(["next"]);
 	});
 
+	it("runs every handler in order, then the rest of the app, for a bearer Siren request", async () => {
+		const calls: string[] = [];
+		const app = express();
+		app.use(
+			forBearerSirenRequests(
+				(_req, _res, next) => {
+					calls.push("first");
+					next();
+				},
+				(_req, _res, next) => {
+					calls.push("second");
+					next();
+				},
+			),
+		);
+		app.use((_req, res) => {
+			calls.push("next");
+			res.sendStatus(204);
+		});
+
+		await request(app).post("/upload").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", "Bearer x");
+
+		expect(calls).toEqual(["first", "second", "next"]);
+	});
+
 	it("hands a rejection from an async handler to the error handler", async () => {
 		const app = express();
 		app.use(

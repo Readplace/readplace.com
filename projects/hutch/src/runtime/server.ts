@@ -1708,7 +1708,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			refund: deps.refundUnstartedCharge,
 		}),
 	});
-	app.use("/upload", forBearerSirenRequests(dualAuthMiddleware), forBearerSirenRequests(resolveVerificationStatus));
+	app.use("/upload", forBearerSirenRequests(dualAuthMiddleware, resolveVerificationStatus));
 	app.use(
 		"/upload",
 		initAnonymousUploadRoutes({
