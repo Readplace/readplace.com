@@ -30,7 +30,6 @@ export function initReadabilityParser(deps: {
 			siteRules: deps.siteRules,
 			html: params.html,
 			url: params.url,
-			documentUrl: params.documentUrl,
 			logError: deps.logError,
 		});
 
@@ -145,13 +144,12 @@ function tryExtractFromSiteRules(params: {
 	siteRules: readonly SiteRules[];
 	html: string;
 	url: string;
-	documentUrl: string;
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
 	for (const site of params.siteRules) {
 		try {
 			if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
-			const extracted = site.extract({ html: params.html }, { savedUrl: params.url, documentUrl: params.documentUrl });
+			const extracted = site.extract({ html: params.html });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
