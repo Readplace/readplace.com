@@ -129,7 +129,7 @@ test.describe("Highlighting at the end of an article in WebKit on an iPhone app"
 
 	test("paints the last passage and announces the save while the save is held", async ({ page }, testInfo) => {
 		await openReaderAtTheEnd(page, { stamp: `pending-${testInfo.workerIndex}-${Date.now()}`, query: "?platform=ios" });
-		let release: () => void = () => undefined;
+		let release: (() => void) | undefined;
 		const released = new Promise<void>((resolve) => {
 			release = resolve;
 		});
@@ -158,6 +158,7 @@ test.describe("Highlighting at the end of an article in WebKit on an iPhone app"
 			contentType: "image/png",
 		});
 
+		assert(release, "the held create must expose its release");
 		release();
 		await expect(page.locator(MARK).filter({ hasText: LAST_PASSAGE })).toHaveCount(1, { timeout: SETTLE_MS });
 		await expectScrollHeld(page, before);

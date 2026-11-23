@@ -83,16 +83,16 @@ async function openReader(page: Page, stamp: string, query = ""): Promise<void> 
 }
 
 async function holdCreates(page: Page) {
-	let release: () => void = () => undefined;
+	let release: (() => void) | undefined;
 	const released = new Promise<void>((resolve) => {
 		release = resolve;
 	});
 	const posted: string[] = [];
-	let arrived: () => void = () => undefined;
+	let arrived: (() => void) | undefined;
 	const arrival = new Promise<void>((resolve) => {
 		arrived = resolve;
 	});
-	let delivered: () => void = () => undefined;
+	let delivered: (() => void) | undefined;
 	const delivery = new Promise<void>((resolve) => {
 		delivered = resolve;
 	});
@@ -105,6 +105,7 @@ async function holdCreates(page: Page) {
 				return;
 			}
 			posted.push(request.postData() ?? "");
+			assert(arrived, "the held create must signal its arrival");
 			arrived();
 			await released;
 			const response = await page.request.post(request.url(), {
@@ -112,11 +113,20 @@ async function holdCreates(page: Page) {
 				data: request.postData() ?? "",
 				maxRedirects: 0,
 			});
+			assert(delivered, "the held create must signal its delivery");
 			delivered();
 			await route.fulfill({ response }).catch(() => undefined);
 		},
 	);
-	return { release: () => release(), arrival, delivery, posted };
+	return {
+		release: () => {
+			assert(release, "the held create must expose its release");
+			release();
+		},
+		arrival,
+		delivery,
+		posted,
+	};
 }
 
 async function select(page: Page, exact: string): Promise<void> {
