@@ -75,11 +75,12 @@ struct LoginView: View {
 							} label: {
 								Label("Sign up", systemImage: "person.badge.plus")
 									.font(.headline)
+									.foregroundStyle(Color(uiColor: LoginInk.signUpLabel))
 									.frame(maxWidth: .infinity)
 									.padding(.vertical, 14)
 							}
 							.buttonStyle(.bordered)
-							.tint(Color(uiColor: LoginInk.signUpLabel))
+							.tint(Color(uiColor: LoginInk.signUpTint))
 						}
 						.disabled(isAuthenticating)
 

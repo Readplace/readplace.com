@@ -14,7 +14,7 @@ final class LoginInkContrastTests: XCTestCase {
 	}
 
 	func testTheSignUpLabelClearsTheWordFloorOnItsOwnTint() {
-		let fill = composite(light(LoginInk.signUpLabel).withAlphaComponent(0.15), over: white)
+		let fill = composite(light(LoginInk.signUpTint).withAlphaComponent(0.15), over: white)
 		assertClears(floor: 4.5, ink: LoginInk.signUpLabel, on: fill, element: "The Sign up label")
 	}
 
