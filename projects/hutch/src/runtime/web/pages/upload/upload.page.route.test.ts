@@ -561,10 +561,10 @@ describe("Upload refusal log line", () => {
 		uploadLines.length = 0;
 	});
 
-	async function refusedUpload(fileName: string) {
+	async function refusedUpload(fileName?: string) {
 		const harness = useAppWithUploadLogger(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		const staged = await agent.post("/upload").type("form").send({ fileName });
+		const staged = await agent.post("/upload").type("form").send(fileName === undefined ? {} : { fileName });
 		const uploadId = stagedUploadId(documentOf(staged.text));
 		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: Buffer.from("not a zip at all") });
 		return agent.post(`/upload/${uploadId}/received`);
@@ -580,5 +580,23 @@ describe("Upload refusal log line", () => {
 		const received = await refusedUpload("README");
 		expect(received.status).toBe(422);
 		expect(uploadLines).toEqual([["[Upload] unsupported type", { extension: "" }]]);
+	});
+
+	it("logs a dot-file name's suffix as its extension", async () => {
+		const received = await refusedUpload(".mobi");
+		expect(received.status).toBe(422);
+		expect(uploadLines).toEqual([["[Upload] unsupported type", { extension: ".mobi" }]]);
+	});
+
+	it("logs at most the first 16 characters of the extension", async () => {
+		const received = await refusedUpload("notes.abcdefghijklmnopqrstuvwxyz");
+		expect(received.status).toBe(422);
+		expect(uploadLines).toEqual([["[Upload] unsupported type", { extension: ".abcdefghijklmno" }]]);
+	});
+
+	it("logs a null extension when the upload carried no file name", async () => {
+		const received = await refusedUpload();
+		expect(received.status).toBe(422);
+		expect(uploadLines).toEqual([["[Upload] unsupported type", { extension: null }]]);
 	});
 });

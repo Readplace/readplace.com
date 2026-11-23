@@ -1,5 +1,4 @@
 import assert from "node:assert";
-import { extname } from "node:path";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
@@ -57,6 +56,14 @@ const RECEIVED_AGAIN: Record<
 	ready: "staged-for-review",
 	rejected: "staged-for-review",
 };
+
+const LOGGED_EXTENSION_MAX_LENGTH = 16;
+
+function refusedExtension(fileName: string | undefined): string | null {
+	if (fileName === undefined) return null;
+	const dot = fileName.lastIndexOf(".");
+	return dot === -1 ? "" : fileName.slice(dot, dot + LOGGED_EXTENSION_MAX_LENGTH).toLowerCase();
+}
 
 const StartUploadBody = z.object({
 	fileName: z.string().min(1).optional(),
@@ -315,7 +322,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			prefix,
 		});
 		if (!kind) {
-			deps.logger.info("[Upload] unsupported type", { extension: extname(session.fileName ?? "").toLowerCase() });
+			deps.logger.info("[Upload] unsupported type", { extension: refusedExtension(session.fileName) });
 			await write(req, res, { outcome: "upload_unsupported_type" }, metered);
 			return;
 		}
