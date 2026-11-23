@@ -323,6 +323,7 @@ struct DownloadUnreadOffline {
 			now().timeIntervalSince(started) < Self.resolutionWaitCap
 		{
 			try await pause(interval)
+			held.removeAll { ledger.isQueued($0.article.id) }
 			let due = resolvingPages.filter { page in held.contains { $0.pageHref == page } }
 			var reloaded: Set<String> = []
 			var observed: Set<String> = []
@@ -378,7 +379,9 @@ struct DownloadUnreadOffline {
 	) async throws {
 		while let article = await queue.next() {
 			if manifest.isCurrent(articleId: article.id, contentVersion: article.contentVersion) {
-				manifest.record(contentState: article.contentState, articleId: article.id)
+				if let contentState = article.contentState {
+					manifest.record(contentState: contentState, articleId: article.id)
+				}
 				tally.completed += 1
 				report()
 				continue

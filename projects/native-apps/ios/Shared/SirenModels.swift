@@ -173,8 +173,6 @@ struct ArticleProperties: Decodable {
 
 enum ContentState: String, Codable {
 	case available, processing, unavailable
-
-	var lacksContent: Bool { self != .available }
 }
 
 extension ArticleProperties {

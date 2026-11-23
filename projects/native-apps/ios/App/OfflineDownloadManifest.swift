@@ -61,7 +61,7 @@ final class OfflineDownloadManifest: ObservableObject {
 		persist()
 	}
 
-	func record(contentState: ContentState?, articleId: String) {
+	func record(contentState: ContentState, articleId: String) {
 		guard stored.contentStates[articleId] != contentState else { return }
 		stored.contentStates[articleId] = contentState
 		persist()
@@ -69,10 +69,6 @@ final class OfflineDownloadManifest: ObservableObject {
 
 	func contentState(articleId: String) -> ContentState? {
 		stored.contentStates[articleId]
-	}
-
-	func hasArticlesWithoutContent(among articleIds: [String]) -> Bool {
-		articleIds.contains { stored.contentStates[$0]?.lacksContent == true }
 	}
 
 	func record(run: OfflineDownloadRun) {

@@ -452,7 +452,11 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 
 		XCTAssertEqual(outcome, .downloaded)
 		XCTAssertEqual(atFirstPause?.listings.prefix(2), ["status=unread none", "status=unread&page=2 none"])
-		XCTAssertFalse(atFirstPause?.prefetched.contains("/queue/p1/view") ?? true, "a processing row waits for its page to answer it settled")
+		let firstPause = try XCTUnwrap(atFirstPause)
+		XCTAssertTrue(
+			Set(firstPause.prefetched).isSubset(of: ["/queue/a1/view", "/queue/a2/view", "/queue/p3/view"]),
+			"only settled rows and the marked page's rows are downloaded while a processing row waits for its page to answer it settled"
+		)
 		XCTAssertEqual(clock.pauses, [3, 5], "each pause is the smallest refresh interval among the rows still processing")
 		XCTAssertEqual(
 			listingRequests().sorted(),
@@ -488,11 +492,13 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 		])
 		let prefetcher = FakeReaderPrefetcher()
 		let clock = WaitClock()
+		let markedRowQueued = expectation(description: "the marked page's row is downloaded while the wait is paused")
+		prefetcher.onPrefetch = {
+			if prefetcher.prefetched.last?.request.url?.path == "/queue/p2/view" { markedRowQueued.fulfill() }
+		}
 		var beforeTheReload: [String] = []
 		clock.holdPause = {
-			for _ in 0..<200 where !self.listingRequests().contains("status=unread&page=2 prefetch") {
-				try? await Task.sleep(nanoseconds: 10_000_000)
-			}
+			await self.fulfillment(of: [markedRowQueued], timeout: 5)
 			beforeTheReload = self.listingRequests()
 		}
 
@@ -570,6 +576,51 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 			manifest.contentState(articleId: "p1"),
 			"its last sighting said processing, but its copy is fetched later and may already hold the content"
 		)
+	}
+
+	func testARowAlreadyRecordedWithoutContentKeepsItsStateWhenItIsDownloadedAgainAsLastSeen() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1", version: "v1")]),
+				Self.page([]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+		manifest.recordDownloaded(articleId: "p1", contentVersion: "v1", contentState: .unavailable)
+
+		_ = try await makeDownload(prefetchers: [prefetcher], manifest: manifest)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(prefetcher.prefetched.count, 0, "the stored copy is current")
+		XCTAssertEqual(
+			manifest.contentState(articleId: "p1"),
+			.unavailable,
+			"a row released without a settled sighting has no state to replace the recorded one with"
+		)
+	}
+
+	func testAHeldRowTheMarkedPagesAlreadyQueuedIsNotReloaded() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1")], next: Self.secondPage, marked: true),
+				Self.page([Self.ready("p1")], next: Self.secondPage, marked: true),
+			],
+			Self.secondPage: [Self.page([Self.ready("p1")], number: 2)],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+		let queuedByTheWalk = expectation(description: "the row that moved onto the marked page is downloaded")
+		prefetcher.onPrefetch = { queuedByTheWalk.fulfill() }
+		clock.holdPause = { await self.fulfillment(of: [queuedByTheWalk], timeout: 5) }
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [3])
+		XCTAssertEqual(listingRequests(), ["status=unread none", "status=unread&page=2 prefetch"], "page 1 is not reloaded")
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view"])
 	}
 
 	func testARowSeenOnSeveralReloadsIsDownloadedOnceAndTheTotalCountsDistinctRows() async throws {

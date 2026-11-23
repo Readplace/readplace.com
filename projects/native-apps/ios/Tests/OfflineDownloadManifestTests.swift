@@ -75,21 +75,6 @@ final class OfflineDownloadManifestTests: XCTestCase {
 		XCTAssertEqual(relaunched.contentState(articleId: "a2"), .unavailable)
 	}
 
-	func testOnlyAnArticleAmongThoseGivenWithARecordedStateOtherThanAvailableLacksContent() {
-		let manifest = OfflineDownloadManifest(container: container)
-		manifest.recordDownloaded(articleId: "gone", contentVersion: "v1", contentState: .unavailable)
-		manifest.recordDownloaded(articleId: "fine", contentVersion: "v1", contentState: .available)
-		manifest.recordDownloaded(articleId: "old", contentVersion: "v1", contentState: nil)
-		manifest.recordDownloaded(articleId: "pending", contentVersion: "v1", contentState: .processing)
-
-		XCTAssertFalse(
-			manifest.hasArticlesWithoutContent(among: ["fine", "old", "never-downloaded"]),
-			"an unavailable article that is not among the ids given, and one stored before states were recorded, do not count"
-		)
-		XCTAssertTrue(manifest.hasArticlesWithoutContent(among: ["fine", "gone"]))
-		XCTAssertTrue(manifest.hasArticlesWithoutContent(among: ["pending"]))
-	}
-
 	func testACorruptManifestStartsEmpty() throws {
 		let directory = OfflineReadingFiles.directory(in: container)
 		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
