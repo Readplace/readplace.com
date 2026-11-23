@@ -109,7 +109,8 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--color-on-brand": "#FFFFFF",
 	"--color-avatar": "#7C5CE6",
 	"--header-brand-stem": "var(--color-secondary)",
-	"--header-brand-tail": "var(--color-brand)",
+	"--header-brand-tail": "var(--primary-text)",
+	"--header-brand-tail-on-navy": "#D4A04A",
 	"--footer-bg": "#1A1A1A",
 	"--footer-text": "hsl(0 0% 100% / 0.7)",
 	"--footer-link": "hsl(0 0% 100% / 0.9)",
@@ -982,7 +983,7 @@ export const HEADER_STYLES = `
 		color: var(--color-on-brand);
 	}
 	.header--transparent .header__brand-mark {
-		color: var(--color-highlight);
+		color: var(--header-brand-tail-on-navy);
 	}
 	.header--transparent .header__brand:focus-visible {
 		outline-color: var(--color-highlight);
