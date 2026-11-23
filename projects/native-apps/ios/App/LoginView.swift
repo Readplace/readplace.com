@@ -52,7 +52,7 @@ struct LoginView: View {
 
 						VStack(spacing: 10) {
 							brandMark
-							(Text("Read") + Text("place").foregroundColor(.brandHighlight))
+							(Text("Read") + Text("place").foregroundColor(Color(uiColor: LoginInk.wordmarkTail)))
 								.font(.largeTitle.bold())
 								.allowsHitTesting(false)
 							subtitle
@@ -79,13 +79,14 @@ struct LoginView: View {
 									.padding(.vertical, 14)
 							}
 							.buttonStyle(.bordered)
+							.tint(Color(uiColor: LoginInk.signUpLabel))
 						}
 						.disabled(isAuthenticating)
 
 						if let authErrorText {
 							Text(authErrorText)
 								.font(.footnote)
-								.foregroundStyle(Color.brandError)
+								.foregroundStyle(Color(uiColor: LoginInk.authError))
 								.multilineTextAlignment(.center)
 								.allowsHitTesting(false)
 						}
@@ -135,7 +136,7 @@ struct LoginView: View {
 	private func sloganLine(_ line: SloganLine) -> some View {
 		Text(line.text)
 			.font(.subheadline)
-			.foregroundStyle(.secondary)
+			.foregroundStyle(Color(uiColor: LoginInk.supportingCopy))
 			.multilineTextAlignment(.center)
 			/// One line, so a longer slogan swapping in cannot move the
 			/// brand mark the launch intro lands on.
@@ -185,12 +186,13 @@ struct LoginView: View {
 	private var footer: some View {
 		HStack(spacing: 8) {
 			Link("Privacy Policy", destination: AppConfig.privacyPolicyURL)
+				.foregroundStyle(Color(uiColor: LoginInk.supportingCopy))
 			Text("·").allowsHitTesting(false)
 			Button("Replay intro") { replayIntro() }
 				.buttonStyle(.plain)
 		}
 		.font(.footnote)
-		.foregroundStyle(.secondary)
+		.foregroundStyle(Color(uiColor: LoginInk.supportingCopy))
 	}
 
 	private var muteButton: some View {
@@ -201,7 +203,7 @@ struct LoginView: View {
 				.font(.system(size: 18, weight: .semibold))
 				.foregroundStyle(.white)
 				.frame(width: 44, height: 44)
-				.background(Circle().fill(Color.gray.opacity(0.55)))
+				.background(Circle().fill(Color(uiColor: LoginInk.muteDisc)))
 		}
 		.buttonStyle(.plain)
 		.accessibilityLabel(intro.isMuted ? "Unmute music" : "Mute music")

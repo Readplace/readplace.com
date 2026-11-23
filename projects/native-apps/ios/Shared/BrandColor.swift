@@ -22,6 +22,8 @@ enum BrandColor {
 	static let secondary = dynamic(light: rgb(245, 230, 211), dark: rgb(61, 42, 24))
 	static let primaryText = dynamic(light: rgb(168, 90, 30), dark: rgb(218, 141, 78))
 	static let successText = dynamic(light: rgb(54, 124, 99), dark: rgb(74, 159, 127))
+	static let errorText = dynamic(light: rgb(175, 70, 70), dark: rgb(208, 138, 138))
+	static let primaryTextOnTint = dynamic(light: rgb(126, 72, 27), dark: rgb(234, 161, 98))
 
 	private static func dynamic(light: UIColor, dark: UIColor) -> UIColor {
 		UIColor { trait in trait.userInterfaceStyle == .dark ? dark : light }
