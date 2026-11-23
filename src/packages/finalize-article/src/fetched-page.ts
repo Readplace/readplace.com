@@ -2,7 +2,7 @@ import { resolveDocumentUrl, type ThumbnailCascade } from "@packages/crawl-artic
 import type { FinalizeArticle } from "./finalize-article";
 import type { MediaWriteContext } from "./put-image-object.types";
 
-export type FetchedPage = { html: string; finalUrl?: string; thumbnail?: ThumbnailCascade } & (
+export type FetchedPage = { html: string; finalUrl?: string; thumbnail?: ThumbnailCascade; renderedThrough?: string } & (
 	| { mediaType?: "image" }
 	| { mediaType: "plain-text"; plainText: string }
 );
@@ -14,7 +14,9 @@ export function finalizeInputOfFetchedPage(params: {
 	fetched: FetchedPage;
 }): Parameters<FinalizeArticle>[0] {
 	const { fetched } = params;
+	const fetchedDocument = fetched.finalUrl !== undefined && fetched.mediaType === undefined && fetched.renderedThrough === undefined;
 	return {
+		...(fetchedDocument && { fetchedDocument: true as const }),
 		writeContext: params.writeContext,
 		url: params.savedUrl,
 		documentUrl: resolveDocumentUrl({ requestedUrl: params.requestedUrl, finalUrl: fetched.finalUrl }),

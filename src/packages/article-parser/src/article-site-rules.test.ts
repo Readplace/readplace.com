@@ -4,6 +4,7 @@ import { initArticleSiteRules } from "./article-site-rules";
 import { danaMcNeilSiteRules } from "./dana-mcneil-site-rules";
 import { githubPullRequestSiteRules } from "./github-pull-request-site-rules";
 import { granolaSiteRules } from "./granola-site-rules";
+import { intuitPrivacySiteRules } from "./intuit-privacy-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
@@ -40,6 +41,7 @@ describe("initArticleSiteRules", () => {
 			youtubeSiteRules,
 			githubPullRequestSiteRules,
 			danaMcNeilSiteRules,
+			intuitPrivacySiteRules,
 			...crawlClaimingSiteRules,
 		]);
 		expect(crawlClaimingSiteRules).toHaveLength(8);

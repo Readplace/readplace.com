@@ -30,6 +30,8 @@ export function initReadabilityParser(deps: {
 			siteRules: deps.siteRules,
 			html: params.html,
 			url: params.url,
+			documentUrl: params.documentUrl,
+			fetchedDocument: params.fetchedDocument,
 			logError: deps.logError,
 		});
 
@@ -132,6 +134,7 @@ export function initReadabilityParser(deps: {
 		return parseHtml({
 			url,
 			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
+			fetchedDocument: result.finalUrl === undefined ? undefined : true,
 			html: result.html,
 			thumbnailUrl: result.thumbnailUrl ?? null,
 		});
@@ -144,11 +147,14 @@ function tryExtractFromSiteRules(params: {
 	siteRules: readonly SiteRules[];
 	html: string;
 	url: string;
+	documentUrl: string;
+	fetchedDocument?: true;
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
 	for (const site of params.siteRules) {
 		try {
-			if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
+			const url = site.matchFetchedDocument ? params.fetchedDocument && params.documentUrl : params.url;
+			if (url === undefined || matchingSiteRuleUrl({ site, url }) === undefined) continue;
 			const extracted = site.extract({ html: params.html });
 			if (extracted) return extracted;
 		} catch (error) {

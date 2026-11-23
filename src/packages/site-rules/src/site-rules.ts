@@ -40,6 +40,8 @@ export type SiteCrawlOutcome =
 
 export type SiteRules = {
 	matches: (params: { url: string; hostname: string }) => boolean;
+	/** Match this extraction on the resolved crawler document URL. */
+	matchFetchedDocument?: true;
 	onCrawl: (params: { url: string }) => Promise<SiteCrawlOutcome>;
 	recoverContent: (params: { url: string }) => Promise<string | undefined>;
 	extract: (params: { html: string }) => SiteArticleContent | undefined;
