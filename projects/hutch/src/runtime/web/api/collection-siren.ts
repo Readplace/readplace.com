@@ -3,7 +3,7 @@ import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { type EnclosureRead, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
@@ -11,9 +11,12 @@ import type { SirenEntity, SirenLink, SirenMessage } from "./siren";
 import { buildPageList, type PageListEntry } from "./page-list";
 import { buildTabList, type StatusTab, type TabListEntry } from "./tab-list";
 import { buildSortList, type SortListEntry, type SortOption } from "./sort-list";
-import { buildReadlistList, type ReadlistListEntry, type ReadlistOption } from "./readlist-list";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchApi } from "@packages/translations/hutch-api";
+import { buildReadlistList, type CurrentReadlistDestination, type ReadlistListEntry, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
-import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistPreferencesPath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
@@ -37,6 +40,16 @@ export type CollectionProperties = {
 	warning?: CollectionWarning;
 	messages?: SirenMessage[];
 };
+
+const { t } = translator(hutchApi, DEFAULT_LOCALE);
+
+function readlistDestination(input: { readlist: ReadlistSlug; platform: NativeClientPlatform }): CurrentReadlistDestination {
+	const platformQuery = `?${PLATFORM_QUERY}=${input.platform}`;
+	if (input.readlist === DEFAULT_READLIST_SLUG) {
+		return { integrations: { label: t("readlistDestination.integrations"), href: `${INTEGRATIONS_PATH}${platformQuery}` } };
+	}
+	return { preferences: { label: t("readlistDestination.preferences"), href: `${readlistPreferencesPath(input.readlist)}${platformQuery}` } };
+}
 
 export const SEARCH_FIELDS = [
 	{ name: "status", type: "text" },
@@ -75,8 +88,9 @@ export function toArticleCollectionEntity(
 	// or card management, which both stores' rules forbid (App Store review
 	// Guideline 3.1.1). Advertised on the href so already-shipped builds inherit it:
 	// they follow the contract's link rather than holding the URL themselves.
-	const accountHref = options.surfacePlatform
-		? `/account?${PLATFORM_QUERY}=${options.surfacePlatform}`
+	const { surfacePlatform } = options;
+	const accountHref = surfacePlatform
+		? `/account?${PLATFORM_QUERY}=${surfacePlatform}`
 		: "/account";
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
@@ -125,6 +139,9 @@ export function toArticleCollectionEntity(
 			readlists: options.readlists,
 			currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
 			hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
+			destinationForCurrent: surfacePlatform === undefined
+				? undefined
+				: (readlist) => readlistDestination({ readlist, platform: surfacePlatform }),
 		}),
 	};
 	if (options.totalLabel) properties.total = { label: options.totalLabel({ total }) };
