@@ -197,6 +197,7 @@ export function initHighlightRoutes(
 				await reader.renderOwnerReader(req, res, {
 					statusCode: 422,
 					toast: toastOf(OUTCOME_TOASTS[status]),
+					highlightRefusal: { code: status, message: OUTCOME_TOASTS[status] },
 					markViewed: false,
 				});
 			};

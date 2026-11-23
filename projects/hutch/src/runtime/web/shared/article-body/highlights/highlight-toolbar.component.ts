@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import { highlightActionUrl } from "../../../pages/readlist/highlight-surface";
 import { READLIST_PATH } from "../../../pages/readlist/readlist.url";
 import {
 	HIGHLIGHT_NOTE_DIALOG_ID,
@@ -25,12 +26,30 @@ export const HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS: readonly { name: string; value
 	{ name: "answer", value: "dialog" },
 ];
 
+export interface HighlightRefusalStatus {
+	code: string;
+	message: string;
+}
+
+function readerCheckUrl(input: { scope: HighlightFormScope; section: number | undefined }): string {
+	return highlightActionUrl({
+		path: `${READLIST_PATH}/${input.scope.articleId}/view`,
+		readlist: input.scope.readlist,
+		surface: input.section === undefined ? input.scope.surface : [...input.scope.surface, ["section", String(input.section)]],
+	});
+}
+
 export function renderHighlightToolbar(input: {
 	scope: HighlightFormScope;
 	rowNoteOpen: boolean;
+	section: number | undefined;
+	refusal: HighlightRefusalStatus | undefined;
 }): string {
 	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
 		local: false,
+		readerKey: `${input.scope.articleId}:${input.section ?? ""}`,
+		checkUrl: readerCheckUrl({ scope: input.scope, section: input.section }),
+		refusal: input.refusal,
 		createUrl: highlightFormUrl({
 			scope: input.scope,
 			path: "/highlights",

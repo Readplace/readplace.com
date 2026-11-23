@@ -11,6 +11,18 @@ export const enUS = {
 		highlightToolbar: {
 			beta: "Beta",
 		},
+		highlightStatus: {
+			saving: "Saving highlight",
+			stalled: "Still saving this highlight",
+			stopWaiting: "Stop waiting",
+			unsure: "Readplace may still have saved this passage:",
+			check: "Check highlight",
+			checking: "Checking highlight",
+			highlighted: "This passage is highlighted:",
+			absent: "This passage wasn't highlighted when Readplace checked:",
+			unconfirmed: "Readplace couldn't check this highlight. Try again when you're online.",
+			retry: "Try again",
+		},
 		highlightNote: {
 			delete: "Delete note",
 		},

@@ -24,7 +24,11 @@ import {
 	renderHighlightsRail,
 } from "../../shared/article-body/highlights-rail/highlights-rail.component";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
-import { HIGHLIGHT_TOOLBAR_SCRIPT, renderHighlightToolbar } from "../../shared/article-body/highlights/highlight-toolbar.component";
+import {
+	HIGHLIGHT_TOOLBAR_SCRIPT,
+	type HighlightRefusalStatus,
+	renderHighlightToolbar,
+} from "../../shared/article-body/highlights/highlight-toolbar.component";
 import type { ReaderHighlights } from "../../shared/article-body/reader-slot/mark-highlights";
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import {
@@ -262,6 +266,7 @@ export function ReaderPage(
 		offlineCopyRow?: boolean;
 		highlights: ReaderPageHighlights;
 		statusToast?: string;
+		highlightRefusal?: HighlightRefusalStatus;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
@@ -380,7 +385,13 @@ export function ReaderPage(
 	const innerContent =
 		highlights.scope === undefined
 			? articleBodyHtml
-			: articleBodyHtml + renderHighlightToolbar({ scope: highlights.scope, rowNoteOpen: openNote !== undefined });
+			: articleBodyHtml +
+				renderHighlightToolbar({
+					scope: highlights.scope,
+					rowNoteOpen: openNote !== undefined,
+					section: options.readerSection.requested,
+					refusal: options.highlightRefusal,
+				});
 	const railLandmark = railLandmarkFor({
 		hasCard:
 			highlightsRail.hasRows ||

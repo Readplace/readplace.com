@@ -142,6 +142,12 @@ function harness(input: {
 			isAutoPopoverOpen: () => false,
 			paintDraft: () => undefined,
 			clearDraft: () => undefined,
+			paintPending: () => false,
+			clearPending: () => undefined,
+			fetchReader: async () => ({ ok: false, html: "" }),
+			parseHtml: () => {
+			throw new Error("these tests never check a highlight");
+		},
 			chromeBottom: () => 0,
 		});
 	}

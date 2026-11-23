@@ -5,6 +5,7 @@ import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
 import { selectPassage } from "./highlight-a-passage.browser";
 import { watchLowestScroll } from "./highlight-keeps-its-place-in-webkit.browser";
+import { armPendingPaintProbe, PENDING_HIGHLIGHT_NAME, PENDING_PAINT_STAMP } from "./highlight-pending-paint.browser";
 import { maxScrollY, recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 test.use({ browserName: "webkit" });
@@ -124,6 +125,42 @@ test.describe("Highlighting at the end of an article in WebKit on an iPhone app"
 
 		await highlightTheLastPassage(page);
 		await deleteTheOnlyHighlight(page);
+	});
+
+	test("paints the last passage and announces the save while the save is held", async ({ page }, testInfo) => {
+		await openReaderAtTheEnd(page, { stamp: `pending-${testInfo.workerIndex}-${Date.now()}`, query: "?platform=ios" });
+		let release: () => void = () => undefined;
+		const released = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await page.route(
+			(url) => url.pathname.endsWith("/highlights"),
+			async (route) => {
+				if (route.request().method() === "POST") await released;
+				await route.continue();
+			},
+		);
+		const before = await selectTheLastPassage(page);
+		await page.evaluate(recordScrollAfterSwap, CREATE_FORM);
+		await page.evaluate(armPendingPaintProbe, {
+			button: HIGHLIGHT_BUTTON,
+			status: "[data-test-highlight-status]",
+			name: PENDING_HIGHLIGHT_NAME,
+			stamp: PENDING_PAINT_STAMP,
+		});
+
+		await page.locator(HIGHLIGHT_BUTTON).click();
+		await expect(page.locator("html")).toHaveAttribute(PENDING_PAINT_STAMP, /quote/, { timeout: SETTLE_MS });
+		const probe = JSON.parse((await page.locator("html").getAttribute(PENDING_PAINT_STAMP)) ?? "{}");
+		expect(probe).toMatchObject({ quote: LAST_PASSAGE, styled: true, status: "Saving highlight" });
+		await testInfo.attach("pending-last-passage-iphone", {
+			body: await page.locator(CONTENT).getByText(LAST_PASSAGE, { exact: false }).screenshot(),
+			contentType: "image/png",
+		});
+
+		release();
+		await expect(page.locator(MARK).filter({ hasText: LAST_PASSAGE })).toHaveCount(1, { timeout: SETTLE_MS });
+		await expectScrollHeld(page, before);
 	});
 
 	test("saves a note on the last passage without leaving the end of the article", async ({ page }, testInfo) => {

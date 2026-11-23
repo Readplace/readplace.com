@@ -10,4 +10,17 @@
   <input type="hidden" name="origin" value="">
   <input type="hidden" name="after" value="">
 </form>
+{{#unless local}}
+<div class="highlight-status" data-highlight-status data-highlight-reader="{{readerKey}}" data-highlight-check-url="{{checkUrl}}"{{#if refusal}} data-highlight-refusal="{{refusal.code}}" data-highlight-status-shown{{/if}} data-copy-saving="{{t "articleBody.highlightStatus.saving"}}" data-copy-stalled="{{t "articleBody.highlightStatus.stalled"}}" data-copy-unsure="{{t "articleBody.highlightStatus.unsure"}}" data-copy-checking="{{t "articleBody.highlightStatus.checking"}}" data-copy-highlighted="{{t "articleBody.highlightStatus.highlighted"}}" data-copy-absent="{{t "articleBody.highlightStatus.absent"}}" data-copy-unconfirmed="{{t "articleBody.highlightStatus.unconfirmed"}}" data-test-highlight-status-region>
+  <div class="highlight-status__live" role="status" aria-atomic="true">
+    <p class="highlight-status__message" data-highlight-status-message data-test-highlight-status>{{#if refusal}}{{refusal.message}}{{/if}}</p>
+    <q class="highlight-status__quote" data-highlight-status-quote data-test-highlight-status-quote hidden></q>
+  </div>
+  <div class="highlight-status__actions">
+    <button class="btn btn--secondary btn--s" type="button" data-highlight-status-action="stop" data-test-action="highlight-stop-waiting" hidden>{{t "articleBody.highlightStatus.stopWaiting"}}</button>
+    <button class="btn btn--secondary btn--s" type="button" data-highlight-status-action="check" data-test-action="highlight-check" hidden>{{t "articleBody.highlightStatus.check"}}</button>
+    <button class="btn btn--secondary btn--s" type="button" data-highlight-status-action="retry" data-test-action="highlight-retry" hidden>{{t "articleBody.highlightStatus.retry"}}</button>
+  </div>
+</div>
+{{/unless}}
 {{{noteDialogHtml}}}
