@@ -286,14 +286,26 @@ async function openImportReview(page: Page, urls: readonly string[]): Promise<vo
 	await page.waitForSelector("[data-test-import-list]");
 }
 
-async function auditFocusRing(page: Page, field: AuditedField): Promise<void> {
+interface FieldEdgeState {
+	auditId: string;
+	pseudo: string[];
+	blur: boolean;
+}
+
+const FOCUSED_EDGE: FieldEdgeState = { auditId: "focused-field", pseudo: FOCUSED, blur: false };
+const RESTING_EDGE: FieldEdgeState = { auditId: "resting-field", pseudo: [], blur: true };
+
+async function auditFieldEdge(page: Page, field: AuditedField, state: FieldEdgeState): Promise<void> {
 	for (const theme of THEMES) {
 		await page.emulateMedia({ colorScheme: theme });
 		await revealField(page, field);
+		if (state.blur) {
+			await page.locator(field.selector).blur();
+		}
 		const client = await auditContext(page);
-		await stamp(page, { selector: field.selector, auditId: "focused-field" });
+		await stamp(page, { selector: field.selector, auditId: state.auditId });
 
-		const ink = await measure(page, client, "focused-field", FOCUSED);
+		const ink = await measure(page, client, state.auditId, state.pseudo);
 		const edges = ringEdges(ink);
 		assert.ok(edges.length > 0, `${theme}/${field.view}: ${ink.name} draws no border to carry its focus ring`);
 		const neighbours: Neighbour[] = [
@@ -305,7 +317,7 @@ async function auditFocusRing(page: Page, field: AuditedField): Promise<void> {
 				for (const against of neighbours) {
 					assert.ok(
 						edgeContrast({ edge, against, lens }) >= NON_TEXT_MINIMUM,
-						edgeShortfall({ edge, against, lens, view: `${theme}/${field.view}/${lensName}` }),
+						edgeShortfall({ edge, against, lens, view: `${theme}/${field.view}/${state.auditId}/${lensName}` }),
 					);
 				}
 			}
@@ -466,13 +478,23 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 	test.use({ viewport: VIEWPORT });
 
 	test("every text field shows focus with a ring edge that clears 3:1", async ({ page }, testInfo) => {
-		await auditFocusRing(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" });
+		await auditFieldEdge(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" }, FOCUSED_EDGE);
 		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
 		const userId = await signInAsNewReader(page, `form-ring-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
-		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
-		await auditFocusRing(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
+		await auditFieldEdge(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] }, FOCUSED_EDGE);
+		await auditFieldEdge(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" }, FOCUSED_EDGE);
+	});
+
+	test("every text field's resting edge clears 3:1 against its fill and the surface behind it", async ({ page }, testInfo) => {
+		await auditFieldEdge(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" }, RESTING_EDGE);
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `form-edge-${stampId}@example.com`);
+		await seedQueuedArticle(page, { userId, stampId });
+		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+		await auditFieldEdge(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] }, RESTING_EDGE);
+		await auditFieldEdge(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" }, RESTING_EDGE);
 	});
 
 	test("the placeholder clears 4.5:1", async ({ page }, testInfo) => {
