@@ -11,6 +11,7 @@ const CONTENT_SELECTOR = ".article-body__content";
 const STATUS_SELECTOR = "[data-highlight-status]";
 const MESSAGE_SELECTOR = "[data-highlight-status-message]";
 const QUOTE_SELECTOR = "[data-highlight-status-quote]";
+const DISMISS_SELECTOR = "[data-highlight-status-dismiss]";
 const READER_ATTRIBUTE = "data-highlight-reader";
 const CHECK_URL_ATTRIBUTE = "data-highlight-check-url";
 const REFUSAL_ATTRIBUTE = "data-highlight-refusal";
@@ -133,8 +134,15 @@ export function initPendingHighlights(deps: PendingHighlightDeps): PendingHighli
 
 	const statusRegion = (): HTMLElement | null => document.querySelector<HTMLElement>(STATUS_SELECTOR);
 
+	const setShown = (region: HTMLElement, shown: boolean): void => {
+		const dismiss = region.querySelector<HTMLButtonElement>(DISMISS_SELECTOR);
+		assert(dismiss, "the highlight status carries its dismiss action");
+		dismiss.hidden = !shown;
+		region.toggleAttribute(SHOWN_ATTRIBUTE, shown);
+	};
+
 	const showStatus = (input: {
-		copy: StatusCopy;
+		copy: StatusCopy | undefined;
 		quote: string | undefined;
 		actions: readonly StatusAction[];
 	}): void => {
@@ -144,7 +152,7 @@ export function initPendingHighlights(deps: PendingHighlightDeps): PendingHighli
 		const quote = region.querySelector<HTMLElement>(QUOTE_SELECTOR);
 		assert(message, "the highlight status carries its message");
 		assert(quote, "the highlight status carries its quote");
-		message.textContent = region.getAttribute(`data-copy-${input.copy}`);
+		message.textContent = input.copy === undefined ? "" : region.getAttribute(`data-copy-${input.copy}`);
 		quote.textContent = input.quote ?? "";
 		quote.hidden = input.quote === undefined;
 		for (const button of region.querySelectorAll<HTMLButtonElement>("[data-highlight-status-action]")) {
@@ -152,7 +160,7 @@ export function initPendingHighlights(deps: PendingHighlightDeps): PendingHighli
 			button.hidden = !input.actions.some((wanted) => wanted === action);
 		}
 		region.removeAttribute(REFUSAL_ATTRIBUTE);
-		region.toggleAttribute(SHOWN_ATTRIBUTE, input.actions.length > 0);
+		setShown(region, input.actions.length > 0);
 	};
 
 	const settlePaint = (current: Operation): void => {
@@ -202,7 +210,7 @@ export function initPendingHighlights(deps: PendingHighlightDeps): PendingHighli
 		const retry = region.querySelector<HTMLButtonElement>('[data-highlight-status-action="retry"]');
 		assert(retry, "the highlight status carries its retry action");
 		retry.hidden = false;
-		region.setAttribute(SHOWN_ATTRIBUTE, "");
+		setShown(region, true);
 	};
 
 	const swapped = (current: Operation): void => {
@@ -267,6 +275,11 @@ export function initPendingHighlights(deps: PendingHighlightDeps): PendingHighli
 		const view = document.defaultView;
 		assert(view, "a live reader document has a window");
 		operation.form.dispatchEvent(new view.CustomEvent("htmx:abort", { bubbles: true, detail: {} }));
+	};
+
+	const dismiss = (): void => {
+		recovery = undefined;
+		showStatus({ copy: undefined, quote: undefined, actions: [] });
 	};
 
 	const matches = (event: Event): Operation | undefined => {
@@ -338,6 +351,12 @@ export function initPendingHighlights(deps: PendingHighlightDeps): PendingHighli
 	document.addEventListener("click", (event) => {
 		const region = statusRegion();
 		if (region === null) return;
+		const dismissButton = region.querySelector(DISMISS_SELECTOR);
+		assert(dismissButton, "the highlight status carries its dismiss action");
+		if (event.composedPath().includes(dismissButton)) {
+			dismiss();
+			return;
+		}
 		const button = Array.from(region.querySelectorAll("[data-highlight-status-action]")).find((candidate) =>
 			event.composedPath().includes(candidate),
 		);

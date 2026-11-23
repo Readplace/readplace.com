@@ -20,7 +20,7 @@ const HIGHLIGHT_BUTTON = '[data-test-action="highlight"]';
 const CREATE_FORM = "[data-test-highlight-create-form]";
 const MARK = `${CONTENT} mark.article-highlight`;
 const RAIL_ROW = "[data-test-highlight-row]";
-const TOAST_MESSAGE = "#status-toast [data-test-toast-message]";
+const HIGHLIGHT_STATUS = "[data-test-highlight-status]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
 const CARD_TITLE = "[data-test-article-title]";
 const PENDING_CARD = '[data-card-status="pending"]';
@@ -260,15 +260,12 @@ test.describe("Highlighting a passage in the reader", () => {
 		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
 	});
 
-	test("a passage the server no longer finds at its offsets answers with a toast", async ({
+	test("a passage the server no longer finds at its offsets answers in the highlight status", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(
 			page,
 			`refused-${testInfo.workerIndex}-${Date.now()}`,
-		);
-		await page.route("**/client-dist/toast.client.js", (route) =>
-			route.abort(),
 		);
 		await page.route(
 			(url) => url.pathname.endsWith("/highlights"),
@@ -283,7 +280,7 @@ test.describe("Highlighting a passage in the reader", () => {
 
 		await highlight(page, FIRST_PASSAGE);
 
-		await expect(page.locator(TOAST_MESSAGE)).toHaveText(
+		await expect(page.locator(HIGHLIGHT_STATUS)).toHaveText(
 			"That passage changed; select it again",
 			{
 				timeout: SETTLE_MS,

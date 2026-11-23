@@ -123,6 +123,7 @@ main:has(.highlight-toolbar__form.htmx-request:not([data-highlight-pending])) .a
   color: light-dark(var(--primary-text-on-tint), var(--foreground));
 }
 
-.highlight-status [data-highlight-status-action][hidden] {
+.highlight-status [data-highlight-status-action][hidden],
+.highlight-status [data-highlight-status-dismiss][hidden] {
   display: none;
 }

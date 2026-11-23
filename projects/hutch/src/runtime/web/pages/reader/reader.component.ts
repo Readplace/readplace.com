@@ -26,7 +26,7 @@ import {
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import {
 	HIGHLIGHT_TOOLBAR_SCRIPT,
-	type HighlightRefusalStatus,
+	type HighlightRefusal,
 	renderHighlightToolbar,
 } from "../../shared/article-body/highlights/highlight-toolbar.component";
 import type { ReaderHighlights } from "../../shared/article-body/reader-slot/mark-highlights";
@@ -265,8 +265,7 @@ export function ReaderPage(
 		articleHistoryRemoval?: ArticleHistoryRemoval;
 		offlineCopyRow?: boolean;
 		highlights: ReaderPageHighlights;
-		statusToast?: string;
-		highlightRefusal?: HighlightRefusalStatus;
+		highlightRefusal?: HighlightRefusal;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
@@ -439,8 +438,7 @@ export function ReaderPage(
 					hiddenFields: [{ name: "returnTo", value: picker.returnTo }],
 				});
 	const filingToast = options.readlistFiling.toast;
-	const statusToastHtml =
-		options.statusToast ?? (filingToast === undefined ? "" : renderFilingToast(filingToast));
+	const statusToastHtml = filingToast === undefined ? "" : renderFilingToast(filingToast);
 	const nextRead = options.nextReadLocks !== undefined ? renderLockedNextRead({ locks: options.nextReadLocks }) : renderNextRead({
 		related: options.related
 			? {

@@ -62,7 +62,7 @@ import { requestCanCapture } from "../../onboarding/capture-capable-request";
 import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
-import type { HighlightRefusalStatus } from "../../shared/article-body/highlights/highlight-toolbar.component";
+import type { HighlightRefusal } from "../../shared/article-body/highlights/highlight-toolbar.component";
 import { offlineContentBannerScript } from "../../shared/offline-reader/offline-content-banner-script";
 import {
 	extensionInstallUrlIfMissing,
@@ -178,8 +178,7 @@ export type RenderOwnerReader = (
 	res: Response,
 	options: {
 		statusCode: 200 | 422;
-		toast: string | undefined;
-		highlightRefusal: HighlightRefusalStatus | undefined;
+		highlightRefusal: HighlightRefusal | undefined;
 		markViewed: boolean;
 	},
 ) => Promise<void>;
@@ -726,7 +725,6 @@ export function initReaderPageRoutes(deps: Pick<
 					issueLinks,
 					deletion,
 					highlights,
-					statusToast: options.toast,
 					highlightRefusal: options.highlightRefusal,
 				}), cspNonce), {
 					...(await deps.buildBannerState(req, { preFetchedAccess: access })),
@@ -740,7 +738,7 @@ export function initReaderPageRoutes(deps: Pick<
 	};
 
 	router.get("/:id/view", noindexMiddleware, (req: Request<{ id: string }>, res: Response) =>
-		renderOwnerReader(req, res, { statusCode: 200, toast: undefined, highlightRefusal: undefined, markViewed: true }),
+		renderOwnerReader(req, res, { statusCode: 200, highlightRefusal: undefined, markViewed: true }),
 	);
 
 	return { router, renderOwnerReader };

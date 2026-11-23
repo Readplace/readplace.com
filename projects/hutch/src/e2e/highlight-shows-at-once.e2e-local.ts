@@ -32,6 +32,8 @@ const STATUS_QUOTE = "[data-test-highlight-status-quote]";
 const STOP_WAITING = '[data-test-action="highlight-stop-waiting"]';
 const CHECK = '[data-test-action="highlight-check"]';
 const RETRY = '[data-test-action="highlight-retry"]';
+const DISMISS = '[data-test-action="highlight-status-dismiss"]';
+const TOAST = "#status-toast [data-test-toast-message]";
 
 const FILLER_SENTENCE =
 	"Every filler paragraph of this seeded article repeats one sentence about keeping a long read in view.";
@@ -258,6 +260,14 @@ test.describe("Recovering when a highlight save does not answer as expected", ()
 		await expect(page.locator(RETRY)).toBeHidden();
 		await expect(page.locator(MARK)).toHaveCount(0);
 		expect(await page.evaluate((name) => CSS.highlights.has(name), PENDING_HIGHLIGHT_NAME)).toBe(false);
+		await expect(page.locator(TOAST)).toHaveCount(0);
+
+		await page.locator(DISMISS).click();
+		await expect(page.locator(DISMISS)).toBeHidden();
+		await expect(page.locator(STATUS)).toHaveText("");
+		expect(
+			await page.locator(STATUS_REGION).evaluate((region) => region.getBoundingClientRect().width),
+		).toBeLessThanOrEqual(1);
 	});
 	}
 

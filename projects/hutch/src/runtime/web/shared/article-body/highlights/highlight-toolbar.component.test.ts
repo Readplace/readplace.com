@@ -159,6 +159,7 @@ describe("renderHighlightToolbar", () => {
 			["Stop waiting", true],
 			["Check highlight", true],
 			["Try again", true],
+			["Dismiss", true],
 		]);
 	});
 
@@ -168,7 +169,7 @@ describe("renderHighlightToolbar", () => {
 				scope: { articleId: "abc", readlist: [], surface: [] },
 				rowNoteOpen: false,
 				section: 2,
-				refusal: { code: "cancelled", message: "That highlight just changed; try again" },
+				refusal: "cancelled",
 			}),
 		).window.document;
 		const status = doc.querySelector("[data-highlight-status]");
@@ -178,6 +179,18 @@ describe("renderHighlightToolbar", () => {
 		expect(status?.getAttribute("data-highlight-refusal")).toBe("cancelled");
 		expect(status?.hasAttribute("data-highlight-status-shown")).toBe(true);
 		expect(doc.querySelector("[data-test-highlight-status]")?.textContent).toBe("That highlight just changed; try again");
+		expect(doc.querySelector<HTMLButtonElement>("[data-highlight-status-dismiss]")?.hidden).toBe(false);
+	});
+
+	it.each([
+		["passage-changed", "That passage changed; select it again"],
+		["too-long", "Select a shorter passage"],
+		["notes-too-long", "Joined with the highlights it overlaps, the notes are over 8,191 characters."],
+	] as const)("words the %s refusal from the translations", (refusal, message) => {
+		const doc = new JSDOM(
+			renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal }),
+		).window.document;
+		expect(doc.querySelector("[data-test-highlight-status]")?.textContent).toBe(message);
 	});
 });
 

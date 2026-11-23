@@ -3,7 +3,7 @@ import { articleBody } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
-import { renderHighlightToolbar } from "./highlight-toolbar.component";
+import { type HighlightRefusal, renderHighlightToolbar } from "./highlight-toolbar.component";
 import {
 	boundariesOf,
 	coverageOf,
@@ -18,7 +18,7 @@ const SCOPE = { articleId: "abc", readlist: [], surface: [] };
 const CONTENT = "<p>Alpha beta gamma.</p><p>Delta <em>epsilon</em> zeta.</p>";
 const BETA: Passage = { exact: "beta", start: 6, end: 10 };
 
-function mainHtml(input: { content?: string; refusal?: string; section?: number; articleId?: string } = {}): string {
+function mainHtml(input: { content?: string; refusal?: HighlightRefusal; section?: number; articleId?: string } = {}): string {
 	const reader = renderReaderReady({
 		readerSection: { requested: undefined, readerPath: "/queue/abc/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES },
 		url: "https://example.com/post",
@@ -29,7 +29,7 @@ function mainHtml(input: { content?: string; refusal?: string; section?: number;
 		scope: { ...SCOPE, articleId: input.articleId ?? SCOPE.articleId },
 		rowNoteOpen: false,
 		section: input.section,
-		refusal: input.refusal === undefined ? undefined : { code: input.refusal, message: "Refused" },
+		refusal: input.refusal,
 	});
 	return `<main>${toolbar}${reader}<p id="outside">Outside</p></main>`;
 }
@@ -159,6 +159,11 @@ function harness(bodyHtml: string = mainHtml()) {
 		assert(button);
 		return button;
 	};
+	const dismiss = () => {
+		const button = doc.querySelector<HTMLButtonElement>("[data-highlight-status-dismiss]");
+		assert(button);
+		return button;
+	};
 	const region = () => {
 		const found = doc.querySelector("[data-highlight-status]");
 		assert(found);
@@ -172,7 +177,7 @@ function harness(bodyHtml: string = mainHtml()) {
 		else selection.setBaseAndExtent(start.startContainer, start.startOffset, end.endContainer, end.endOffset);
 	};
 	const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
-	return { h, pending, form, content, rangeOf, fire, xhr, begin, swapIn, status, quote, action, region, select, selectionOf, settled };
+	return { h, pending, form, content, rangeOf, fire, xhr, begin, swapIn, status, quote, action, dismiss, region, select, selectionOf, settled };
 }
 
 function readerPage(input: { content: string; articleId?: string }): string {
@@ -503,7 +508,7 @@ describe("a refused save", () => {
 		const request = t.begin();
 		t.swapIn(request, mainHtml({ refusal: "cancelled" }));
 
-		assert.equal(t.status(), "Refused");
+		assert.equal(t.status(), "That highlight just changed; try again");
 		assert.equal(t.action("retry").hidden, false);
 		t.action("retry").click();
 		assert.deepEqual(t.h.resubmitted, ["beta"]);
@@ -542,6 +547,46 @@ describe("a refused save", () => {
 		t.content().remove();
 		t.action("retry").click();
 		assert.deepEqual(t.h.resubmitted, []);
+	});
+});
+
+describe("dismissing the status", () => {
+	it("closes a refusal and forgets its retry", () => {
+		const t = harness();
+		const request = t.begin();
+		t.swapIn(request, mainHtml({ refusal: "cancelled" }));
+		assert.equal(t.dismiss().hidden, false);
+
+		t.dismiss().click();
+
+		assert.equal(t.region().hasAttribute("data-highlight-status-shown"), false);
+		assert.equal(t.region().hasAttribute("data-highlight-refusal"), false);
+		assert.equal(t.status(), "");
+		assert.equal(t.dismiss().hidden, true);
+		assert.equal(t.action("retry").hidden, true);
+		t.action("retry").click();
+		assert.deepEqual(t.h.resubmitted, []);
+	});
+
+	it("closes a checked outcome and forgets the passage it checked", async () => {
+		const t = harness();
+		const request = t.begin();
+		t.fire(t.form(), "htmx:afterRequest", { xhr: request });
+		assert.equal(t.dismiss().hidden, false);
+
+		t.dismiss().click();
+		t.action("check").click();
+		await t.settled();
+
+		assert.equal(t.region().hasAttribute("data-highlight-status-shown"), false);
+		assert.equal(t.quote()?.hidden, true);
+		assert.deepEqual(t.h.fetched, []);
+	});
+
+	it("stays hidden while a save is announced but needs nothing from the reader", () => {
+		const t = harness();
+		t.begin();
+		assert.equal(t.dismiss().hidden, true);
 	});
 });
 

@@ -22,6 +22,13 @@ export const enUS = {
 			absent: "This passage wasn't highlighted when Readplace checked:",
 			unconfirmed: "Readplace couldn't check this highlight. Try again when you're online.",
 			retry: "Try again",
+			dismiss: "Dismiss",
+			refused: {
+				passageChanged: "That passage changed; select it again",
+				tooLong: "Select a shorter passage",
+				notesTooLong: "Joined with the highlights it overlaps, the notes are over {max} characters.",
+				cancelled: "That highlight just changed; try again",
+			},
 		},
 		highlightNote: {
 			delete: "Delete note",
