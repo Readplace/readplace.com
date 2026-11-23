@@ -14,6 +14,11 @@ export const enUS = {
 			lock: "Set up custom emails",
 			upgrade: "Upgrade",
 		},
+		gmailDisclaimer: {
+			title: "Gmail integration is experimental",
+			body: "Readplace never sends or deletes your email. It adds one filter to forward the senders you choose, replacing any filter that already forwards to a Gmail forwarding address Readplace gave you. To list your senders, it reads only the sender, labels and date of your emails, including new ones while Gmail stays connected. It downloads past emails or marks them as read only when you ask it to. Readplace passes the subject, sender and links of each newsletter it receives from Gmail to an AI provider, to pick out its articles and file them in your readlists. When you save an issue, its text goes to that provider too, to prepare it for reading, summarize it and suggest what to read next.",
+			ok: "OK",
+		},
 	},
 	saveTip: {
 		continue: "Continue here",
