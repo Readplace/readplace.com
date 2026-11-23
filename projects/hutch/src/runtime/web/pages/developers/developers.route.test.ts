@@ -355,6 +355,16 @@ describe("/developers documents what the API emits", () => {
 		expect(named.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toEqual([
 			"https://example.com/parity",
 		]);
+		const pinned = await request(harness.server)
+			.post(actionNamed(named.body, "pin-readlist").href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.type("form")
+			.send({})
+			.redirects(0);
+		expect(pinned.status).toBe(303);
+		const namedPinned = await sirenGet(harness, { path: pinned.headers.location, token });
+		expect(namedPinned.status).toBe(200);
 		const all = await openAll(harness, token);
 		const slot = await request(harness.server)
 			.post(actionNamed(all.body, "save-content").href)
@@ -381,6 +391,7 @@ describe("/developers documents what the API emits", () => {
 			...new Set([
 				...namesOf(all.body),
 				...namesOf(named.body),
+				...namesOf(namedPinned.body),
 				...namesOf(saved.body),
 				...namesOf(slot.body),
 				...namesOf(uploadEntry.body),

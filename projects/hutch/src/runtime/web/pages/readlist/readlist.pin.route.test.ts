@@ -7,7 +7,10 @@ import {
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { JSDOM } from "jsdom";
+import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { createAccessToken } from "../../test-helpers/oauth-token";
 
 const useApp = useTestServer();
 
@@ -209,5 +212,113 @@ describe("pin and unpin on a free-plan account", () => {
 		expect([unpinned.status, repinned.status]).toEqual([303, 303]);
 		expect(afterUnpin).toEqual([]);
 		expect((await pinned()).map(([pinnedSlug]) => pinnedSlug)).toEqual([slug]);
+	});
+});
+
+describe("pin and unpin over Siren", () => {
+	interface Action {
+		name: string;
+		href: string;
+		method: string;
+	}
+
+	async function sirenClient() {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const siren = (call: request.Test) =>
+			call.set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).redirects(0);
+		const get = (href: string) => siren(request(harness.server).get(href));
+		const submit = (action: Action) => siren(request(harness.server).post(action.href)).type("form").send({});
+		const createReadlistHref = async (label: string): Promise<string> => {
+			const created = await siren(request(harness.server).post("/queue/queues")).type("form").send({ label });
+			assert.equal(created.status, 303);
+			return created.headers.location;
+		};
+		const actionOn = async (href: string, name: string): Promise<Action> => {
+			const collection = await get(href);
+			const action = collection.body.actions.find((candidate: Action) => candidate.name === name);
+			assert(action, `the collection at ${href} must advertise ${name}`);
+			return action;
+		};
+		return { get, submit, createReadlistHref, actionOn };
+	}
+
+	it("follows pin-readlist and unpin-readlist from the collection and reads the pin state back", async () => {
+		const client = await sirenClient();
+		const href = await client.createReadlistHref("Work");
+
+		const pinned = await client.submit(await client.actionOn(href, "pin-readlist"));
+		const afterPin = await client.get(pinned.headers.location);
+		const unpinned = await client.submit(await client.actionOn(pinned.headers.location, "unpin-readlist"));
+		const afterUnpin = await client.get(unpinned.headers.location);
+
+		expect([pinned.status, pinned.headers.location]).toEqual([303, href]);
+		expect(afterPin.body.properties.readlists).toEqual([
+			expect.objectContaining({ label: "All", pinned: false }),
+			expect.objectContaining({ label: "Work", rel: "current", pinned: true }),
+		]);
+		expect(afterPin.body.actions.map((action: Action) => action.name)).not.toContain("pin-readlist");
+		expect([unpinned.status, unpinned.headers.location]).toEqual([303, href]);
+		expect(afterUnpin.body.properties.readlists).toEqual([
+			expect.objectContaining({ label: "All", pinned: false }),
+			expect.objectContaining({ label: "Work", rel: "current", pinned: false }),
+		]);
+	});
+
+	it("refuses a fifth pin with pin-limit-reached and leaves the readlist unpinned", async () => {
+		const client = await sirenClient();
+		const hrefs: string[] = [];
+		for (const label of ["One", "Two", "Three", "Four", "Five"]) hrefs.push(await client.createReadlistHref(label));
+		const fifth = hrefs[4];
+		assert(fifth);
+		const fifthPin = await client.actionOn(fifth, "pin-readlist");
+		for (const href of hrefs.slice(0, 4)) await client.submit(await client.actionOn(href, "pin-readlist"));
+
+		const response = await client.submit(fifthPin);
+
+		expect(response.status).toBe(422);
+		expect(response.headers["content-type"]).toContain(SIREN_MEDIA_TYPE);
+		expect(response.body).toEqual({
+			class: ["error"],
+			properties: { code: "pin-limit-reached", message: t("readlistNav.pin.alerts.limit.body", { max: 4 }) },
+		});
+		expect((await client.get(fifth)).body.properties.readlists).toContainEqual(
+			expect.objectContaining({ rel: "current", pinned: false }),
+		);
+	});
+
+	it.each([
+		["pin", "a readlist the reader does not own", "/queue/queues/not-mine/pin"],
+		["pin", "a slug no readlist could carry", `/queue/queues/${encodeURIComponent("Not A Slug")}/pin`],
+		["pin", "the readlist every reader is given", "/queue/queues/default/pin"],
+		["unpin", "a readlist the reader does not own", "/queue/queues/not-mine/unpin"],
+		["unpin", "the readlist every reader is given", "/queue/queues/default/unpin"],
+	])("refuses a %s of %s with unknown-readlist", async (_verb, _name, href) => {
+		const client = await sirenClient();
+
+		const response = await client.submit({ name: "toggle", href, method: "POST" });
+
+		expect(response.status).toBe(404);
+		expect(response.body.properties.code).toBe("unknown-readlist");
+	});
+
+	it("refuses with unknown-readlist when the readlist disappears before the pin is written", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleStore: { ...fixture.articleStore, pinReadlistDefinition: async () => ({ pinned: false }) },
+		});
+		const token = await createAccessToken(harness);
+		const siren = (call: request.Test) =>
+			call.set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).redirects(0);
+		const created = await siren(request(harness.server).post("/queue/queues")).type("form").send({ label: "Work" });
+		const collection = await siren(request(harness.server).get(created.headers.location));
+		const pinAction = collection.body.actions.find((action: { name: string }) => action.name === "pin-readlist");
+		assert(pinAction, "a named readlist must advertise pin-readlist");
+
+		const response = await siren(request(harness.server).post(pinAction.href)).type("form").send({});
+
+		expect(response.status).toBe(404);
+		expect(response.body.properties.code).toBe("unknown-readlist");
 	});
 });

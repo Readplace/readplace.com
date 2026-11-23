@@ -9,7 +9,7 @@ import {
 	MAX_UPLOAD_CONTENT_BYTES,
 	MAX_UPLOAD_REQUEST_BYTES,
 } from "@packages/domain/article";
-import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, READLIST_PINNED_MAX } from "@packages/domain/readlist";
 import { SAMPLE_TEXT } from "@packages/api-samples";
 import { ADVERTISED_CLIENTS, clientCategoryOfGroup } from "@packages/supported-clients";
 import { MARKDOWN_MEDIA_TYPE, render, withInternalTracking } from "@packages/web-shell";
@@ -197,6 +197,7 @@ export function DevelopersPage(input: { language: SampleLanguage }): PageBody {
 				refreshTokenDays: REFRESH_TOKEN_LIFETIME_SECONDS / SECONDS_PER_DAY,
 				readlistLimit: READLIST_MAX_PER_USER,
 				readlistNameLimit: READLIST_LABEL_MAX_LENGTH,
+				readlistPinLimit: READLIST_PINNED_MAX,
 				inlineFileLimit: megabytesLabel(MAX_UPLOAD_CONTENT_BYTES),
 				requestLimit: megabytesLabel(MAX_UPLOAD_REQUEST_BYTES),
 				bulkPageCount: MAX_PAGES_PER_BULK_SAVE,
