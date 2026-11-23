@@ -37,7 +37,6 @@ enum BrandColor {
 extension Color {
 	static let brandAmber = Color(uiColor: BrandColor.amber)
 	static let brandPrimaryFill = Color(uiColor: BrandColor.primaryFill)
-	static let brandHighlight = Color(uiColor: BrandColor.highlight)
 	static let brandSuccess = Color(uiColor: BrandColor.success)
 	static let brandWarning = Color(uiColor: BrandColor.warning)
 	static let brandError = Color(uiColor: BrandColor.error)
