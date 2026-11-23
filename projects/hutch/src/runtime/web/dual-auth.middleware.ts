@@ -10,20 +10,11 @@ interface DualAuthDeps {
 	baseUrl: string;
 }
 
-export function initDualAuth(deps: DualAuthDeps) {
+function initAuthenticateSirenBearer(deps: DualAuthDeps) {
 	const resourceMetadata = `resource_metadata="${deps.baseUrl}${PROTECTED_RESOURCE_METADATA_PATH}"`;
-	return async (req: Request, res: Response, next: NextFunction) => {
-		if (wantsSiren(req)) {
-			const header = req.headers.authorization;
-			if (!header?.startsWith("Bearer ")) {
-				res
-					.status(401)
-					.set("WWW-Authenticate", `Bearer ${resourceMetadata}`)
-					.type(SIREN_MEDIA_TYPE)
-					.json(sirenError({ code: "missing-token", message: "Bearer token required" }));
-				return;
-			}
-
+	return {
+		resourceMetadata,
+		authenticate: async (req: Request, res: Response, next: NextFunction, header: string) => {
 			const token = AccessTokenSchema.parse(header.slice(7));
 			const validated = await deps.validateAccessToken(token);
 			if (!validated) {
@@ -43,6 +34,24 @@ export function initDualAuth(deps: DualAuthDeps) {
 			req.emailVerified = validated.emailVerified;
 			req.oauthClientId = validated.oauthClientId;
 			next();
+		},
+	};
+}
+
+export function initDualAuth(deps: DualAuthDeps) {
+	const bearer = initAuthenticateSirenBearer(deps);
+	return async (req: Request, res: Response, next: NextFunction) => {
+		if (wantsSiren(req)) {
+			const header = req.headers.authorization;
+			if (!header?.startsWith("Bearer ")) {
+				res
+					.status(401)
+					.set("WWW-Authenticate", `Bearer ${bearer.resourceMetadata}`)
+					.type(SIREN_MEDIA_TYPE)
+					.json(sirenError({ code: "missing-token", message: "Bearer token required" }));
+				return;
+			}
+			await bearer.authenticate(req, res, next, header);
 			return;
 		}
 
@@ -51,5 +60,17 @@ export function initDualAuth(deps: DualAuthDeps) {
 			return;
 		}
 		next();
+	};
+}
+
+export function initPresentedSirenBearerAuth(deps: DualAuthDeps) {
+	const bearer = initAuthenticateSirenBearer(deps);
+	return async (req: Request, res: Response, next: NextFunction) => {
+		const header = req.headers.authorization;
+		if (!wantsSiren(req) || !header?.startsWith("Bearer ")) {
+			next();
+			return;
+		}
+		await bearer.authenticate(req, res, next, header);
 	};
 }

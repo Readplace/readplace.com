@@ -147,12 +147,35 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	},
 };
 
+function writeStartPage(res: Response, context: UploadWriteContext): void {
+	sendPage(
+		context,
+		res,
+		UploadPage({
+			view: "start",
+			start: {
+				...toUploadStartViewModel(context.kinds, Boolean(context.req.userId), uploadStartPathOf(context.metered)),
+				refusal: uploadRefusalOf({
+					query: context.req.query,
+					allowanceSeconds: context.transcriptAllowanceSeconds,
+				}),
+				transcriptAllowance: transcriptAllowanceOf({
+					kinds: context.kinds,
+					allowanceSeconds: context.transcriptAllowanceSeconds,
+				}),
+			},
+		}),
+	);
+}
+
 export type UploadProtocol = {
+	start: (res: Response, context: UploadWriteContext) => void;
 	writers: UploadOutcomeWriters;
 	s3SuccessAction: (continueUrl: string) => MediaPendingSuccessAction;
 };
 
 export const UPLOAD_PROTOCOL_HTML: UploadProtocol = {
+	start: writeStartPage,
 	writers: UPLOAD_OUTCOME_HTML,
 	s3SuccessAction: (continueUrl) => ({ redirect: continueUrl }),
 };
@@ -184,51 +207,32 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			isSignedIn: Boolean(req.userId),
 		}).filter((kind) => metered || !deps.METERED_ONLY_UPLOAD_KINDS.includes(kind.name));
 
-	async function write<K extends UploadOutcomeKey>(
-		req: Request,
-		res: Response,
-		outcome: UploadOutcome<K>,
-		metered = isMeteredStart(req.query),
-	) {
-		const context: UploadWriteContext = {
+	async function contextOf(req: Request, metered: boolean): Promise<UploadWriteContext> {
+		return {
 			req,
 			bannerState: await deps.buildBannerState(req),
 			kinds: viewerKinds(req, metered),
 			metered,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 		};
+	}
+
+	async function write<K extends UploadOutcomeKey>(
+		req: Request,
+		res: Response,
+		outcome: UploadOutcome<K>,
+		metered = isMeteredStart(req.query),
+	) {
 		writeUploadOutcome({
 			writers: deps.pickUploadProtocol(req).writers,
 			res,
 			outcome,
-			context,
+			context: await contextOf(req, metered),
 		});
 	}
 
 	router.get("/", async (req, res) => {
-		const metered = isMeteredStart(req.query);
-		const kinds = viewerKinds(req, metered);
-		sendComponent(
-			req,
-			res,
-			Base(
-				UploadPage({
-					view: "start",
-					start: {
-						...toUploadStartViewModel(kinds, Boolean(req.userId), uploadStartPathOf(metered)),
-						refusal: uploadRefusalOf({
-							query: req.query,
-							allowanceSeconds: deps.transcriptAllowanceSeconds,
-						}),
-						transcriptAllowance: transcriptAllowanceOf({
-							kinds,
-							allowanceSeconds: deps.transcriptAllowanceSeconds,
-						}),
-					},
-				}),
-				await deps.buildBannerState(req),
-			),
-		);
+		deps.pickUploadProtocol(req).start(res, await contextOf(req, isMeteredStart(req.query)));
 	});
 
 	router.post("/", ...deps.stageGates, async (req, res) => {

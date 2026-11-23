@@ -93,6 +93,7 @@ export function toArticleCollectionEntity(
 		title: "How to add links",
 		href: "/help/add-links",
 	});
+	links.push({ rel: ["upload"], href: "/upload" });
 
 	if (page > 1) {
 		links.push({
