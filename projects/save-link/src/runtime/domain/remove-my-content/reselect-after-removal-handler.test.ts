@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { noopLogger } from "@packages/logger";
@@ -45,13 +44,16 @@ describe("content reselection after erasure", () => {
 		expect(await handler(event({ url: URL }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(savedInputs[0]).toMatchObject({ tier: "tier-1", metadata: { title: "Article" } });
 	});
-	it("derives the reselect's save attempt from the ingress SQS message ID", async () => {
-		const info = jest.fn();
-		const { handler } = setup({ logger: { ...noopLogger, info } });
+	it("stamps the ingress SQS message ID as the save attempt on a candidate the reselect creates", async () => {
+		const putTierSource = jest.fn(async (params: { metadata: typeof source.metadata }) => params.metadata);
+		const card = { title: "Video", author: "Channel", excerpt: "Video by Channel on YouTube.", watchUrl: URL, posterUrl: "https://example.com/poster.jpg", html: "<p>Video</p>" };
+		const { handler } = setup({
+			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "none", reason: "Empty shell", readability: [{ candidate: "A", readable: false }] }) } }] }) }).selectMostCompleteContent,
+			fetchYouTubeVideoCard: async () => card,
+			putTierSource,
+		});
 		await handler(event({ url: URL }), buildLambdaContext(), () => {});
-		const comparison = info.mock.calls.map(([line]) => line).find((line): line is string => typeof line === "string" && line.includes('"saveAttemptId"'));
-		assert(comparison);
-		expect(JSON.parse(comparison.slice(comparison.indexOf("{"))).saveAttemptId).toBe("message");
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ attemptId: "message" }) }));
 	});
 	it("rejects malformed erasure events before invoking selection", async () => {
 		const listAvailableTierSources = jest.fn(async () => [source]);
