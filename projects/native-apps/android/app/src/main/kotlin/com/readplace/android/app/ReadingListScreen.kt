@@ -585,7 +585,7 @@ internal fun ReadingListTitle(currentReadlistLabel: String?) {
 @Composable
 private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	val presentation = affordance.presentation
-	val tint = presentation.tint.resolved()
+	val tint = presentation.tint.glyphTint()
 	if (presentation.showsTitle) {
 		TextButton(
 			onClick = onTap,
@@ -778,7 +778,7 @@ private fun ArticleItem(
 				DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
 					for (affordance in controls) {
 						val presentation = affordance.presentation
-						val tint = presentation.tint.resolved()
+						val tint = presentation.tint.glyphTint()
 						DropdownMenuItem(
 							text = { Text(text = affordance.label) },
 							onClick = {
@@ -955,7 +955,7 @@ private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifi
 }
 
 @Composable
-private fun AffordanceTint.resolved(): Color? =
+private fun AffordanceTint.glyphTint(): Color? =
 	when (this) {
 		AffordanceTint.NEUTRAL -> null
 		AffordanceTint.SUCCESS -> LocalBrandColors.current.success

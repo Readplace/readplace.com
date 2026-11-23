@@ -16,17 +16,20 @@ class BannerToneTest {
 	}
 
 	@Test
-	fun `each tone names its fill and ink`() {
-		val colors = brandColors(isDark = false)
+	fun `each tone names its fill and ink in both themes`() {
+		for (isDark in listOf(false, true)) {
+			val colors = brandColors(isDark)
 
-		assertEquals(
-			listOf(
-				colors.secondary to colors.textPrimary,
-				Color(red = 185, green = 80, blue = 80) to Color.White,
-				colors.secondary to colors.textPrimary,
-			),
-			BannerTone.entries.map { it.fill(colors) to it.ink(colors) },
-		)
+			assertEquals(
+				"isDark=$isDark",
+				listOf(
+					colors.secondary to colors.textPrimary,
+					ERROR_FILL to Color.White,
+					colors.secondary to colors.textPrimary,
+				),
+				BannerTone.entries.map { it.fill(colors) to it.ink(colors) },
+			)
+		}
 	}
 
 	@Test

@@ -12,7 +12,7 @@ enum class BannerTone {
 	fun fill(colors: BrandColors): Color =
 		when (this) {
 			OFFLINE -> colors.secondary
-			ERROR -> Color(red = 185, green = 80, blue = 80)
+			ERROR -> ERROR_FILL
 			WARNING -> colors.secondary
 		}
 
