@@ -696,6 +696,18 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 		await expect(page.locator('[data-test-section="capabilities"]')).toBeVisible({ timeout: SETTLE_MS });
 		await auditRoot(page, { root: '[data-test-section="capabilities"]', theme: "light", view: "home-c/capabilities" });
 	});
+
+	test("homepage arm B's comparison clears its contrast minimum", async ({ page }) => {
+		await page.context().addCookies([{
+			name: EXPERIMENT_COOKIE_NAME,
+			value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[0].slug}`,
+			url: BASE_URL,
+		}]);
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-section="compare"]')).toBeVisible({ timeout: SETTLE_MS });
+		await auditRoot(page, { root: '[data-test-section="compare"]', theme: "light", view: "home-b/compare" });
+	});
 });
 
 async function createChipReader(page: Page, email: string): Promise<string> {
