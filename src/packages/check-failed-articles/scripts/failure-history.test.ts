@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { CollectedFailedRow } from "./collect-failed-rows";
 import { classifyFailureHistory } from "./failure-history";
 import type { FailureHistoryLogMatch } from "./failure-history-logs";
+import { initLoadPublicViewEvidence } from "./failure-history-public";
 import { toCanaryReportRow } from "./failed-articles-issue";
 
 const SAVED = "2026-05-10T00:00:00.000Z";
@@ -12,7 +13,7 @@ const laterOpen = Date.parse("2026-05-11T06:00:00.000Z");
 const cutoff = new Date("2026-05-12T00:00:00.000Z");
 
 const row: CollectedFailedRow = {
-	articleKey: "https://site.test/post",
+	articleKey: "site.test/post",
 	originalUrl: "https://site.test/post?source=private",
 	axes: ["crawl-failed"],
 	reasons: { "crawl-failed": '{"kind":"parse-error"}' },
@@ -37,7 +38,7 @@ describe("failed article history groups", () => {
 	it("counts a same-lifetime owner event before admission instead of the competing list trigger", () => {
 		const classified = classify({ logs: { ...listLogs, ownerOpenTimes: [opened] } });
 		assert.equal(classified.historyGroup, "reader-opened-before-failure");
-		assert.deepEqual(toCanaryReportRow(classified).labels, ["crawl-failed", "Signed-in reader opened before failure"]);
+		assert.deepEqual(toCanaryReportRow(classified).labels, ["crawl-failed", "Reader opened before failure", "Signed-in reader opened before failure"]);
 	});
 
 	it("keeps a proven owner open when a different analytics partition was unavailable", () => {
@@ -71,22 +72,46 @@ describe("failed article history groups", () => {
 		}).historyGroup, "readlist-loaded-no-reader-open");
 	});
 
-	it("keeps a proven public open in Other even when the underlying admission was a readlist", () => {
+	it("counts a proven public open even when the underlying admission was a readlist", () => {
 		const publicOnly = classify({ publicOpenRecorded: true, publicOpensCovered: false });
-		assert.equal(publicOnly.historyGroup, "other-unknown");
-		assert.equal(publicOnly.publicReaderOnlyBeforeFailure, true);
+		assert.equal(publicOnly.historyGroup, "reader-opened-before-failure");
+		assert.deepEqual(publicOnly.readerRoutes, ["public"]);
 		assert.deepEqual(toCanaryReportRow(publicOnly).labels, [
-			"crawl-failed", "Other or unknown history", "Public reader open recorded before failure",
+			"crawl-failed", "Reader opened before failure", "Public reader open recorded before failure",
 		]);
+	});
+
+	it("retains both routes when both have confirmed opens", () => {
 		const alsoOwner = classify({ publicOpenRecorded: true, logs: { ...listLogs, ownerOpenTimes: [opened] } });
 		assert.equal(alsoOwner.historyGroup, "reader-opened-before-failure");
-		assert.equal(alsoOwner.publicReaderOnlyBeforeFailure, undefined);
-		const unknownOwner = classify({ publicOpenRecorded: true, logs: { ...listLogs, ownerOpensCovered: false } });
-		assert.equal(unknownOwner.historyGroup, "other-unknown");
-		assert.equal(unknownOwner.publicReaderOnlyBeforeFailure, undefined);
+		assert.deepEqual(alsoOwner.readerRoutes, ["signed-in", "public"]);
+	});
+
+	it("keeps a proven public open even when signed-in evidence is unavailable or came later", () => {
+		const unknownOwner = classify({ publicOpenRecorded: true, logs: undefined, memberships: undefined });
+		assert.equal(unknownOwner.historyGroup, "reader-opened-before-failure");
+		assert.deepEqual(unknownOwner.readerRoutes, ["public"]);
 		const unboundedLaterOwner = classify({ publicOpenRecorded: true, logs: { ...listLogs, ownerOpenTimes: [laterOpen] } });
-		assert.equal(unboundedLaterOwner.historyGroup, "other-unknown");
-		assert.equal(unboundedLaterOwner.publicReaderOnlyBeforeFailure, undefined);
+		assert.equal(unboundedLaterOwner.historyGroup, "reader-opened-before-failure");
+		assert.deepEqual(unboundedLaterOwner.readerRoutes, ["public"]);
+	});
+
+	it("does not count later opens from either route as evidence before failure", async () => {
+		const loadPublicViews = initLoadPublicViewEvidence({ query: async () => [new Map([
+			["timestamp", new Date(laterOpen).toISOString()],
+			["path", "/view/site.test/post"],
+			["article_host", "site.test"],
+		])] });
+		const publicViews = await loadPublicViews({ rows: [{
+			key: row.articleKey, savedAt: SAVED, fullCrawlRequestedAt: ADMITTED,
+		}], now: cutoff });
+		const classified = classify({
+			logs: { ...listLogs, ownerOpenTimes: [laterOpen] },
+			publicOpenRecorded: publicViews.opened.has(row.articleKey),
+			publicOpensCovered: publicViews.covered.has(row.articleKey),
+		});
+		assert.equal(classified.historyGroup, "other-unknown");
+		assert.equal(classified.readerRoutes, undefined);
 	});
 
 	it("keeps poll stamps, later opens and missing or conflicting attribution unknown", () => {

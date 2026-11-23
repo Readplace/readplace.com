@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatFailedArticlesIssue, toCanaryReportRow } from "./failed-articles-issue";
+import { type FailedArticlesIssueRow, formatFailedArticlesIssue, toCanaryReportRow } from "./failed-articles-issue";
 import type { FailedRow } from "./collect-failed-rows";
 
 const RUN_URL = "https://github.test/readplace/actions/runs/37967705297";
@@ -56,9 +56,12 @@ describe("toCanaryReportRow", () => {
 			savedAt: "2026-10-03T08:00:00.000Z",
 			contentFetchedAt: undefined,
 		};
-		assert.deepEqual(toCanaryReportRow({ ...row, historyGroup: "reader-opened-before-failure" }), {
+		assert.deepEqual(toCanaryReportRow({ ...row, historyGroup: "reader-opened-before-failure", readerRoutes: ["signed-in", "public"] }), {
 			...toCanaryReportRow(row),
-			labels: ["crawl-failed", "Signed-in reader opened before failure"],
+			labels: [
+				"crawl-failed", "Reader opened before failure",
+				"Signed-in reader opened before failure", "Public reader open recorded before failure",
+			],
 		});
 	});
 });
@@ -73,10 +76,17 @@ describe("formatFailedArticlesIssue", () => {
 			contentFetchedAt: undefined,
 		};
 		const readlist = { ...example, historyGroup: "readlist-loaded-no-reader-open" as const };
-		const reader = { ...example, axes: ["crawl-failed", "summary-failed"] satisfies FailedRow["axes"], historyGroup: "reader-opened-before-failure" as const };
+		const reader: FailedArticlesIssueRow = {
+			...example,
+			axes: ["crawl-failed", "summary-failed"],
+			historyGroup: "reader-opened-before-failure",
+			readerRoutes: ["signed-in"],
+		};
+		const publicReader: FailedArticlesIssueRow = { ...reader, readerRoutes: ["public"] };
+		const bothReaders: FailedArticlesIssueRow = { ...reader, readerRoutes: ["signed-in", "public"] };
 		const unknown = { ...example, historyGroup: "other-unknown" as const };
 		const issue = formatFailedArticlesIssue({
-			rows: [readlist, readlist, reader, reader, readlist, reader, { ...unknown, publicReaderOnlyBeforeFailure: true }],
+			rows: [readlist, readlist, reader, reader, readlist, bothReaders, publicReader, unknown],
 			runUrl: RUN_URL,
 			reportUrl: REPORT_URL,
 			today: "2026-10-10",
@@ -86,17 +96,22 @@ describe("formatFailedArticlesIssue", () => {
 		const lines = issue.body.split("\n");
 		assert.deepEqual(lines.slice(lines.indexOf("## Breakdown by recorded access"), lines.indexOf("## Breakdown by axis")), [
 			"## Breakdown by recorded access",
-			"- **Readlist loaded, no owner reader open recorded**: 3",
-			"- **Signed-in reader opened before failure**: 3",
+			"- **Readlist loaded, no reader open recorded**: 3",
+			"- **Reader opened before failure**: 4",
+			"  - **Signed-in reader recorded**: 3",
+			"  - **Public reader recorded**: 2",
+			"  - **Both recorded**: 1",
 			"- **Other or unknown history**: 1",
-			"- Of **Other or unknown history**, at least 1 had a confirmed public reader open before failure.",
 			"",
 			"Some access history could not be verified. Inconclusive rows are counted under Other or unknown history.",
 			"",
-			"Opening the reader can trigger a local HTML capture on supported clients.",
+			"The reader-open group counts opens recorded before the latest processing admission and signed-in reader requests that triggered it.",
+			"An article can count under both confirmed routes. A zero means no open was confirmed in the available records.",
+			"",
+			"Among these reader routes, local HTML capture can start only from the signed-in reader on supported clients. Confirming an upload requires separate evidence.",
 			"",
 		]);
-		assert.equal(issue.rowCount, 7);
+		assert.equal(issue.rowCount, 8);
 		assert.deepEqual(issue.body.match(/https?:\/\/\S+/g), [RUN_URL, REPORT_URL]);
 		assert.doesNotMatch(issue.body, /private capture detail|do-not-publish/);
 	});
@@ -193,11 +208,17 @@ describe("formatFailedArticlesIssue", () => {
 				`- **Report (admins only)**: ${REPORT_URL}`,
 				"",
 				"## Breakdown by recorded access",
-				"- **Readlist loaded, no owner reader open recorded**: 0",
-				"- **Signed-in reader opened before failure**: 0",
+				"- **Readlist loaded, no reader open recorded**: 0",
+				"- **Reader opened before failure**: 0",
+				"  - **Signed-in reader recorded**: 0",
+				"  - **Public reader recorded**: 0",
+				"  - **Both recorded**: 0",
 				"- **Other or unknown history**: 8",
 				"",
-				"Opening the reader can trigger a local HTML capture on supported clients.",
+				"The reader-open group counts opens recorded before the latest processing admission and signed-in reader requests that triggered it.",
+				"An article can count under both confirmed routes. A zero means no open was confirmed in the available records.",
+				"",
+				"Among these reader routes, local HTML capture can start only from the signed-in reader on supported clients. Confirming an upload requires separate evidence.",
 				"",
 				"## Breakdown by axis",
 				"- **crawl-failed**: 6",

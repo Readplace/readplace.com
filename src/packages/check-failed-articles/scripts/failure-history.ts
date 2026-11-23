@@ -52,13 +52,15 @@ export function classifyFailureHistory(input: {
 		surface === "reader" || surface === "reader-capture-gave-up" ||
 		ownerOpens.some((time) => time < admitted)
 	) {
-		return { ...row, historyGroup: "reader-opened-before-failure" };
+		return {
+			...row,
+			historyGroup: "reader-opened-before-failure",
+			readerRoutes: input.publicOpenRecorded ? ["signed-in", "public"] : ["signed-in"],
+		};
 	}
 
 	if (input.publicOpenRecorded) {
-		return logs?.ownerOpensCovered && ownerOpens.length === 0
-			? { ...unknown, publicReaderOnlyBeforeFailure: true }
-			: unknown;
+		return { ...row, historyGroup: "reader-opened-before-failure", readerRoutes: ["public"] };
 	}
 
 	if (
