@@ -257,7 +257,11 @@ describe("pin and unpin over Siren", () => {
 			expect.objectContaining({ label: "All", pinned: false }),
 			expect.objectContaining({ label: "Work", rel: "current", pinned: true }),
 		]);
-		expect(afterPin.body.actions.map((action: Action) => action.name)).not.toContain("pin-readlist");
+		expect(
+			afterPin.body.actions
+				.map((action: Action) => action.name)
+				.filter((name: string) => name.endsWith("pin-readlist")),
+		).toEqual(["unpin-readlist"]);
 		expect([unpinned.status, unpinned.headers.location]).toEqual([303, href]);
 		expect(afterUnpin.body.properties.readlists).toEqual([
 			expect.objectContaining({ label: "All", pinned: false }),
