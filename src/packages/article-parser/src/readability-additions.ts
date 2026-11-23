@@ -6,11 +6,13 @@ import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
 import { replaceEmbedsWithFacade } from "./replace-embeds-with-facade";
 import { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
 import { resolveRelativeUrls } from "./resolve-relative-urls";
+import { preserveSubstackImagePreview } from "./substack-image-preview";
 import { restoreRetaggedTables } from "./restore-retagged-tables";
 import { unwrapArticleBodyTemplates } from "./unwrap-article-body-templates";
 
 export const readabilityAdditions: ReadabilityAdditions = {
 	normalizeImplicitBody,
+	preserveSubstackImagePreview,
 	unwrapArticleBodyTemplates,
 	replaceVideosWithPlaceholder,
 	replaceEmbedsWithFacade,

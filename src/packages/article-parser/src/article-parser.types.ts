@@ -34,6 +34,7 @@ export type ParseHtml = (params: {
 
 export type ReadabilityAdditions = {
 	normalizeImplicitBody: (document: Document) => void;
+	preserveSubstackImagePreview: (params: { document: Document; savedUrl: string; documentUrl: string }) => void;
 	unwrapArticleBodyTemplates: (document: Document) => void;
 	replaceVideosWithPlaceholder: (params: {
 		document: Document;
