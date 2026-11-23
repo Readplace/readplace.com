@@ -84,14 +84,6 @@ final class ShareViewController: UIViewController {
 		hold.end()
 	}
 
-	private func uiColor(for tone: ShareStatusTone) -> UIColor {
-		switch tone {
-		case .success: return .brandSuccess
-		case .warning: return .brandWarning
-		case .error: return .brandError
-		}
-	}
-
 	// MARK: - UI
 
 	private func setupUI() {
@@ -181,7 +173,7 @@ final class ShareViewController: UIViewController {
 		spinner.stopAnimating()
 		spinner.isHidden = true
 		iconView.image = UIImage(systemName: status.symbol)
-		iconView.tintColor = uiColor(for: status.tone)
+		iconView.tintColor = status.tone.iconTint
 		iconView.isHidden = false
 		statusLabel.text = status.message
 		noticeLabel.text = status.subtitle

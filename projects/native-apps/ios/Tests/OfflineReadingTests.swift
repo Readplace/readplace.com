@@ -1,4 +1,5 @@
 import WebKit
+import SwiftUI
 import XCTest
 @testable import Readplace
 
@@ -92,5 +93,9 @@ final class OfflineReadingTests: XCTestCase {
 	func testTheDownloadControlTakesTheTintOfTheToolbarControlsBesideIt() {
 		XCTAssertEqual(OfflineReading.downloadControlTint, AffordancePresentation(token: "account").tint)
 		XCTAssertEqual(OfflineReading.downloadControlTint, AffordancePresentation(token: "add-links-help").tint)
+	}
+
+	func testTheAppTintIsThePrimaryTextInk() {
+		XCTAssertEqual(Color.brandAppTint, .brandPrimaryText)
 	}
 }

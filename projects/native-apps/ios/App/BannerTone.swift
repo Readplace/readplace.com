@@ -12,16 +12,16 @@ enum BannerTone: Equatable {
 	var fill: Color {
 		switch self {
 		case .offline: return .brandSecondary
-		case .error: return .brandError
-		case .warning: return .brandWarning
+		case .error: return .brandErrorFill
+		case .warning: return .brandSecondary
 		}
 	}
 
 	var ink: Color {
-		self == .offline ? .brandTextPrimary : .white
+		self == .error ? .white : .brandTextPrimary
 	}
 
 	var backdrop: Color {
-		self == .offline ? .brandSurface : .clear
+		self == .error ? .clear : .brandSurface
 	}
 }
