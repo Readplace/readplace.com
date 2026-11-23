@@ -43,6 +43,8 @@ It runs only when the fetched page names a public repository and was served to n
 
 Nothing extra is fetched. This is the page the crawl already held, read better.
 
+A pull request already in Readplace keeps the copy it has. A new save fetches the page again once that copy is a day old.
+
 ## Merged is when the reading starts
 
 The pull requests worth a slow read are mostly settled ones: the thread where a team talked itself into an architecture, the long argument under a 10-line change. That read keeps getting postponed because the tab it lives in is built for acting on code, not for reading about it.
