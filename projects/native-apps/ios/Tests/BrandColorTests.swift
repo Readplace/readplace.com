@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import UIKit
 @testable import Readplace
 
@@ -86,6 +87,10 @@ final class BrandColorTests: XCTestCase {
 
 	func testErrorFillMirrorsThePinnedErrorFillToken() {
 		assertHex(BrandColor.errorFill, light: "#B95050", dark: "#B95050")
+	}
+
+	func testTheAppTintIsThePrimaryTextInk() {
+		XCTAssertEqual(Color.brandAppTint, .brandPrimaryText)
 	}
 
 	private func assertHex(
