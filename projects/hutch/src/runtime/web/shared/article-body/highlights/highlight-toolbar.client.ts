@@ -15,6 +15,8 @@ import {
 } from "./sentence-tap.client";
 import { placeNearSelection } from "./toolbar-placement-coarse";
 
+export { initHighlightCopy } from "./highlight-copy.client";
+
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
 export const SELECTION_DEBOUNCE_MS = 100;

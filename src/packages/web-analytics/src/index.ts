@@ -138,6 +138,7 @@ export {
 	type HighlightDeletedEvent,
 	type HighlightNoteSavedEvent,
 	type HighlightOpenedEvent,
+	type HighlightCopiedEvent,
 	type ViewHighlightEvent,
 	type ViewHighlightsHandedOverEvent,
 	type ViewHighlightsClaimedEvent,

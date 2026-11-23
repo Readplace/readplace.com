@@ -145,15 +145,60 @@ describe("renderHighlightToolbar", () => {
 	});
 });
 
+describe("renderHighlightToolbar copied beacon", () => {
+	it("names the owner's copied route with no query on the web", () => {
+		const toolbar = toolbarDocument().querySelector("[data-test-highlight-toolbar]");
+
+		expect(toolbar?.getAttribute("data-highlight-copied-url")).toBe("/queue/abc/highlights/copied");
+	});
+
+	it("keeps the app's platform query on the copied route but not the readlist return", () => {
+		const toolbar = toolbarDocument({
+			articleId: "abc",
+			readlist: [["tab", "unread"]],
+			surface: [["platform", "ios"]],
+		}).querySelector("[data-test-highlight-toolbar]");
+
+		expect(toolbar?.getAttribute("data-highlight-copied-url")).toBe("/queue/abc/highlights/copied?platform=ios");
+	});
+
+	it("renders the copy status outside the toolbar", () => {
+		const doc = toolbarDocument();
+
+		expect(doc.querySelector("[data-highlight-copy-status]")?.closest("[data-test-highlight-toolbar]")).toBeNull();
+		expect(doc.querySelector("[data-highlight-copy-status]")?.getAttribute("data-copied-text")).toBe("Highlight copied");
+	});
+});
+
 describe("renderLocalHighlightToolbar", () => {
 	const doc = (): Document =>
-		new JSDOM(renderLocalHighlightToolbar({ openedUrl: "/view/highlights/event" })).window.document;
+		new JSDOM(
+			renderLocalHighlightToolbar({
+				openedUrl: "/view/highlights/event",
+				copiedUrl: "/view/highlights/event?action=copied",
+			}),
+		).window.document;
 
-	it("names the public event route as the opened beacon", () => {
+	it("names the public event route as the opened and copied beacons", () => {
 		const toolbar = doc().querySelector("[data-test-highlight-toolbar]");
 		assert(toolbar, "the toolbar renders");
 
 		assert.equal(toolbar.getAttribute("data-highlight-opened-url"), "/view/highlights/event");
+		assert.equal(toolbar.getAttribute("data-highlight-copied-url"), "/view/highlights/event?action=copied");
+	});
+
+	it("renders the hidden copy status beside the toolbar, carrying both translated messages", () => {
+		const status = doc().querySelector("[data-highlight-copy-status]");
+		assert(status, "the copy status renders");
+
+		assert.equal(status.hasAttribute("hidden"), true);
+		assert.equal(status.getAttribute("aria-hidden"), "true");
+		assert.equal(status.getAttribute("data-copied-text"), "Highlight copied");
+		assert.equal(
+			status.getAttribute("data-copy-failed-text"),
+			"Couldn't copy the highlight. Select its text to copy it.",
+		);
+		assert.equal(status.textContent, "");
 	});
 
 	it("marks only Add note as a note trigger, so browsers without popovers hide it", () => {

@@ -26,6 +26,8 @@ const CARD_TITLE = "[data-test-article-title]";
 const PENDING_CARD = '[data-card-status="pending"]';
 const BACK_LINK = "[data-test-back-link]";
 const SAME_DOCUMENT = "data-test-same-document";
+const PANEL_COPY = '[data-test-action="highlight-panel-copy"]';
+const COPY_STATUS = "[data-test-highlight-copy-status]";
 
 const FILLER_SENTENCE =
 	"Every filler paragraph of this seeded article repeats one sentence about keeping a long read in view, so the passages worth marking sit well below the fold of the first screen.";
@@ -291,5 +293,38 @@ test.describe("Highlighting a passage in the reader", () => {
 		);
 		await expect(page.locator(MARK)).toHaveCount(0);
 		await expect(page.locator(RAIL_ROW)).toHaveCount(0);
+	});
+});
+
+test.describe("Copying a highlight from its actions", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, permissions: ["clipboard-read", "clipboard-write"] });
+
+	test("Copy highlight puts exactly the passage on the clipboard, says so and counts the copy", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `copy-${testInfo.workerIndex}-${Date.now()}`);
+		await highlight(page, FIRST_PASSAGE);
+		const mark = markHolding(page, FIRST_PASSAGE);
+		await expect(mark).toHaveCount(1);
+		const highlightId = await mark.getAttribute("data-highlight-id");
+		assert(highlightId, "a highlight's mark names its highlight");
+		await mark.click();
+		const panel = page.locator(`#manage-highlight-${highlightId}:popover-open`);
+		await expect(panel).toHaveCount(1, { timeout: SETTLE_MS });
+
+		const copied = page.waitForRequest((request) => {
+			const url = new URL(request.url());
+			return (
+				url.pathname.endsWith("/highlights/copied") &&
+				url.searchParams.get("highlight") === highlightId &&
+				url.searchParams.get("origin") === "panel"
+			);
+		});
+		await panel.locator(PANEL_COPY).click();
+		await copied;
+
+		await expect(page.locator(COPY_STATUS)).toHaveText("Highlight copied");
+		await expect(page.locator(COPY_STATUS)).toBeVisible();
+		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(FIRST_PASSAGE);
 	});
 });

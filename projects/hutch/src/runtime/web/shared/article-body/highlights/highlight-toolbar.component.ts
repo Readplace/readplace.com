@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import { highlightActionUrl } from "../../../pages/readlist/highlight-surface";
 import { READLIST_PATH } from "../../../pages/readlist/readlist.url";
+import { renderHighlightCopyStatus } from "../highlight-popover/highlight-popover.component";
 import {
 	HIGHLIGHT_NOTE_DIALOG_ID,
 	type HighlightFormScope,
@@ -25,6 +27,14 @@ export const HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS: readonly { name: string; value
 	{ name: "answer", value: "dialog" },
 ];
 
+function highlightCopiedUrl(scope: HighlightFormScope): string {
+	return highlightActionUrl({
+		path: `${READLIST_PATH}/${scope.articleId}/highlights/copied`,
+		readlist: [],
+		surface: scope.surface,
+	});
+}
+
 export function renderHighlightToolbar(input: {
 	scope: HighlightFormScope;
 	rowNoteOpen: boolean;
@@ -38,6 +48,8 @@ export function renderHighlightToolbar(input: {
 			content: "highlight",
 		}),
 		openedUrl: `${READLIST_PATH}/${input.scope.articleId}/highlights/opened`,
+		copiedUrl: highlightCopiedUrl(input.scope),
+		copyStatusHtml: renderHighlightCopyStatus(),
 		createFormSelector: "[data-highlight-create-form]",
 		pushesHistory: pushesHistory(input.scope),
 		noteFormSelector: `#${HIGHLIGHT_NOTE_DIALOG_ID} form`,
@@ -49,10 +61,12 @@ export function renderHighlightToolbar(input: {
 	}).trim();
 }
 
-export function renderLocalHighlightToolbar(input: { openedUrl: string }): string {
+export function renderLocalHighlightToolbar(input: { openedUrl: string; copiedUrl: string }): string {
 	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
 		local: true,
 		openedUrl: input.openedUrl,
+		copiedUrl: input.copiedUrl,
+		copyStatusHtml: renderHighlightCopyStatus(),
 		createFormSelector: "[data-highlight-create-form]",
 		noteFormSelector: `#${HIGHLIGHT_NOTE_DIALOG_ID} form`,
 		noteDialogHtml: renderLocalHighlightNoteDialog({ hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS }),

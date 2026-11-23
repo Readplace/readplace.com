@@ -14,6 +14,9 @@ export const enUS = {
 		highlightPopover: {
 			title: "Highlight actions",
 			hint: "Opens this highlight's actions",
+			copy: "Copy highlight",
+			copied: "Highlight copied",
+			copyFailed: "Couldn't copy the highlight. Select its text to copy it.",
 		},
 		highlightsRail: {
 			title: "Highlights",

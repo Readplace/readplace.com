@@ -68,6 +68,11 @@ const HighlightOpenedQuerySchema = z.object({
 	origin: z.enum(["mark", "rail"]),
 });
 
+const HighlightCopiedQuerySchema = z.object({
+	highlight: HighlightIdSchema,
+	origin: z.literal("panel"),
+});
+
 const TOAST_DISMISS_MS = 6000;
 
 const OUTCOME_TOASTS = {
@@ -324,6 +329,35 @@ export function initHighlightRoutes(
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					origin: opened.data.origin,
 					highlight_id: opened.data.highlight,
+				});
+			}
+			res.status(204).end();
+		},
+	);
+
+	router.post(
+		"/:id/highlights/copied",
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(
+				req.userId,
+				"userId required - route must be protected by requireAuth",
+			);
+			const article = await ownedArticleOf(req);
+			if (!article) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const copied = HighlightCopiedQuerySchema.safeParse(req.query);
+			if (copied.success) {
+				deps.recordAnalyticsEvent(req, {
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.highlightCopied,
+					timestamp: deps.now().toISOString(),
+					user_id: req.userId,
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+					origin: copied.data.origin,
+					highlight_id: copied.data.highlight,
+					surface: nativeSurfaceOf(req) ?? "web",
 				});
 			}
 			res.status(204).end();

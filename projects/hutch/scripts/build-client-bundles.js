@@ -156,6 +156,13 @@ const BUNDLES = [
       "  isFocusVisible: function (element) { return element.matches(':focus-visible'); },",
       "  sendBeacon: function (url) { window.navigator.sendBeacon(url); }",
       "});",
+      "HighlightToolbar.initHighlightCopy({",
+      "  document: window.document,",
+      "  navigator: window.navigator,",
+      "  setTimeoutFn: function (callback, delayMs) { return window.setTimeout(callback, delayMs); },",
+      "  clearTimeoutFn: function (handle) { window.clearTimeout(handle); },",
+      "  sendBeacon: function (url) { window.navigator.sendBeacon(url); }",
+      "});",
     ].join("\n"),
   },
   {

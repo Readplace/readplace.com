@@ -781,6 +781,21 @@ describe("initViewHighlights — the actions on a kept passage", () => {
 		assert.equal(byId({ h, id: "manage-highlight-hint" }).hidden, true);
 	});
 
+	it("gives each kept passage's Copy highlight item that passage's text", () => {
+		const h = textHarness();
+		highlight({ h, quote: "The first" });
+		rowNote({ h, quote: "A second sentence", note: "Kept note" });
+
+		assert.deepEqual(
+			["local-1", "local-2"].map((id) =>
+				part({ root: byId({ h, id: `manage-highlight-${id}` }), selector: "[data-highlight-copy]" }).getAttribute(
+					"data-highlight-copy",
+				),
+			),
+			["The first", "A second sentence"],
+		);
+	});
+
 	it("makes every kept passage a tab stop described by its note and the actions hint", () => {
 		const h = textHarness();
 		highlight({ h, quote: "The first" });
