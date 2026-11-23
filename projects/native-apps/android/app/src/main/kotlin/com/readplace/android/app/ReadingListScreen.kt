@@ -390,7 +390,7 @@ fun ReadingListScreen(
 			confirmButton = {
 				TextButton(
 					onClick = { confirmDestructive(pending) },
-					colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+					colors = ButtonDefaults.textButtonColors(contentColor = LocalBrandColors.current.errorText),
 				) {
 					Text(text = pending.label)
 				}
@@ -585,7 +585,7 @@ internal fun ReadingListTitle(currentReadlistLabel: String?) {
 @Composable
 private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	val presentation = affordance.presentation
-	val tint = presentation.tint.resolved()
+	val tint = presentation.tint.fill(LocalBrandColors.current)
 	if (presentation.showsTitle) {
 		TextButton(
 			onClick = onTap,
@@ -778,7 +778,7 @@ private fun ArticleItem(
 				DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
 					for (affordance in controls) {
 						val presentation = affordance.presentation
-						val tint = presentation.tint.resolved()
+						val tint = presentation.tint.ink(LocalBrandColors.current)
 						DropdownMenuItem(
 							text = { Text(text = affordance.label) },
 							onClick = {
@@ -857,7 +857,7 @@ private fun RowControlsTray(
 			Column(
 				modifier = Modifier
 					.fillMaxHeight()
-					.background(presentation.tint.resolved() ?: MaterialTheme.colorScheme.primary)
+					.background(presentation.tint.fill(LocalBrandColors.current) ?: MaterialTheme.colorScheme.primary)
 					.clickable(onClick = { onActivate(affordance) })
 					.padding(horizontal = 16.dp),
 				verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -953,14 +953,6 @@ private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifi
 		}
 	}
 }
-
-@Composable
-private fun AffordanceTint.resolved(): Color? =
-	when (this) {
-		AffordanceTint.NEUTRAL -> null
-		AffordanceTint.SUCCESS -> LocalBrandColors.current.success
-		AffordanceTint.DESTRUCTIVE -> LocalBrandColors.current.error
-	}
 
 private val AffordanceIcon.glyph: ImageVector
 	get() = when (this) {
