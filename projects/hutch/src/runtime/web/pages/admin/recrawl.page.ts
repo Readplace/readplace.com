@@ -33,7 +33,10 @@ import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
 import { ADMIN_INDEX_STYLES } from "./admin-index.styles";
 
-const RecrawlUrlSchema = z.url();
+// Shared article keys omit the scheme. The reserved inbox prefix belongs to saved messages.
+const RecrawlUrlSchema = z.url({ protocol: /^https?$/ }).pipe(
+	z.string().refine((url) => !ArticleResourceUniqueId.parse(url).value.startsWith("inbox/")),
+);
 
 const RECRAWL_REFUSED_TEMPLATE = readFileSync(join(__dirname, "recrawl-refused.template.html"), "utf-8");
 
