@@ -7,16 +7,20 @@
   "scripts": {
     "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint scripts\" \"knip\"",
-    "test": "node --test dist/scripts/collect-failed-rows.test.js dist/scripts/exclude-patterns.test.js dist/scripts/failed-articles-issue.test.js",
+    "test": "node --test dist/scripts/collect-failed-rows.test.js dist/scripts/exclude-patterns.test.js dist/scripts/failed-articles-issue.test.js dist/scripts/failure-history-logs.test.js dist/scripts/failure-history.test.js dist/scripts/failure-history-memberships.test.js dist/scripts/failure-history-public.test.js",
     "check": "nx run @packages/check-failed-articles:check",
-    "check-infra": "echo 'No infrastructure — canary script'"
+    "check-infra": "echo 'No infrastructure \u2014 canary script'"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "3.1057.0",
+    "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
     "@packages/article-store": "workspace:*",
-    "@packages/storage-client": "workspace:*",
+    "@packages/dashboard-widgets": "workspace:*",
+    "@packages/domain": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/require-env": "workspace:*",
+    "@packages/storage-client": "workspace:*",
     "zod": "4.6.7"
   },
   "devDependencies": {

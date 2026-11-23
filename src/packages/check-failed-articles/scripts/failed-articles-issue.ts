@@ -2,6 +2,18 @@ import { parseCrawlFailureReason, SummaryFailureReasonSchema } from "@packages/a
 import type { CanaryReportRow } from "@packages/provider-contracts/canary-report";
 import type { FailedAxis, FailedRow } from "./collect-failed-rows";
 
+const HISTORY_GROUP_LABELS = {
+	"readlist-loaded-no-reader-open": "Readlist loaded, no owner reader open recorded",
+	"reader-opened-before-failure": "Signed-in reader opened before failure",
+	"other-unknown": "Other or unknown history",
+};
+
+export type FailedArticleHistoryGroup = keyof typeof HISTORY_GROUP_LABELS;
+export type FailedArticlesIssueRow = FailedRow & {
+	historyGroup: FailedArticleHistoryGroup;
+	publicReaderOnlyBeforeFailure?: boolean;
+};
+
 function crawlReasonKey(raw: string | undefined): string {
 	if (raw === undefined) return "no stored reason";
 	const reason = parseCrawlFailureReason(raw);
@@ -36,14 +48,18 @@ function countByName(names: readonly string[]): [string, number][] {
 	return Array.from(counts).sort(([nameA, countA], [nameB, countB]) => countB - countA || (nameA < nameB ? -1 : 1));
 }
 
-export function toCanaryReportRow(row: FailedRow): CanaryReportRow {
+export function toCanaryReportRow(row: FailedRow & Partial<Pick<FailedArticlesIssueRow, "historyGroup" | "publicReaderOnlyBeforeFailure">>): CanaryReportRow {
 	const reasons = row.axes.flatMap((axis) => {
 		const raw = row.reasons[axis];
 		return raw === undefined ? [] : [`${axis}: ${raw}`];
 	});
 	return {
 		url: row.originalUrl,
-		labels: row.axes,
+		labels: [
+			...row.axes,
+			...(row.historyGroup === undefined ? [] : [HISTORY_GROUP_LABELS[row.historyGroup]]),
+			...(row.publicReaderOnlyBeforeFailure === true ? ["Public reader open recorded before failure"] : []),
+		],
 		detail: reasons.length === 0 ? "(no stored reason)" : reasons.join(" | "),
 		savedAt: row.savedAt,
 		contentFetchedAt: row.contentFetchedAt,
@@ -51,15 +67,19 @@ export function toCanaryReportRow(row: FailedRow): CanaryReportRow {
 }
 
 export function formatFailedArticlesIssue(input: {
-	rows: readonly [FailedRow, ...FailedRow[]];
+	rows: readonly [FailedArticlesIssueRow, ...FailedArticlesIssueRow[]];
 	runUrl: string;
 	reportUrl: string;
 	today: string;
+	historyEvidenceIncomplete?: boolean;
 }): { rowCount: number; body: string } {
 	const byAxis = countByName(input.rows.flatMap((row) => row.axes));
 	const byReason = countByName(
 		input.rows.flatMap((row) => row.axes.map((axis) => `${axis}: ${REASON_KEYS[axis](row.reasons[axis])}`)),
 	);
+	const byHistory = Object.entries(HISTORY_GROUP_LABELS).map(([group, label]) =>
+		`- **${label}**: ${input.rows.filter((row) => row.historyGroup === group).length}`);
+	const publicReaderCount = input.rows.filter((row) => row.historyGroup === "other-unknown" && row.publicReaderOnlyBeforeFailure).length;
 	const body = [
 		"<!-- CLAUDE_FAILED_ARTICLES_FIX -->",
 		"",
@@ -72,6 +92,16 @@ export function formatFailedArticlesIssue(input: {
 		`- **Date (UTC)**: ${input.today}`,
 		`- **Failed rows**: ${input.rows.length}`,
 		`- **Report (admins only)**: ${input.reportUrl}`,
+		"",
+		"## Breakdown by recorded access",
+		...byHistory,
+		...(publicReaderCount > 0 ? [`- Of **Other or unknown history**, at least ${publicReaderCount} had a confirmed public reader open before failure.`] : []),
+		"",
+		...(input.historyEvidenceIncomplete ? [
+			"Some access history could not be verified. Inconclusive rows are counted under Other or unknown history.",
+			"",
+		] : []),
+		"Opening the reader can trigger a local HTML capture on supported clients.",
 		"",
 		"## Breakdown by axis",
 		...byAxis.map(([axis, count]) => `- **${axis}**: ${count}`),

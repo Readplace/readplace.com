@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { formatFailedArticlesIssue, toCanaryReportRow } from "./failed-articles-issue";
+import type { FailedRow } from "./collect-failed-rows";
 
 const RUN_URL = "https://github.test/readplace/actions/runs/37967705297";
 const REPORT_URL = "https://readplace.test/admin/canary-reports/failed-articles/run-37967705297-1";
@@ -46,13 +47,65 @@ describe("toCanaryReportRow", () => {
 			},
 		);
 	});
+
+	it("adds the evidence group to the private report labels without changing the axes or stored reason", () => {
+		const row: FailedRow = {
+			originalUrl: "https://site.test/private-article",
+			axes: ["crawl-failed"],
+			reasons: { "crawl-failed": '{"kind":"parse-error","detail":"private detail"}' },
+			savedAt: "2026-10-03T08:00:00.000Z",
+			contentFetchedAt: undefined,
+		};
+		assert.deepEqual(toCanaryReportRow({ ...row, historyGroup: "reader-opened-before-failure" }), {
+			...toCanaryReportRow(row),
+			labels: ["crawl-failed", "Signed-in reader opened before failure"],
+		});
+	});
 });
 
 describe("formatFailedArticlesIssue", () => {
+	it("counts each row once in the public access breakdown", () => {
+		const example: FailedRow = {
+			originalUrl: "https://site.test/private-article?token=do-not-publish",
+			axes: ["crawl-failed"],
+			reasons: { "crawl-failed": '{"kind":"parse-error","detail":"private capture detail"}' },
+			savedAt: "2026-10-01T08:00:00.000Z",
+			contentFetchedAt: undefined,
+		};
+		const readlist = { ...example, historyGroup: "readlist-loaded-no-reader-open" as const };
+		const reader = { ...example, axes: ["crawl-failed", "summary-failed"] satisfies FailedRow["axes"], historyGroup: "reader-opened-before-failure" as const };
+		const unknown = { ...example, historyGroup: "other-unknown" as const };
+		const issue = formatFailedArticlesIssue({
+			rows: [readlist, readlist, reader, reader, readlist, reader, { ...unknown, publicReaderOnlyBeforeFailure: true }],
+			runUrl: RUN_URL,
+			reportUrl: REPORT_URL,
+			today: "2026-10-10",
+			historyEvidenceIncomplete: true,
+		});
+
+		const lines = issue.body.split("\n");
+		assert.deepEqual(lines.slice(lines.indexOf("## Breakdown by recorded access"), lines.indexOf("## Breakdown by axis")), [
+			"## Breakdown by recorded access",
+			"- **Readlist loaded, no owner reader open recorded**: 3",
+			"- **Signed-in reader opened before failure**: 3",
+			"- **Other or unknown history**: 1",
+			"- Of **Other or unknown history**, at least 1 had a confirmed public reader open before failure.",
+			"",
+			"Some access history could not be verified. Inconclusive rows are counted under Other or unknown history.",
+			"",
+			"Opening the reader can trigger a local HTML capture on supported clients.",
+			"",
+		]);
+		assert.equal(issue.rowCount, 7);
+		assert.deepEqual(issue.body.match(/https?:\/\/\S+/g), [RUN_URL, REPORT_URL]);
+		assert.doesNotMatch(issue.body, /private capture detail|do-not-publish/);
+	});
+
 	it("counts the rows by axis and by reason and links the report instead of listing any row", () => {
 		const issue = formatFailedArticlesIssue({
 			rows: [
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/a",
 					axes: ["crawl-failed"],
 					reasons: { "crawl-failed": '{"kind":"blocked","cause":"edge-block"}' },
@@ -60,6 +113,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/b",
 					axes: ["crawl-failed"],
 					reasons: { "crawl-failed": '{"kind":"blocked","cause":"edge-block"}' },
@@ -67,6 +121,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/c",
 					axes: ["crawl-failed"],
 					reasons: { "crawl-failed": '{"kind":"fetch-failed","httpStatus":503}' },
@@ -74,6 +129,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/d",
 					axes: ["crawl-failed"],
 					reasons: {
@@ -83,6 +139,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: "2026-10-02T09:30:00.000Z",
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/e",
 					axes: ["crawl-failed"],
 					reasons: { "crawl-failed": "HTTP 403 from https://site.test/e" },
@@ -90,6 +147,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/f",
 					axes: ["summary-failed"],
 					reasons: { "summary-failed": '{"kind":"model-overload"}' },
@@ -97,6 +155,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: "2026-10-02T09:30:00.000Z",
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/g",
 					axes: ["summary-failed"],
 					reasons: { "summary-failed": "DeepSeek timed out" },
@@ -104,6 +163,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: "2026-10-02T09:30:00.000Z",
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/h",
 					axes: ["crawl-failed", "summary-failed"],
 					reasons: {},
@@ -132,6 +192,13 @@ describe("formatFailedArticlesIssue", () => {
 				"- **Failed rows**: 8",
 				`- **Report (admins only)**: ${REPORT_URL}`,
 				"",
+				"## Breakdown by recorded access",
+				"- **Readlist loaded, no owner reader open recorded**: 0",
+				"- **Signed-in reader opened before failure**: 0",
+				"- **Other or unknown history**: 8",
+				"",
+				"Opening the reader can trigger a local HTML capture on supported clients.",
+				"",
 				"## Breakdown by axis",
 				"- **crawl-failed**: 6",
 				"- **summary-failed**: 3",
@@ -154,6 +221,7 @@ describe("formatFailedArticlesIssue", () => {
 		const issue = formatFailedArticlesIssue({
 			rows: [
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/a",
 					axes: ["summary-failed"],
 					reasons: { "summary-failed": '{"kind":"model-overload"}' },
@@ -161,6 +229,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/b",
 					axes: ["summary-failed"],
 					reasons: { "summary-failed": '{"kind":"model-overload"}' },
@@ -168,6 +237,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/c",
 					axes: ["crawl-failed"],
 					reasons: { "crawl-failed": '{"kind":"origin-unreachable","code":"ENOTFOUND"}' },
@@ -175,6 +245,7 @@ describe("formatFailedArticlesIssue", () => {
 					contentFetchedAt: undefined,
 				},
 				{
+					historyGroup: "other-unknown",
 					originalUrl: "https://site.test/d",
 					axes: ["crawl-failed"],
 					reasons: { "crawl-failed": '{"kind":"exhausted-retries","receiveCount":3}' },

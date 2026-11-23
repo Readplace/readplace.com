@@ -1658,12 +1658,24 @@ importers:
 
   src/packages/check-failed-articles:
     dependencies:
+      '@aws-sdk/client-cloudwatch-logs':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../article-resource-unique-id
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
       '@packages/article-store':
         specifier: workspace:*
         version: link:../article-store
+      '@packages/dashboard-widgets':
+        specifier: workspace:*
+        version: link:../dashboard-widgets
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts

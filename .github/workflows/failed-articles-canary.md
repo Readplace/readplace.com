@@ -13,12 +13,13 @@ Only articles with a recorded full-processing admission for the latest attempt q
 
 ## Your Task
 
-1. **Read the issue, then its report.** The issue holds counts only: rows per axis and per stored-reason kind, plus a **Report (admins only)** link. Each row's URL, axes, stored reason, saved and fetched times and a Recrawl button are on that report page, which needs a browser signed in as an admin. The axes tell you which state machine terminated unsuccessfully.
+1. **Read the issue, then its report.** The issue shows totals by recorded access, failure axis and stored-reason kind, plus a **Report (admins only)** link. The admin report shows each row's access group, URL, axes, stored reason, saved and fetched times and Recrawl button. Older reports may lack the access group. The axes tell you which state machine terminated unsuccessfully.
 
 2. **Group by root cause.** Multiple rows usually share the same cause — a single Cloudflare fingerprint change can fail hundreds of URLs. Cluster the report's rows before recommending fixes:
    - By **failure-reason kind** (`http-error:403`, `non-html-content:application/pdf`, `exhausted-retries`, `crawl-failed`, etc.).
    - By **host/domain** (`medium.com`, `substack.com`, `nytimes.com`).
    - By **axis** (crawl vs summary).
+   - By **recorded access** across saves of the same article. A signed-in reader open counts when it belongs to the current saved lifetime and precedes the observed attempt's failure. A readlist-triggered admission with sufficient evidence and no recorded owner open goes in the readlist group. Public reader opens are distinguished within other or unknown history. Missing or inconclusive evidence also goes in that group. Opening the signed-in reader can trigger a local HTML capture on supported clients.
 
 3. **Do not edit the issue.** This canary's workflow skips its scheduled scan while an open tracking issue exists — the operator closes the issue manually once they have worked through the backlog. Closing is the operator's signal that the worklist is processed.
 

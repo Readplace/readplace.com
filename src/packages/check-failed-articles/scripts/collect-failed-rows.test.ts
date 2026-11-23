@@ -176,6 +176,8 @@ describe("buildQueryInputs", () => {
 				"summaryFailureReason",
 				"contentFetchedAt",
 				"savedAt",
+				"fullCrawlRequestedAt",
+				"resolutionOnViewClaimedAt",
 			]) {
 				assert.ok(
 					input.ProjectionExpression.includes(attr),
@@ -202,6 +204,36 @@ describe("buildQueryInputs", () => {
 });
 
 describe("collectFailedRows", () => {
+	it("keeps physical keys and optional admission evidence in the deduplicated report order", async () => {
+		const listAdmission = "2026-05-11T00:00:00.000Z";
+		const repeat = {
+			url: "stored.test/a",
+			originalUrl: "https://example.test/a?from=feed",
+			crawlStatus: "failed",
+			summaryStatus: "failed",
+			savedAt: "2026-05-10T00:00:00.000Z",
+			fullCrawlRequestedAt: listAdmission,
+			resolutionOnViewClaimedAt: listAdmission,
+		};
+		const { client } = createIndexClient({
+			[CRAWL_STATUS_INDEX]: [[repeat], [{
+				url: "stored.test/b",
+				crawlStatus: "failed",
+				summaryStatus: "skipped",
+				savedAt: "2026-05-10T00:00:00.000Z",
+				fullCrawlRequestedAt: 123,
+			}]],
+			[SUMMARY_STATUS_INDEX]: [[repeat]],
+		});
+		const rows = await collect(client);
+		assert.deepEqual(rows.map(({ articleKey, originalUrl, axes, fullCrawlRequestedAt, resolutionOnViewClaimedAt }) => [
+			articleKey, originalUrl, axes, fullCrawlRequestedAt, resolutionOnViewClaimedAt,
+		]), [
+			["stored.test/a", "https://example.test/a?from=feed", ["crawl-failed"], listAdmission, listAdmission],
+			["stored.test/b", "stored.test/b", ["crawl-failed"], undefined, undefined],
+		]);
+	});
+
 	it("issues one Query per status index against the configured table with the buildQueryInputs bodies", async () => {
 		const { client, calls } = createIndexClient({});
 		await collect(client);
