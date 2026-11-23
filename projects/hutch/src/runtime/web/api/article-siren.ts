@@ -13,7 +13,7 @@ import { displayableTime } from "../shared/displayable-time";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import { MAX_POLLS, POLL_INTERVAL_SECONDS } from "@packages/web-shell";
+import { MAX_POLLS, POLL_INTERVAL_SECONDS, withInternalTracking } from "@packages/web-shell";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 import { type CollectionQueryParams, type ReadlistQueryKey, buildQueryString } from "./collection-query";
@@ -118,7 +118,7 @@ export function articleSelfHref(id: string): string {
 	return `/queue/${id}/card`;
 }
 
-export const UPLOAD_AGAIN_HREF = "/upload";
+export const UPLOAD_AGAIN_HREF = withInternalTracking("/upload", { source: "app-card", content: "failed-card" });
 
 function cardDisplay(params: {
 	article: SavedArticle;

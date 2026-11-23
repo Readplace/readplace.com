@@ -552,7 +552,9 @@ describe("card display and source links", () => {
 		});
 
 		expect({ failed: linkOf(failed, "upload-again"), recovered: linkOf(recovered, "upload-again") }).toEqual({
-			failed: [{ rel: ["upload-again"], href: "/upload", type: "text/html" }],
+			failed: [
+				{ rel: ["upload-again"], href: "/upload?utm_source=app-card&utm_medium=internal&utm_content=failed-card", type: "text/html" },
+			],
 			recovered: [],
 		});
 	});
