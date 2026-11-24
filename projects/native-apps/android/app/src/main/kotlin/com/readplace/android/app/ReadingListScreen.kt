@@ -871,7 +871,7 @@ private fun RowControlsTray(
 			Column(
 				modifier = Modifier
 					.fillMaxHeight()
-					.background(presentation.tint.fill(LocalBrandColors.current) ?: MaterialTheme.colorScheme.primary)
+					.background(presentation.tint.trayFill() ?: MaterialTheme.colorScheme.primary)
 					.clickable(onClick = { onActivate(affordance) })
 					.padding(horizontal = 16.dp),
 				verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -946,7 +946,7 @@ private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifi
 	val colors = LocalBrandColors.current
 	val fill = tone.fill(colors)
 	val ink = tone.ink(colors)
-	val backdrop = if (tone == BannerTone.OFFLINE) colors.surface else Color.Transparent
+	val backdrop = tone.backdrop(colors)
 	Row(
 		modifier = modifier
 			.background(backdrop)
