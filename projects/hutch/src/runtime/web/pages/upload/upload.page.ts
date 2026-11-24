@@ -13,6 +13,7 @@ import type {
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
 import { type MediaKindManifest, type MediaKindName, type UploadId, UploadIdSchema } from "@packages/media-contracts";
+import type { Logger } from "@packages/logger";
 import { sendComponent } from "@packages/web-shell";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -55,6 +56,14 @@ const RECEIVED_AGAIN: Record<
 	ready: "staged-for-review",
 	rejected: "staged-for-review",
 };
+
+const LOGGED_EXTENSION_MAX_LENGTH = 16;
+
+function refusedExtension(fileName: string | undefined): string | null {
+	if (fileName === undefined) return null;
+	const dot = fileName.lastIndexOf(".");
+	return dot === -1 ? "" : fileName.slice(dot, dot + LOGGED_EXTENSION_MAX_LENGTH).toLowerCase();
+}
 
 const StartUploadBody = z.object({
 	fileName: z.string().min(1).optional(),
@@ -173,6 +182,7 @@ export interface UploadRouteDependencies {
 	pickUploadProtocol: (req: Request) => UploadProtocol;
 	buildBannerState: BuildBannerState;
 	appOrigin: string;
+	logger: Logger;
 }
 
 export function initUploadRouter(deps: UploadRouteDependencies): Router {
@@ -312,6 +322,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			prefix,
 		});
 		if (!kind) {
+			deps.logger.info("[Upload] unsupported type", { extension: refusedExtension(session.fileName) });
 			await write(req, res, { outcome: "upload_unsupported_type" }, metered);
 			return;
 		}
