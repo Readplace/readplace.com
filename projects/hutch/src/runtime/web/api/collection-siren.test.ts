@@ -661,6 +661,25 @@ describe("toArticleCollectionEntity", () => {
 		expect(contentField?.maxRequestBytes).toBe(MAX_UPLOAD_REQUEST_BYTES);
 	});
 
+	it("advertises a title-less stage-upload action for a native app's file upload", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
+
+		const stageUpload = entity.actions?.find((a) => a.name === "stage-upload");
+		expect(stageUpload?.href).toBe("/upload");
+		expect(stageUpload?.method).toBe("POST");
+		expect(stageUpload?.type).toBe("application/x-www-form-urlencoded");
+		expect(stageUpload?.fields?.map((f) => f.name)).toEqual(["fileName", "byteLength"]);
+		expect(stageUpload?.title).toBe(undefined);
+	});
+
 	it("advertises a create-session action so a client discovers the reader session mint", () => {
 		const result: FindArticlesResult = {
 			articles: [],
@@ -738,6 +757,7 @@ describe("toArticleCollectionEntity", () => {
 			"save-article",
 			"save-articles",
 			"save-content",
+			"stage-upload",
 			"search",
 			"create-session",
 			"create-browser-handoff",

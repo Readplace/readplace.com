@@ -379,6 +379,7 @@ describe("/developers documents what the API emits", () => {
 		assert(uploadLink, "the collection must link to the upload entry");
 		const uploadEntry = await sirenGet(harness, { path: uploadLink.href, token });
 		expect(uploadEntry.body.class).toEqual(["upload"]);
+		expect(actionNamed(all.body, "stage-upload")).toEqual(actionNamed(uploadEntry.body, "stage-upload"));
 		const staged = await request(harness.server)
 			.post(actionNamed(uploadEntry.body, "stage-upload").href)
 			.set("Accept", SIREN_MEDIA_TYPE)
@@ -571,7 +572,7 @@ describe("/developers copy", () => {
 			"upload-entry":
 				"The entry is an entity of class upload. properties.kinds lists the kinds of file this reader can upload, each with its name (book, audio or video), a description to show, accepts (each media type with its file extensions), uploadCeilingBytes and ceilingLabel. heading and transcriptAllowance are text to show as given.",
 			"stage-upload":
-				"stage-upload: send its fields, fileName and the file's size in bytes as byteLength. It answers 200 with an entity of class upload-staged, a self link to this upload's status, and two actions.",
+				"stage-upload: send its fields, fileName and the file's size in bytes as byteLength. It answers 200 with an entity of class upload-staged, a self link to this upload's status, and two actions. The collection offers the same action.",
 			"upload-content-multipart":
 				"upload-content here is a multipart POST: send every field it lists with the value it carries, then the file in the file field, last. Storage answers 201. The same action name on an upload slot is a PUT, so follow each action's own method, type and fields.",
 			"confirm-received":
@@ -579,7 +580,7 @@ describe("/developers copy", () => {
 			"upload-status":
 				"If your app stops between steps, fetch the self link you kept. While the file is still to be confirmed it answers upload-staged again, with confirm-received. Once the file is saved it answers 303 to the collection, and when Readplace can't open the file it answers 422 upload_failed.",
 			"upload-refusals":
-				"A refusal is an error entity. An expired or invalid token answers 401 invalid-token, and a locked account 403. 404 upload_session_not_found means the upload isn't this reader's, or has expired. 409 upload_not_received means storage hasn't got the file yet. 413 upload_too_large means the file is over its kind's uploadCeilingBytes. 422 carries upload_unsupported_type, transcript-quota, transcript-too-long, unreadable-audio, no-audio-track or book-quota, whose retryAt property says when the reader can upload another book.",
+				"File and quota refusals carry code, message, and messages. An expired or invalid token answers 401 invalid-token, and a locked account 403. 404 upload_session_not_found means the upload isn't this reader's, or has expired. 409 upload_not_received means storage hasn't got the file yet. 413 upload_too_large means the file is over its kind's uploadCeilingBytes. 422 carries upload_unsupported_type, transcript-quota, transcript-too-long, unreadable-audio, no-audio-track or book-quota, whose retryAt property says when the reader can upload another book.",
 		});
 	});
 
