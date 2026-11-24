@@ -82,4 +82,8 @@ object BrandColor {
 		light = Rgb(red = 54, green = 124, blue = 99),
 		dark = Rgb(red = 74, green = 159, blue = 127),
 	)
+	val errorText = BrandColorPair(
+		light = Rgb(red = 175, green = 70, blue = 70),
+		dark = Rgb(red = 208, green = 138, blue = 138),
+	)
 }

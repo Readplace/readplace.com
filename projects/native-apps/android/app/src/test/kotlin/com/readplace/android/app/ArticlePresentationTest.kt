@@ -2,6 +2,9 @@ package com.readplace.android.app
 
 import com.readplace.android.core.Article
 import com.readplace.android.core.ArticleProcessing
+import com.readplace.android.core.ArticleSender
+import com.readplace.android.core.ArticleVia
+import com.readplace.android.core.SirenLink
 import com.readplace.android.core.CrawlEstimate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -206,6 +209,79 @@ class ArticlePresentationTest {
 		)
 	}
 
+	@Test
+	fun `the server's kind label stands in for the read time, so the length shows once`() {
+		val row = ArticlePresentation.of(
+			article(kindLabel = "Book · 12 chapters · 3 h read", readTimeLabel = "3 h read", savedAt = Instant.parse("2026-08-25T07:00:00Z")),
+			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
+		)
+		assertEquals("Book · 12 chapters · 3 h read · 3h ago", row.metaText)
+	}
+
+	@Test
+	fun `a public source opens its original, and a private one is text alone`() {
+		val clock = clockAt("2026-08-25T10:00:00Z")
+		val public = ArticlePresentation.of(article(siteName = "Example", originalUrl = "https://example.com/a"), clock, isAvailableOffline = false)
+		val private = ArticlePresentation.of(article(siteName = "Dune"), clock, isAvailableOffline = false)
+		assertEquals(ArticlePresentation.Source(label = "Example", originalUrl = "https://example.com/a"), public.source)
+		assertEquals("Open Example in browser", public.source?.actionLabel)
+		assertEquals(ArticlePresentation.Source(label = "Dune", originalUrl = null), private.source)
+		assertNull(private.source?.actionLabel)
+	}
+
+	@Test
+	fun `a row with no site name has no source line`() {
+		val row = ArticlePresentation.of(article(siteName = " ", originalUrl = "https://example.com/a"), clockAt("2026-08-25T10:00:00Z"), isAvailableOffline = false)
+		assertNull(row.source)
+	}
+
+	@Test
+	fun `only a recognised newsletter offers its sender behind a disclosure`() {
+		val clock = clockAt("2026-08-25T10:00:00Z")
+		val named = ArticlePresentation.of(
+			article(via = ArticleVia(label = "via TLDR", sender = ArticleSender(name = "TLDR", address = "dan@tldr.tech"))),
+			clock,
+			isAvailableOffline = false,
+		)
+		val plain = ArticlePresentation.of(article(via = ArticleVia(label = "via someone@example.com", sender = null)), clock, isAvailableOffline = false)
+		assertEquals("Sender details for via TLDR", named.via?.disclosureLabel)
+		assertEquals(ArticleSender(name = "TLDR", address = "dan@tldr.tech"), named.via?.sender)
+		assertEquals("via someone@example.com", plain.via?.label)
+		assertNull(plain.via?.disclosureLabel)
+	}
+
+	@Test
+	fun `a processing row hides its source and sender until the work settles`() {
+		val row = ArticlePresentation.of(
+			article(
+				siteName = "Example",
+				originalUrl = "https://example.com/a",
+				via = ArticleVia(label = "via TLDR", sender = null),
+				processing = processing(estimate = null),
+			),
+			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
+		)
+		assertNull(row.source)
+		assertNull(row.via)
+	}
+
+	@Test
+	fun `a failed upload offers recovery only while the server advertises it, beside the offline badge`() {
+		val clock = clockAt("2026-08-25T10:00:00Z")
+		val failed = ArticlePresentation.of(
+			article(uploadAgainLink = SirenLink(rel = listOf("upload-again"), href = "/upload", title = null), suggestion = "Added by Readplace"),
+			clock,
+			isAvailableOffline = true,
+		)
+		val settled = ArticlePresentation.of(article(), clock, isAvailableOffline = false)
+		assertEquals("Upload again", failed.recoveryLabel)
+		assertEquals("Saved offline", failed.offlineBadgeLabel)
+		assertEquals("Added by Readplace", failed.suggestion)
+		assertNull(settled.recoveryLabel)
+	}
+
 	// endregion
 
 	private fun savedAtWording(savedAt: String, now: String, zone: ZoneId = ZoneOffset.UTC): String? =
@@ -224,6 +300,11 @@ class ArticlePresentationTest {
 		processing: ArticleProcessing? = null,
 		notice: String? = null,
 		contentVersion: String? = null,
+		kindLabel: String? = null,
+		suggestion: String? = null,
+		via: ArticleVia? = null,
+		originalUrl: String? = null,
+		uploadAgainLink: SirenLink? = null,
 	): Article = Article(
 		id = "a1",
 		url = "https://example.com/a",
@@ -240,6 +321,11 @@ class ArticlePresentationTest {
 		processing = processing,
 		notice = notice,
 		contentVersion = contentVersion,
+		kindLabel = kindLabel,
+		suggestion = suggestion,
+		via = via,
+		originalUrl = originalUrl,
+		uploadAgainLink = uploadAgainLink,
 	)
 
 	private fun processing(estimate: CrawlEstimate?, label: String = "Processing"): ArticleProcessing =

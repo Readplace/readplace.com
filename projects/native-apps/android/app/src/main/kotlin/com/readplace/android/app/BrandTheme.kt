@@ -36,6 +36,7 @@ data class BrandColors(
 	val secondary: Color,
 	val primaryText: Color,
 	val successText: Color,
+	val errorText: Color,
 )
 
 private fun Rgb.toColor(): Color = Color(red = red, green = green, blue = blue)
@@ -61,6 +62,7 @@ fun brandColors(isDark: Boolean): BrandColors =
 		secondary = BrandColor.secondary.resolve(isDark).toColor(),
 		primaryText = BrandColor.primaryText.resolve(isDark).toColor(),
 		successText = BrandColor.successText.resolve(isDark).toColor(),
+		errorText = BrandColor.errorText.resolve(isDark).toColor(),
 	)
 
 private fun brandScheme(brand: BrandColors, isDark: Boolean): ColorScheme =

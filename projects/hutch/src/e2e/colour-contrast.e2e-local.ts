@@ -52,6 +52,7 @@ const SAVED_FACT_TOKEN = "--fact-saved";
 const BANNER_AREA_ROOT = ".banner-area";
 const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 function minimumRatio(measured: RenderedInk): number {
 	return measured.role === "text" ? textMinimum(measured) : NON_TEXT_MINIMUM;
@@ -685,17 +686,25 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
 	});
 
-	test("homepage arm C's capabilities clear their contrast minimum", async ({ page }) => {
-		await page.context().addCookies([{
-			name: EXPERIMENT_COOKIE_NAME,
-			value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[1].slug}`,
-			url: BASE_URL,
-		}]);
-		await page.emulateMedia({ colorScheme: "light" });
-		await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator('[data-test-section="capabilities"]')).toBeVisible({ timeout: SETTLE_MS });
-		await auditRoot(page, { root: '[data-test-section="capabilities"]', theme: "light", view: "home-c/capabilities" });
-	});
+	for (const arm of [
+		{ title: "homepage arm B's comparison clears its contrast minimum", variant: HOMEPAGE_SPLIT.variants[0], section: "compare", view: "home-b/compare" },
+		{ title: "homepage arm C's capabilities clear their contrast minimum", variant: HOMEPAGE_SPLIT.variants[1], section: "capabilities", view: "home-c/capabilities" },
+	]) {
+		test(arm.title, async ({ page }) => {
+			await page.context().addCookies([{
+				name: EXPERIMENT_COOKIE_NAME,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${arm.variant.slug}`,
+				url: BASE_URL,
+			}]);
+			const root = `[data-test-section="${arm.section}"]`;
+			for (const theme of ["light", "dark"] as const) {
+				await page.emulateMedia({ colorScheme: theme });
+				await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+				await expect(page.locator(root)).toBeVisible({ timeout: SETTLE_MS });
+				await auditRoot(page, { root, theme, view: arm.view });
+			}
+		});
+	}
 });
 
 async function createChipReader(page: Page, email: string): Promise<string> {
@@ -794,6 +803,32 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await expect(page.locator('[data-test-action="article-version-delete-open"]')).toBeVisible();
 			await auditRoot(page, { root: "#article-header", theme, view: "reader-header" });
 			await auditRoot(page, { root: "[data-test-article-history]", theme, view: "chip/article-history" });
+		}
+	});
+
+	test("the Saved offline badge clears its contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-chip-offline-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-offline-${run}`,
+				title: "A settled article kept for offline reading",
+				content: "<p>Seeded body for the Saved offline badge contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A concise summary.", excerpt: "Lead line." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.locator("[data-test-offline-download-start]").click();
+		await expect(page.locator("[data-offline-tag]")).toBeVisible({ timeout: DOWNLOAD_TIMEOUT_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await auditRoot(page, { root: "[data-offline-tag]", theme, view: "chip/saved-offline" });
 		}
 	});
 });

@@ -70,6 +70,16 @@ sealed interface CrawlEstimate {
 	data object AlmostThere : CrawlEstimate
 }
 
+data class ArticleSender(
+	val name: String,
+	val address: String,
+)
+
+data class ArticleVia(
+	val label: String,
+	val sender: ArticleSender?,
+)
+
 data class ArticleProcessing(
 	val label: String,
 	val estimate: CrawlEstimate?,
@@ -101,6 +111,9 @@ data class ArticleProperties(
 	val messages: List<ServerMessage>?,
 	val processing: ArticleProcessing?,
 	val contentVersion: String?,
+	val kindLabel: String? = null,
+	val suggestion: String? = null,
+	val via: ArticleVia? = null,
 )
 
 data class SirenEntity(
@@ -374,7 +387,23 @@ object SirenDecoding {
 			messages = lossyList(obj["messages"], ::serverMessage),
 			processing = runCatching { processing(obj["processing"]) }.getOrNull(),
 			contentVersion = string(obj["contentVersion"]),
+			kindLabel = string(obj["kindLabel"])?.takeIf { it.isNotBlank() },
+			suggestion = string(obj["suggestion"])?.takeIf { it.isNotBlank() },
+			via = runCatching { via(obj["via"]) }.getOrNull(),
 		)
+	}
+
+	private fun via(element: JsonElement?): ArticleVia? {
+		val obj = element as? JsonObject ?: return null
+		val label = string(obj["label"])?.takeIf { it.isNotBlank() } ?: return null
+		return ArticleVia(label = label, sender = runCatching { sender(obj["sender"]) }.getOrNull())
+	}
+
+	private fun sender(element: JsonElement?): ArticleSender? {
+		val obj = element as? JsonObject ?: return null
+		val name = string(obj["name"])?.takeIf { it.isNotBlank() } ?: return null
+		val address = string(obj["address"])?.takeIf { it.isNotBlank() } ?: return null
+		return ArticleSender(name = name, address = address)
 	}
 
 	private fun processing(element: JsonElement?): ArticleProcessing? {
@@ -475,6 +504,11 @@ data class Article(
 	val processing: ArticleProcessing?,
 	val notice: String?,
 	val contentVersion: String?,
+	val kindLabel: String? = null,
+	val suggestion: String? = null,
+	val via: ArticleVia? = null,
+	val originalUrl: String? = null,
+	val uploadAgainLink: SirenLink? = null,
 ) {
 	/** The item's action controls, one per advertised action the client can invoke
 	 * (an action with a usable href). Built by iterating — not by matching a known
@@ -505,12 +539,23 @@ data class Article(
 				processing = props.processing,
 				notice = props.messages.orEmpty().firstOrNull { it.isRenderable && it.type in NOTICE_TYPES }?.plainText,
 				contentVersion = props.contentVersion,
+				kindLabel = props.kindLabel,
+				suggestion = props.suggestion,
+				via = props.via,
+				originalUrl = links.firstOrNull { it.rel.contains("original") }?.href?.takeIf { isWebUrl(it) },
+				uploadAgainLink = links.firstOrNull { it.rel.contains("upload-again") && it.href != null },
 			)
 		}
 	}
 }
 
 private val NOTICE_TYPES = setOf("warning", "error")
+
+private fun isWebUrl(raw: String): Boolean {
+	val uri = runCatching { URI(raw) }.getOrNull() ?: return false
+	val scheme = uri.scheme?.lowercase()
+	return (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty()
+}
 
 /**
  * A status tab advertised on a readlist collection. `isCurrent` is the server's

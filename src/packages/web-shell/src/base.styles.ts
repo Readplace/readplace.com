@@ -56,8 +56,8 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--muted-foreground": "var(--color-text-secondary)",
 	"--success": "var(--color-success)",
 	/** --color-success is 4.10:1 on white, short of 1.4.3. Same hue and
-	 * saturation, darkened to 4.98:1, for success wording rather than surfaces. */
-	"--success-text": "hsl(158 39% 35%)",
+	 * saturation, darkened, for success wording rather than surfaces. */
+	"--success-text": "hsl(158 39% 31%)",
 	"--success-foreground": "hsl(0 0% 100%)",
 	"--success-bg": "#E8F2EE",
 	"--info-bg": "#E8EFF7",
@@ -70,7 +70,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--radius-lg": "16px",
 	"--radius-pill": "999px",
 	"--reader-max-width": "680px",
-	"--input": "var(--color-border)",
+	"--input": "#838895",
 	"--ring": "hsl(27 65% 47%)",
 	"--error": "hsl(0 43% 56%)",
 	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened,
@@ -149,7 +149,8 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--neutral-hover": "#2A2A2A",
 	"--neutral-pressed": "#2E2E2E",
 	"--ring": "hsl(27 65% 52%)",
-	"--success-text": "var(--color-success)",
+	"--input": "#787878",
+	"--success-text": "#5AAE8E",
 	"--success-bg": "#17302A",
 	"--info-bg": "#1B2836",
 	"--error-text": "hsl(0 43% 68%)",

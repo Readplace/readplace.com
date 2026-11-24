@@ -5,6 +5,9 @@ export const enUS = {
 		},
 	},
 	articleBody: {
+		provenance: {
+			hnSuggestion: "Added by Readplace from Hacker News",
+		},
 		highlightToolbar: {
 			beta: "Beta",
 		},
