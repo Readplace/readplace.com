@@ -15,11 +15,14 @@ final class BannerToneTests: XCTestCase {
 		XCTAssertEqual(BannerTone.offline.ink, .brandTextPrimary)
 	}
 
-	func testErrorsAndWarningsKeepTheirFillsUnderWhiteWords() {
-		XCTAssertEqual(BannerTone.error.fill, .brandError)
+	func testAWarningIsTheWarningTintUnderTheForegroundInk() {
+		XCTAssertEqual(BannerTone.warning.fill, .brandSecondary)
+		XCTAssertEqual(BannerTone.warning.ink, .brandTextPrimary)
+	}
+
+	func testAnErrorIsAFixedRedFillUnderWhiteWords() {
+		XCTAssertEqual(BannerTone.error.fill, .brandErrorFill)
 		XCTAssertEqual(BannerTone.error.ink, .white)
-		XCTAssertEqual(BannerTone.warning.fill, .brandWarning)
-		XCTAssertEqual(BannerTone.warning.ink, .white)
 	}
 
 	func testTheOfflineNoticeSitsOnTheListSurfaceBecauseItsTintIsTheUnreadRowFill() {
@@ -29,8 +32,14 @@ final class BannerToneTests: XCTestCase {
 		XCTAssertEqual(BannerTone.offline.backdrop, .brandSurface)
 	}
 
-	func testErrorsAndWarningsFloatOverTheListWithNoBackdrop() {
+	func testAWarningSitsOnTheListSurfaceBecauseItsTintIsTheUnreadRowFill() {
+		let unreadRow = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedAt: nil, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"), isAvailableOffline: false)
+
+		XCTAssertEqual(BannerTone.warning.fill, unreadRow.fill)
+		XCTAssertEqual(BannerTone.warning.backdrop, .brandSurface)
+	}
+
+	func testAnErrorFloatsOverTheListWithNoBackdrop() {
 		XCTAssertEqual(BannerTone.error.backdrop, .clear)
-		XCTAssertEqual(BannerTone.warning.backdrop, .clear)
 	}
 }

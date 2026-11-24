@@ -26,9 +26,10 @@ export function initReadabilityParser(deps: {
 			excerpt: contentSavedFromHostExcerpt(hostname),
 		};
 
+		const html = deps.readabilityAdditions.normalizeMalformedTitleEndTag(params.html);
 		const extracted = tryExtractFromSiteRules({
 			siteRules: deps.siteRules,
-			html: params.html,
+			html,
 			url: params.url,
 			documentUrl: params.documentUrl,
 			fetchedDocument: params.fetchedDocument,
@@ -36,7 +37,7 @@ export function initReadabilityParser(deps: {
 		});
 
 		const { document } = parseHTML(
-			extracted ? buildSyntheticHtml(extracted) : params.html,
+			extracted ? buildSyntheticHtml(extracted) : html,
 		);
 		if (!document.documentElement) {
 			return { ok: false, reason: "no <html> element in response body" };
@@ -46,10 +47,12 @@ export function initReadabilityParser(deps: {
 		// the caller can mark the crawl failed immediately — otherwise
 		// it escapes the whole pipeline and the reader slot is stuck on
 		// "pending" until the dead-letter path ticks over.
+		let restoreTitleHeading = (html: string) => html;
 		let parsed: ReturnType<Readability["parse"]>;
 		let phase: "Article normalization" | "Readability parse" = "Article normalization";
 		try {
 			deps.readabilityAdditions.normalizeImplicitBody(document);
+			if (!extracted && html !== params.html) restoreTitleHeading = deps.readabilityAdditions.preserveQualifiedTitleHeading(document);
 			deps.readabilityAdditions.preserveSubstackImagePreview({ document, savedUrl: params.url, documentUrl: params.documentUrl });
 			deps.readabilityAdditions.unwrapArticleBodyTemplates(document);
 			deps.readabilityAdditions.replaceVideosWithPlaceholder({
@@ -114,7 +117,7 @@ export function initReadabilityParser(deps: {
 				siteName: parsed.siteName || fallback.siteName,
 				excerpt: clipMetadataExcerpt(parsed.excerpt || fallback.excerpt),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
+				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(restoreTitleHeading(parsed.content)), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
 				publishedOn: deps.readabilityAdditions.publishedOnFrom(parsed.publishedTime),
 			},

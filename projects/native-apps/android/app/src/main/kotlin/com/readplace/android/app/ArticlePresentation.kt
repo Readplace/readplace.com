@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.core.Article
+import com.readplace.android.core.ArticleSender
 import com.readplace.android.core.CrawlEstimate
 import java.time.Clock
 import java.time.Duration
@@ -30,8 +31,20 @@ data class ArticlePresentation(
 	val processingLabel: String?,
 	val notice: String?,
 	val offlineBadgeLabel: String?,
+	val source: Source?,
+	val via: Via?,
+	val suggestion: String?,
+	val recoveryLabel: String?,
 	private val estimate: CrawlEstimate?,
 ) {
+	data class Source(val label: String, val originalUrl: String?) {
+		val actionLabel: String? get() = originalUrl?.let { "Open $label in browser" }
+	}
+
+	data class Via(val label: String, val sender: ArticleSender?) {
+		val disclosureLabel: String? get() = sender?.let { "Sender details for $label" }
+	}
+
 	fun estimateText(receivedAt: Instant?, now: Instant): String? {
 		if (receivedAt == null) return null
 		val elapsed = maxOf(0L, Duration.between(receivedAt, now).seconds)
@@ -47,6 +60,7 @@ data class ArticlePresentation(
 	companion object {
 		private const val ALMOST_THERE = "Almost there…"
 		private const val SAVED_OFFLINE = "Saved offline"
+		private const val UPLOAD_AGAIN = "Upload again"
 
 		private fun remainingWording(seconds: Long): String = if (seconds > 0) "~$seconds s left" else ALMOST_THERE
 
@@ -60,12 +74,21 @@ data class ArticlePresentation(
 			processingLabel = article.processing?.label,
 			notice = article.notice,
 			offlineBadgeLabel = if (isAvailableOffline) SAVED_OFFLINE else null,
+			source = if (article.processing != null) null else source(article),
+			via = if (article.processing != null) null else article.via?.let { Via(label = it.label, sender = it.sender) },
+			suggestion = article.suggestion,
+			recoveryLabel = if (article.uploadAgainLink != null) UPLOAD_AGAIN else null,
 			estimate = article.processing?.estimate,
 		)
 
+		private fun source(article: Article): Source? {
+			val label = article.siteName?.takeIf { it.isNotBlank() } ?: return null
+			return Source(label = label, originalUrl = article.originalUrl)
+		}
+
 		private fun metaText(article: Article, clock: Clock): String? {
 			val parts = mutableListOf<String>()
-			article.readTimeLabel?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+			(article.kindLabel ?: article.readTimeLabel)?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
 			article.savedAt?.let { parts.add(RelativeTime.wording(it, clock)) }
 			return if (parts.isEmpty()) null else parts.joinToString(" · ")
 		}
