@@ -156,7 +156,7 @@ function tryExtractFromSiteRules(params: {
 		try {
 			const url = site.matchFetchedDocument ? params.fetchedDocument && params.documentUrl : params.url;
 			if (url === undefined || matchingSiteRuleUrl({ site, url }) === undefined) continue;
-			const extracted = site.extract({ html: params.html });
+			const extracted = site.extract({ html: params.html }, { savedUrl: params.url, documentUrl: params.documentUrl });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
@@ -206,7 +206,8 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const titleTag = extracted.title ? `<title>${escapedTitle}</title>` : "";
 	const h1 = extracted.title ? `<h1>${escapedTitle}</h1>` : "";
 	const descriptionTag = extracted.excerpt ? `<meta name="description" content="${escapeHtmlText(extracted.excerpt)}">` : "";
-	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
+	const siteNameTag = extracted.siteName ? `<meta property="og:site_name" content="${escapeHtmlText(extracted.siteName)}">` : "";
+	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}${siteNameTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
 }
 
 function escapeHtmlText(text: string): string {

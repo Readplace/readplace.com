@@ -2,6 +2,7 @@ import { matchingSiteRuleUrl } from "@packages/site-rules";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
 import { danaMcNeilSiteRules } from "./dana-mcneil-site-rules";
+import { defensePhotoSiteRules } from "./defense-photo-site-rules";
 import { githubPullRequestSiteRules } from "./github-pull-request-site-rules";
 import { granolaSiteRules } from "./granola-site-rules";
 import { intuitPrivacySiteRules } from "./intuit-privacy-site-rules";
@@ -31,6 +32,7 @@ describe("initArticleSiteRules", () => {
 		});
 
 		expect(siteRules).toEqual([
+			defensePhotoSiteRules,
 			theInformationSiteRules,
 			mediumSiteRules,
 			linkedinSiteRules,
