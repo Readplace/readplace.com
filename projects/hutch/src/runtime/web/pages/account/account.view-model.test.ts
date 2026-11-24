@@ -233,6 +233,13 @@ describe("toAccountViewModel — plan summary", () => {
 		);
 	});
 
+	it("groups the daily save limit's digits for the reader's locale", () => {
+		assert.equal(
+			accountVm({ access: FREE, dailySaveLimit: 10000 }).statusNote,
+			"You keep every article you saved and can save up to 10,000 new links a day.",
+		);
+	});
+
 	it.each(PLANS)("adds no free-plan note to an active %s subscription", (plan) => {
 		assert.equal(accountVm({ access: ACTIVE, plan }).statusNote, "");
 	});

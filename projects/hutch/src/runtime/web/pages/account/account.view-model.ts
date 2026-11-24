@@ -210,7 +210,6 @@ export interface AccountViewModel {
 	statusLine: string;
 	statusDate?: LocalTime;
 	statusDateTail?: string;
-	/** What the reader keeps once the current state ends; empty where nothing changes. */
 	statusNote: string;
 	/** Only the active state overrides this; every other state keeps the hidden value
 	 * from `baseFor`, so a state cannot start announcing a charge by accident. */
@@ -755,6 +754,7 @@ function stateViewModel(input: {
 	dailySaveLimit: number;
 }): Omit<AccountViewModel, "dangerConfirmation" | "payment" | "billingHistory"> {
 	const { access, queryState, now, nextCharge, plan, dailySaveLimit } = input;
+	const limit = dailySaveLimit.toLocaleString(DEFAULT_LOCALE);
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {
@@ -809,7 +809,7 @@ function stateViewModel(input: {
 				statusLine: "Your free trial ends on ",
 				statusDate: toAbsoluteDate({ iso: trialEndsAt }),
 				statusDateTail: ` — ${daysLeft} ${daysLeftWord} left.`,
-				statusNote: t("billing.statusNote.trial", { limit: dailySaveLimit }),
+				statusNote: t("billing.statusNote.trial", { limit }),
 			};
 		}
 		case "cancellation-scheduled":
@@ -823,7 +823,7 @@ function stateViewModel(input: {
 				statusLine: "Your subscription ends on ",
 				statusDate: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 				statusDateTail: ".",
-				statusNote: t("billing.statusNote.cancellationScheduled", { limit: dailySaveLimit }),
+				statusNote: t("billing.statusNote.cancellationScheduled", { limit }),
 			};
 		case "free":
 			return {
@@ -834,7 +834,7 @@ function stateViewModel(input: {
 					actions: [SUBSCRIBE_ACTION],
 				}),
 				statusLine: "",
-				statusNote: t("billing.statusNote.free", { limit: dailySaveLimit }),
+				statusNote: t("billing.statusNote.free", { limit }),
 			};
 	}
 }
