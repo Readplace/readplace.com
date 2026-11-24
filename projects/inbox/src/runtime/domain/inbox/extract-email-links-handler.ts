@@ -72,12 +72,9 @@ const SUBMITTING_ORIGINS: Record<EmailReceivedDetail["origin"], boolean> = {
  * entry point every save surface uses (mirroring how /queue fans each import
  * URL into its own save command).
  *
- * Initial extraction derives the body from the immutable raw `.eml` so the
- * current sanitizer applies. A supplemental pass reuses completed preview rows
- * so its eligible links keep the same ordinals and triage decisions.
- * The per-email soft cap
- * bounds the fan-out; a truncated email still delivers the first N previews (the
- * working path) while writing a truncated meta item and raising a DLQ alert.
+ * The per-email soft cap bounds the fan-out; a truncated email still delivers
+ * the first N previews (the working path) while writing a truncated meta item
+ * and raising a DLQ alert.
  */
 export function initExtractEmailLinksHandler(deps: {
 	getEmail: InboxEmailStore["getEmail"];
@@ -276,13 +273,11 @@ export function initExtractEmailLinksHandler(deps: {
 						continue;
 					}
 
-					// Leaving images out of the rehost map keeps their CDN URLs out of link extraction.
 					const sanitizedHtml = deriveSanitizedBody({
 						html: parsedEmail.email.html,
 						inlineImages: parsedEmail.email.inlineImages,
 						rehostedRemoteImages: {},
 					});
-					// Decode query-string separators before classifying and saving the URL.
 					const extracted = extractUrls(Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"));
 					const capped = capEmailLinks(extracted, { maxLinks });
 					const classifyLink =
@@ -501,7 +496,8 @@ export function initExtractEmailLinksHandler(deps: {
 					// Triage verdicts are not deterministic across re-deliveries: a row a
 					// previous delivery terminally skipped must never be crawled by a
 					// later delivery that judged the same URL an article.
-					if (status !== "pending" || cached !== undefined) continue;
+					if (status !== "pending") continue;
+					if (cached !== undefined) continue;
 					// Submit BEFORE the preview publish: the preview consumer flips this
 					// row terminal, so a crash after the preview went out would make the
 					// retry's pending-gate skip a submit that never happened.

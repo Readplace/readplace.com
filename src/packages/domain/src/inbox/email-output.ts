@@ -29,8 +29,6 @@ export interface EmailOutputSelection {
 	selectedAt: string;
 }
 
-// An email can gain only the part omitted by its original delivery. Keep
-// that work and its destinations separate from the original output selection.
 export const SupplementalEmailImportSchema = z.object({
 	deliveryMode: z.enum(["issue", "links"]),
 	destinationAddresses: z.tuple([InboxAddressSchema], InboxAddressSchema),

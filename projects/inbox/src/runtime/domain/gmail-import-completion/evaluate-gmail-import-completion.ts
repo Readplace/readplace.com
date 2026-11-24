@@ -31,8 +31,6 @@ export function initEvaluateGmailImportCompletion(deps: {
 		}
 
 		if (!isEmailSavedToAll(completion)) return "not-saved";
-		// Once a history import accepts new work, its Gmail origin is marked only
-		// through that work so an old completion cannot race the new saves.
 		const origins = followUp
 			? completion.origins.filter((origin) => gmailMessageOriginKey(origin) !== gmailMessageOriginKey(followUp.origin))
 			: completion.origins;
