@@ -28,7 +28,8 @@ class LoginMarksPixelTest {
 		val capture = compose.captureLeaf(appearance = Appearance.Light) {
 			MuteButton(isMuted = isMuted, onToggle = {})
 		}
-		val fill = capture.argb[4 * capture.width + 22]
+		val disc = capture.height
+		val fill = capture.argb[disc / 10 * capture.width + disc / 2]
 		val channels = listOf((fill shr 16) and 0xFF, (fill shr 8) and 0xFF, fill and 0xFF)
 		assertTrue("fill channels $channels are #737373 within 1", channels.all { it in 114..116 })
 		assertMatchesBaseline(
