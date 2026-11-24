@@ -123,7 +123,7 @@ class BrandColorTest {
 					val a = ink.resolve(isDark)
 					val b = ground.resolve(isDark)
 					val colour = contrast(a, b)
-					val grey = greyscaleContrast(a, b)
+					val grey = lumaGreyscaleContrast(a, b)
 					val pair = "isDark=$isDark ink=${hex(a)} ground=${hex(b)} colour=$colour greyscale=$grey"
 					assertTrue(pair, colour >= 4.5)
 					assertTrue(pair, grey >= 4.5)
@@ -157,13 +157,13 @@ class BrandColorTest {
 	private fun linearise(srgb: Double): Double =
 		if (srgb <= 0.04045) srgb / 12.92 else ((srgb + 0.055) / 1.055).pow(2.4)
 
-	private fun greyscaleContrast(a: Rgb, b: Rgb): Double {
-		val lighter = max(greyLuminance(a), greyLuminance(b))
-		val darker = min(greyLuminance(a), greyLuminance(b))
+	private fun lumaGreyscaleContrast(a: Rgb, b: Rgb): Double {
+		val lighter = max(lumaGreyLuminance(a), lumaGreyLuminance(b))
+		val darker = min(lumaGreyLuminance(a), lumaGreyLuminance(b))
 		return (lighter + 0.05) / (darker + 0.05)
 	}
 
-	private fun greyLuminance(rgb: Rgb): Double =
+	private fun lumaGreyLuminance(rgb: Rgb): Double =
 		linearise((0.2126 * rgb.red + 0.7152 * rgb.green + 0.0722 * rgb.blue) / 255.0)
 
 	private fun assertHex(pair: BrandColorPair, light: String, dark: String) {

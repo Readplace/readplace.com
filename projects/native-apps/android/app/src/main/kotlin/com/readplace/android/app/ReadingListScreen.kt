@@ -585,14 +585,15 @@ internal fun ReadingListTitle(currentReadlistLabel: String?) {
 @Composable
 private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	val presentation = affordance.presentation
-	val tint = presentation.tint.fill(LocalBrandColors.current)
+	val colors = LocalBrandColors.current
 	if (presentation.showsTitle) {
+		val ink = presentation.tint.ink(colors)
 		TextButton(
 			onClick = onTap,
-			colors = if (tint == null) {
+			colors = if (ink == null) {
 				brandTextButtonColors()
 			} else {
-				ButtonDefaults.textButtonColors(contentColor = tint)
+				ButtonDefaults.textButtonColors(contentColor = ink)
 			},
 		) {
 			Icon(
@@ -608,7 +609,7 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 			Icon(
 				imageVector = presentation.icon.glyph,
 				contentDescription = affordance.label,
-				tint = tint ?: LocalContentColor.current,
+				tint = presentation.tint.fill(colors) ?: LocalContentColor.current,
 			)
 		}
 	}
