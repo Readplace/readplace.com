@@ -19,6 +19,7 @@ export type MarkGmailEmailImported = (input: {
 	userId: UserId;
 	receivedAtMessageId: string;
 	origin: GmailMessageOrigin;
+	supplemental?: true;
 }) => Promise<MarkGmailEmailImportedOutcome>;
 
 export function initMarkGmailEmailImported(deps: {
@@ -30,12 +31,13 @@ export function initMarkGmailEmailImported(deps: {
 }): MarkGmailEmailImported {
 	const { updates } = deps;
 
-	return async ({ userId, receivedAtMessageId, origin }) => {
+	return async ({ userId, receivedAtMessageId, origin, supplemental }) => {
+		const updateKey = { userId, origin, ...(supplemental ? { supplemental } : {}) };
 		if ((await deps.findMarkImportedSince({ userId, accountEmail: origin.accountEmail, senderEmail: origin.senderEmail })) === undefined) {
-			await updates.discardPending({ userId, origin });
+			await updates.discardPending(updateKey);
 			return { kind: "skipped" };
 		}
-		const recorded = await updates.recordPending({ userId, receivedAtMessageId, origin, now: deps.now() });
+		const recorded = await updates.recordPending({ ...updateKey, receivedAtMessageId, now: deps.now() });
 		if (recorded.status === "completed") return { kind: "already-marked" };
 		if (recorded.status === "failed") return { kind: "already-failed", reason: recorded.failureReason };
 
@@ -58,7 +60,7 @@ export function initMarkGmailEmailImported(deps: {
 
 		const fail = async (outcome: GmailOriginalUpdateFailure): Promise<MarkGmailEmailImportedOutcome> => {
 			if (outcome.kind === "reauth-required") return { kind: "deferred", reason: "account-unavailable" };
-			const marked = await updates.markFailed({ userId, origin, reason: outcome.reason, now: deps.now() });
+			const marked = await updates.markFailed({ ...updateKey, reason: outcome.reason, now: deps.now() });
 			return marked === "failed" ? outcome : { kind: "already-failed", reason: outcome.reason };
 		};
 		const labelId = await importedLabelId(mailbox);
@@ -66,7 +68,7 @@ export function initMarkGmailEmailImported(deps: {
 		const marked = await markOriginal({ mailbox, origin, labelId: labelId.value });
 		if (marked.kind !== "marked") return fail(marked);
 
-		await updates.markCompleted({ userId, origin, now: deps.now() });
+		await updates.markCompleted({ ...updateKey, now: deps.now() });
 		return { kind: "marked" };
 	};
 }

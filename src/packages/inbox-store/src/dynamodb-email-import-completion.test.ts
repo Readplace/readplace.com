@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailMessageIdSchema } from "@packages/domain/gmail";
-import { ISSUE_OUTPUT_KEY, linkOutputKey, formatEmailLinkOrdinal } from "@packages/domain/inbox";
+import { InboxAddressSchema, ISSUE_OUTPUT_KEY, linkOutputKey, formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbEmailImportCompletion } from "./dynamodb-email-import-completion";
 
@@ -44,6 +44,88 @@ function store(respond: (command: Sent) => unknown = () => ({})) {
 }
 
 describe("initDynamoDbEmailImportCompletion", () => {
+	const legacy = { ...KEY, messageId: "<id@example.com>", senderEmail: "dan@news.test", status: "received" };
+	const work = {
+		destinationAddresses: [InboxAddressSchema.parse("reader-abc123@readplace.com")] satisfies [string],
+		rawEmailS3Key: "gmail-import/user-1/job/m1.eml",
+		senderName: "Dan",
+		origin: ORIGIN,
+	};
+
+	it("conditionally adds missing article work without touching the original selection or its acknowledgments", async () => {
+		let supplementalImport: unknown;
+		let supplementalSelection: unknown;
+		const { completion, sent } = store(({ name, input }) => {
+			if (name === "UpdateCommand") {
+				if (input.UpdateExpression === "SET supplementalImport = :work") {
+					supplementalImport = input.ExpressionAttributeValues?.[":work"];
+				} else {
+					supplementalSelection = input.ExpressionAttributeValues?.[":selection"];
+				}
+				return {};
+			}
+			return { Item: { ...legacy, gmailDeliveryMode: "issue", outputSelection: SELECTION, savedOutputs: new Set(["issue"]), supplementalImport, supplementalSelection } };
+		});
+		const input = { ...KEY, requested: "both" as const, work };
+		assert.deepEqual(await completion.claimSupplementalImport(input), { ...work, deliveryMode: "links" });
+		assert.deepEqual(await completion.claimSupplementalImport({ ...input, work: { ...work, destinationAddresses: [InboxAddressSchema.parse("other-abc123@read.place")] } }), { ...work, deliveryMode: "links" });
+		assert.equal(await completion.claimSupplementalImport({ ...input, work: { ...work, rawEmailS3Key: "unrelated-job" } }), undefined);
+		const selection = { ...SELECTION, outputs: [] };
+		await completion.selectOutputs({ ...KEY, supplemental: true, selection });
+		assert.deepEqual(await completion.findCompletion(KEY), {
+			selection: SELECTION,
+			supplementalImport: { ...work, deliveryMode: "links" },
+			supplementalSelection: selection,
+			savedOutputs: new Set([ISSUE_OUTPUT_KEY]),
+			origins: [],
+		});
+		assert.deepEqual(sent[1].input.Key, KEY);
+		assert.equal(sent[1].input.ConditionExpression, "attribute_exists(receivedAtMessageId) AND attribute_not_exists(supplementalImport)");
+		assert.equal(sent[1].input.UpdateExpression, "SET supplementalImport = :work");
+		assert.equal(sent[4].input.UpdateExpression, "SET supplementalSelection = :selection");
+	});
+
+	it("uses the legacy links default even when the selection was empty", async () => {
+		const { completion } = store(() => ({ Item: { ...legacy, outputSelection: { ...SELECTION, outputs: [] } } }));
+		assert.equal(await completion.claimSupplementalImport({ ...KEY, requested: "links", work }), undefined);
+		assert.equal((await completion.claimSupplementalImport({ ...KEY, requested: "both", work }))?.deliveryMode, "issue");
+	});
+
+	it("resumes a concurrent write for the same attempt and rejects other attempts", async () => {
+		for (const rawEmailS3Key of [work.rawEmailS3Key, "other-job"]) {
+			let written = false;
+			const accepted = { ...work, deliveryMode: "links" };
+			const { completion } = store(({ name }) => {
+				if (name === "UpdateCommand") {
+					written = true;
+					throw conditionFailed();
+				}
+				return { Item: { ...legacy, gmailDeliveryMode: "issue", ...(written ? { supplementalImport: accepted } : {}) } };
+			});
+			assert.deepEqual(
+				await completion.claimSupplementalImport({ ...KEY, requested: "links", work: { ...work, rawEmailS3Key } }),
+				rawEmailS3Key === work.rawEmailS3Key ? accepted : undefined,
+			);
+		}
+	});
+
+	it("cannot claim work for an email removed from the inbox", async () => {
+		const { completion } = store(() => ({}));
+		assert.equal(await completion.claimSupplementalImport({ ...KEY, requested: "both", work }), undefined);
+	});
+
+	it("cannot recreate an inbox row deleted during acceptance", async () => {
+		let removed = false;
+		const { completion } = store(({ name }) => {
+			if (name === "UpdateCommand") {
+				removed = true;
+				throw conditionFailed();
+			}
+			return removed ? {} : { Item: { ...legacy, gmailDeliveryMode: "issue" } };
+		});
+		assert.equal(await completion.claimSupplementalImport({ ...KEY, requested: "links", work }), undefined);
+	});
+
 	it("adds Gmail origins to the email row's set", async () => {
 		const { completion, sent } = store();
 		await completion.addGmailOrigins({ ...KEY, origins: [ORIGIN] });

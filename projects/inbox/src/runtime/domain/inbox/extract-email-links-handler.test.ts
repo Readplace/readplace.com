@@ -215,6 +215,7 @@ function makeHarness(opts?: {
 		},
 		putLink: linkStore.putLink,
 		getLink: linkStore.getLink,
+		listLinksByEmail: linkStore.listLinksByEmail,
 		putLinksMeta: async (input) => {
 			writeOrder.push("meta");
 			if (opts?.failMeta) throw new Error("metadata write failed");

@@ -139,6 +139,9 @@ export {
 	type EmailImportCandidate,
 	type EmailImportCompletion,
 	type EmailImportCompletionStore,
+	type SupplementalEmailImport,
+	SupplementalEmailImportSchema,
+	missingEmailDeliveryMode,
 	isEmailSavedToAll,
 	uniqueGmailOrigins,
 } from "./email-output";

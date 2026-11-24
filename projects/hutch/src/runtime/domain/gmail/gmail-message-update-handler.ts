@@ -23,6 +23,7 @@ export const GmailMessageUpdateEnvelope = z.union([
 			userId: detail.userId,
 			receivedAtMessageId: detail.receivedAtMessageId,
 			origin: GmailMessageOriginSchema.parse(detail.origin),
+			...(detail.supplemental ? { supplemental: detail.supplemental } : {}),
 		})),
 	z
 		.object({ "detail-type": z.literal(GmailModifyPermissionGrantedEvent.detailType), detail: GmailModifyPermissionGrantedEvent.detailSchema })
@@ -54,6 +55,7 @@ export function initGmailMessageUpdateHandler(deps: {
 							userId: update.userId,
 							receivedAtMessageId: update.receivedAtMessageId,
 							origin: update.origin,
+							...(update.supplemental ? { supplemental: update.supplemental } : {}),
 						});
 					}
 					logger.info("[gmail-message-update] resumed pending updates", { userId: envelope.userId, count: pending.length });
@@ -111,7 +113,7 @@ export function initGmailMessageUpdateDlqHandler(deps: {
 					deps.logger.error("[gmail-message-update-dlq] permission resume dead-lettered", { userId: envelope.userId });
 					continue;
 				}
-				const marked = await deps.markFailed({ userId: envelope.userId, origin: envelope.origin, reason: "dead-lettered", now: deps.now() });
+				const marked = await deps.markFailed({ userId: envelope.userId, origin: envelope.origin, ...(envelope.supplemental ? { supplemental: envelope.supplemental } : {}), reason: "dead-lettered", now: deps.now() });
 				if (marked === "unchanged") {
 					deps.logger.info("[gmail-message-update-dlq] update already settled", { userId: envelope.userId, receivedAtMessageId: envelope.receivedAtMessageId });
 					continue;

@@ -72,9 +72,10 @@ const SUBMITTING_ORIGINS: Record<EmailReceivedDetail["origin"], boolean> = {
  * entry point every save surface uses (mirroring how /queue fans each import
  * URL into its own save command).
  *
- * The body is RE-DERIVED from the immutable raw `.eml` on every run — read raw →
- * re-parse → re-sanitize — so a future parse/sanitize change applies to
- * extraction too, never a body sanitized by stale logic. The per-email soft cap
+ * Initial extraction derives the body from the immutable raw `.eml` so the
+ * current sanitizer applies. A supplemental pass reuses completed preview rows
+ * so its eligible links keep the same ordinals and triage decisions.
+ * The per-email soft cap
  * bounds the fan-out; a truncated email still delivers the first N previews (the
  * working path) while writing a truncated meta item and raising a DLQ alert.
  */
@@ -92,6 +93,7 @@ export function initExtractEmailLinksHandler(deps: {
 	}) => string;
 	putLink: InboxEmailLinkStore["putLink"];
 	getLink: InboxEmailLinkStore["getLink"];
+	listLinksByEmail: InboxEmailLinkStore["listLinksByEmail"];
 	putLinksMeta: InboxEmailLinkStore["putLinksMeta"];
 	setEmailLinkCounts: InboxEmailStore["setEmailLinkCounts"];
 	publishCrawlPreview: (input: {
@@ -135,6 +137,7 @@ export function initExtractEmailLinksHandler(deps: {
 		userId: UserId;
 		receivedAtMessageId: string;
 		outputCount: number;
+		supplemental?: true;
 	}) => Promise<void>;
 	alertTruncated: (input: {
 		userId: UserId;
@@ -167,6 +170,7 @@ export function initExtractEmailLinksHandler(deps: {
 		deriveSanitizedBody,
 		putLink,
 		getLink,
+		listLinksByEmail,
 		putLinksMeta,
 		setEmailLinkCounts,
 		publishCrawlPreview,
@@ -220,7 +224,7 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 				const userId = parsed.data.userId;
-				const { receivedAtMessageId, origin, recipientAddress, routing } =
+				const { receivedAtMessageId, origin, recipientAddress, routing, supplemental } =
 					parsed.data;
 
 				const email = await getEmail({ userId, receivedAtMessageId });
@@ -234,62 +238,70 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 
-				const raw = await readRawEmail(email.rawEmailS3Key);
-				if (raw === undefined) {
-					// S3 can be eventually consistent at receipt; retry.
-					logger.warn(
-						"[extract-email-links] raw .eml not yet readable, retrying",
-						{
+				const key = { userId, receivedAtMessageId };
+				const acceptedWork = supplemental ? await findCompletion(key) : undefined;
+				const work = acceptedWork?.supplementalImport;
+				if (supplemental) assert(work, "supplemental imports are recorded before dispatch");
+
+				const previous = supplemental ? await listLinksByEmail(key) : undefined;
+				const cached = previous?.meta?.extractionFailed === false
+					? { links: previous.links, meta: previous.meta }
+					: undefined;
+				let links: { url: string; ordinal: EmailLinkOrdinal; classification: ReturnType<typeof classifyEmailLink> }[];
+				let anchors: ReadonlyMap<string, string | undefined>;
+				let senderName: string;
+				let truncated: boolean;
+				let truncatedLinkCount: number | undefined;
+				if (cached !== undefined) {
+					assert(work, "only supplemental imports reuse existing extraction");
+					links = cached.links
+						.filter((link) => link.status !== "skipped")
+						.map(({ url, ordinal }) => ({ url, ordinal, classification: { action: "crawl" } }));
+					anchors = new Map(cached.links.map((link) => [link.url, link.anchorText]));
+					senderName = work.senderName;
+					truncated = cached.meta.truncated;
+				} else {
+					const raw = await readRawEmail(email.rawEmailS3Key) ??
+						(work && await readRawEmail(work.rawEmailS3Key));
+					if (raw === undefined) {
+						logger.warn("[extract-email-links] raw .eml not yet readable, retrying", {
 							s3Key: email.rawEmailS3Key,
-						},
-					);
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-					continue;
-				}
+						});
+						batchItemFailures.push({ itemIdentifier: record.messageId });
+						continue;
+					}
+					const parsedEmail = await parseEmail({ raw, receivedAt: email.receivedAt });
+					if (!parsedEmail.ok) {
+						logger.warn("[extract-email-links] raw no longer parseable", { receivedAtMessageId });
+						continue;
+					}
 
-				const parsedEmail = await parseEmail({
-					raw,
-					receivedAt: email.receivedAt,
-				});
-				if (!parsedEmail.ok) {
-					// A body that does not parse has no links to extract.
-					logger.warn("[extract-email-links] raw no longer parseable", {
-						receivedAtMessageId,
+					// Leaving images out of the rehost map keeps their CDN URLs out of link extraction.
+					const sanitizedHtml = deriveSanitizedBody({
+						html: parsedEmail.email.html,
+						inlineImages: parsedEmail.email.inlineImages,
+						rehostedRemoteImages: {},
 					});
-					continue;
+					// Decode query-string separators before classifying and saving the URL.
+					const extracted = extractUrls(Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"));
+					const capped = capEmailLinks(extracted, { maxLinks });
+					const classifyLink =
+						origin === "receive" && routing.kind === "inbox" && userId !== UNROUTED_USER_ID
+							? classifyForwardedEmailLink
+							: classifyEmailLink;
+					links = capped.urls.map((url, index) => ({
+						url,
+						ordinal: formatEmailLinkOrdinal(index),
+						classification: classifyLink({ url, listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls }),
+					}));
+					anchors = collectEmailAnchors(sanitizedHtml);
+					senderName = parsedEmail.email.fromName;
+					truncated = capped.truncated;
+					if (truncated) truncatedLinkCount = extracted.totalFound;
 				}
 
-				// Extraction reads only <a href>s, so no remote-image rehost map: CDN
-				// image URLs in the derived body would surface as phantom article links,
-				// and building the map would re-download every image on every run.
-				const sanitizedHtml = deriveSanitizedBody({
-					html: parsedEmail.email.html,
-					inlineImages: parsedEmail.email.inlineImages,
-					rehostedRemoteImages: {},
-				});
-				// Decode before extracting so the stored, classified, and crawled URL is
-				// the href as parsed, not its serialized form (`?a=1&amp;b=2`).
-				const extracted = extractUrls(
-					Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"),
-				);
-				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
-
-				const classifyLink =
-					origin === "receive" && routing.kind === "inbox" && userId !== UNROUTED_USER_ID
-						? classifyForwardedEmailLink
-						: classifyEmailLink;
-				const links = urls.map((url, index) => ({
-					url,
-					ordinal: formatEmailLinkOrdinal(index),
-					classification: classifyLink({
-						url,
-						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
-					}),
-				}));
-				const crawlCandidates = links.filter(
-					(link) => link.classification.action === "crawl",
-				);
-				const anchors = collectEmailAnchors(sanitizedHtml);
+				const crawlCandidates = links.filter((link) => link.classification.action === "crawl");
+				const linkStatuses = new Map(cached?.links.map((link) => [link.ordinal, link.status]));
 				const canSubmit =
 					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
 				const paidFeatures = canSubmit
@@ -298,15 +310,17 @@ export function initExtractEmailLinksHandler(deps: {
 				const savesHeld = paidFeatures === false;
 				const tracksImport = routing.kind === "gmail" && paidFeatures === true;
 				const completion = paidFeatures === true
-					? await findCompletion({ userId, receivedAtMessageId })
+					? acceptedWork ?? await findCompletion(key)
 					: undefined;
-				const frozenSelection = tracksImport ? completion?.selection : undefined;
+				const frozenSelection = tracksImport
+					? supplemental ? completion?.supplementalSelection : completion?.selection
+					: undefined;
 				const alreadySaved = (outputKey: EmailOutputKey) =>
 					completion?.savedOutputs.has(outputKey) === true;
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
-				if (crawlCandidates.length > 0 && frozenSelection === undefined && !savesHeld) {
+				if (crawlCandidates.length > 0 && frozenSelection === undefined && !savesHeld && cached === undefined) {
 					triage = await triageEmailLinks({
 						userId,
 						receivedAtMessageId,
@@ -323,6 +337,8 @@ export function initExtractEmailLinksHandler(deps: {
 				const storedLinkStatus = async (
 					row: InboxEmailLinkEntry,
 				): Promise<EmailLinkStatus> => {
+					const previousStatus = linkStatuses.get(row.ordinal);
+					if (previousStatus !== undefined) return previousStatus;
 					const putResult = await putLink(row);
 					if (putResult === "stored") return row.status;
 					const existing = await getLink({
@@ -379,7 +395,7 @@ export function initExtractEmailLinksHandler(deps: {
 						receivedAtMessageId,
 						subject: email.subject,
 						senderEmail: email.senderEmail,
-						senderName: parsedEmail.email.fromName,
+						senderName,
 						issueUrl: `${appOrigin}${inboxEmailPath(receivedAtMessageId)}`,
 						readlists: [...customReadlists],
 						emailOutput,
@@ -485,7 +501,7 @@ export function initExtractEmailLinksHandler(deps: {
 					// Triage verdicts are not deterministic across re-deliveries: a row a
 					// previous delivery terminally skipped must never be crawled by a
 					// later delivery that judged the same URL an article.
-					if (status !== "pending") continue;
+					if (status !== "pending" || cached !== undefined) continue;
 					// Submit BEFORE the preview publish: the preview consumer flips this
 					// row terminal, so a crash after the preview went out would make the
 					// retry's pending-gate skip a submit that never happened.
@@ -518,12 +534,13 @@ export function initExtractEmailLinksHandler(deps: {
 					selectedOutputs = frozenSelection ?? await selectOutputs({
 						userId,
 						receivedAtMessageId,
+						...(supplemental ? { supplemental } : {}),
 						selection: {
 							outputs: [
 								...(fanOut.issue ? [ISSUE_OUTPUT_KEY] : []),
 								...triagedLinks.map((link) => linkOutputKey(link.ordinal)),
 							],
-							truncated,
+							truncated: truncated && (!supplemental || fanOut.links),
 							selectedAt: now().toISOString(),
 						},
 					});
@@ -573,7 +590,7 @@ export function initExtractEmailLinksHandler(deps: {
 					}
 				};
 
-				await setEmailLinkCounts({
+				if (cached === undefined) await setEmailLinkCounts({
 					userId,
 					receivedAtMessageId,
 					linkCounts: { kept, skipped, truncated },
@@ -604,24 +621,25 @@ export function initExtractEmailLinksHandler(deps: {
 						userId,
 						receivedAtMessageId,
 						outputCount: selectedOutputs.outputs.length,
+						...(supplemental ? { supplemental } : {}),
 					});
 				}
 
-				if (truncated) {
+				if (truncatedLinkCount !== undefined) {
 					await alertTruncated({
 						userId,
 						receivedAtMessageId,
-						found: extracted.totalFound,
+						found: truncatedLinkCount,
 					});
 					logger.error("[extract-email-links] link cap hit, truncated", {
 						receivedAtMessageId,
-						found: extracted.totalFound,
-						capped: urls.length,
+						found: truncatedLinkCount,
+						capped: links.length,
 					});
 				}
 				logger.info("[extract-email-links] extracted", {
 					receivedAtMessageId,
-					links: urls.length,
+					links: links.length,
 					kept,
 					skipped,
 				});

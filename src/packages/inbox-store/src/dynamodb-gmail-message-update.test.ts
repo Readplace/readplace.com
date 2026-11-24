@@ -42,6 +42,18 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		assert.equal(sent[0].input.ConditionExpression, "attribute_not_exists(recordKey)");
 	});
 
+	it("stores a separate pending update for supplemental work under the same account", async () => {
+		const key = { userId: USER, recordKey: "GMAIL_UPDATE#reader@gmail.com#SUPPLEMENTAL#history#reader@gmail.com#m1" };
+		const row = { ...PENDING_ROW, ...key, supplemental: true };
+		const { updates, sent } = store(({ name }) => name === "GetCommand" ? { Item: row } : {});
+		const work = { userId: USER, origin: ORIGIN, supplemental: true as const };
+		const recorded = await updates.recordPending({ ...work, receivedAtMessageId: RAM, now: NOW });
+		assert.equal(recorded.supplemental, true);
+		assert.deepEqual(sent[0].input.Item, row);
+		await updates.markCompleted({ ...work, now: NOW });
+		assert.deepEqual(sent[2].input.Key, key);
+	});
+
 	it("returns an already-completed record instead of reopening it", async () => {
 		const completedRow = { ...PENDING_ROW, status: "completed", completedAt: NOW.toISOString() };
 		const { updates } = store((command) => {

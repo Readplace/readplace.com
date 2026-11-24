@@ -26,8 +26,6 @@ import {
 } from "@packages/inbox-store";
 import { getEnv, readEnv } from "@packages/require-env";
 import { INGEST_GMAIL_IMPORT_ENV } from "./ingest-gmail-import.env";
-import { initEvaluateGmailImportCompletion } from "./domain/gmail-import-completion/evaluate-gmail-import-completion";
-import { initRecordDuplicateGmailOrigin } from "./domain/gmail-import-completion/record-gmail-origin";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
 import { initIngestGmailImportHandler } from "./domain/inbox/ingest-gmail-import-handler";
 import { initIngestParsedEmail } from "./domain/inbox/ingest-parsed-email";
@@ -85,13 +83,7 @@ export const handler = initIngestGmailImportHandler({
 		addGmailOrigins: emailImportCompletion.addGmailOrigins,
 		publishEvent,
 	}),
-	recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
-		addGmailOrigins: emailImportCompletion.addGmailOrigins,
-		evaluate: initEvaluateGmailImportCompletion({
-			findCompletion: emailImportCompletion.findCompletion,
-			publishEvent,
-		}),
-	}),
+	claimSupplementalImport: emailImportCompletion.claimSupplementalImport,
 	readRawEmail: initS3ReadRawEmail({
 		client: s3Client,
 		bucketName: rawEmailBucketName,
