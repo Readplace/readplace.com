@@ -275,6 +275,7 @@ private fun ReadMarker(isRead: Boolean, statusLabel: String) {
 @Composable
 private fun OfflineBadge(label: String) {
 	val brand = LocalBrandColors.current
+	val ink = offlineBadgeInk(LocalIsDarkTheme.current)
 	val shape = RoundedCornerShape(percent = 50)
 	Row(
 		horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -289,12 +290,12 @@ private fun OfflineBadge(label: String) {
 			text = label,
 			style = MaterialTheme.typography.labelSmall,
 			fontWeight = FontWeight.SemiBold,
-			color = brand.successText,
+			color = ink,
 		)
 		Icon(
 			imageVector = CheckmarkGlyph,
 			contentDescription = null,
-			tint = brand.successText,
+			tint = ink,
 			modifier = Modifier.size(10.dp),
 		)
 	}

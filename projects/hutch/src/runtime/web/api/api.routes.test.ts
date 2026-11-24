@@ -1688,8 +1688,8 @@ describe("Siren readlists", () => {
 		}).toEqual({
 			status: 200,
 			readlists: [
-				{ label: "All", rel: "readlist", href: "/queue" },
-				{ label: WORK_LABEL, rel: "current", href: `/queue?queue=${readlist}` },
+				{ label: "All", rel: "readlist", href: "/queue", pinned: false },
+				{ label: WORK_LABEL, rel: "current", href: `/queue?queue=${readlist}`, pinned: false },
 			],
 			self: `/queue?queue=${readlist}&status=unread&page=1`,
 			saveArticle: `/queue?queue=${readlist}`,
@@ -1727,8 +1727,8 @@ describe("Siren readlists", () => {
 		const response = await readCollection(harness, { accessToken, path: "/queue" });
 
 		expect(response.body.properties.readlists).toEqual([
-			{ label: "All", rel: "current", href: "/queue" },
-			{ label: WORK_LABEL, rel: "readlist", href: `/queue?readlist=${readlist}` },
+			{ label: "All", rel: "current", href: "/queue", pinned: false },
+			{ label: WORK_LABEL, rel: "readlist", href: `/queue?readlist=${readlist}`, pinned: false },
 		]);
 	});
 
@@ -1770,8 +1770,8 @@ describe("Siren readlists", () => {
 		}).toEqual({
 			urls: ["https://example.com/in-work"],
 			readlists: [
-				{ label: "All", rel: "readlist", href: "/queue" },
-				{ label: WORK_LABEL, rel: "current", href: `/queue?readlist=${readlist}` },
+				{ label: "All", rel: "readlist", href: "/queue", pinned: false },
+				{ label: WORK_LABEL, rel: "current", href: `/queue?readlist=${readlist}`, pinned: false },
 			],
 			self: `/queue?readlist=${readlist}&status=unread&page=1`,
 			tabs: [`/queue?readlist=${readlist}&status=unread`, `/queue?readlist=${readlist}&status=read`],
@@ -2404,9 +2404,9 @@ describe("Siren readlists", () => {
 				delete: actionNamed(collection.body, "delete-readlist").href,
 			}).toEqual({
 				readlists: [
-					{ label: "All", rel: "readlist", href: "/queue" },
-					{ label: WORK_LABEL, rel: "readlist", href: readlistHref({ readlist, readlistKey: "readlist" }) },
-					{ label: RECIPES_LABEL, rel: "current", href: readlistHref({ readlist: slug, readlistKey: "readlist" }) },
+					{ label: "All", rel: "readlist", href: "/queue", pinned: false },
+					{ label: WORK_LABEL, rel: "readlist", href: readlistHref({ readlist, readlistKey: "readlist" }), pinned: false },
+					{ label: RECIPES_LABEL, rel: "current", href: readlistHref({ readlist: slug, readlistKey: "readlist" }), pinned: false },
 				],
 				rename: `/queue/queues/${slug}/rename`,
 				delete: `/queue/queues/${slug}/delete`,
@@ -2490,8 +2490,8 @@ describe("Siren readlists", () => {
 			expect(addressedBy(renamed.headers.location).readlist).toBe(readlist);
 			const collection = await followToCollection(harness, { accessToken, response: renamed });
 			expect(collection.body.properties.readlists).toEqual([
-				{ label: "All", rel: "readlist", href: "/queue" },
-				{ label: "Office", rel: "current", href: hrefs[WORK_LABEL] },
+				{ label: "All", rel: "readlist", href: "/queue", pinned: false },
+				{ label: "Office", rel: "current", href: hrefs[WORK_LABEL], pinned: false },
 			]);
 		});
 
@@ -2586,7 +2586,7 @@ describe("Siren readlists", () => {
 				location: "/queue",
 			});
 			const collection = await followToCollection(harness, { accessToken, response: deleted });
-			expect(collection.body.properties.readlists).toEqual([{ label: "All", rel: "current", href: "/queue" }]);
+			expect(collection.body.properties.readlists).toEqual([{ label: "All", rel: "current", href: "/queue", pinned: false }]);
 		});
 
 		it("files an article listed in All into every readlist add-to-readlist names and answers 303 to All", async () => {

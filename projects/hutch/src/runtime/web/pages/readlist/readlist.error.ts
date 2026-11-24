@@ -7,6 +7,7 @@ import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
+	READLIST_PINNED_MAX,
 	READLIST_PURPOSE_MAX_LENGTH,
 	type ReadlistCreateRejection,
 	type ReadlistRef,
@@ -69,6 +70,8 @@ export const READLIST_ERROR_LIMIT = "limit";
 export const READLIST_ERROR_UNKNOWN_READLIST = "unknown_readlist";
 
 export const READLIST_ERROR_PIN_LIMIT = "pin_limit";
+
+export const READLIST_PIN_LIMIT_MESSAGE = t("readlistNav.pin.alerts.limit.body", { max: READLIST_PINNED_MAX });
 
 export const READLIST_NOTICE_SAVE_QUEUED = "save_queued";
 

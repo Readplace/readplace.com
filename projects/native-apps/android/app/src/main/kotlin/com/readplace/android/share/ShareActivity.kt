@@ -52,9 +52,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.readplace.android.BuildConfig
-import com.readplace.android.app.BrandColors
 import com.readplace.android.app.HtmlCaptor
 import com.readplace.android.app.LocalBrandColors
+import com.readplace.android.app.LocalIsDarkTheme
 import com.readplace.android.app.PreferenceReaderChoiceStorage
 import com.readplace.android.app.ProcessCredentials
 import com.readplace.android.app.ReadplaceTheme
@@ -243,7 +243,7 @@ internal fun ShareSheet(
 					Icon(
 						imageVector = ShareStatusGlyph.of(status.icon),
 						contentDescription = null,
-						tint = colorFor(status.tone, brand),
+						tint = shareGlyphTint(status.tone, brand, LocalIsDarkTheme.current),
 						modifier = Modifier.size(44.dp),
 					)
 				}
@@ -284,12 +284,6 @@ internal fun ShareSheet(
 	LaunchedEffect(sheet.ended) {
 		if (sheet.ended) onEnded()
 	}
-}
-
-private fun colorFor(tone: ShareStatusTone, brand: BrandColors): Color = when (tone) {
-	ShareStatusTone.SUCCESS -> brand.success
-	ShareStatusTone.WARNING -> brand.warning
-	ShareStatusTone.ERROR -> brand.error
 }
 
 /**

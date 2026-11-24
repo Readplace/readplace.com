@@ -33,6 +33,8 @@ export type ParseHtml = (params: {
 }) => ParseArticleResult;
 
 export type ReadabilityAdditions = {
+	normalizeMalformedTitleEndTag: (html: string) => string;
+	preserveQualifiedTitleHeading: (document: Document) => (html: string) => string;
 	normalizeImplicitBody: (document: Document) => void;
 	preserveSubstackImagePreview: (params: { document: Document; savedUrl: string; documentUrl: string }) => void;
 	unwrapArticleBodyTemplates: (document: Document) => void;

@@ -290,6 +290,7 @@ export function initReadlistSaveRoutes(
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						pinnedReadlists: context.pinnedReadlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						warning: { code: validation.error.code, message: validation.error.message },

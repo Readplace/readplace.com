@@ -707,6 +707,39 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 	}
 });
 
+const WORDMARK_TAIL = "header.header .header__brand-mark";
+
+test.describe("The header wordmark holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the wordmark tail clears its contrast minimum on the default header", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-login");
+		await auditRoot(page, { root: WORDMARK_TAIL, theme: "light", view: "login/wordmark" });
+
+		await signUpFreshUser(page, `colour-contrast-wordmark-${run}@example.com`);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-readlist");
+			await auditRoot(page, { root: WORDMARK_TAIL, theme, view: "queue/wordmark" });
+		}
+	});
+
+	test("the wordmark tail on the landing hero clears its contrast minimum against the navy", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-landing");
+		const [tail] = await stableMeasurements(page, ".header--transparent .header__brand-mark");
+		assert.ok(tail, "the landing hero's transparent header must render the wordmark tail");
+		const navy = await resolveInk(page, "--color-secondary");
+		assertContrast([{ ...tail, surface: navy }], { theme: "light", view: "landing/wordmark-on-navy" });
+	});
+});
+
 async function createChipReader(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
