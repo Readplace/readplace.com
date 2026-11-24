@@ -547,6 +547,7 @@ describe("/developers copy", () => {
 
 		expect({
 			pages: itemOf("data-test-collection-property", "pages"),
+			readlists: itemOf("data-test-collection-property", "readlists"),
 			status: itemOf("data-test-field", "status"),
 			order: itemOf("data-test-field", "order"),
 			url: itemOf("data-test-field", "url"),
@@ -556,6 +557,9 @@ describe("/developers copy", () => {
 		}).toEqual({
 			pages: [
 				"pages: one {label, rel, href} per page, where the page you're on has the rel current, every earlier page prev and every later page next. An empty tab lists page 1 as current. The next and prev links step one page at a time, and the self link is the page you're on.",
+			],
+			readlists: [
+				"readlists: All and each named readlist, each a {label, rel, href}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 			],
 			status: ["status: unread or read. Without it, search lists unread articles."],
 			order: [
