@@ -218,10 +218,11 @@ export function initReadlistCardRoutes(
 		}
 
 		if (wantsSiren(req)) {
-			const [crawl, summary, context] = await Promise.all([
+			const [crawl, summary, context, readerProvenance] = await Promise.all([
 				deps.findArticleCrawlStatus(article.url),
 				deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent: generatedContentOf(req) }),
 				resolveReadlistContext(req, userId),
+				deps.resolveReaderProvenance(article.provenance),
 			]);
 			const { state } = context;
 			const { rel: _rel, ...entity } = toArticleSubEntity(article, {
@@ -236,6 +237,7 @@ export function initReadlistCardRoutes(
 				},
 				now: deps.now(),
 				pollCount: parsePollParam(req.query.poll, MAX_POLLS) + 1,
+				readerProvenance,
 			});
 			res.set("Cache-Control", "private, no-cache");
 			res.vary("Accept, Authorization");

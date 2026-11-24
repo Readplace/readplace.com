@@ -90,6 +90,7 @@ import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.SharedArticlesDropPresentation
 import com.readplace.android.core.SirenAction
+import com.readplace.android.core.SirenLink
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -290,6 +291,8 @@ fun ReadingListScreen(
 							state = state,
 							clock = clock,
 							onOpen = viewModel::openReader,
+							onOpenOriginal = onOpenExternally,
+							onRecover = viewModel::open,
 							onActivate = ::activate,
 							onLoadMore = viewModel::loadMore,
 						)
@@ -390,7 +393,7 @@ fun ReadingListScreen(
 			confirmButton = {
 				TextButton(
 					onClick = { confirmDestructive(pending) },
-					colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+					colors = ButtonDefaults.textButtonColors(contentColor = LocalBrandColors.current.errorText),
 				) {
 					Text(text = pending.label)
 				}
@@ -585,14 +588,15 @@ internal fun ReadingListTitle(currentReadlistLabel: String?) {
 @Composable
 private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	val presentation = affordance.presentation
-	val tint = presentation.tint.glyphTint()
+	val colors = LocalBrandColors.current
 	if (presentation.showsTitle) {
+		val ink = presentation.tint.ink(colors)
 		TextButton(
 			onClick = onTap,
-			colors = if (tint == null) {
+			colors = if (ink == null) {
 				brandTextButtonColors()
 			} else {
-				ButtonDefaults.textButtonColors(contentColor = tint)
+				ButtonDefaults.textButtonColors(contentColor = ink)
 			},
 		) {
 			Icon(
@@ -608,7 +612,7 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 			Icon(
 				imageVector = presentation.icon.glyph,
 				contentDescription = affordance.label,
-				tint = tint ?: LocalContentColor.current,
+				tint = presentation.tint.fill(colors) ?: LocalContentColor.current,
 			)
 		}
 	}
@@ -643,6 +647,8 @@ private fun ArticleList(
 	state: ReadingListState,
 	clock: Clock,
 	onOpen: (Article) -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: (SirenLink) -> Unit,
 	onActivate: (Affordance) -> Unit,
 	onLoadMore: suspend () -> Unit,
 ) {
@@ -655,6 +661,8 @@ private fun ArticleList(
 				processingReceivedAt = state.processingReceivedAt[article.id],
 				isAvailableOffline = state.isAvailableOffline(article),
 				onOpen = { onOpen(article) },
+				onOpenOriginal = onOpenOriginal,
+				onRecover = { article.uploadAgainLink?.let(onRecover) },
 				onActivate = onActivate,
 			)
 		}
@@ -691,6 +699,8 @@ private fun ArticleItem(
 	processingReceivedAt: Instant?,
 	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: () -> Unit,
 	onActivate: (Affordance) -> Unit,
 ) {
 	val scope = rememberCoroutineScope()
@@ -720,6 +730,8 @@ private fun ArticleItem(
 					processingReceivedAt = processingReceivedAt,
 					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
+					onOpenOriginal = onOpenOriginal,
+					onRecover = onRecover,
 				)
 			}
 		}
@@ -764,6 +776,8 @@ private fun ArticleItem(
 					processingReceivedAt = processingReceivedAt,
 					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
+					onOpenOriginal = onOpenOriginal,
+					onRecover = onRecover,
 					modifier = Modifier
 						.semantics {
 							customActions = controls.map { affordance ->
@@ -778,7 +792,7 @@ private fun ArticleItem(
 				DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
 					for (affordance in controls) {
 						val presentation = affordance.presentation
-						val tint = presentation.tint.glyphTint()
+						val tint = presentation.tint.ink(LocalBrandColors.current)
 						DropdownMenuItem(
 							text = { Text(text = affordance.label) },
 							onClick = {
@@ -953,14 +967,6 @@ private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifi
 		}
 	}
 }
-
-@Composable
-private fun AffordanceTint.glyphTint(): Color? =
-	when (this) {
-		AffordanceTint.NEUTRAL -> null
-		AffordanceTint.SUCCESS -> LocalBrandColors.current.success
-		AffordanceTint.DESTRUCTIVE -> LocalBrandColors.current.error
-	}
 
 private val AffordanceIcon.glyph: ImageVector
 	get() = when (this) {
