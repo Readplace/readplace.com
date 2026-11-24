@@ -307,7 +307,7 @@ async function auditFieldEdge(page: Page, field: AuditedField, state: FieldEdgeS
 
 		const ink = await measure(page, client, state.auditId, state.pseudo);
 		const edges = ringEdges(ink);
-		assert.ok(edges.length > 0, `${theme}/${field.view}: ${ink.name} draws no border to carry its focus ring`);
+		assert.ok(edges.length > 0, `${theme}/${field.view}/${state.auditId}: ${ink.name} draws no border`);
 		const neighbours: Neighbour[] = [
 			{ name: "field fill", colour: ink.fill },
 			{ name: "surrounding surface", colour: ink.surface },
