@@ -521,6 +521,8 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await expect(page.locator("[data-test-article]")).toHaveCount(READLIST_ARTICLES.length + 1);
 			await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
+			// The deferred offline control adds a row above the floating menu's anchor.
+			await expect(page.locator("[data-test-offline-download-start]")).toBeVisible();
 			await page.addStyleTag({ path: CONTRAST_SENSITIVE.stylePath });
 			await page.locator(READLIST_LIST).scrollIntoViewIfNeeded();
 			await settle(page, READLIST_LIST);
