@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, STREAMS } from "./events";
-import type { ExcludedIdentities } from "./excluded-identities";
+import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { ANALYTICS_LOG_GROUP, type ExcludedIdentities } from "@packages/dashboard-widgets";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";

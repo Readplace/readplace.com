@@ -13,12 +13,14 @@ export function uploadHeadingOf(kinds: readonly MediaKindManifest[]): string {
 	});
 }
 
+export function uploadDescriptionOf(kind: MediaKindManifest): string {
+	return t(`upload.kinds.${kind.name}.description`, { ceiling: kind.ceilingLabel });
+}
+
 export function uploadDescriptionsOf(
 	kinds: readonly MediaKindManifest[],
 ): string[] {
-	return kinds.map((kind) =>
-		t(`upload.kinds.${kind.name}.description`, { ceiling: kind.ceilingLabel }),
-	);
+	return kinds.map(uploadDescriptionOf);
 }
 
 export function uploadFormatsOf(kinds: readonly MediaKindManifest[]): string {

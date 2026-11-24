@@ -2,6 +2,24 @@ import { parseCrawlFailureReason, SummaryFailureReasonSchema } from "@packages/a
 import type { CanaryReportRow } from "@packages/provider-contracts/canary-report";
 import type { FailedAxis, FailedRow } from "./collect-failed-rows";
 
+const HISTORY_GROUP_LABELS = {
+	"readlist-loaded-no-reader-open": "Readlist loaded, no reader open recorded",
+	"reader-opened-before-failure": "Reader opened before failure",
+	"other-unknown": "Other or unknown history",
+};
+
+const READER_ROUTE_LABELS = {
+	"signed-in": "Signed-in reader opened before failure",
+	public: "Public reader open recorded before failure",
+};
+
+export type FailedArticleHistoryGroup = keyof typeof HISTORY_GROUP_LABELS;
+type RecordedReaderRoutes = readonly ["signed-in"] | readonly ["public"] | readonly ["signed-in", "public"];
+export type FailedArticlesIssueRow = FailedRow & (
+	| { historyGroup: "reader-opened-before-failure"; readerRoutes: RecordedReaderRoutes }
+	| { historyGroup: Exclude<FailedArticleHistoryGroup, "reader-opened-before-failure">; readerRoutes?: never }
+);
+
 function crawlReasonKey(raw: string | undefined): string {
 	if (raw === undefined) return "no stored reason";
 	const reason = parseCrawlFailureReason(raw);
@@ -36,14 +54,18 @@ function countByName(names: readonly string[]): [string, number][] {
 	return Array.from(counts).sort(([nameA, countA], [nameB, countB]) => countB - countA || (nameA < nameB ? -1 : 1));
 }
 
-export function toCanaryReportRow(row: FailedRow): CanaryReportRow {
+export function toCanaryReportRow(row: FailedRow & Partial<Pick<FailedArticlesIssueRow, "historyGroup" | "readerRoutes">>): CanaryReportRow {
 	const reasons = row.axes.flatMap((axis) => {
 		const raw = row.reasons[axis];
 		return raw === undefined ? [] : [`${axis}: ${raw}`];
 	});
 	return {
 		url: row.originalUrl,
-		labels: row.axes,
+		labels: [
+			...row.axes,
+			...(row.historyGroup === undefined ? [] : [HISTORY_GROUP_LABELS[row.historyGroup]]),
+			...(row.readerRoutes?.map((route) => READER_ROUTE_LABELS[route]) ?? []),
+		],
 		detail: reasons.length === 0 ? "(no stored reason)" : reasons.join(" | "),
 		savedAt: row.savedAt,
 		contentFetchedAt: row.contentFetchedAt,
@@ -51,15 +73,28 @@ export function toCanaryReportRow(row: FailedRow): CanaryReportRow {
 }
 
 export function formatFailedArticlesIssue(input: {
-	rows: readonly [FailedRow, ...FailedRow[]];
+	rows: readonly [FailedArticlesIssueRow, ...FailedArticlesIssueRow[]];
 	runUrl: string;
 	reportUrl: string;
 	today: string;
+	historyEvidenceIncomplete?: boolean;
 }): { rowCount: number; body: string } {
 	const byAxis = countByName(input.rows.flatMap((row) => row.axes));
 	const byReason = countByName(
 		input.rows.flatMap((row) => row.axes.map((axis) => `${axis}: ${REASON_KEYS[axis](row.reasons[axis])}`)),
 	);
+	const byHistory = Object.entries(HISTORY_GROUP_LABELS).flatMap(([group, label]) => {
+		const rows = input.rows.filter((row) => row.historyGroup === group);
+		const lines = [`- **${label}**: ${rows.length}`];
+		if (group === "reader-opened-before-failure") {
+			lines.push(
+				`  - **Signed-in reader recorded**: ${rows.filter((row) => row.readerRoutes?.some((route) => route === "signed-in")).length}`,
+				`  - **Public reader recorded**: ${rows.filter((row) => row.readerRoutes?.some((route) => route === "public")).length}`,
+				`  - **Both recorded**: ${rows.filter((row) => row.readerRoutes?.length === 2).length}`,
+			);
+		}
+		return lines;
+	});
 	const body = [
 		"<!-- CLAUDE_FAILED_ARTICLES_FIX -->",
 		"",
@@ -72,6 +107,18 @@ export function formatFailedArticlesIssue(input: {
 		`- **Date (UTC)**: ${input.today}`,
 		`- **Failed rows**: ${input.rows.length}`,
 		`- **Report (admins only)**: ${input.reportUrl}`,
+		"",
+		"## Breakdown by recorded access",
+		...byHistory,
+		"",
+		...(input.historyEvidenceIncomplete ? [
+			"Some access history could not be verified. Inconclusive rows are counted under Other or unknown history.",
+			"",
+		] : []),
+		"The reader-open group counts opens recorded before the latest processing admission and signed-in reader requests that triggered it.",
+		"An article can count under both confirmed routes. A zero means no open was confirmed in the available records.",
+		"",
+		"Among these reader routes, local HTML capture can start only from the signed-in reader on supported clients. Confirming an upload requires separate evidence.",
 		"",
 		"## Breakdown by axis",
 		...byAxis.map(([axis, count]) => `- **${axis}**: ${count}`),

@@ -8,6 +8,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var hasMore = false
 	@Published var errorText: String?
 	@Published var warningText: String?
+	@Published var contentBannerText: String?
 	/// Server-authored messages surfaced to the UI (e.g. a locked-account refusal),
 	/// rendered generically — the client owns no per-feature knowledge of them.
 	@Published var messages: [ServerMessage] = []
@@ -516,7 +517,11 @@ final class ReadingListViewModel: ObservableObject {
 	/// resolve or re-encode with the parameter is treated as absent (read-only row).
 	func openReader(for article: Article) {
 		guard let readerURL = ReaderRequest.url(readHref: article.readHref, baseURL: api.baseURL) else { return }
-		readerPresentation = ReaderPresentation(readerURL: readerURL, articleId: article.id)
+		readerPresentation = ReaderPresentation(
+			readerURL: readerURL,
+			articleId: article.id,
+			contentState: manifest.contentState(articleId: article.id) ?? article.contentState
+		)
 	}
 
 	/// Follows a navigable collection-level link (e.g. the `account` link) by opening
@@ -533,7 +538,7 @@ final class ReadingListViewModel: ObservableObject {
 			let url = Href.resolve(href, baseURL: api.baseURL),
 			let shellURL = Href.appending(AppConfig.appShellQueryItem, to: url)
 		else { return }
-		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil)
+		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil, contentState: nil)
 	}
 
 	@discardableResult
@@ -618,7 +623,13 @@ final class ReadingListViewModel: ObservableObject {
 		let expectedTotal = manifest.run?.total ?? 0
 		offlineDownload = OfflineDownloadProgress(completed: 0, total: expectedTotal, failed: 0)
 		let download = DownloadUnreadOffline(
-			api: api, prefetchers: prefetchers, sessionAction: sessionAction, manifest: manifest, snapshot: snapshot
+			api: api,
+			prefetchers: prefetchers,
+			sessionAction: sessionAction,
+			manifest: manifest,
+			snapshot: snapshot,
+			pause: pauseBeforeRefresh,
+			now: now
 		)
 		backgroundTime.begin()
 		let task = Task {
@@ -692,6 +703,7 @@ final class ReadingListViewModel: ObservableObject {
 			pagesHeld += 1
 		}
 		if page.isStoredCopy { errorText = OfflineReading.bannerText }
+		contentBannerText = page.isStoredCopy ? OfflineReading.listContentBannerText(states: shownContentStates()) : nil
 		if replacing { isOffline = page.isStoredCopy }
 		hasLoadedOnce = true
 		nextHref = page.nextHref
@@ -720,6 +732,10 @@ final class ReadingListViewModel: ObservableObject {
 		}
 		warningText = page.warning?.message
 		restartProcessingRefresh()
+	}
+
+	private func shownContentStates() -> Set<ContentState> {
+		Set(articles.flatMap { [manifest.contentState(articleId: $0.id), $0.contentState].compactMap { $0 } })
 	}
 
 	/// Derives the toolbar from a page's advertised affordances: a client-derived
@@ -763,6 +779,7 @@ final class ReadingListViewModel: ObservableObject {
 struct ReaderPresentation: Identifiable {
 	let readerURL: URL
 	let articleId: String?
+	let contentState: ContentState?
 	var id: String { articleId ?? readerURL.absoluteString }
 }
 

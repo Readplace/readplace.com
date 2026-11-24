@@ -4,8 +4,8 @@ import {
 	type DashboardBody,
 	type DashboardWidget,
 } from "./analytics-dashboard";
-import { ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, LOG_GROUPS } from "./events";
-import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
+import { ERRORS_LOG_GROUP, LOG_GROUPS } from "./events";
+import { ANALYTICS_LOG_GROUP, type ExcludedIdentities, excludeNonAudienceClauses } from "@packages/dashboard-widgets";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 
 const IDENTITIES: ExcludedIdentities = {
@@ -28,9 +28,6 @@ interface UnfilteredWidget {
 
 const METRIC_COUNTER_REASON =
 	"Renders a CloudWatch metric filled by a LogMetricFilter, which matches a line at ingest and increments a counter. The exclusion is expressible in that pattern language, and it fits: factored as ($.visitor_id NOT EXISTS || ($.visitor_id != \"…\" && …)), today's 9 visitor and 7 user ids come to 988 of the 1,024 characters CloudWatch allows, and aws logs test-metric-filter confirms that pattern drops an internal visitor while keeping both an ordinary visitor and a line carrying no visitor_id. It is left off by choice rather than by that ceiling. A filter pattern applies at ingest and never retroactively, so each identity added would silently redefine what the series had been counting, turning a config edit into a step change nobody could distinguish from real traffic — and the list has grown three times in recent work, with no room for another id of either kind before the pattern crosses 1,024 regardless. A constant, disclosed overcount beats a series whose definition moves.";
-
-const STARTER_REPORT_REASON =
-	"Reads the starter_report line the digest-scan tick logs every 6 hours: one aggregate per campaign and cohort, carrying neither visitor_id nor user_id, so there is no identity to prune. Internal accounts never enter it in the first place, because enrollment skips every ENGAGEMENT_EXCLUDED_USER_IDS account before assigning an arm.";
 
 const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 	{
@@ -61,29 +58,9 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		reason: `${METRIC_COUNTER_REASON} No excluded identity has produced a user_created line so far (0 of 24), but that is an accident of who has signed up, not a property of the counter — an internal signup would land in it.`,
 	},
 	{
-		title: "OAuth token grants — issued vs refused by client",
-		reason:
-			"An operational auth view keyed on the OAuth client id, not on a reader identity: the oauth_token_issued/refused events carry neither visitor_id nor user_id, and an internal-account refresh storm must still count toward the sign-out alarm this widget backs.",
-	},
-	{
 		title: "Save refusals by code × client",
 		reason:
 			"An operational view of why a save was refused, keyed on the refusal code and client rather than a reader identity: an internal-account refusal is still a real refusal worth seeing, and the event carries no visitor_id/user_id to filter on.",
-	},
-	{
-		title: "OAuth token revocations — per day by client × outcome",
-		reason:
-			"The twin of the token-grants table, keyed on the OAuth client id rather than a reader identity: the oauth_token_revoked event carries neither visitor_id nor user_id, and an internal account's revoke must stay visible because it is the evidence that rules a client-side revoke in or out when an assistant's credential dies.",
-	},
-	{
-		title: "MCP requests refused by the transport — per day by reason × client",
-		reason:
-			"An operational view of why the MCP transport refused a request: a bare 401 carries no user_id or visitor_id to filter on, and an internal account's refusal is exactly the signal — the plugin-directory scanner's dead credential went unseen for 30 days because nothing recorded these refusals.",
-	},
-	{
-		title: "MCP handshakes — initialize and tools/list by declared client",
-		reason:
-			"An operational view of what an assistant platform's client declares when it connects, grouped by declared name and version rather than counted per reader: a directory scanner may authenticate as an internal account, and its request shape is what this widget exists to show.",
 	},
 	{
 		title: "Gmail filter rewrites that failed",
@@ -99,18 +76,6 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		title: "Gmail terminal failures by reason",
 		reason:
 			"Reads the errors funnel, not the analytics group — the same operational view as the fleet errors table, subset to the two Gmail terminal-failure events. Those lines carry a userId but no visitor_id, and an internal account's failure is still a real failure worth seeing, so this is an operational breakdown, not an audience count.",
-	},
-	{
-		title: "Hacker News starter — latest experiment report (logged every 6 hours)",
-		reason: STARTER_REPORT_REASON,
-	},
-	{
-		title: "Hacker News starter — latest report by tier and account cohort",
-		reason: STARTER_REPORT_REASON,
-	},
-	{
-		title: "Hacker News starter — activated and mature accounts by arm over time",
-		reason: STARTER_REPORT_REASON,
 	},
 	{
 		title: "DeepSeek cost by feature — USD per day, legend totals follow the selected range (CloudWatch metric since 2026-10-27, answered calls only, internal usage included)",

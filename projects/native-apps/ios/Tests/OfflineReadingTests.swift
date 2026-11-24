@@ -3,6 +3,14 @@ import XCTest
 @testable import Readplace
 
 final class OfflineReadingTests: XCTestCase {
+	func testTheListContentBannerNamesEachKindOfMissingContentShown() {
+		XCTAssertNil(OfflineReading.listContentBannerText(states: [.available]))
+		XCTAssertEqual(
+			OfflineReading.listContentBannerText(states: [.available, .processing, .unavailable]),
+			OfflineReading.listProcessingText + "\n" + OfflineReading.listUnavailableText
+		)
+	}
+
 	func testTheBannerSaysTheReadingIsOffline() {
 		XCTAssertEqual(
 			OfflineReading.bannerText,

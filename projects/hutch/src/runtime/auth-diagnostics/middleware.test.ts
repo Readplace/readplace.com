@@ -7,7 +7,6 @@ import { useLoopbackServer } from "@packages/web-test-harness";
 import { UserIdSchema } from "@packages/domain/user";
 import { initAuthDiagnosticMiddleware } from "./middleware";
 import { authDiagnosticContext, initAuthDiagnosticRecorder } from "./record";
-import { buildAuthDiagnosticsDashboard } from "./dashboard";
 
 const serve = useLoopbackServer();
 
@@ -209,13 +208,4 @@ describe("authentication request diagnostics", () => {
 		initAuthDiagnosticRecorder({ salt: "test", now: () => at, logger: { info: fail, error: fail, warn: fail, debug: fail } }).observe({ event: "credential_revoked" });
 		expect(authDiagnosticContext.getStore()).toBeUndefined();
 	});
-});
-
-it("builds authentication investigation views scoped to the retained diagnostics stream", () => {
-	const dashboard = JSON.parse(buildAuthDiagnosticsDashboard({ region: "ap-southeast-2", logGroupName: "/readplace/auth-diagnostics" }));
-	expect(dashboard.widgets).toHaveLength(5);
-	expect(dashboard.widgets.map((widget: { properties: { query: string } }) => widget.properties.query)).toEqual([
-		expect.stringContaining("count_distinct(event_id)"), expect.stringContaining("latest(client_version) as last_client_version"), expect.stringContaining("count_distinct(request_id)"),
-		expect.stringContaining("session_deleted"), expect.stringContaining("maximum_dropped"),
-	]);
 });

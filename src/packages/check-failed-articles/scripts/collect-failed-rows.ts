@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
 	classifyCrawlOutcome,
 	classifySummaryOutcome,
@@ -32,6 +33,8 @@ const FailedArticleRow = z.object({
 	summaryFailureReason: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
 	savedAt: z.string(),
+	fullCrawlRequestedAt: z.string().optional().catch(undefined),
+	resolutionOnViewClaimedAt: z.string().optional().catch(undefined),
 });
 
 export type FailedAxis = "crawl-failed" | "summary-failed";
@@ -43,6 +46,12 @@ export interface FailedRow {
 	reasons: Partial<Record<FailedAxis, string>>;
 	savedAt: string;
 	contentFetchedAt: string | undefined;
+}
+
+export interface CollectedFailedRow extends FailedRow {
+	articleKey: string;
+	fullCrawlRequestedAt: string | undefined;
+	resolutionOnViewClaimedAt: string | undefined;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -72,7 +81,8 @@ export function buildQueryInputs(now: Date, lookbackDays: number) {
 	const shared = {
 		ProjectionExpression:
 			"originalUrl, #u, crawlStatus, crawlFailureReason, " +
-			"summaryStatus, summaryFailureReason, contentFetchedAt, savedAt",
+			"summaryStatus, summaryFailureReason, contentFetchedAt, savedAt, " +
+			"fullCrawlRequestedAt, resolutionOnViewClaimedAt",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: expressionAttributeValues,
 	};
@@ -130,7 +140,8 @@ export async function collectFailedRows(deps: {
 	now: () => Date;
 	lookbackDays: number;
 	excludePatterns: readonly RegExp[];
-}): Promise<FailedRow[]> {
+	ignoredKeyHashes?: ReadonlySet<string>;
+}): Promise<CollectedFailedRow[]> {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
@@ -142,18 +153,26 @@ export async function collectFailedRows(deps: {
 			for (const row of items) candidates.set(row.url, row);
 		});
 	}
-	const failed: FailedRow[] = [];
+	const failed: CollectedFailedRow[] = [];
+	const { ignoredKeyHashes } = deps;
 	for (const row of candidates.values()) {
 		const effectiveUrl = row.originalUrl ?? row.url;
 		if (isExcluded(effectiveUrl, deps.excludePatterns)) continue;
+		if (
+			ignoredKeyHashes?.size &&
+			ignoredKeyHashes.has(createHash("sha256").update(row.url, "utf8").digest("hex"))
+		) continue;
 		const { axes, reasons } = classifyAxes(row);
 		if (axes.length === 0) continue;
 		failed.push({
+			articleKey: row.url,
 			originalUrl: effectiveUrl,
 			axes,
 			reasons,
 			savedAt: row.savedAt,
 			contentFetchedAt: row.contentFetchedAt,
+			fullCrawlRequestedAt: row.fullCrawlRequestedAt,
+			resolutionOnViewClaimedAt: row.resolutionOnViewClaimedAt,
 		});
 	}
 	return failed;

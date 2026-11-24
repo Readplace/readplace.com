@@ -57,7 +57,6 @@ import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog"
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
 import type { MintBrowserHandoffCode, RedeemBrowserHandoffCode } from "@packages/provider-contracts/browser-handoff";
-import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import type { Logger, LogError } from "@packages/logger";
 import type { ClaimResolutionOnView } from "@packages/provider-contracts/article-resolution-on-view";
 import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
@@ -854,12 +853,6 @@ export interface AdminBundle {
 	secondFactorAttemptRule: RateLimitRule;
 }
 
-interface AdminDashboardsBundle {
-	runLogsInsightsQuery: RunLogsInsightsQuery;
-	readExcludedIdentities: ReadExcludedIdentities;
-	now: () => Date;
-}
-
 export interface SharedBundle {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -982,7 +975,6 @@ export interface TestAppFixture {
 	apple: AppleAuthBundle;
 	admin: AdminBundle;
 	canaryReports: { saveCanaryReport: SaveCanaryReport; findCanaryReport: FindCanaryReport };
-	adminDashboards: AdminDashboardsBundle;
 	importSession: ImportSessionBundle;
 	mediaUpload: MediaUploadBundle;
 	inboxAddress: InboxAddressBundle;

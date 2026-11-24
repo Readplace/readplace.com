@@ -260,6 +260,24 @@ final class SirenDecodingTests: XCTestCase {
 
 	// The next two exercise the fallback derivation used only for an older server
 	// that doesn't emit the explicit read-state (the fixture omits `isRead`).
+	func testAnArticleCarriesTheContentStateTheServerNamed() throws {
+		let states = try ["available", "processing", "unavailable"].map {
+			try XCTUnwrap(Article(entity: decodeEntity(Fixtures.article(contentState: $0)))).contentState
+		}
+		XCTAssertEqual(states, [.available, .processing, .unavailable])
+	}
+
+	func testAnArticleWithoutAContentStateHasNone() throws {
+		let article = try XCTUnwrap(Article(entity: decodeEntity(Fixtures.article())))
+		XCTAssertNil(article.contentState, "an older server names no state, and an absent state is never read as missing content")
+	}
+
+	func testAnUnknownContentStateDecodesAsNoneWithoutFailingTheArticle() throws {
+		let article = try XCTUnwrap(Article(entity: decodeEntity(Fixtures.article(id: "a9", contentState: "archived"))))
+		XCTAssertEqual(article.id, "a9")
+		XCTAssertNil(article.contentState)
+	}
+
 	func testStatusReadMarksAsReadWhenServerOmitsIsRead() throws {
 		let entity = try decodeEntity(Fixtures.article(status: "read"))
 		let article = try XCTUnwrap(Article(entity: entity))

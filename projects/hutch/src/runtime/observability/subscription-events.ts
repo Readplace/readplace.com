@@ -6,7 +6,8 @@ import type {
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { CheckoutActivationSource } from "@packages/provider-contracts/pending-signup";
 import type { Logger } from "@packages/logger";
-import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
+import { SUBSCRIPTION_EVENTS } from "@packages/dashboard-widgets";
+import { STREAMS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
 
 interface SubscriptionEventBase {

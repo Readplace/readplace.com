@@ -13,26 +13,26 @@ import { HOMEPAGE_EXPOSURE } from "../web/pages/home/home.version";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import { VIEW_CRAWL_LIMIT_SOURCE } from "../web/pages/view/view-crawl-limit.component";
-import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
+import {
+	CONVERSION_EVENTS,
+	type ExcludedIdentities,
+	excludeNonAudienceClauses,
+	LIFECYCLE_EMAIL_EVENTS,
+	type LogWidgetSpec,
+	SUBSCRIPTION_EVENTS,
+} from "@packages/dashboard-widgets";
 import {
 	ANALYTICS_EVENTS,
-	CONVERSION_EVENTS,
 	PAGE_EXIT_KINDS,
-	LIFECYCLE_EMAIL_EVENTS,
 	LOG_GROUPS,
 	METRICS,
 	QUEUE_DIGEST_EVENTS,
 	SAVE_OUTCOMES,
 	SAVE_SURFACES,
 	STREAMS,
-	SUBSCRIPTION_EVENTS,
 } from "./events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
 import { deepseekCostWidget } from "./deepseek-cost-widget";
-import { hnStarterWidgets } from "./hn-starter-widgets";
-import type { LogWidgetSpec } from "./log-widget-spec.types";
-import { mcpWidgets } from "./mcp-widgets";
-import { oauthTokenWidgets } from "./oauth-token-widgets";
 
 export interface DashboardWidget {
 	type: string;
@@ -142,7 +142,7 @@ function readerSaveSurfaceClause(): string {
 	return `(surface in [${list}] or not ispresent(surface))`;
 }
 
-export function logWidget(params: LogWidgetSpec & { region: string }): DashboardWidget {
+function logWidget(params: LogWidgetSpec & { region: string }): DashboardWidget {
 	return {
 		type: "log",
 		x: params.x,
@@ -161,8 +161,6 @@ export function logWidget(params: LogWidgetSpec & { region: string }): Dashboard
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
 	const { region, hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName } = deps;
 	const exclude = excludeNonAudienceClauses(deps);
-	const mcp = mcpWidgets({ analyticsLogGroupName, identities: deps });
-	const oauthTokens = oauthTokenWidgets({ analyticsLogGroupName });
 	const widgets: DashboardWidget[] = [];
 
 	/** Every analytics widget reads the single never-expire destination group. The
@@ -1014,12 +1012,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// --- Connected AI assistants (MCP) ---
 
 	widgets.push(
-		logWidget({ region, ...mcp.toolCalls }),
-		logWidget({ region, ...mcp.toolCallsPerDay }),
-		logWidget({ region, ...mcp.calledButNeverSaved }),
-	);
-
-	widgets.push(
 		logWidget({
 			region,
 			title: "Signups by OAuth client (consent-screen acquisition)",
@@ -1032,7 +1024,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort signups desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 202, width: 12, height: 8,
+			x: 0, y: 202, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1197,7 +1189,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	widgets.push(
-		logWidget({ region, ...oauthTokens.tokenGrants }),
 		logWidget({
 			region,
 			title: "Save refusals by code × client",
@@ -1209,12 +1200,9 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort refusals desc",
 				"| limit 40",
 			].join(" "),
-			x: 12, y: 210, width: 12, height: 8,
+			x: 12, y: 202, width: 12, height: 8,
 			view: "table",
 		}),
-		logWidget({ region, ...oauthTokens.revocationsPerDay }),
-		logWidget({ region, ...mcp.transportRefusalsPerDay }),
-		logWidget({ region, ...mcp.handshakes }),
 	);
 
 	const readerPublicClick = `stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.click}" and coalesce(utm_term, "") = "${CLICK_SURFACES.readerPublic}"`;
@@ -1398,10 +1386,5 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
-	widgets.push(
-		...Object.values(hnStarterWidgets({ analyticsLogGroupName, identities: deps })).map((spec) =>
-			logWidget({ region, ...spec }),
-		),
-	);
 	return { widgets };
 }

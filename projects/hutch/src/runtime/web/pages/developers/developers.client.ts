@@ -52,7 +52,7 @@ export function initDevelopers(deps: DevelopersDeps): void {
 			assert(code, "every developers sample holds its code");
 			const button = deps.document.createElement("button");
 			button.type = "button";
-			button.className = "btn btn--s developers__copy";
+			button.className = "btn btn--s btn--on-dark-quiet developers__copy";
 			button.hidden = true;
 			button.setAttribute("data-developers-copy", "");
 			button.setAttribute("aria-label", "Copy this sample");

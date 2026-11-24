@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import request from "supertest";
-import { ADMIN_MFA_PATH } from "./web/pages/admin/require-admin.middleware";
+import { ADMIN_MFA_PATH } from "@packages/admin-gate";
 import { totpCodeAt } from "./web/pages/admin/totp";
 import type { ReadTimedDuration } from "@packages/domain";
 import { MEDIA_KINDS, type MediaKindManifest, type MediaKindName, type Meter } from "@packages/media-contracts";
@@ -117,6 +117,7 @@ interface TestAppOverrides {
 	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
 	signupLogger?: Logger;
+	uploadLogger?: Logger;
 	authDiagnosticsLogger?: Logger.Typed<Record<string, unknown>>;
 }
 
@@ -398,7 +399,6 @@ function flattenFixtureToAppDependencies(
 		writeNewsletterCatalog: fixture.newsletterCatalog.writeNewsletterCatalog,
 		newsletterCatalogSeed: fixture.newsletterCatalog.newsletterCatalogSeed,
 		findCanaryReport: fixture.canaryReports.findCanaryReport,
-		adminDashboards: fixture.adminDashboards,
 		appleAuth: fixture.apple,
 		adminEmails: fixture.admin.adminEmails,
 		readAdminTotpSecrets: async () => fixture.admin.totpSecrets,
@@ -494,6 +494,7 @@ function flattenFixtureToAppDependencies(
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
 		signupLogger: noopLogger,
+		uploadLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
 		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,

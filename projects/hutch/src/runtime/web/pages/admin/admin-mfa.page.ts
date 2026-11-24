@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
+import { ADMIN_MFA_PATH, findAllowlistedAdminEmail } from "@packages/admin-gate";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { FindUserByEmail, MarkSessionAdminMfaVerified } from "@packages/provider-contracts/auth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
@@ -14,7 +15,6 @@ import type { BuildBannerState } from "../../banner-state";
 import { sendRateLimited } from "../../middleware/rate-limit";
 import { ADMIN_MFA_STYLES } from "./admin-mfa.styles";
 import { type ReadAdminTotpSecrets, adminTotpSecretFor } from "./admin-totp-secrets";
-import { ADMIN_MFA_PATH, findAllowlistedAdminEmail } from "./require-admin.middleware";
 import { matchedTotpStep } from "./totp";
 
 const TEMPLATE = readFileSync(join(__dirname, "admin-mfa.template.html"), "utf-8");

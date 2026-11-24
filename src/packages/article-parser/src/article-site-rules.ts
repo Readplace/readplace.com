@@ -10,13 +10,19 @@ import {
 	initXTwitterSiteRules,
 } from "@packages/crawl-article";
 import type { SiteRules } from "@packages/site-rules";
+import { danaMcNeilSiteRules } from "./dana-mcneil-site-rules";
+import { defensePhotoSiteRules } from "./defense-photo-site-rules";
+import { githubPullRequestSiteRules } from "./github-pull-request-site-rules";
 import { granolaSiteRules } from "./granola-site-rules";
+import { intuitPrivacySiteRules } from "./intuit-privacy-site-rules";
+import { lavcaSiteRules } from "./lavca-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
 import { quoraSiteRules } from "./quora-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
+import { xkcdSiteRules } from "./xkcd-site-rules";
 import { youtubeSiteRules } from "./youtube-site-rules";
 
 export type ArticleSiteRules = {
@@ -39,7 +45,7 @@ export function initArticleSiteRules(deps: {
 		initHnSearchSiteRules(deps),
 	];
 	return {
-		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, granolaSiteRules, youtubeSiteRules, ...crawlClaimingSiteRules],
+		siteRules: [xkcdSiteRules, lavcaSiteRules, defensePhotoSiteRules, theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, granolaSiteRules, youtubeSiteRules, githubPullRequestSiteRules, danaMcNeilSiteRules, intuitPrivacySiteRules, ...crawlClaimingSiteRules],
 		crawlClaimingSiteRules,
 	};
 }

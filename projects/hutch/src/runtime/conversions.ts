@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
 import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import type { ClickAttribution } from "@packages/web-analytics";
-import { CONVERSION_EVENTS, STREAMS } from "./observability/events";
+import { CONVERSION_EVENTS } from "@packages/dashboard-widgets";
+import { STREAMS } from "./observability/events";
 
 export type { ConversionEvent };
 

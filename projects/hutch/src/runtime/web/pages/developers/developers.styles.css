@@ -112,9 +112,6 @@
   position: absolute;
   top: 4px;
   right: 8px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--footer-link);
 }
 
 .developers__title {

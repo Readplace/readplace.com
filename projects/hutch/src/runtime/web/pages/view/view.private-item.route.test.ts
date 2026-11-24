@@ -126,3 +126,36 @@ describe("/view polls for a private upload", () => {
 		expect(response.text).toContain("ORDINARY-BODY");
 	});
 });
+
+describe("public /view for a saved email issue", () => {
+	it("rejects the issue URL and its scheme-independent storage address on every public reader surface", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const issue = "email://inbox/owner/message";
+		await fixture.articleStore.saveArticleGlobally({
+			url: issue,
+			metadata: { title: "Private newsletter subject", siteName: "Inbox", excerpt: "", wordCount: 3 },
+			estimatedReadTime: calculateReadTime(3),
+			savedAt: new Date(),
+		});
+		await fixture.articleStore.writeContent({ url: issue, content: "<p>Private newsletter body</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: issue });
+
+		const visitor = request(harness.server);
+		for (const input of [issue, "https://inbox/owner/message"]) {
+			const url = encodeURIComponent(input);
+			const landing = await visitor.get(`/view?url=${url}`).set(BROWSER_REQUEST_HEADERS);
+			expect(landing.text).toContain("No article URL provided");
+			for (const slot of ["reader", "summary"]) {
+				const poll = await visitor.get(`/view/${slot}?url=${url}`);
+				expect(poll.status).toBe(400);
+				expect(poll.text).toBe("");
+			}
+		}
+		for (const path of [`/view/${encodeURIComponent(issue)}`, "/view/inbox/owner/message", "/view/inbox/owner/message?format=epub"]) {
+			const page = await visitor.get(path).set(BROWSER_REQUEST_HEADERS);
+			expect(page.text).toContain("No article URL provided");
+			expect(page.text).not.toContain("Private newsletter");
+		}
+	});
+});

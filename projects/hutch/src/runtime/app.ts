@@ -4,6 +4,7 @@ import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
 import type { WebLogger } from "./domain/logger";
+import { parseAdminEmails } from "@packages/admin-gate";
 import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { PLAN_OFFERS } from "@packages/web-shell";
@@ -51,6 +52,7 @@ type AssemblyProvidedKeys =
 	| "analytics"
 	| "authDiagnosticsLogger"
 	| "signupLogger"
+	| "uploadLogger"
 	| "salt"
 	| "keepOfferCouponId"
 	| "keepOfferEndsAt"
@@ -61,13 +63,6 @@ type AssemblyProvidedKeys =
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
 
 const ADMIN_MFA_ATTEMPT_RULE = { limit: 5, windowSeconds: 900 };
-
-function parseAdminEmails(raw: string): readonly string[] {
-	return raw
-		.split(",")
-		.map((s) => s.trim())
-		.filter((s) => s.length > 0);
-}
 
 export function assembleReadplaceApp(input: {
 	appOrigin: string;
@@ -124,6 +119,7 @@ export function assembleReadplaceApp(input: {
 		analytics: analyticsLogger,
 		authDiagnosticsLogger: Logger.fromJSON<Record<string, unknown>>(),
 		signupLogger: Logger.from(consoleLogger),
+		uploadLogger: Logger.from(consoleLogger),
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		newsletterCatalogSeed: readNewsletterCatalogSeed(),

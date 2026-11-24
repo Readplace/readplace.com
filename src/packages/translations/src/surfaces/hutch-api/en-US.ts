@@ -14,4 +14,8 @@ export const enUS = {
 	ocrPagesHeld: {
 		warning: "This PDF has {pages} pages, more than are left in today's allowance.",
 	},
+	readlistDestination: {
+		preferences: "Preferences",
+		integrations: "Connectors",
+	},
 } as const;

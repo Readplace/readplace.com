@@ -1,5 +1,6 @@
 import { UserIdSchema } from "@packages/domain/user";
-import { LIFECYCLE_EMAIL_EVENTS, STREAMS } from "./events";
+import { LIFECYCLE_EMAIL_EVENTS } from "@packages/dashboard-widgets";
+import { STREAMS } from "./events";
 import { LIFECYCLE_EMAIL_KINDS, initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./lifecycle-email-events";
 
 const userId = UserIdSchema.parse("reader");

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 import {
 	CRAWL_STATUS_INDEX,
@@ -6,6 +7,7 @@ import {
 } from "@packages/provider-contracts/article-status-indexes";
 import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { buildQueryInputs, collectFailedRows } from "./collect-failed-rows";
+import { parseIgnoredKeyHashes } from "./ignored-key-hashes";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
@@ -64,13 +66,18 @@ const NOW = new Date("2026-05-18T12:00:00.000Z");
 const TABLE = "test-articles";
 const NO_EXCLUDES: readonly RegExp[] = [];
 
-function collect(client: DynamoDBDocumentClient, excludePatterns = NO_EXCLUDES) {
+function collect(
+	client: DynamoDBDocumentClient,
+	excludePatterns = NO_EXCLUDES,
+	ignoredKeyHashes?: ReadonlySet<string>,
+) {
 	return collectFailedRows({
 		client,
 		tableName: TABLE,
 		now: () => NOW,
 		lookbackDays: 0,
 		excludePatterns,
+		ignoredKeyHashes,
 	});
 }
 
@@ -176,6 +183,8 @@ describe("buildQueryInputs", () => {
 				"summaryFailureReason",
 				"contentFetchedAt",
 				"savedAt",
+				"fullCrawlRequestedAt",
+				"resolutionOnViewClaimedAt",
 			]) {
 				assert.ok(
 					input.ProjectionExpression.includes(attr),
@@ -202,6 +211,77 @@ describe("buildQueryInputs", () => {
 });
 
 describe("collectFailedRows", () => {
+	it("removes only the configured physical keys and preserves the report order across both indexes", async () => {
+		const crawl = {
+			url: "stored.test/Café?ref=A",
+			originalUrl: "https://site.test/changed-alias",
+			crawlStatus: "failed",
+			summaryStatus: "failed",
+			savedAt: "2026-05-10T00:00:00.000Z",
+		};
+		const summary = {
+			...crawl,
+			url: "stored.test/summary",
+			crawlStatus: "ready",
+		};
+		const sharedAlias = { ...crawl, url: "stored.test/another-article" };
+		const caseVariant = { ...crawl, url: "stored.test/café?ref=A", originalUrl: crawl.url };
+		const regexExcluded = { ...crawl, url: "stored.test/regex", originalUrl: "https://excluded.test/a" };
+		const keptSummary = { ...summary, url: "stored.test/another-summary" };
+		const pages = {
+			[CRAWL_STATUS_INDEX]: [[crawl, sharedAlias], [caseVariant, regexExcluded]],
+			[SUMMARY_STATUS_INDEX]: [[crawl, summary, sharedAlias, keptSummary]],
+		};
+		const excludePatterns = [/:\/\/excluded\.test/];
+		const baseline = await collect(
+			createIndexClient(pages).client,
+			excludePatterns,
+			parseIgnoredKeyHashes("[]"),
+		);
+		assert.deepEqual(baseline.map(({ articleKey }) => articleKey), [
+			crawl.url, sharedAlias.url, caseVariant.url, summary.url, keptSummary.url,
+		]);
+		const rawHashes = JSON.stringify(
+			[crawl.url, summary.url].map((url) => createHash("sha256").update(url, "utf8").digest("hex")),
+		);
+		const filtered = await collect(
+			createIndexClient(pages).client,
+			excludePatterns,
+			parseIgnoredKeyHashes(rawHashes),
+		);
+		assert.deepEqual(filtered, [baseline[1], baseline[2], baseline[4]]);
+	});
+
+	it("keeps physical keys and optional admission evidence in the deduplicated report order", async () => {
+		const listAdmission = "2026-05-11T00:00:00.000Z";
+		const repeat = {
+			url: "stored.test/a",
+			originalUrl: "https://example.test/a?from=feed",
+			crawlStatus: "failed",
+			summaryStatus: "failed",
+			savedAt: "2026-05-10T00:00:00.000Z",
+			fullCrawlRequestedAt: listAdmission,
+			resolutionOnViewClaimedAt: listAdmission,
+		};
+		const { client } = createIndexClient({
+			[CRAWL_STATUS_INDEX]: [[repeat], [{
+				url: "stored.test/b",
+				crawlStatus: "failed",
+				summaryStatus: "skipped",
+				savedAt: "2026-05-10T00:00:00.000Z",
+				fullCrawlRequestedAt: 123,
+			}]],
+			[SUMMARY_STATUS_INDEX]: [[repeat]],
+		});
+		const rows = await collect(client);
+		assert.deepEqual(rows.map(({ articleKey, originalUrl, axes, fullCrawlRequestedAt, resolutionOnViewClaimedAt }) => [
+			articleKey, originalUrl, axes, fullCrawlRequestedAt, resolutionOnViewClaimedAt,
+		]), [
+			["stored.test/a", "https://example.test/a?from=feed", ["crawl-failed"], listAdmission, listAdmission],
+			["stored.test/b", "stored.test/b", ["crawl-failed"], undefined, undefined],
+		]);
+	});
+
 	it("issues one Query per status index against the configured table with the buildQueryInputs bodies", async () => {
 		const { client, calls } = createIndexClient({});
 		await collect(client);
@@ -569,5 +649,34 @@ describe("collectFailedRows", () => {
 		const failed = await collect(client, [/:\/\/excluded\.test/]);
 		assert.equal(failed.length, 1);
 		assert.equal(failed[0]?.originalUrl, "https://kept.test/b");
+	});
+});
+
+describe("parseIgnoredKeyHashes", () => {
+	it("requires an explicit list with a sanitized error when the secret is absent", () => {
+		for (const raw of [undefined, ""]) {
+			assert.throws(
+				() => parseIgnoredKeyHashes(raw),
+				{ message: "FAILED_ARTICLES_IGNORED_KEY_HASHES is required (use [] for an empty list)" },
+			);
+		}
+	});
+
+	it("rejects malformed lists and values without disclosing their contents", () => {
+		const digest = "ab".repeat(32);
+		for (const raw of [
+			"[secret-content",
+			JSON.stringify({ secret: digest }),
+			JSON.stringify([42]),
+			JSON.stringify([digest.slice(1)]),
+			JSON.stringify([digest.toUpperCase()]),
+			JSON.stringify([`${digest}\n`]),
+			JSON.stringify([digest, digest]),
+		]) {
+			assert.throws(
+				() => parseIgnoredKeyHashes(raw),
+				{ message: "FAILED_ARTICLES_IGNORED_KEY_HASHES must be a JSON array of unique lowercase SHA-256 hex digests" },
+			);
+		}
 	});
 });

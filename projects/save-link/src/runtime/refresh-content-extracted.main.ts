@@ -5,9 +5,7 @@ import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { consoleLogger, Logger } from "@packages/logger";
 import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/infra-components";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { initForwardRefreshContentExtracted, initRefreshContentExtractedHandler } from "./domain/select-content/refresh-content-extracted-handler";
-import { SELECTION_INGRESS_ENV, SelectionRouteSchema } from "./selection-ingress.env";
-import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
+import { initRefreshContentExtractedHandler } from "./domain/select-content/refresh-content-extracted-handler";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEventsDepBundle } from "./dep-bundles/events";
@@ -22,10 +20,6 @@ const contentBucketName = env.CONTENT_BUCKET_NAME;
 const eventBusName = env.EVENT_BUS_NAME;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
-
-const ingressEnv = readEnv(SELECTION_INGRESS_ENV);
-const selectionRoute = SelectionRouteSchema.parse(ingressEnv.SELECTION_ROUTE);
-const selectArticleContentQueueUrl = ingressEnv.SELECT_ARTICLE_CONTENT_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -57,14 +51,10 @@ const selectContent = initSelectContentDepBundle({
 	now: () => new Date(),
 });
 
-const selectHandler = initRefreshContentExtractedHandler({
+export const handler = initRefreshContentExtractedHandler({
 	...selectContent,
 	...articleAggregate,
 	loadArticle: articleAggregate.store.load,
 	now: () => new Date(),
 	logger: consoleLogger,
 });
-
-export const handler = selectionRoute === "forward"
-	? initForwardRefreshContentExtracted({ dispatchSelectArticleContent: initSelectArticleContentDispatch({ sqsClient, selectArticleContentQueueUrl }), logger: consoleLogger })
-	: selectHandler;

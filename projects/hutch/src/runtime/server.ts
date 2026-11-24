@@ -362,7 +362,7 @@ import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { initDualAuth } from "./web/dual-auth.middleware";
+import { initDualAuth, initPresentedSirenBearerAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
@@ -380,7 +380,6 @@ import {
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { forBearerSirenRequests } from "./web/bearer-siren-requests.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
@@ -416,7 +415,6 @@ import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { initIntegrationsRoutes } from "./web/pages/integrations";
 import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-integration.types";
-import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
 import { initListConnectedOAuthClients } from "./domain/oauth/connected-oauth-clients";
 import {
@@ -500,11 +498,6 @@ export interface AppDependencies {
 	writeNewsletterCatalog: WriteNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
 	findCanaryReport: FindCanaryReport;
-	adminDashboards: {
-		runLogsInsightsQuery: RunLogsInsightsQuery;
-		readExcludedIdentities: ReadExcludedIdentities;
-		now: () => Date;
-	};
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
@@ -726,6 +719,7 @@ export interface AppDependencies {
 	analytics: Logger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
 	signupLogger: Logger;
+	uploadLogger: Logger;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -1708,7 +1702,14 @@ export function createApp(dependencies: AppDependencies): Express {
 			refund: deps.refundUnstartedCharge,
 		}),
 	});
-	app.use("/upload", forBearerSirenRequests(dualAuthMiddleware, resolveVerificationStatus));
+	app.use(
+		"/upload",
+		initPresentedSirenBearerAuth({
+			validateAccessToken: deps.validateAccessToken,
+			baseUrl: deps.baseUrl,
+		}),
+		resolveVerificationStatus,
+	);
 	app.use(
 		"/upload",
 		initAnonymousUploadRoutes({
@@ -1760,6 +1761,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
+			logger: deps.uploadLogger,
 			buildBannerState,
 			appOrigin,
 		}),

@@ -181,6 +181,7 @@ interface AccountDependencies {
 	resolvePriceId: ResolvePriceId;
 	buildCheckoutSuccessUrl: (sessionIdPlaceholder: string) => string;
 	appOrigin: string;
+	dailySaveLimit: number;
 	logger: Logger;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
@@ -291,6 +292,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			plan: input.plan,
 			hasCustomer: input.hasCustomer,
 			payment: input.payment,
+			dailySaveLimit: deps.dailySaveLimit,
 		});
 		// Inside the app's web sheet every nav and footer link would yank the user out
 		// into their OS default browser, where they are not signed in — so the app
@@ -407,6 +409,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			plan: row?.plan,
 			hasCustomer: row?.customerId !== undefined,
 			payment: { kind: "no-customer" },
+			dailySaveLimit: deps.dailySaveLimit,
 		});
 		const vm = isNativeSurface(req)
 			? withoutCommerce(webVm, { appShell: isAppShell(req), platform: nativeSurfaceOf(req) })

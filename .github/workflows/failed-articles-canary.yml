@@ -8,9 +8,8 @@ name: Failed articles canary
 # terminal outcomes — an image is not an error, too-short content needs no
 # summary — and are intentionally NOT surfaced.)
 #
-# This canary is a debug worklist, not a pass/fail health check. The script
-# always exits 0 even when failed rows are present — the workflow opens a
-# tracking issue so the operator can re-save and
+# This canary is a debug worklist. When a scan finds failed rows, the workflow
+# opens a tracking issue so the operator can re-save and
 # investigate each one. If a tracking issue is already open, the workflow
 # skips the scan entirely so a single backlog isn't re-posted day after day;
 # the next scan runs after the operator closes that issue.
@@ -42,6 +41,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ap-southeast-2
       DYNAMODB_ARTICLES_TABLE: hutch-articles-cda0a08
+      DYNAMODB_USER_ARTICLES_TABLE: hutch-user-articles-8226beb
       READPLACE_ORIGIN: https://readplace.com
       # 0 = no time gate (full historical scan). Raise to N to gate on
       # `savedAt >= now - N days` once the operator has worked through the
@@ -97,6 +97,8 @@ jobs:
 
       - name: Run failed articles canary
         if: steps.existing-issue.outputs.skip != 'true'
+        env:
+          FAILED_ARTICLES_IGNORED_KEY_HASHES: ${{ secrets.FAILED_ARTICLES_IGNORED_KEY_HASHES }}
         run: pnpm nx run @packages/check-failed-articles:check-failed-articles
 
       - name: Open tracking issue if report has failed rows

@@ -52,6 +52,7 @@ const SAVED_FACT_TOKEN = "--fact-saved";
 const BANNER_AREA_ROOT = ".banner-area";
 const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 function minimumRatio(measured: RenderedInk): number {
 	return measured.role === "text" ? textMinimum(measured) : NON_TEXT_MINIMUM;
@@ -796,6 +797,32 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await auditRoot(page, { root: "[data-test-article-history]", theme, view: "chip/article-history" });
 		}
 	});
+
+	test("the Saved offline badge clears its contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-chip-offline-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-offline-${run}`,
+				title: "A settled article kept for offline reading",
+				content: "<p>Seeded body for the Saved offline badge contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A concise summary.", excerpt: "Lead line." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.locator("[data-test-offline-download-start]").click();
+		await expect(page.locator("[data-offline-tag]")).toBeVisible({ timeout: DOWNLOAD_TIMEOUT_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await auditRoot(page, { root: "[data-offline-tag]", theme, view: "chip/saved-offline" });
+		}
+	});
 });
 
 test.describe("The reader's failed-crawl notice holds its WCAG contrast in both themes", () => {
@@ -886,6 +913,79 @@ test.describe("A highlighted passage in the reader holds its WCAG contrast in bo
 				`${theme}/reader-highlight: the audit must measure the marked passage's ink`,
 			);
 			assertContrast(measurements, { theme, view: "reader-highlight" });
+		}
+	});
+
+	test("a highlight over a link or muted text clears colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-highlight-inherited-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const linkPassage = "a linked phrase under the reader's mark";
+		const quotePassage = "a quoted line under the reader's mark";
+		const captionPassage = "a captioned line under the reader's mark";
+		const placeholderPassage = "a placeholder line under the reader's mark";
+		const quotedLinkPassage = "a quoted link under the reader's mark";
+		const placeholderLinkPassage = "a placeholder link under the reader's mark";
+		const marks = [
+			{
+				passage: linkPassage,
+				locator: "[data-test-reader-content] p:not(blockquote p, .reader-video-placeholder) > a > mark.article-highlight",
+			},
+			{ passage: quotePassage, locator: "[data-test-reader-content] blockquote p > mark.article-highlight" },
+			{ passage: captionPassage, locator: "[data-test-reader-content] figcaption mark.article-highlight" },
+			{
+				passage: placeholderPassage,
+				locator: "[data-test-reader-content] .reader-video-placeholder > mark.article-highlight",
+			},
+			{ passage: quotedLinkPassage, locator: "[data-test-reader-content] blockquote a > mark.article-highlight" },
+			{
+				passage: placeholderLinkPassage,
+				locator: "[data-test-reader-content] .reader-video-placeholder > a > mark.article-highlight",
+			},
+		];
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-highlight-inherited-${run}`,
+				title: "A passage worth keeping in every container",
+				content: [
+					`<p>Lead words, <a href="https://example.com/colour-contrast-highlight-link-${run}">${linkPassage}</a>, trailing words.</p>`,
+					`<blockquote><p>${quotePassage}, and the quote goes on.</p></blockquote>`,
+					`<figure><figcaption>${captionPassage}, and the caption goes on.</figcaption></figure>`,
+					`<p class="reader-video-placeholder">${placeholderPassage}, and the placeholder goes on.</p>`,
+					`<blockquote><p>Quoted lead, <a href="https://example.com/colour-contrast-highlight-quoted-link-${run}">${quotedLinkPassage}</a>, quoted tail.</p></blockquote>`,
+					`<p class="reader-video-placeholder">Placeholder lead, <a href="https://example.com/colour-contrast-highlight-placeholder-link-${run}">${placeholderLinkPassage}</a>, placeholder tail.</p>`,
+				].join(""),
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
+		await loginChipReader(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		for (const { passage, locator } of marks) {
+			await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+			await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+			await page.locator('[data-test-action="highlight"]').click();
+			await expect(page.locator(locator)).toHaveText(passage, { timeout: SETTLE_MS });
+		}
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			for (const { passage, locator } of marks) {
+				await expect(page.locator(locator)).toHaveText(passage, { timeout: SETTLE_MS });
+			}
+			await page.mouse.move(0, 0);
+			const measurements = await stableMeasurements(page, "[data-test-reader-content]");
+			assert.ok(
+				measurements.some((measured) => measured.role === "text" && measured.name === "mark.article-highlight"),
+				`${theme}/reader-highlight-inherited-ink: the audit must measure the marked passages' ink`,
+			);
+			assertContrast(measurements, { theme, view: "reader-highlight-inherited-ink" });
 		}
 	});
 });
@@ -1505,36 +1605,6 @@ test.describe("Admin newsletter colour roles hold their WCAG contrast in both th
 			await page.goto(`${BASE_URL}/admin/newsletters`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator('[data-test-alert="newsletter-storage"]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: ADMIN_NEWSLETTERS_ROOT, theme, view: "admin/storage-failure" });
-		}
-	});
-});
-
-test.describe("Admin dashboard colour roles hold their WCAG contrast in both themes", () => {
-	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
-
-	test("the dashboard index and the HN experiment, MCP and login dashboards clear their contrast minimum", async ({ page }) => {
-		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
-			data: { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD },
-		});
-		assert.equal(created.status(), 201);
-		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-		await page.locator("#email").fill(E2E_ADMIN_EMAIL);
-		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
-		await page.locator('[data-test-form="login"] button[type="submit"]').click();
-		await page.waitForSelector("body.page-readlist");
-		await passAdminChallenge(page, { baseURL: BASE_URL });
-
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			await page.goto(`${BASE_URL}/admin/dashboards`, { waitUntil: "domcontentloaded" });
-			await page.waitForSelector("body.page-admin-dashboards");
-			await auditRoot(page, { root: "main.admin-dashboards", theme, view: "admin/dashboards" });
-
-			for (const slug of ["hn-experiment", "mcp", "login", "keep-engine"] as const) {
-				await page.goto(`${BASE_URL}/admin/dashboards/${slug}`, { waitUntil: "domcontentloaded" });
-				await page.waitForSelector("body.page-admin-dashboard");
-				await auditRoot(page, { root: "main.admin-dashboard", theme, view: `admin/dashboards/${slug}` });
-			}
 		}
 	});
 });

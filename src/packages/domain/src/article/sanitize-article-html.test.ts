@@ -131,6 +131,11 @@ describe("sanitizeArticleHtml", () => {
 		expect(sanitizeArticleHtml(responsiveImage)).toBe(responsiveImage);
 	});
 
+	it("keeps an image title as plain tooltip text and strips executable attributes", () => {
+		const image = '<img src="https://cdn.example.com/a.png" alt="Field notes" title="Low tide &amp; &quot;high&quot; &lt;water&gt;"';
+		expect(sanitizeArticleHtml(`${image} onerror="alert(1)">`)).toBe(`${image} />`);
+	});
+
 	it("keeps a root-relative image source, which a private book serves its images from", () => {
 		const bookImage =
 			'<img src="/queue/a1b2c3/media/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08.png" alt="Map" loading="lazy" />';

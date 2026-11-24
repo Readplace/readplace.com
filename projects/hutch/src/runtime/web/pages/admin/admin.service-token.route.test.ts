@@ -38,7 +38,6 @@ describe("the recrawl service token on admin surfaces", () => {
 		"/admin/founder-notes",
 		"/admin/newsletters",
 		"/admin/canary-reports/daily/example",
-		"/admin/dashboards",
 	])("sends a caller with only the token on %s to sign in", async (path) => {
 		const { server, serviceToken } = buildHarness();
 

@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import { GetParameterCommand } from "@aws-sdk/client-ssm";
 import type { ReadAdminTotpSecrets } from "../../web/pages/admin/admin-totp-secrets";
-import type { GetSsmParameter } from "../excluded-identities/ssm-excluded-identities";
+
+export type GetSsmParameter = (command: GetParameterCommand) => Promise<{ Parameter?: { Value?: string } }>;
 
 export function initSsmAdminTotpSecrets(deps: {
 	getParameter: GetSsmParameter;
