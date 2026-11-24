@@ -67,3 +67,11 @@ main:has(.highlight-toolbar__form.htmx-request) .article-body__content {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+
+.article-body__content :where(blockquote, figcaption, .reader-video-placeholder) .article-highlight {
+  color: light-dark(var(--muted-foreground), var(--foreground));
+}
+
+.article-body__content a .article-highlight {
+  color: light-dark(var(--primary-text-on-tint), var(--foreground));
+}
