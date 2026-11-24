@@ -320,7 +320,7 @@ describe("Saving Gmail newsletters to a readlist", () => {
 		expect(modes).toEqual(["issue", "issue"]);
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
 		expect(gmail.newsletterSenderSubmissions).toEqual([{ senderEmail: TLDR }]);
-		expect([gmail.importStartRequests, gmail.markBackfillStartRequests]).toEqual([[], []]);
+		expect(gmail.importStartRequests).toEqual([]);
 	});
 
 	it("adds this readlist alongside the sender's other readlists, keeping its delivery mode", async () => {

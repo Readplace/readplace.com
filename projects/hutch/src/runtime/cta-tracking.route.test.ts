@@ -393,7 +393,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const actionKeys = new Set(rendered.flatMap((doc) =>
 			Array.from(doc.querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action")),
 		));
-		expect([...actionKeys].sort()).toEqual(["cancel-import", "edit", "grant-import-permission", "grant-mark-permission", "mark-read-backfill", "mark-read-start", "mark-read-stop", "remove", "retry-import", "start-import"]);
+		expect([...actionKeys].sort()).toEqual(["cancel-import", "edit", "grant-import-permission", "remove", "retry-import", "start-import"]);
 		expect(["[data-test-gmail-readlist-picker]", "[data-test-gmail-sender-picker]"].map((picker) => rendered[0]?.querySelector(picker)?.hasAttribute("open"))).toEqual([true, true]);
 		const dialogLinks = rendered.slice(0, 2).map((doc) => Array.from(doc.querySelectorAll("#gmail-dialog a[data-test-action]"), (link) => [link.getAttribute("data-test-action"), new URL(link.getAttribute("href") ?? "", TEST_APP_ORIGIN).searchParams.get("utm_content")]));
 		expect(dialogLinks).toEqual([

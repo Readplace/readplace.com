@@ -9,9 +9,22 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 	all: () => GmailMessageUpdate[];
 } {
 	const records = new Map<string, GmailMessageUpdate>();
+	const claims = new Map<string, string>();
 	const keyOf = (input: { userId: string; origin: GmailMessageUpdate["origin"] }) => `${input.userId}#${gmailMessageOriginKey(input.origin)}`;
 
 	return {
+		claimPending: async (input) => {
+			const key = keyOf(input);
+			const active = claims.get(key);
+			if (records.get(key)?.status !== "pending" || (active !== undefined && active > input.now.toISOString())) return undefined;
+			const claimUntil = new Date(input.now.getTime() + 90_000).toISOString();
+			claims.set(key, claimUntil);
+			return claimUntil;
+		},
+		releaseClaim: async (input) => {
+			const key = keyOf(input);
+			if (claims.get(key) === input.claimUntil) claims.delete(key);
+		},
 		recordPending: async ({ userId, receivedAtMessageId, origin, now }) => {
 			const key = keyOf({ userId, origin });
 			const current = records.get(key) ?? { status: "pending", userId, receivedAtMessageId, origin, requestedAt: now.toISOString() };
@@ -19,7 +32,7 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 			return current;
 		},
 		find: async (input) => records.get(keyOf(input)),
-		markCompleted: async ({ userId, origin, now }) => {
+		markCompleted: async ({ userId, origin, now, alreadyRead }) => {
 			const current = records.get(keyOf({ userId, origin }));
 			if (current === undefined) return;
 			records.set(keyOf({ userId, origin }), {
@@ -29,6 +42,7 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 				origin,
 				requestedAt: current.requestedAt,
 				completedAt: now.toISOString(),
+				alreadyRead,
 			});
 		},
 		markFailed: async ({ userId, origin, reason, now }) => {

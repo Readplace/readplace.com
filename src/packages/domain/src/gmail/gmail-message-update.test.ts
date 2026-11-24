@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { NormalizedMessageIdSchema } from "../inbox/email-identity";
 import { ForwardableSenderSchema } from "./build-forwarding-filter-query";
 import { GmailAccountEmailSchema } from "./gmail-account-email.schema";
-import { GmailMessageIdSchema } from "./gmail-history-import.schema";
+import { GmailHistoryImportJobIdSchema, GmailMessageIdSchema } from "./gmail-history-import.schema";
 import { gmailAccountKey, gmailMessageOriginKey, sameGmailAccount } from "./gmail-message-update";
 
 const account = GmailAccountEmailSchema.parse("Reader@Gmail.com");
@@ -12,6 +12,14 @@ describe("gmailMessageOriginKey", () => {
 		assert.equal(
 			gmailMessageOriginKey({ kind: "history", accountEmail: account, gmailMessageId: GmailMessageIdSchema.parse("abc123"), senderEmail: ForwardableSenderSchema.parse("news@example.com") }),
 			"history#reader@gmail.com#abc123",
+		);
+	});
+
+	it("includes the explicit history job in the update key", () => {
+		const jobId = GmailHistoryImportJobIdSchema.parse("0123456789abcdef0123456789abcdef");
+		assert.equal(
+			gmailMessageOriginKey({ kind: "history", accountEmail: account, gmailMessageId: GmailMessageIdSchema.parse("abc123"), senderEmail: ForwardableSenderSchema.parse("news@example.com"), jobId }),
+			`history#reader@gmail.com#abc123#${jobId}`,
 		);
 	});
 

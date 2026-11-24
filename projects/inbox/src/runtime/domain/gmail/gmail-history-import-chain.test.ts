@@ -315,15 +315,17 @@ function makePipeline() {
 
 	const deliverFetched = async (input: {
 		destinationAddress: InboxAddress;
+		jobId?: GmailHistoryImportJobId;
 		additionalAddresses?: InboxAddress[];
 		messageId: string;
 		deliveryMode?: "links" | "issue";
 	}) => {
-		const rawEmailS3Key = `gmail-import/${READER}/${JOB}/${GMAIL_MESSAGE_ID}.eml`;
+		const jobId = input.jobId ?? JOB;
+		const rawEmailS3Key = `gmail-import/${READER}/${jobId}/${GMAIL_MESSAGE_ID}.eml`;
 		rawObjects.set(rawEmailS3Key, tldrIssueEml(input.messageId));
 		const detail = GmailHistoryImportMessageFetchedEvent.detailSchema.parse({
 			userId: READER,
-			jobId: JOB,
+			jobId,
 			generation: GENERATION,
 			gmailMessageId: GMAIL_MESSAGE_ID,
 			accountEmail: "reader@gmail.com",
@@ -677,7 +679,8 @@ describe("gmail history import chain (inbox half)", () => {
 		assert.equal(pipeline.publishedOf(EmailReceivedEvent).length, 1);
 	});
 
-	const HISTORY_ORIGIN = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: TLDR };
+	const HISTORY_ORIGIN = {
+	jobId: JOB, kind: "history", accountEmail: ACCOUNT, gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: TLDR };
 	const FORWARDED_ORIGIN = { kind: "forwarded", accountEmail: ACCOUNT, senderEmail: TLDR, rfcMessageId: "issue-42@tldr.tech" };
 
 	it("asks for the imported Gmail message to be marked only after its saves are confirmed in All", async () => {
@@ -758,6 +761,29 @@ describe("gmail history import chain (inbox half)", () => {
 			pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail),
 			[forwardedMark, forwardedMark],
 		);
+	});
+
+	it("requests a new Gmail update for a fresh unread import while reusing the saved email", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		const messageId = "<issue-42@tldr.tech>";
+		const freshJob = GmailHistoryImportJobIdSchema.parse("fedcba9876543210fedcba9876543210");
+
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+		assert.equal(pipeline.publishedOf(MarkGmailEmailImportedCommand).length, 0);
+		await pipeline.confirmSavedToAll();
+
+		await pipeline.startImport({ jobId: freshJob, destinationAddress });
+		await pipeline.deliverFetched({ jobId: freshJob, destinationAddress, messageId });
+		await pipeline.deliverFetched({ jobId: freshJob, destinationAddress, messageId });
+
+		assert.equal((await pipeline.rows()).length, 1);
+		assert.equal(pipeline.publishedOf(SubmitLinkCommand).length, 1);
+		const origins = pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => MarkGmailEmailImportedCommand.detailSchema.parse(detail).origin);
+		assert.deepEqual(new Set(origins.map((origin) => origin.kind === "history" ? origin.jobId : undefined)), new Set([JOB, freshJob]));
+		assert.equal(origins.filter((origin) => origin.kind === "history" && origin.jobId === freshJob).length, 2);
 	});
 
 	it("marks both the forwarded and the imported Gmail copies of one issue on the single canonical email", async () => {

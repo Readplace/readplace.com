@@ -22,6 +22,7 @@ import type { UserId } from "@packages/domain/user";
 import { withInternalTracking } from "@packages/web-shell";
 import type { GmailConnectDisclaimerAction } from "../integrations/gmail-connect-disclaimer.component";
 import { GMAIL_CONNECT_PATH } from "../integrations/gmail-connect.url";
+import { GMAIL_MODIFY_RECONNECT_MESSAGE } from "../integrations/gmail-connection-access";
 import { buildLockableGmailConnectionPrompt, type GmailConnectionPrompt } from "../integrations/gmail-connection-prompt";
 import type { FormField } from "../integrations/gmail-form-fields";
 import {
@@ -81,6 +82,7 @@ export interface ReadlistGmailSectionStateInput {
 }
 
 export interface ReadlistGmailSendersInput extends ReadlistGmailSectionStateInput {
+	modifyScopeGranted: boolean;
 	userId: UserId;
 	offer: UpgradeOffer | undefined;
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
@@ -444,6 +446,14 @@ const SECTION_VIEW: Record<ReadlistGmailSectionState, (input: ReadlistGmailSende
 
 export function toReadlistGmailSenders(input: ReadlistGmailSendersInput): ReadlistGmailSendersViewModel {
 	const state = readlistGmailSectionState(input);
+	const view = SECTION_VIEW[state](input);
+	const showModifyReconnect = view.prompt === undefined && input.canConnectGmail && !input.modifyScopeGranted
+		&& (state === "picker" || state === "awaiting" || state === "filter-failed");
+	const prompt = showModifyReconnect ? buildLockableGmailConnectionPrompt({
+		canConnectGmail: true,
+		message: GMAIL_MODIFY_RECONNECT_MESSAGE,
+		content: "grant-modify-access", label: "Reconnect Gmail", variant: "primary", fields: [{ name: "intent", value: "modify" }], track, lock: promptLock(input),
+	}) : view.prompt;
 	const picker = readlistGmailPickerVisible(state) ? toPicker(input) : undefined;
 	const selection: ReadlistGmailSelection = picker === undefined
 		? input.selection
@@ -452,7 +462,8 @@ export function toReadlistGmailSenders(input: ReadlistGmailSendersInput): Readli
 		sectionClass: SECTION_CLASS[state],
 		state,
 		lede: LEDES[input.readlist.purpose === undefined ? "unset" : "set"](input.readlist.label),
-		...SECTION_VIEW[state](input),
+		...view,
+		prompt,
 		picker,
 		pageUrl: buildReadlistGmailUrl({ slug: input.readlist.slug, selection }),
 	};

@@ -13,11 +13,11 @@ const UNREAD_LABEL = "UNREAD";
 
 export class GmailUnavailableError extends Error {}
 
-export type GmailOriginalUpdateFailure =
+type GmailOriginalUpdateFailure =
 	| { kind: "failed"; reason: GmailMessageUpdateFailureReason }
 	| { kind: "reauth-required" };
 
-export type MarkOriginalOutcome = { kind: "marked" } | GmailOriginalUpdateFailure;
+export type MarkOriginalOutcome = { kind: "marked" } | { kind: "already-read" } | GmailOriginalUpdateFailure;
 
 type Step<T> = { ok: true; value: T } | { ok: false; outcome: GmailOriginalUpdateFailure };
 
@@ -29,13 +29,7 @@ function settle<T>(result: GmailApiResult<T>): Step<T> {
 }
 
 async function locateOriginal(mailbox: OpenedGmailMailbox, origin: GmailMessageOrigin): Promise<Step<GmailMessageId>> {
-	if (origin.kind === "history") {
-		const found = settle(await mailbox.findMessage({ messageId: origin.gmailMessageId }));
-		if (!found.ok) return found;
-		return found.value.found
-			? { ok: true, value: origin.gmailMessageId }
-			: { ok: false, outcome: { kind: "failed", reason: "original-not-found" } };
-	}
+	if (origin.kind === "history") return { ok: true, value: origin.gmailMessageId };
 	const searched = settle(await mailbox.searchByRfcMessageId({ rfcMessageId: origin.rfcMessageId, senderEmail: origin.senderEmail }));
 	if (!searched.ok) return searched;
 	const matches = searched.value.filter((candidate) => {
@@ -54,7 +48,7 @@ async function locateOriginal(mailbox: OpenedGmailMailbox, origin: GmailMessageO
 	return { ok: true, value: match.id };
 }
 
-export async function importedLabelId(mailbox: OpenedGmailMailbox): Promise<Step<string>> {
+async function importedLabelId(mailbox: OpenedGmailMailbox): Promise<Step<string>> {
 	const existing = settle(await mailbox.findLabelId({ name: GMAIL_IMPORTED_LABEL_NAME }));
 	if (!existing.ok) return existing;
 	if (existing.value !== undefined) return { ok: true, value: existing.value };
@@ -70,12 +64,18 @@ export async function importedLabelId(mailbox: OpenedGmailMailbox): Promise<Step
 export async function markOriginal(input: {
 	mailbox: OpenedGmailMailbox;
 	origin: GmailMessageOrigin;
-	labelId: string;
 }): Promise<MarkOriginalOutcome> {
-	const { mailbox, origin, labelId } = input;
+	const { mailbox, origin } = input;
 	const original = await locateOriginal(mailbox, origin);
 	if (!original.ok) return original.outcome;
-	const modified = settle(await mailbox.modifyMessage({ messageId: original.value, addLabelIds: [labelId], removeLabelIds: [UNREAD_LABEL] }));
+	const message = settle(await mailbox.findMessage({ messageId: original.value }));
+	if (!message.ok) return message.outcome;
+	if (!message.value.found) return { kind: "failed", reason: "original-not-found" };
+	if (!message.value.labelIds.includes(UNREAD_LABEL)) return { kind: "already-read" };
+
+	const label = await importedLabelId(mailbox);
+	if (!label.ok) return label.outcome;
+	const modified = settle(await mailbox.modifyMessage({ messageId: original.value, addLabelIds: [label.value], removeLabelIds: [UNREAD_LABEL] }));
 	if (!modified.ok) return modified.outcome;
 	return { kind: "marked" };
 }

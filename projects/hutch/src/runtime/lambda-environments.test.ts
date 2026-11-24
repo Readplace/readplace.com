@@ -10,7 +10,6 @@ import { NEWSLETTER_CATALOG_SUGGESTIONS_ENV } from "./newsletter-catalog-suggest
 import { GMAIL_HISTORY_IMPORT_ENV } from "./gmail-history-import.env";
 import { GMAIL_HISTORY_IMPORT_OUTCOMES_ENV } from "./gmail-history-import-outcomes.env";
 import { GMAIL_MESSAGE_UPDATE_ENV } from "./gmail-message-update.env";
-import { GMAIL_MARK_BACKFILL_ENV } from "./gmail-mark-backfill.env";
 import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "./gmail-history-import-dlq.env";
 import { HUTCH_HANDLER_ROOT_ENV, HUTCH_HANDLER_ENV } from "./lambda.env";
 import { USER_DATA_JOBS_ENV } from "./user-data-jobs.env";
@@ -38,7 +37,6 @@ const tuples = {
 	GMAIL_HISTORY_IMPORT_ENV,
 	GMAIL_HISTORY_IMPORT_OUTCOMES_ENV,
 	GMAIL_MESSAGE_UPDATE_ENV,
-	GMAIL_MARK_BACKFILL_ENV,
 	GMAIL_HISTORY_IMPORT_DLQ_ENV,
 	HUTCH_HANDLER_ROOT_ENV,
 	HUTCH_HANDLER_ENV,

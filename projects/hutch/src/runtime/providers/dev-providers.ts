@@ -23,7 +23,6 @@ import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-hist
 import { initUpdateNewsletterCatalog } from "../domain/newsletter-catalog/update-newsletter-catalog";
 import {
 	initInMemoryGmailHistoryImport,
-	initInMemoryGmailMarkBackfill,
 	initInMemoryGmailMessageUpdate,
 } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
@@ -256,7 +255,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const gmailMonitoringStore = initInMemoryGmailMonitoring({ now: () => new Date() });
 	const gmailHistoryImportStore = initInMemoryGmailHistoryImport();
 	const gmailMessageUpdateStore = initInMemoryGmailMessageUpdate();
-	const gmailMarkBackfillStore = initInMemoryGmailMarkBackfill();
 	const cancelGmailHistoryImports = initCancelGmailHistoryImports({ imports: gmailHistoryImportStore, now: () => new Date() });
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const updateNewsletterCatalog = initUpdateNewsletterCatalog({
@@ -351,10 +349,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 				logger.info("[gmail-message-update] permission granted; pending Gmail updates wait without a local runner", detail);
 			},
 			gmailMessageUpdateStore,
-			gmailMarkBackfillStore,
-			publishStartGmailMarkBackfill: async (detail) => {
-				logger.info("[gmail-mark-backfill] start requested; the backfill stays queued without a local runner", detail);
-			},
 			publishSubmitNewsletterSender: async ({ senderEmail }) => {
 				await updateNewsletterCatalog((document) => mergeSubmittedSender(document, { from: senderEmail, now: new Date() }));
 			},
