@@ -65,9 +65,13 @@ describe("Readlist settings destinations for the native apps (GET /queue, Siren)
 		const readlists = await nativeReadlists(harness, { token, path: "/queue", platform: "android" });
 
 		expect(readlists).toEqual([
-			expect.objectContaining({ rel: "current", integrations: { label: "Connectors", href: "/newsletters?platform=android" } }),
+			{
+				label: expect.any(String),
+				rel: "current",
+				href: "/queue",
+				integrations: { label: "Connectors", href: "/newsletters?platform=android" },
+			},
 		]);
-		expect(readlists[0]?.preferences).toBeUndefined();
 		const page = await agent.get("/newsletters?platform=android");
 		expect(page.status).toBe(200);
 		expect(page.text).toContain('data-test-integration="gmail"');

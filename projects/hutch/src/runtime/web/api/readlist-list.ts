@@ -13,16 +13,17 @@ export interface ReadlistDestination {
 }
 
 export type CurrentReadlistDestination =
-	| { readonly preferences: ReadlistDestination }
-	| { readonly integrations: ReadlistDestination };
+	| { readonly preferences: ReadlistDestination; readonly integrations?: never }
+	| { readonly integrations: ReadlistDestination; readonly preferences?: never };
 
-export interface ReadlistListEntry {
+interface ReadlistListEntryBase {
 	readonly label: string;
 	readonly rel: ReadlistRel;
 	readonly href: string;
-	readonly preferences?: ReadlistDestination;
-	readonly integrations?: ReadlistDestination;
 }
+
+export type ReadlistListEntry = ReadlistListEntryBase &
+	(CurrentReadlistDestination | { readonly preferences?: never; readonly integrations?: never });
 
 export function buildReadlistList(input: {
 	readlists: readonly ReadlistOption[];
@@ -31,7 +32,7 @@ export function buildReadlistList(input: {
 	destinationForCurrent?: (readlist: ReadlistSlug) => CurrentReadlistDestination;
 }): ReadlistListEntry[] {
 	return input.readlists.map((readlist) => {
-		const entry: ReadlistListEntry = {
+		const entry: ReadlistListEntryBase = {
 			label: readlist.label,
 			rel: readlist.slug === input.currentReadlist ? "current" : "readlist",
 			href: input.hrefForReadlist(readlist.slug),
