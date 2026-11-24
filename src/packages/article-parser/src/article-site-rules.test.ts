@@ -13,6 +13,7 @@ import { mediumSiteRules } from "./medium-site-rules";
 import { quoraSiteRules } from "./quora-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
+import { xkcdSiteRules } from "./xkcd-site-rules";
 import { youtubeSiteRules } from "./youtube-site-rules";
 
 function recordingCrawlFetch(requested: string[]): CrawlFetch {
@@ -33,6 +34,7 @@ describe("initArticleSiteRules", () => {
 		});
 
 		expect(siteRules).toEqual([
+			xkcdSiteRules,
 			lavcaSiteRules,
 			defensePhotoSiteRules,
 			theInformationSiteRules,

@@ -22,6 +22,7 @@ import { mediumSiteRules } from "./medium-site-rules";
 import { quoraSiteRules } from "./quora-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
+import { xkcdSiteRules } from "./xkcd-site-rules";
 import { youtubeSiteRules } from "./youtube-site-rules";
 
 export type ArticleSiteRules = {
@@ -44,7 +45,7 @@ export function initArticleSiteRules(deps: {
 		initHnSearchSiteRules(deps),
 	];
 	return {
-		siteRules: [lavcaSiteRules, defensePhotoSiteRules, theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, granolaSiteRules, youtubeSiteRules, githubPullRequestSiteRules, danaMcNeilSiteRules, intuitPrivacySiteRules, ...crawlClaimingSiteRules],
+		siteRules: [xkcdSiteRules, lavcaSiteRules, defensePhotoSiteRules, theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, granolaSiteRules, youtubeSiteRules, githubPullRequestSiteRules, danaMcNeilSiteRules, intuitPrivacySiteRules, ...crawlClaimingSiteRules],
 		crawlClaimingSiteRules,
 	};
 }
