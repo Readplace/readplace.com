@@ -99,6 +99,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"log-out",
 	"mail",
 	"menu",
+	"news",
 	"note",
 	"palette",
 	"pencil",
@@ -118,7 +119,7 @@ const STROKE_NAMES: readonly IconName[] = [
 
 const FACT_NAMES: readonly IconName[] = ["clock", "envelope", "eye", "globe"];
 
-const SOLID_NAMES: readonly SolidIconName[] = ["book", "file", "file-down", "folder", "inbox", "sparkles"];
+const SOLID_NAMES: readonly SolidIconName[] = ["book", "file", "file-down", "folder", "news", "sparkles"];
 
 function openTag(svg: string): string {
 	const match = svg.match(/^<svg [^>]*>/);

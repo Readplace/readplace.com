@@ -176,7 +176,7 @@ export interface BannerState {
 
 const NAV_READLIST = navItem({ key: "queue", label: "Readlist", path: "/queue", method: "GET", iconName: "book" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-down" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "inbox" });
+const NAV_INBOX = navItem({ key: "inbox", label: "Newsletters", path: "/inbox", method: "GET", iconName: "news" });
 const NAV_INTEGRATIONS = navItem({
 	key: "integrations",
 	label: "Connectors",
