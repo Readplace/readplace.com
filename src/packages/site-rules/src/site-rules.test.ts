@@ -7,7 +7,8 @@ describe("site-rules shared opt-out hooks", () => {
 	});
 
 	it("noExtract leaves the fetched document for the default parser", () => {
-		expect(noExtract({ html: "<article><p>body</p></article>" })).toBeUndefined();
+		const url = "https://example.com/post";
+		expect(noExtract({ html: "<article><p>body</p></article>" }, { savedUrl: url, documentUrl: url })).toBeUndefined();
 	});
 
 	it("noRecovery yields no salvaged body so the crawl failure stands", async () => {

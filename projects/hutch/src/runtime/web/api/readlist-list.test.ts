@@ -32,6 +32,32 @@ describe("buildReadlistList", () => {
 		]);
 	});
 
+	it("puts the caller's destination on the current entry only", () => {
+		const entries = buildReadlistList({
+			readlists,
+			currentReadlist: WORK,
+			hrefForReadlist,
+			destinationForCurrent: (readlist) => ({ preferences: { label: "Preferences", href: `/prefs/${readlist}` } }),
+		});
+
+		expect(entries).toEqual([
+			{ label: "All", rel: "readlist", href: "/queue?queue=default" },
+			{ label: "Work", rel: "current", href: "/queue?queue=work", preferences: { label: "Preferences", href: "/prefs/work" } },
+			{ label: "Later", rel: "readlist", href: "/queue?queue=later" },
+		]);
+	});
+
+	it("puts no destination on any entry when no readlist is current", () => {
+		const entries = buildReadlistList({
+			readlists: [{ slug: LATER, label: "Later" }],
+			currentReadlist: WORK,
+			hrefForReadlist,
+			destinationForCurrent: () => ({ integrations: { label: "Connectors", href: "/newsletters" } }),
+		});
+
+		expect(entries).toEqual([{ label: "Later", rel: "readlist", href: "/queue?queue=later" }]);
+	});
+
 	it("takes each href from the caller so readlist URLs stay server-built", () => {
 		const entries = buildReadlistList({
 			readlists,

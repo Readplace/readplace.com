@@ -483,6 +483,15 @@ export const BUTTON_STYLES = `
 		background: rgba(255, 255, 255, 0.28);
 	}
 
+	.btn--on-dark-quiet {
+		background: transparent;
+		color: var(--footer-link);
+	}
+
+	.btn--on-dark-quiet:focus-visible {
+		outline-color: var(--color-highlight);
+	}
+
 	.btn:disabled,
 	.btn[aria-disabled="true"] {
 		opacity: 0.5;
@@ -973,6 +982,9 @@ export const HEADER_STYLES = `
 	}
 	.header--transparent .header__brand-mark {
 		color: var(--color-highlight);
+	}
+	.header--transparent .header__brand:focus-visible {
+		outline-color: var(--color-highlight);
 	}
 `;
 
@@ -1489,6 +1501,14 @@ export const NAV_STYLES = `
 
 		.header--transparent .nav__user-menu .nav__link:hover {
 			background: var(--muted);
+		}
+
+		.header--transparent .nav__link:focus-visible {
+			outline-color: var(--color-highlight);
+		}
+
+		.header--transparent .nav__user-menu .nav__link:focus-visible {
+			outline-color: var(--ring);
 		}
 	}
 

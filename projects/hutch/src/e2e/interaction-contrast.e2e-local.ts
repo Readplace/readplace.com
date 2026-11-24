@@ -1128,3 +1128,83 @@ test.describe("Move dialog interaction states hold their WCAG contrast in both t
 		}
 	});
 });
+
+const GUEST_NAV_KEYS = ["install", "import", "features", "login"] as const;
+const HERO_START: Neighbour = { name: "hero start", colour: { red: 0x2b, green: 0x3a, blue: 0x55 } };
+const HERO_END: Neighbour = { name: "hero end", colour: { red: 0x1e, green: 0x2a, blue: 0x40 } };
+const DEVELOPERS_COPY = '.developers__sample > button[type="button"]';
+
+function assertOutlineClears(input: { ink: InteractionInk; against: readonly Neighbour[]; view: string }): void {
+	const { ink, against, view } = input;
+	assert.notEqual(ink.outline.style, "none", `${view}: ${ink.name} draws no focus outline`);
+	assert.ok(ink.outline.width > 0, `${view}: ${ink.name} draws a zero-width focus outline`);
+	for (const [lensName, lens] of Object.entries(LENSES)) {
+		for (const neighbour of against) {
+			assert.ok(
+				edgeContrast({ edge: ink.outline.colour, against: neighbour, lens }) >= NON_TEXT_MINIMUM,
+				edgeShortfall({ edge: ink.outline.colour, against: neighbour, lens, view: `${view}/${lensName}` }),
+			);
+		}
+	}
+}
+
+test.describe("Focus rings on navy hold 3:1 in both lenses", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the transparent header's brand link and nav links ring at 3:1 against both hero stops", async ({ page }) => {
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		const client = await auditContext(page);
+		const targets = [
+			{ selector: ".header--transparent .header__brand", auditId: "lp-brand" },
+			...GUEST_NAV_KEYS.map((key) => ({
+				selector: `.header--transparent button[data-test-nav-item="${key}"]`,
+				auditId: `lp-nav-${key}`,
+			})),
+		];
+		for (const target of targets) {
+			await expect(page.locator(target.selector).first()).toBeVisible();
+			await stamp(page, target);
+		}
+
+		for (const target of targets) {
+			const ink = await measure(page, client, target.auditId, FOCUSED);
+			assertOutlineClears({ ink, against: [HERO_START, HERO_END], view: `light/pocket-alternative/${target.auditId}` });
+		}
+	});
+
+	test("the developers copy button rings at 3:1 on its navy panel in both themes", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `developers-copy-ring-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		await page.goto(`${BASE_URL}/developers`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(DEVELOPERS_COPY).first()).toBeVisible();
+		const client = await auditContext(page);
+		await stamp(page, { selector: DEVELOPERS_COPY, auditId: "developers-copy" });
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			const focused = await measure(page, client, "developers-copy", FOCUSED);
+			assertOutlineClears({
+				ink: focused,
+				against: [{ name: "panel", colour: focused.surface }],
+				view: `${theme}/developers/copy`,
+			});
+		}
+	});
+
+	test("the transparent header's account dropdown keeps the page ring", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `landing-dropdown-ring-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		await page.locator("details[data-test-nav-user] > summary").click();
+		const row = ".header--transparent .nav__user-menu button[data-test-nav-item]";
+		await expect(page.locator(row).first()).toBeVisible();
+		const client = await auditContext(page);
+		await stamp(page, { selector: row, auditId: "lp-dropdown-row" });
+
+		const focused = await measure(page, client, "lp-dropdown-row", FOCUSED);
+		assertOutlineClears({
+			ink: focused,
+			against: [{ name: "menu panel", colour: focused.surface }],
+			view: "light/pocket-alternative/dropdown",
+		});
+	});
+});

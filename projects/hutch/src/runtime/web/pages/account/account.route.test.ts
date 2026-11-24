@@ -974,6 +974,9 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		expect(actionKeys(doc)).toEqual([]);
 		expectBillingHidden(doc);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
+		expect(doc.querySelector("[data-test-account-status-note]")?.textContent).toMatch(
+			/^When it ends, your account moves to the free plan: you keep every article you saved/,
+		);
 	});
 
 	it("keeps the full web shell for a store build that predates the marker — it sends platform=ios alone and cannot drive a deep link", async () => {
@@ -1152,6 +1155,9 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 		expect(planTitle(doc)).toBe("Subscription");
 		expect(planChips(doc)).toEqual([["Free plan", "chip chip--status chip--error"]]);
 		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe("");
+		expect(doc.querySelector("[data-test-account-status-note]")?.textContent).toMatch(
+			/^You keep every article you saved and can save up to \S+ new links a day\.$/,
+		);
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
 	});
 

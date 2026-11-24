@@ -7,9 +7,28 @@ You have been triggered because the `Failed articles canary` workflow surfaced o
 
 `crawlStatus = unsupported` and `summaryStatus = skipped` are NOT failures — they are complete, *supported* terminal outcomes, and the canary does not surface them. `unsupported` is a deliberate determination that the URL is a content type the product does not render (e.g., an image); `skipped` is the summary worker intentionally producing no summary (content too short, crawl failed first, etc.). The canary derives this split from `classifyCrawlOutcome` / `classifySummaryOutcome` in `src/packages/article-state-types/`.
 
-This canary is a **debug worklist**, not a pass/fail health check. The script always exits 0; a non-empty report means real customer URLs were dropped and the operator wants to investigate each one.
+This canary produces a **debug worklist**. A successful scan can find failed articles for the operator to investigate.
 
 Only articles with a recorded full-processing admission for the latest attempt qualify. Deferred-only imports and unverifiable history are excluded. Summary failures hidden by the reader are excluded.
+
+## Exact-key exceptions
+
+The initial list covers 197 articles from [#1456](https://github.com/Readplace/readplace.com/issues/1456). It includes 62 login, share, subscription or account pages, 56 apps, indexes, storefronts, profiles or other non-article destinations, 40 access refusals or challenges, and 39 redirect notices. A new article in any of these groups remains eligible for the report unless its own key is added.
+
+Keep the canonical JSON array in private storage. For each individually approved article, add the lowercase SHA-256 hex digest of the raw DynamoDB `url` key encoded as UTF-8, preserving the key's case and every character. Use the physical key as stored, without formatting it as a URL or substituting `originalUrl`. Keep the entries unique and read the keys in a private local session.
+
+The scan requires `FAILED_ARTICLES_IGNORED_KEY_HASHES`. Use `[]` for an intentionally empty list. For a local run, set `ignored_key_hashes_file` to the path of the private JSON file. Use the same environment variable alongside the usual canary settings.
+
+```sh
+FAILED_ARTICLES_IGNORED_KEY_HASHES="$(cat "$ignored_key_hashes_file")" \
+  pnpm nx run @packages/check-failed-articles:check-failed-articles
+```
+
+GitHub Actions secrets are write-only. After updating the private copy, replace the full secret in the `prod` environment from that file.
+
+```sh
+gh secret set FAILED_ARTICLES_IGNORED_KEY_HASHES --env prod < "$ignored_key_hashes_file"
+```
 
 ## Your Task
 
@@ -27,6 +46,7 @@ Only articles with a recorded full-processing admission for the latest attempt q
 
 - Follow ALL CLAUDE.md guidelines.
 - **Never copy a reader's URL, user id or token into an issue, comment, commit or log line.** The repository is public. Cite a row by its number on the report, and name a host only when the host itself is the finding.
+- **Keep the exact-key list private.** Share aggregate counts in issues, comments, commits and logs.
 - **Read the report's rows, and any row's production record, in a local session or an admin's browser, never through `@claude` in GitHub Actions.** The `@claude` listener's run log shows every tool result, and that log is public.
 - **The stored `crawl-failed` / `summary-failed` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `SummaryFailureReasonSchema`).
 - **Never edit `src/packages/check-failed-articles/scripts/exclude-patterns.ts` to make the canary quiet.** Each entry must represent a class of URL that is genuinely unsupported by product policy. Adding a fixable failure URL silently hides the regression and tomorrow's cron emits a shorter (misleading) list.

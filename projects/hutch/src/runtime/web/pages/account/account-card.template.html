@@ -9,6 +9,7 @@
                 </div>
                 <p class="{{priceClass}}" data-test-account-price data-price-state="{{price.state}}">{{price.text}}</p>
                 <p class="account-billing__line" data-test-account-status>{{statusLine}}{{#if statusDate}}<time class="account-card__status-date" datetime="{{statusDate.iso}}" data-local-time="{{statusDate.mode}}">{{statusDate.label}}</time>{{statusDateTail}}{{/if}}</p>
+                <p class="account-billing__line" data-test-account-status-note>{{statusNote}}</p>
               </div>
               <p class="{{nextCharge.stateClass}}" data-test-next-charge data-next-charge-state="{{nextCharge.state}}">{{nextCharge.leadIn}}{{#if nextCharge.date}}<time class="account-card__next-charge-date" datetime="{{nextCharge.date.iso}}" data-local-time="{{nextCharge.date.mode}}">{{nextCharge.date.label}}</time>{{/if}}{{nextCharge.tail}}</p>
               <div class="account-billing__actions">

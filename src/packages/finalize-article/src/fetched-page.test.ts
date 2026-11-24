@@ -23,6 +23,15 @@ describe("finalizeInputOfFetchedPage", () => {
 		});
 	});
 
+	it("marks the HTTP terminal URL of an ordinary HTML page as a fetched document", () => {
+		const otherPage = { html: "<p>body</p>", finalUrl: "https://publisher.example/a" };
+		const finalizeInput = (fetched: Parameters<typeof finalizeInputOfFetchedPage>[0]["fetched"]) =>
+			finalizeInputOfFetchedPage({ savedUrl: "https://saved.example/a", requestedUrl: "https://short.example/x", fetched });
+		expect(finalizeInput(otherPage)).toMatchObject({ documentUrl: otherPage.finalUrl, fetchedDocument: true });
+		expect(finalizeInput({ ...otherPage, renderedThrough: "direct-egress" })).not.toHaveProperty("fetchedDocument");
+		expect(finalizeInput({ html: otherPage.html })).not.toHaveProperty("fetchedDocument");
+	});
+
 	it("reads a page that did not redirect from the requested URL and keeps its plain text", () => {
 		expect(
 			finalizeInputOfFetchedPage({
