@@ -515,9 +515,11 @@ describe("/developers copy", () => {
 			"past-last": "A page past the last answers 200 with no entities, a prev link and no next link.",
 			"offline-prefetch":
 				"A next link can carry a class of offline-prefetch. It tells Readplace's own apps how to load that page while they download a readlist for offline reading, so ignore it.",
-			rels: "Links use the IANA rel where one exists, such as self, next and prev. read, root, account, add-links-help and upload are Readplace's own.",
+			rels: "Links use the IANA rel where one exists, such as self, next and prev. original is Memento's. read, upload-again, root, account, add-links-help and upload are Readplace's own.",
 			"article-self":
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",
+			"article-original":
+				"An article whose source is public also carries an original link of type text/html, with no title: the page it came from, to open in a browser without the token. An uploaded file or other private item has none, even though its url is set. An upload Readplace couldn't use carries an untitled upload-again link of type text/html to the signed-in upload page, until the next version of the article drops it. Show each only while it's present.",
 			storefront:
 				"A client installed from an app store may send its storefront's three-letter code in an X-Readplace-Storefront header, or in a readplace_storefront cookie from a web view. For China mainland (CHN), responses leave out text a model wrote: summaries, Next read and Already read.",
 			"markdown-layout":

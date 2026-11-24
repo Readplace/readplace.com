@@ -823,4 +823,59 @@ final class SirenDecodingTests: XCTestCase {
 
 		XCTAssertEqual(polled, item)
 	}
+
+	private func cardArticle(properties: String, links: String = "[]") throws -> Article {
+		let json = """
+		{ "properties": { "id": "a1", "url": "https://example.com/post"\(properties) }, "links": \(links) }
+		"""
+		return try XCTUnwrap(Article(entity: try decodeEntity(json)))
+	}
+
+	func testACardsKindLabelSuggestionAndNewsletterSenderDecode() throws {
+		let via = #""via": { "label": "via TLDR", "sender": { "name": "TLDR", "address": "dan@tldr.tech" } }"#
+		let article = try cardArticle(properties: #", "kindLabel": "Book · 12 chapters", "suggestion": "Added by Readplace", "# + via)
+
+		XCTAssertEqual(article.kindLabel, "Book · 12 chapters")
+		XCTAssertEqual(article.suggestion, "Added by Readplace")
+		XCTAssertEqual(article.via, ArticleVia(label: "via TLDR", sender: ArticleSender(name: "TLDR", address: "dan@tldr.tech")))
+	}
+
+	func testAMalformedSenderDropsTheDisclosureAloneAndKeepsTheViaLabel() throws {
+		let article = try cardArticle(properties: #", "via": { "label": "via TLDR", "sender": { "name": 7 } }"#)
+
+		XCTAssertEqual(article.via, ArticleVia(label: "via TLDR", sender: nil))
+	}
+
+	func testAMalformedCardCueLeavesTheRestOfTheRowIntact() throws {
+		let article = try cardArticle(properties: #", "title": "Kept", "via": "nope", "kindLabel": 3, "suggestion": """#)
+
+		XCTAssertEqual(article.title, "Kept")
+		XCTAssertNil(article.via)
+		XCTAssertNil(article.kindLabel)
+		XCTAssertNil(article.suggestion)
+	}
+
+	func testALegacyEntityWithNoneOfTheCardFieldsStillDecodes() throws {
+		let article = try cardArticle(properties: "")
+
+		XCTAssertNil(article.via)
+		XCTAssertNil(article.originalURL)
+		XCTAssertNil(article.uploadAgainLink)
+	}
+
+	func testOnlyAWebOriginalIsKeptSoAnotherSchemeNeverReachesTheBrowser() throws {
+		func original(_ href: String) throws -> URL? {
+			try cardArticle(properties: "", links: #"[{ "rel": ["original"], "href": "\#(href)", "type": "text/html" }]"#).originalURL
+		}
+
+		XCTAssertEqual(try original("https://example.com/post")?.absoluteString, "https://example.com/post")
+		XCTAssertNil(try original("javascript:alert(1)"))
+		XCTAssertNil(try original("/queue/a1/view"))
+	}
+
+	func testTheUploadAgainLinkIsKeptForTheRecoveryControl() throws {
+		let article = try cardArticle(properties: "", links: #"[{ "rel": ["upload-again"], "href": "/upload", "type": "text/html" }]"#)
+
+		XCTAssertEqual(article.uploadAgainLink, SirenLink(rel: ["upload-again"], href: "/upload", title: nil))
+	}
 }

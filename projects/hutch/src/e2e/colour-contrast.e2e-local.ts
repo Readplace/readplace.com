@@ -686,17 +686,25 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
 	});
 
-	test("homepage arm C's capabilities clear their contrast minimum", async ({ page }) => {
-		await page.context().addCookies([{
-			name: EXPERIMENT_COOKIE_NAME,
-			value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[1].slug}`,
-			url: BASE_URL,
-		}]);
-		await page.emulateMedia({ colorScheme: "light" });
-		await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator('[data-test-section="capabilities"]')).toBeVisible({ timeout: SETTLE_MS });
-		await auditRoot(page, { root: '[data-test-section="capabilities"]', theme: "light", view: "home-c/capabilities" });
-	});
+	for (const arm of [
+		{ title: "homepage arm B's comparison clears its contrast minimum", variant: HOMEPAGE_SPLIT.variants[0], section: "compare", view: "home-b/compare" },
+		{ title: "homepage arm C's capabilities clear their contrast minimum", variant: HOMEPAGE_SPLIT.variants[1], section: "capabilities", view: "home-c/capabilities" },
+	]) {
+		test(arm.title, async ({ page }) => {
+			await page.context().addCookies([{
+				name: EXPERIMENT_COOKIE_NAME,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${arm.variant.slug}`,
+				url: BASE_URL,
+			}]);
+			const root = `[data-test-section="${arm.section}"]`;
+			for (const theme of ["light", "dark"] as const) {
+				await page.emulateMedia({ colorScheme: theme });
+				await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+				await expect(page.locator(root)).toBeVisible({ timeout: SETTLE_MS });
+				await auditRoot(page, { root, theme, view: arm.view });
+			}
+		});
+	}
 });
 
 async function createChipReader(page: Page, email: string): Promise<string> {

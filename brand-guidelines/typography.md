@@ -89,7 +89,7 @@ Buttons and inputs take their sizes from their own tokens (see [Buttons](iconogr
 
 ### Highlight Words
 
-A single highlight word inside a phrase can be recoloured with `--color-highlight` (warm amber `#c8923c` — the logo dot) to draw the eye without bolding, underlining, or changing size.
+A single highlight word inside a phrase can be recoloured in amber — `--color-highlight` (warm amber `#c8923c`, the logo dot) on navy or dark, `--primary-text` on a light neutral — to draw the eye without bolding, underlining, or changing size.
 
 **Rules:**
 
@@ -97,6 +97,6 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 - **No weight or size change.** Contrast does the work — bold would be shouting.
 - **Never add space** between the default-colour prefix and the highlight word.
 - One highlight per phrase. If two words need emphasis, pick the stronger one.
-- The highlight is visible against navy, white, and muted surfaces. On the warm amber gradient it collapses — choose navy or another neutral there.
+- `--color-highlight` clears the large-text floor only on navy and dark surfaces. On white it is 2.75:1 and on `--muted` 2.59:1, so a highlight word there takes the amber ink `--primary-text` (`#A85A1E`, 5.06:1 on white). On the warm amber gradient both collapse — choose navy or another neutral there.
 
 **Wordmark.** `Read<span class="header__brand-mark">place</span>`, set in `var(--font-serif)` at 16px/700 (`--text-md`) with normal tracking, beside the 30px mark with a 4px gap — a lockup about 120px wide, the same on phones, and the one place the serif appears in product chrome. Its halves take theme tokens, never literals: the stem is `--header-brand-stem` (navy `#2B3A55` light, `#E4E4E4` dark) and the tail is `--header-brand-tail` (`--color-brand` `#C8702A` light, `--color-highlight` `#D4A04A` dark). On the navy hero (`.header--transparent`) the stem turns `--color-on-brand` white and the tail `--color-highlight`. The wordmark splits the brand into a neutral stem and an amber tail — the pattern this highlight rule generalises.

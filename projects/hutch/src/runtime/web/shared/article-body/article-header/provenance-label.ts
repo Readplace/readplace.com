@@ -1,8 +1,12 @@
 import type { SaveProvenance } from "@packages/domain/article";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { iconSvg } from "@packages/ui-icons";
 import { findRosterAssistant } from "../../assistant-roster";
 import { CLIENT_ICON_SVG } from "../../client-icons";
+
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 export type ReaderProvenance = SaveProvenance | { kind: "newsletter"; name: string; senderEmail: string };
 
@@ -43,7 +47,7 @@ export function provenanceLabel(provenance: ReaderProvenance): ProvenanceLabel |
 		case "upload":
 			return { label: "via Upload" };
 		case "hn-suggestion":
-			return { label: "Added by Readplace from Hacker News" };
+			return { label: t("articleBody.provenance.hnSuggestion") };
 		case "founder-seed":
 			return { label: "Added by Readplace" };
 		case "client":
