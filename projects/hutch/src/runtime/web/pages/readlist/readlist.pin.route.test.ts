@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { UserId } from "@packages/domain/user";
 import {
 	TEST_APP_ORIGIN,
+	type TestAppFixture,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
@@ -222,8 +223,10 @@ describe("pin and unpin over Siren", () => {
 		method: string;
 	}
 
-	async function sirenClient() {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	async function sirenClient(
+		withFixture: (fixture: TestAppFixture) => TestAppFixture = (fixture) => fixture,
+	) {
+		const harness = useApp(withFixture(createDefaultTestAppFixture(TEST_APP_ORIGIN)));
 		const token = await createAccessToken(harness);
 		const siren = (call: request.Test) =>
 			call.set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).redirects(0);
@@ -307,20 +310,13 @@ describe("pin and unpin over Siren", () => {
 	});
 
 	it("refuses with unknown-readlist when the readlist disappears before the pin is written", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp({
+		const client = await sirenClient((fixture) => ({
 			...fixture,
 			articleStore: { ...fixture.articleStore, pinReadlistDefinition: async () => ({ pinned: false }) },
-		});
-		const token = await createAccessToken(harness);
-		const siren = (call: request.Test) =>
-			call.set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).redirects(0);
-		const created = await siren(request(harness.server).post("/queue/queues")).type("form").send({ label: "Work" });
-		const collection = await siren(request(harness.server).get(created.headers.location));
-		const pinAction = collection.body.actions.find((action: { name: string }) => action.name === "pin-readlist");
-		assert(pinAction, "a named readlist must advertise pin-readlist");
+		}));
+		const href = await client.createReadlistHref("Work");
 
-		const response = await siren(request(harness.server).post(pinAction.href)).type("form").send({});
+		const response = await client.submit(await client.actionOn(href, "pin-readlist"));
 
 		expect(response.status).toBe(404);
 		expect(response.body.properties.code).toBe("unknown-readlist");

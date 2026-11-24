@@ -161,6 +161,8 @@ This is a **published interface**: `readlists`, `label`, `rel`, and `href` are t
 
 Each `properties.readlists` entry carries `pinned`, so a client can show the reader's pins without another request; the default readlist is never pinned. The pin toggles stay title-less and field-less: a shipped client that renders any titled, field-less action as a one-tap control would otherwise show them.
 
+`pin-readlist` stays advertised once the reader holds the most pins allowed, as the web nav's pin control does. The `pin-limit-reached` refusal carries the translated sentence that tells the reader to unpin one first, and a client without the action would have nothing to show.
+
 The `add-to-readlist` and `remove-from-readlist` hrefs carry the addressed readlist, tab and order the way the `update-status` href does, so a client acting inside a readlist lands back where it acted without knowing how a readlist is encoded. `add-to-readlist` fills its `readlists` field the way `save-article` fills its own, with entry hrefs echoed from `properties.readlists`, and filing an article where it already is succeeds. Removing an article takes it out of that one readlist and leaves the reader's whole queue as it was.
 
 ## Count and Sort Are Server-Owned — `properties.total` and `properties.sort`
