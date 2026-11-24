@@ -65,6 +65,7 @@ export function initReadabilityParser(deps: {
 				siteRules: deps.siteRules,
 				document,
 				url: params.url,
+				documentUrl: params.documentUrl,
 				logError: deps.logError,
 			});
 			deps.readabilityAdditions.demoteBodyHeadings(document);
@@ -176,12 +177,13 @@ function applyTransforms(params: {
 	siteRules: readonly SiteRules[];
 	document: Document;
 	url: string;
+	documentUrl: string;
 	logError: (message: string, error?: Error) => void;
 }): void {
 	for (const site of params.siteRules) {
 		if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
 		try {
-			site.transform({ document: params.document });
+			site.transform({ document: params.document }, { savedUrl: params.url, documentUrl: params.documentUrl });
 		} catch (error) {
 			params.logError(
 				`[ReadabilityParser] Site transform threw for ${params.url}`,

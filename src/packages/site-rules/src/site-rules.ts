@@ -46,7 +46,7 @@ export type SiteRules = {
 	onCrawl: (params: { url: string }) => Promise<SiteCrawlOutcome>;
 	recoverContent: (params: { url: string }) => Promise<string | undefined>;
 	extract: (params: { html: string }, source: { savedUrl: string; documentUrl: string }) => SiteArticleContent | undefined;
-	transform: (params: { document: Document }) => void;
+	transform: (params: { document: Document }, source: { savedUrl: string; documentUrl: string }) => void;
 };
 
 /* Shared opt-out hooks: a site that does nothing at a stage references these
