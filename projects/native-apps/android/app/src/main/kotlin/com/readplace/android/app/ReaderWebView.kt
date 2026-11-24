@@ -12,6 +12,7 @@ import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.JsResult
 import android.webkit.URLUtil
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -20,6 +21,8 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonColors
@@ -28,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,6 +91,17 @@ fun ReaderWebView(
 ) {
 	val scope = rememberCoroutineScope()
 	var pendingDialog by remember { mutableStateOf<PendingWebDialog?>(null) }
+	var pendingFile by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+	val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { chosen ->
+		pendingFile?.onReceiveValue(chosen?.let { arrayOf(it) })
+		pendingFile = null
+	}
+	DisposableEffect(Unit) {
+		onDispose {
+			pendingFile?.onReceiveValue(null)
+			pendingFile = null
+		}
+	}
 	var webView by remember { mutableStateOf<WebView?>(null) }
 	var canGoBack by remember { mutableStateOf(false) }
 	val isDark = LocalIsDarkTheme.current
@@ -146,7 +161,19 @@ fun ReaderWebView(
 				)
 				// The progress client is attached before the first navigation starts so the
 				// sheet's bar tracks it from zero.
-				webChromeClient = ReaderChromeClient(load = load, present = { pendingDialog = it })
+				webChromeClient = ReaderChromeClient(
+					load = load,
+					present = { pendingDialog = it },
+					chooseFile = { pageUrl, acceptTypes, callback ->
+						if (!UploadFileChooser.accepts(pageUrl, AppConfig.serverBaseUrl, isChoosing = pendingFile != null)) {
+							false
+						} else {
+							pendingFile = callback
+							fileLauncher.launch(UploadFileChooser.mimeTypes(acceptTypes))
+							true
+						}
+					},
+				)
 
 				// The server's chromeless reader posts the mark-read message itself; the app
 				// only registers the bridge and reacts. It injects no script, so it holds no
@@ -374,7 +401,14 @@ private class ReaderNavigationClient(
 private class ReaderChromeClient(
 	private val load: ReaderLoadReporter,
 	private val present: (PendingWebDialog) -> Unit,
+	private val chooseFile: (pageUrl: String?, acceptTypes: Array<String>?, callback: ValueCallback<Array<Uri>>) -> Boolean,
 ) : WebChromeClient() {
+	override fun onShowFileChooser(
+		webView: WebView,
+		filePathCallback: ValueCallback<Array<Uri>>,
+		fileChooserParams: FileChooserParams,
+	): Boolean = chooseFile(webView.url, fileChooserParams.acceptTypes, filePathCallback)
+
 	override fun onProgressChanged(view: WebView, newProgress: Int) {
 		load.progressed(newProgress / PROGRESS_SCALE)
 	}

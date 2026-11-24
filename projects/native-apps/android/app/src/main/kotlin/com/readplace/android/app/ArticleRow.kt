@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,9 +20,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +37,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,6 +58,8 @@ fun ArticleRow(
 	processingReceivedAt: Instant?,
 	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val presentation = ArticlePresentation.of(article, clock, isAvailableOffline = isAvailableOffline)
@@ -104,9 +115,15 @@ fun ArticleRow(
 						text = notice,
 						style = MaterialTheme.typography.bodySmall,
 						color = brand.textSecondary,
-						maxLines = 1,
+						maxLines = 3,
 						overflow = TextOverflow.Ellipsis,
 					)
+				}
+
+				presentation.recoveryLabel?.let { label ->
+					TextButton(onClick = onRecover) {
+						Text(text = label, style = MaterialTheme.typography.labelLarge, color = brand.primaryText)
+					}
 				}
 
 				presentation.excerpt?.let { excerpt ->
@@ -122,7 +139,85 @@ fun ArticleRow(
 
 			presentation.thumbnailUrl?.let { url -> Thumbnail(url = url) }
 		}
+
+		presentation.suggestion?.let { suggestion ->
+			Text(
+				text = suggestion,
+				style = MaterialTheme.typography.bodySmall,
+				color = brand.textSecondary,
+			)
+		}
+
+		if (presentation.source != null || presentation.via != null) {
+			SourceLine(articleId = article.id, source = presentation.source, via = presentation.via, onOpenOriginal = onOpenOriginal)
+		}
 	}
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SourceLine(
+	articleId: String,
+	source: ArticlePresentation.Source?,
+	via: ArticlePresentation.Via?,
+	onOpenOriginal: (String) -> Unit,
+) {
+	val brand = LocalBrandColors.current
+	var senderShown by rememberSaveable(articleId) { mutableStateOf(false) }
+	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+		FlowRow(
+			horizontalArrangement = Arrangement.spacedBy(12.dp),
+			verticalArrangement = Arrangement.Center,
+			itemVerticalAlignment = Alignment.CenterVertically,
+		) {
+			source?.let { SourceLabel(source = it, onOpenOriginal = onOpenOriginal) }
+			via?.let { shown ->
+				val disclosure = shown.disclosureLabel
+				val viaModifier = if (disclosure == null) {
+					Modifier
+				} else {
+					Modifier
+						.minimumInteractiveComponentSize()
+						.clickable(onClickLabel = disclosure, role = Role.Button) { senderShown = !senderShown }
+						.semantics { stateDescription = if (senderShown) "Expanded" else "Collapsed" }
+				}
+				Text(
+					text = shown.label,
+					style = MaterialTheme.typography.bodySmall,
+					color = if (disclosure == null) brand.textSecondary else brand.primaryText,
+					modifier = viaModifier,
+				)
+			}
+		}
+		val sender = via?.sender
+		if (senderShown && sender != null) {
+			Column(modifier = Modifier.padding(start = 4.dp)) {
+				Text(text = sender.name, style = MaterialTheme.typography.bodyMedium, color = brand.textPrimary)
+				Text(text = sender.address, style = MaterialTheme.typography.bodyMedium, color = brand.textSecondary)
+			}
+		}
+	}
+}
+
+@Composable
+private fun SourceLabel(source: ArticlePresentation.Source, onOpenOriginal: (String) -> Unit) {
+	val brand = LocalBrandColors.current
+	val url = source.originalUrl
+	val modifier = if (url == null) {
+		Modifier
+	} else {
+		Modifier
+			.minimumInteractiveComponentSize()
+			.clickable(onClickLabel = source.actionLabel, role = Role.Button) { onOpenOriginal(url) }
+	}
+	Text(
+		text = source.label,
+		style = MaterialTheme.typography.bodySmall,
+		color = if (url == null) brand.textSecondary else brand.primaryText,
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
+		modifier = modifier,
+	)
 }
 
 @Composable

@@ -21,6 +21,7 @@ export interface SirenLink {
 	class?: string[];
 	href: string;
 	title?: string;
+	type?: string;
 }
 
 export interface SirenEntity {
