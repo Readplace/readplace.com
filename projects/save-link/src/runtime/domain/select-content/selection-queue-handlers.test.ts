@@ -1,7 +1,7 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/logger";
-import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type TransitionAndPersist, markCrawlExhausted, promoteTier, recrawlPromoteTier, refreshContent } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -220,5 +220,27 @@ describe("final-receive mark", () => {
 		});
 		expect(await handler(event(saveDetail), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(results.map((result) => result.crawl)).toEqual([{ kind: "ready" }]);
+	});
+});
+
+describe("legacy judge claim", () => {
+	it("keeps the legacy selection handler's judge claim at its queue visibility", async () => {
+		const judgeClaims: { claimId: string; claimTtlMs: number }[] = [];
+		const runMeteredLeg = initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW });
+		const spiedMeteredLeg: RunMeteredLeg = async (params) => { judgeClaims.push({ claimId: params.claimId, claimTtlMs: params.claimTtlMs }); return runMeteredLeg(params); };
+		const { handler } = setupHandler(initSelectMostCompleteContentHandler, { runMeteredLeg: spiedMeteredLeg });
+
+		await handler(event(candidateDetail), buildLambdaContext(), () => {});
+
+		expect(judgeClaims).toEqual([{ claimId: "message-0", claimTtlMs: 300_000 }]);
+	});
+
+	it("keeps failing a legacy record whose judge claim another delivery holds and marks the crawl exhausted on its final receive", async () => {
+		const { handler, persisted } = setupHandler(initSelectMostCompleteContentHandler, { runMeteredLeg: async () => ({ kind: "in-flight" }) });
+
+		const result = await handler(eventOnReceive(SELECT_CONTENT_MAX_RECEIVE_COUNT, candidateDetail), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "message-0" }] });
+		expect(persisted.map((entry) => entry.transition)).toEqual([markCrawlExhausted]);
 	});
 });

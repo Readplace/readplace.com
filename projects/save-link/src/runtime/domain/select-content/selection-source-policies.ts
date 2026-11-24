@@ -8,7 +8,6 @@ export const SELECTION_SOURCE_POLICIES: { readonly [K in SelectionSourceKind]: S
 		tag: "SelectContent",
 		feature: "select-most-complete-content",
 		onExhaustion: "mark-crawl-exhausted",
-		toCommand: (detail, workId) => ({ sourceKind: "tier-content-extracted", workId, detail: TierContentExtractedEvent.detailSchema.parse(detail) }),
 		toRequest: (detail) => {
 			const parsed = TierContentExtractedEvent.detailSchema.parse(detail);
 			return { ...parsed, mode: "save" };
@@ -19,7 +18,6 @@ export const SELECTION_SOURCE_POLICIES: { readonly [K in SelectionSourceKind]: S
 		tag: "RecrawlContentExtracted",
 		feature: "recrawl-content-extracted",
 		onExhaustion: "mark-crawl-exhausted",
-		toCommand: (detail, workId) => ({ sourceKind: "recrawl-content-extracted", workId, detail: RecrawlContentExtractedEvent.detailSchema.parse(detail) }),
 		toRequest: (detail) => {
 			const parsed = RecrawlContentExtractedEvent.detailSchema.parse(detail);
 			return { ...parsed, mode: "recrawl" };
@@ -30,7 +28,6 @@ export const SELECTION_SOURCE_POLICIES: { readonly [K in SelectionSourceKind]: S
 		tag: "RefreshContentExtracted",
 		feature: "refresh-content-extracted",
 		onExhaustion: "keep-row",
-		toCommand: (detail, workId) => ({ sourceKind: "refresh-content-extracted", workId, detail: RefreshContentExtractedEvent.detailSchema.parse(detail) }),
 		toRequest: (detail) => {
 			const parsed = RefreshContentExtractedEvent.detailSchema.parse(detail);
 			return { ...parsed, extractedAt: parsed.contentFetchedAt, refresh: parsed, mode: "refresh" };
@@ -41,7 +38,6 @@ export const SELECTION_SOURCE_POLICIES: { readonly [K in SelectionSourceKind]: S
 		tag: "ReselectAfterRemoval",
 		feature: "reselect-after-removal",
 		onExhaustion: "mark-crawl-exhausted",
-		toCommand: (detail, workId) => ({ sourceKind: "reselect-after-removal", workId, detail: ReselectAfterRemovalEvent.detailSchema.parse(detail) }),
 		toRequest: (detail, workId) => ({
 			url: ReselectAfterRemovalEvent.detailSchema.parse(detail).url,
 			saveAttemptId: SaveAttemptIdSchema.parse(workId),

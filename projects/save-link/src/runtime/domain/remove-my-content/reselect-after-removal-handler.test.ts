@@ -44,6 +44,17 @@ describe("content reselection after erasure", () => {
 		expect(await handler(event({ url: URL }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(savedInputs[0]).toMatchObject({ tier: "tier-1", metadata: { title: "Article" } });
 	});
+	it("stamps the ingress SQS message ID as the save attempt on a candidate the reselect creates", async () => {
+		const putTierSource = jest.fn(async (params: { metadata: typeof source.metadata }) => params.metadata);
+		const card = { title: "Video", author: "Channel", excerpt: "Video by Channel on YouTube.", watchUrl: URL, posterUrl: "https://example.com/poster.jpg", html: "<p>Video</p>" };
+		const { handler } = setup({
+			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "none", reason: "Empty shell", readability: [{ candidate: "A", readable: false }] }) } }] }) }).selectMostCompleteContent,
+			fetchYouTubeVideoCard: async () => card,
+			putTierSource,
+		});
+		await handler(event({ url: URL }), buildLambdaContext(), () => {});
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ attemptId: "message" }) }));
+	});
 	it("rejects malformed erasure events before invoking selection", async () => {
 		const listAvailableTierSources = jest.fn(async () => [source]);
 		const { handler } = setup({ listAvailableTierSources });
