@@ -75,7 +75,7 @@ struct RootView: View {
 				.disabled(ageGate.isChecking)
 			}
 		}
-		.tint(.brandAmber)
+		.tint(.brandAppTint)
 		.overlay(LaunchIntroOverlayView(model: intro))
 		.modifier(AgeGateReading(gate: ageGate))
 		.onChange(of: session.isLoggedIn) { isLoggedIn in
