@@ -79,7 +79,7 @@ const COLLECTION_PROPERTY_DOCS = {
 	pages:
 		"one <code>{label, rel, href}</code> per page, where the page you're on has the rel <code>current</code>, every earlier page <code>prev</code> and every later page <code>next</code>. An empty tab lists page 1 as <code>current</code>. The <code>next</code> and <code>prev</code> links step one page at a time, and the <code>self</code> link is the page you're on.",
 	readlists:
-		"All and each named readlist, each a <code>{label, rel, href}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field. For Readplace's own apps only, the <code>current</code> entry may also carry <code>preferences</code> on a named readlist or <code>integrations</code> on All, each a <code>{label, href}</code> to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
+		"All and each named readlist, each a <code>{label, rel, href, pinned}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field. For Readplace's own apps only, the <code>current</code> entry may also carry <code>preferences</code> on a named readlist or <code>integrations</code> on All, each a <code>{label, href}</code> to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 	total: "a <code>{label}</code> to show the reader, not a number to compute with.",
 	sort: "one <code>{label, rel, order, href}</code> per order, where the order you're on has the rel <code>current</code>. Follow an href to change the order.",
 	pageSize: "presentation. The server picks the page size.",

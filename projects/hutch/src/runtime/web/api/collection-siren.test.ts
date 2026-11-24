@@ -409,15 +409,23 @@ describe("toArticleCollectionEntity", () => {
 			const entity = toArticleCollectionEntity(
 				empty,
 				{ readlistKey: "readlist", readlist: WORK },
-				{ tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW, surfacePlatform: "ios" },
+				{
+					tabs,
+					readlists: twoReadlists,
+					pinnedReadlists: [WORK],
+					addToReadlist: "advertised",
+					now: NOW,
+					surfacePlatform: "ios",
+				},
 			);
 
 			expect(entity.properties?.readlists).toEqual([
-				{ label: "All", rel: "readlist", href: "/queue" },
+				{ label: "All", rel: "readlist", href: "/queue", pinned: false },
 				{
 					label: "Work",
 					rel: "current",
 					href: "/queue?readlist=work",
+					pinned: true,
 					preferences: { label: "Preferences", href: "/queue/queues/work/preferences?platform=ios" },
 				},
 			]);
@@ -430,12 +438,18 @@ describe("toArticleCollectionEntity", () => {
 			const entity = toArticleCollectionEntity(
 				empty,
 				queryParams,
-				{ tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW, surfacePlatform: "android" },
+				{ tabs, readlists: twoReadlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW, surfacePlatform: "android" },
 			);
 
 			expect(entity.properties?.readlists).toEqual([
-				{ label: "All", rel: "current", href: "/queue", integrations: { label: "Connectors", href: "/newsletters?platform=android" } },
-				{ label: "Work", rel: "readlist", href: "/queue?readlist=work" },
+				{
+					label: "All",
+					rel: "current",
+					href: "/queue",
+					pinned: false,
+					integrations: { label: "Connectors", href: "/newsletters?platform=android" },
+				},
+				{ label: "Work", rel: "readlist", href: "/queue?readlist=work", pinned: false },
 			]);
 		});
 
@@ -443,12 +457,18 @@ describe("toArticleCollectionEntity", () => {
 			{ where: "a named readlist", queryParams: { readlistKey: "readlist", readlist: WORK } },
 			{ where: "the default readlist", queryParams: { readlistKey: "readlist" } },
 		] as const)("advertises no destination on $where outside a native app", ({ queryParams }) => {
-			const entity = toArticleCollectionEntity(empty, queryParams, { tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW });
+			const entity = toArticleCollectionEntity(empty, queryParams, {
+				tabs,
+				readlists: twoReadlists,
+				pinnedReadlists: [],
+				addToReadlist: "advertised",
+				now: NOW,
+			});
 
 			const entries = z.array(z.record(z.string(), z.unknown())).parse(entity.properties?.readlists);
 			expect(entries.map((entry) => Object.keys(entry).sort())).toEqual([
-				["href", "label", "rel"],
-				["href", "label", "rel"],
+				["href", "label", "pinned", "rel"],
+				["href", "label", "pinned", "rel"],
 			]);
 		});
 	});

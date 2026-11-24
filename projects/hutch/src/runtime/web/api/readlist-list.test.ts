@@ -36,14 +36,21 @@ describe("buildReadlistList", () => {
 		const entries = buildReadlistList({
 			readlists,
 			currentReadlist: WORK,
+			pinnedReadlists: [WORK],
 			hrefForReadlist,
 			destinationForCurrent: (readlist) => ({ preferences: { label: "Preferences", href: `/prefs/${readlist}` } }),
 		});
 
 		expect(entries).toEqual([
-			{ label: "All", rel: "readlist", href: "/queue?queue=default" },
-			{ label: "Work", rel: "current", href: "/queue?queue=work", preferences: { label: "Preferences", href: "/prefs/work" } },
-			{ label: "Later", rel: "readlist", href: "/queue?queue=later" },
+			{ label: "All", rel: "readlist", href: "/queue?queue=default", pinned: false },
+			{
+				label: "Work",
+				rel: "current",
+				href: "/queue?queue=work",
+				pinned: true,
+				preferences: { label: "Preferences", href: "/prefs/work" },
+			},
+			{ label: "Later", rel: "readlist", href: "/queue?queue=later", pinned: false },
 		]);
 	});
 
@@ -51,17 +58,19 @@ describe("buildReadlistList", () => {
 		const entries = buildReadlistList({
 			readlists: [{ slug: LATER, label: "Later" }],
 			currentReadlist: WORK,
+			pinnedReadlists: [],
 			hrefForReadlist,
 			destinationForCurrent: () => ({ integrations: { label: "Connectors", href: "/newsletters" } }),
 		});
 
-		expect(entries).toEqual([{ label: "Later", rel: "readlist", href: "/queue?queue=later" }]);
+		expect(entries).toEqual([{ label: "Later", rel: "readlist", href: "/queue?queue=later", pinned: false }]);
 	});
 
 	it("takes each href from the caller so readlist URLs stay server-built", () => {
 		const entries = buildReadlistList({
 			readlists,
-			currentReadlist: WORK, pinnedReadlists: [],
+			currentReadlist: WORK,
+			pinnedReadlists: [],
 			hrefForReadlist: (readlist) => `/queue?queue=${readlist}&status=unread`,
 		});
 
