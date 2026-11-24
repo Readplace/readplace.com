@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import { UploadIdSchema } from "@packages/media-contracts";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { type TestAppHarness, useTestServer } from "../../../test-app";
+import { type TestAppHarness, loginAgent, useTestServer } from "../../../test-app";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 
 const useApp = useTestServer();
@@ -187,6 +187,25 @@ describe("Upload routes for a bearer client", () => {
 
 		const confirm = await client.post("/upload/0123456789abcdef0123456789abcdef/received");
 		expect(confirm.status).toBe(403);
+	});
+
+	it("judges a locked bearer by its own account when the request also carries another account's cookie", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const cookieAgent = await loginAgent(harness.server, harness.auth);
+		const locked = await bearerFor(harness, "locked@example.com");
+		await harness.auth.backdateRegistration({
+			userId: locked.userId,
+			registeredAt: new Date(Date.now() - 8 * ONE_DAY_MS).toISOString(),
+		});
+
+		const stage = await cookieAgent
+			.post("/upload")
+			.set("Accept", SIREN)
+			.set("Authorization", `Bearer ${locked.token}`)
+			.type("form")
+			.send({});
+
+		expect(stage.status).toBe(403);
 	});
 
 	it("advertises the upload entry on the collection as an untitled link", async () => {
