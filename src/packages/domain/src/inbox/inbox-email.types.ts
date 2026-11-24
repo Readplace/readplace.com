@@ -61,6 +61,7 @@ export interface InboxEmailStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 		linkCounts: InboxEmailLinkCounts;
+		window?: import("./inbox-email-link.types").InboxExtractionWindow;
 	}) => Promise<void>;
 	moveLinkCountToKept: (input: {
 		userId: UserId;

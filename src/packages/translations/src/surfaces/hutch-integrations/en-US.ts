@@ -1,4 +1,9 @@
 export const enUS = {
+	gmailDelivery: {
+		issue: "Each issue is saved as one article to All and the destinations you choose. Links that match saved readlist preferences are saved separately.",
+		links: "Each linked article is saved to All and checked against your saved readlist preferences. The issue stays in Inbox.",
+		both: "The issue is saved to All and the destinations you choose. Each linked article is also saved to All and checked against your saved readlist preferences.",
+	},
 	importReviewDailyLimit: {
 		one: "Saved {count} link. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
 		other: "Saved {count} links. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",

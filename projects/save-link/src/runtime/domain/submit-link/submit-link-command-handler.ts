@@ -174,13 +174,13 @@ export function initSubmitLinkCommandHandler(deps: {
 		malformed: { policy: "retry" },
 		handle: async (detail, record) => {
 			const { saveAttemptId } = detail;
-			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
 			assert(
 				detail.rawHtml === undefined,
 				`${logPrefix} rawHtml (tier-0) submissions have no handler yet`,
 			);
 			assert("userId" in detail, `${logPrefix} anonymous submissions have no handler yet`);
 			const { userId } = detail;
+			const requestedAt = new Date(detail.requestedAt ?? EventEnvelope.parse(JSON.parse(record.body)).time);
 			const identity = deps.sourceIdentityFor(initResolveWrapperTargetOnce(deps.resolveWrapperTarget));
 			const { crawlCapture, crawlTier1 } = initRecordCrawls(identity);
 			const provenance = SaveProvenanceSchema.parse(detail.provenance);

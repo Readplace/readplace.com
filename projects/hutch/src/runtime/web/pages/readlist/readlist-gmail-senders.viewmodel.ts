@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import assert from "node:assert";
 import {
 	type DiscoveredGmailSender,
@@ -364,10 +366,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 	};
 }
 
-const LEDES: Record<"unset" | "set", (label: string) => string> = {
-	unset: (label) => `New issues from the Gmail newsletters you tick here are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
-	set: (label) => `New issues from the Gmail newsletters you tick here are saved to ${DEFAULT_READLIST_LABEL}. The ones that fit are also saved to ${label}.`,
-};
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const GMAIL_DISCONNECTING_MESSAGE = "Gmail is disconnecting. Connect it again once it finishes.";
 
@@ -451,7 +450,7 @@ export function toReadlistGmailSenders(input: ReadlistGmailSendersInput): Readli
 	return {
 		sectionClass: SECTION_CLASS[state],
 		state,
-		lede: LEDES[input.readlist.purpose === undefined ? "unset" : "set"](input.readlist.label),
+		lede: t("readlistGmail.enabled", { readlist: input.readlist.label }),
 		...SECTION_VIEW[state](input),
 		picker,
 		pageUrl: buildReadlistGmailUrl({ slug: input.readlist.slug, selection }),

@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
+	amendEmailSelection,
 	type EmailLinkOrdinal,
 	type EmailOutputKey,
 	type EmailOutputSelection,
 	ISSUE_OUTPUT_KEY,
 	formatEmailLinkOrdinal,
+	emailMatchBatch,
+	isEmailSavedToAll,
 	linkOutputKey,
 	EmailLinkOrdinalSchema,
 	type InboxAddressEntry,
@@ -23,13 +26,14 @@ import {
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import { type EmailReceivedDetail, EmailLinksFilteredEvent } from "@packages/infra-components";
+import { type EmailReceivedDetail, EmailLinksFilteredEvent, SubmitLinkCommand } from "@packages/infra-components";
 import { Logger, noopLogger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initDeliverIssueMatches } from "./deliver-issue-matches";
 import { initExtractEmailLinksHandler } from "./extract-email-links-handler";
 import { initExtractEmailLinksDlqHandler } from "./extract-email-links-dlq-handler";
 import { initRecordEmailLinksFilteredHandler } from "./record-email-links-filtered-handler";
@@ -171,7 +175,8 @@ function makeHarness(opts?: {
 		"emailOutput"
 	>[] = [];
 	const addressReads: string[] = [];
-	const alerts: { found: number }[] = [];
+	const continuations: EmailReceivedDetail[] = [];
+	const resumed: EmailReceivedDetail[] = [];
 	const heldNotices: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -205,7 +210,12 @@ function makeHarness(opts?: {
 		};
 	};
 
-	const handler = initExtractEmailLinksHandler({
+	const amendSelection: Parameters<typeof initExtractEmailLinksHandler>[0]["amendSelection"] = async ({ change }) => {
+		assert(storedSelection);
+		storedSelection = amendEmailSelection(storedSelection, change);
+		return storedSelection;
+	};
+	const buildHandler = (maxLinks: number) => initExtractEmailLinksHandler({
 		getEmail: opts?.getEmail ?? (async () => makeEmail()),
 		readRawEmail: opts?.readRawEmail ?? (async () => Buffer.from("raw eml")),
 		parseEmail: opts?.parseEmail ?? (async () => parsedOk("<p>body</p>")),
@@ -215,6 +225,8 @@ function makeHarness(opts?: {
 		},
 		putLink: linkStore.putLink,
 		getLink: linkStore.getLink,
+		findLinksMeta: linkStore.findLinksMeta,
+		markWindowDispatched: linkStore.markWindowDispatched,
 		putLinksMeta: async (input) => {
 			writeOrder.push("meta");
 			if (opts?.failMeta) throw new Error("metadata write failed");
@@ -255,9 +267,9 @@ function makeHarness(opts?: {
 		publishEmailOutputsSelected: async (input) => {
 			outputsSelected.push(input);
 		},
-		alertTruncated: async ({ found }) => {
-			alerts.push({ found });
-		},
+		amendSelection,
+		enqueueContinuation: async (detail) => { continuations.push(detail); },
+		publishExtraction: async (detail) => { resumed.push(detail); },
 		publishSaveHeldNotice: async (input) => {
 			publishOrder.push("notice");
 			heldNotices.push(input);
@@ -290,12 +302,12 @@ function makeHarness(opts?: {
 		now: () => new Date(NOW),
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: Logger.from(noopLogger),
-		maxLinks: opts?.maxLinks ?? 300,
+		maxLinks,
 		appOrigin: "https://readplace.com",
 	});
 
-	const run = (body: string) =>
-		handler(
+	const run = (body: string, maxLinks = opts?.maxLinks ?? 300) =>
+		buildHandler(maxLinks)(
 			buildSqsEvent([{ messageId: "rec-1", body }]),
 			buildLambdaContext(),
 			() => {},
@@ -308,7 +320,8 @@ function makeHarness(opts?: {
 		triaged,
 		issues,
 		addressReads,
-		alerts,
+		continuations,
+		resumed,
 		heldNotices,
 		firstInboxNotices,
 		triageCalls,
@@ -322,11 +335,151 @@ function makeHarness(opts?: {
 		correlations,
 		completionReads,
 		definitionReads,
+		selection: () => storedSelection,
+		amendSelection,
 		run,
 	};
 }
 
 describe("initExtractEmailLinksHandler", () => {
+	const preferred = { slug: WORK, label: "Work", createdAt: new Date(NOW), purpose: "Keep articles about compilers" };
+	const compiler = { ordinal: "0000", url: "https://a.test/compiler", anchorText: "Building a compiler" };
+
+	it("matches an article from an inbox with no explicit route against saved preferences", async () => {
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a>',
+			readlistDefinitions: [preferred],
+		});
+		expect(await harness.run(eventBody())).toEqual({ batchItemFailures: [] });
+		expect(harness.triaged).toMatchObject([{ readlist: WORK, links: [compiler] }]);
+	});
+
+	it("matches an article from an enabled Gmail sender delivering the issue itself", async () => {
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a>',
+			readlistDefinitions: [preferred],
+		});
+		expect(await harness.run(eventBody({
+			routing: { kind: "gmail", destinationAddresses: ["in-3f9a2c@read.place"], deliveryMode: "issue" },
+		}))).toEqual({ batchItemFailures: [] });
+		expect(harness.triaged).toMatchObject([{ readlist: WORK, links: [compiler] }]);
+		expect(harness.issues).toMatchObject([{ readlists: [] }]);
+		expect(harness.submitted).toEqual([]);
+	});
+
+	it("deduplicates explicit routes and sends only eligible Gmail-import articles to every preferred readlist", async () => {
+		const science = ReadlistSlugSchema.parse("science");
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a> <a href="https://a.test/ad">An ad</a>',
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+			readlistDefinitions: [preferred, { slug: science, label: "Science", createdAt: new Date(NOW), purpose: "New research" }],
+			triageEmailLinks: async () => ({
+				status: "triaged",
+				categories: new Map([[formatEmailLinkOrdinal(0), "article"], [formatEmailLinkOrdinal(1), "ad"]]),
+			}),
+		});
+		const address = "in-3f9a2c@read.place";
+		const routing: EmailReceivedDetail["routing"] = { kind: "gmail", destinationAddresses: [address, address], deliveryMode: "links" };
+		await harness.run(eventBody({ origin: "gmail-import", routing }));
+		expect(harness.submitted).toMatchObject([{ url: compiler.url }]);
+		expect(harness.triaged).toMatchObject([{ readlist: WORK, links: [compiler] }, { readlist: science, links: [compiler] }]);
+		expect((await harness.linkStore.findLinksMeta({ userId: USER, receivedAtMessageId: RAM }))?.selectedReadlists).toEqual([
+			{ readlist: WORK, label: "Work", qualification: "route-and-preferences" },
+			{ readlist: science, label: "Science", qualification: "preferences" },
+		]);
+	});
+
+	it("resumes at link 301 and preserves the issue and the first batch's decisions", async () => {
+		const lastUrl = "https://example.test/compiler";
+		const earlier = Array.from({ length: 300 }, (_, index) => `https://example.test/post-${index}`);
+		const savedOutputs = new Set([ISSUE_OUTPUT_KEY]);
+		const harness = makeHarness({
+			derivedHtml: [...earlier, earlier[0], lastUrl].join(" "),
+			readlistDefinitions: [preferred],
+			savedOutputs,
+		});
+		const routing: EmailReceivedDetail["routing"] = { kind: "gmail", destinationAddresses: ["in-3f9a2c@read.place"], deliveryMode: "issue" };
+		const key = { userId: USER, receivedAtMessageId: RAM };
+		expect(await harness.run(eventBody({ routing }))).toEqual({ batchItemFailures: [] });
+		expect(harness.published).toHaveLength(300);
+		expect(harness.selection()?.truncated).toBe(true);
+		await harness.linkStore.putReadlistOutcome({ ...key, outcome: { readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [] } });
+		await harness.amendSelection({ ...key, change: { kind: "match", batch: emailMatchBatch(WORK, 0), outputs: [] } });
+		const continuation = harness.continuations[0];
+		expect(continuation.startIndex).toBe(300);
+		const recovery = JSON.stringify({ recovery: true, detail: continuation });
+		expect(await harness.run(recovery)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
+		expect(await harness.run(recovery, 301)).toEqual({ batchItemFailures: [] });
+		const resume = JSON.stringify({ detail: harness.resumed[0] });
+		expect(await harness.run(resume, 301)).toEqual({ batchItemFailures: [] });
+		expect(await harness.run(resume, 301)).toEqual({ batchItemFailures: [] });
+		expect(await harness.run(recovery, 301)).toEqual({ batchItemFailures: [] });
+		expect(harness.resumed).toHaveLength(1);
+		expect(harness.published).toHaveLength(301);
+		expect(harness.published.at(-1)).toEqual({ ordinal: "0300", url: lastUrl });
+		expect(harness.triaged.at(-1)).toMatchObject({ startIndex: 300, links: [{ ordinal: "0300", url: lastUrl }] });
+		expect(harness.issues).toHaveLength(0);
+		expect((await harness.linkStore.listLinksByEmail(key)).meta).toMatchObject({
+			truncated: false, eligibleArticleCount: 301, readlistOutcomes: [{ readlist: WORK }],
+		});
+		expect(harness.selection()?.truncated).toBe(false);
+		expect(isEmailSavedToAll({ selection: harness.selection(), savedOutputs })).toBe(false);
+		const matchedSaves: string[] = [];
+		const deliverMatches = initDeliverIssueMatches({
+			findCompletion: async () => ({ selection: harness.selection(), savedOutputs, origins: [] }),
+			amendSelection: harness.amendSelection,
+			getEmail: async () => makeEmail(),
+			getLink: harness.linkStore.getLink,
+			publishEvent: async (event, detail) => {
+				if (event.detailType !== SubmitLinkCommand.detailType) return;
+				const submitted = SubmitLinkCommand.detailSchema.parse(detail);
+				matchedSaves.push(submitted.url);
+				savedOutputs.add(linkOutputKey(formatEmailLinkOrdinal(300)));
+			},
+		});
+		const outcome = {
+			readlist: WORK, readlistLabel: "Work", decision: "filtered" as const, startIndex: 300,
+			fit: [{ ordinal: formatEmailLinkOrdinal(300), verdict: "keep" as const, reason: "Matches saved preferences" }],
+		};
+		await deliverMatches({ ...key, outcome: { ...outcome, readlist: ReadlistSlugSchema.parse("another-list") } });
+		await deliverMatches({ ...key, outcome });
+		await deliverMatches({ ...key, outcome });
+		expect(matchedSaves).toEqual([lastUrl]);
+		expect(isEmailSavedToAll({ selection: harness.selection(), savedOutputs })).toBe(true);
+	});
+
+	it("retains a partially recovered email and retries dispatch from the same position", async () => {
+		const savedOutputs = new Set<EmailOutputKey>();
+		const options = {
+			derivedHtml: "https://example.test/first https://example.test/second https://example.test/third",
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+			savedOutputs,
+			failCustomPublish: true,
+		};
+		const harness = makeHarness(options);
+		const routing: EmailReceivedDetail["routing"] = { kind: "gmail", destinationAddresses: ["in-3f9a2c@read.place"], deliveryMode: "links" };
+		const initial = eventBody({ routing });
+		expect((await harness.run(initial, 1))?.batchItemFailures).toHaveLength(1);
+		savedOutputs.add(linkOutputKey(formatEmailLinkOrdinal(0)));
+		options.failCustomPublish = false;
+		await harness.run(initial, 2);
+		expect(harness.continuations.map(({ startIndex }) => startIndex)).toEqual([1]);
+		const next = harness.continuations[0];
+		await harness.run(JSON.stringify({ detail: { ...next, startIndex: 8 } }), 10);
+		await harness.run(JSON.stringify({ detail: next }), 1);
+		expect(harness.continuations.map(({ startIndex }) => startIndex)).toEqual([1, 1]);
+		await harness.run(JSON.stringify({ detail: next }), 2);
+		expect(harness.continuations.map(({ startIndex }) => startIndex)).toEqual([1, 1, 2]);
+		expect(harness.selection()?.truncated).toBe(true);
+		expect(harness.published.at(-1)?.ordinal).toBe("0001");
+		expect(harness.correlations.filter(({ outputKey }) => outputKey === "link#0000")).toHaveLength(1);
+		await harness.run(initial, 3);
+		expect(harness.published.at(-1)?.ordinal).toBe("0001");
+		await harness.run(JSON.stringify({ detail: harness.continuations[2] }), 3);
+		expect(harness.selection()?.truncated).toBe(false);
+		expect(harness.published.at(-1)?.ordinal).toBe("0002");
+	});
+
 	it("sends every kept link to the save pipeline so it lands in the reader's unread queue", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x https://b.test/y",
@@ -650,7 +803,7 @@ describe("initExtractEmailLinksHandler", () => {
 			{ kept: 3, skipped: 0, truncated: false },
 		]);
 		expect(harness.writeOrder).toEqual(["counts", "meta"]);
-		expect(harness.alerts).toHaveLength(0);
+		expect(harness.continuations).toHaveLength(0);
 		// Extraction must derive with NO remote-image rehost map: CDN image URLs
 		// in its body would be extracted as phantom article links, and building
 		// the map would re-download every image on every run.
@@ -708,9 +861,9 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links).toHaveLength(2);
-		expect(meta).toEqual({ truncated: true, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 2, savesHeld: false, readlistOutcomes: [] });
+		expect(meta).toMatchObject({ truncated: true, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 2, savesHeld: false, extractionWindow: { start: 0, end: 2 }, dispatchedThrough: 2, readlistOutcomes: [] });
 		expect(harness.published).toHaveLength(2);
-		expect(harness.alerts).toEqual([{ found: 3 }]);
+		expect(harness.continuations).toMatchObject([{ startIndex: 2 }]);
 		expect(harness.countsWrites).toEqual([
 			{ kept: 2, skipped: 0, truncated: true },
 		]);
@@ -1687,7 +1840,7 @@ describe("Gmail destination snapshots", () => {
 		expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
 		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
-		const recorder = initRecordEmailLinksFilteredHandler({ putReadlistOutcome: harness.linkStore.putReadlistOutcome, mergeReadlistOutcomeFit: harness.linkStore.mergeReadlistOutcomeFit, listLinksByEmail: harness.linkStore.listLinksByEmail, logger: noopLogger });
+		const recorder = initRecordEmailLinksFilteredHandler({ deliverIssueMatches: async () => {}, putReadlistOutcome: harness.linkStore.putReadlistOutcome, mergeReadlistOutcomeFit: harness.linkStore.mergeReadlistOutcomeFit, listLinksByEmail: harness.linkStore.listLinksByEmail, logger: noopLogger });
 		const rejection = { scope: "email", userId: USER, receivedAtMessageId: RAM, readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [{ ordinal: "0000", verdict: "drop", reason: "Outside the list topic" }] };
 		expect(await recorder(buildSqsEvent([{ messageId: "late-rejection", body: JSON.stringify({ "detail-type": EmailLinksFilteredEvent.detailType, detail: rejection }) }]), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });

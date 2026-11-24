@@ -362,6 +362,12 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		]);
 		await expect(preferences).toHaveAttribute("data-test-preferences-state", "set", { timeout: SETTLE_MS });
 		await expect(page.locator("[data-test-readlist-purpose-text]")).toHaveText("Essays on how teams ship software.");
+		const confirmation = page.locator("dialog[data-preferences-saved]");
+		await expect(confirmation).toBeVisible();
+		await expect(confirmation).toContainText("Weekend");
+		await confirmation.locator('button[type="submit"]').focus();
+		await page.keyboard.press("Enter");
+		await expect(confirmation).toBeHidden();
 
 		await page.locator("[data-test-readlist-purpose-text]").click();
 		await expect(wizard).toBeVisible();

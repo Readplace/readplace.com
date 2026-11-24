@@ -138,6 +138,7 @@ export const SubmitLinkCommand = defineEvent({
 			userId: UserIdSchema,
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
+			requestedAt: z.iso.datetime().optional(),
 			saveTrigger: z.enum(["automatic", "manual"]),
 			rawHtml: z.string().optional(),
 			emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
@@ -187,6 +188,7 @@ export const FileArticleIntoReadlistCommand = defineEvent({
 		userId: UserIdSchema,
 		url: z.string(),
 		readlist: z.string(),
+		requestedAt: z.iso.datetime().optional(),
 		provenance: z.looseObject({ kind: z.string() }),
 		fit: z.union([
 			z.object({
@@ -1167,6 +1169,7 @@ export const EmailReceivedEvent = defineEvent({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		recipientAddress: z.string(),
+		startIndex: z.number().int().positive().optional(),
 		routing: z.discriminatedUnion("kind", [
 			z.object({ kind: z.literal("inbox") }),
 			z.object({
@@ -1210,6 +1213,7 @@ export const EmailLinksTriagedEvent = defineEvent({
 	detailSchema: z.discriminatedUnion("scope", [
 		z.object({
 			scope: z.literal("email"),
+			startIndex: z.number().int().positive().optional(),
 			userId: UserIdSchema,
 			receivedAtMessageId: z.string(),
 			readlist: z.string(),
@@ -1253,6 +1257,7 @@ export const EmailLinksFilteredEvent = defineEvent({
 	detailType: "EmailLinksFiltered",
 	detailSchema: z.object({
 		scope: z.enum(["email", "link"]),
+		startIndex: z.number().int().positive().optional(),
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
@@ -1283,6 +1288,7 @@ export const EmailLinksFilterFailedEvent = defineEvent({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
+		startIndex: z.number().int().positive().optional(),
 		reason: z.string(),
 		receiveCount: z.number(),
 	}),

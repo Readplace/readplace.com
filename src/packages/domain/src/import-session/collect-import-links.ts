@@ -7,7 +7,7 @@ function hasHttpScheme(raw: string): boolean {
 	return /^https?:\/\//i.test(raw);
 }
 
-export function collectImportLinks(rawUrls: Iterable<string>): ImportLinksResult {
+export function collectImportLinks(rawUrls: Iterable<string>, limit = MAX_URLS_PER_IMPORT): ImportLinksResult {
 	const seen = new Set<string>();
 	const urls: string[] = [];
 	let truncated = false;
@@ -22,7 +22,7 @@ export function collectImportLinks(rawUrls: Iterable<string>): ImportLinksResult
 		if (seen.has(identity)) continue;
 		seen.add(identity);
 
-		if (urls.length >= MAX_URLS_PER_IMPORT) {
+		if (urls.length >= limit) {
 			truncated = true;
 			continue;
 		}

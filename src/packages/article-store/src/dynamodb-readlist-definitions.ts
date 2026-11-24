@@ -152,12 +152,14 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
 			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
 			UpdateExpression: "SET #purpose = :purpose",
+			ReturnValues: "ALL_OLD",
 			ConditionExpression: "attribute_exists(#url)",
 			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
 			ExpressionAttributeValues: { ":purpose": params.purpose },
 		}));
 		if (outcome.kind === "condition-failed") return { updated: false };
-		return { updated: true };
+		assert(outcome.result.Attributes, "an existing readlist returns its previous attributes");
+		return { updated: true, firstSetup: !outcome.result.Attributes.queuePurpose?.trim() };
 	};
 
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {

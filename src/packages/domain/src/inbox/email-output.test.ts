@@ -4,6 +4,8 @@ import { GmailAccountEmailSchema } from "../gmail/gmail-account-email.schema";
 import { GmailMessageIdSchema } from "../gmail/gmail-history-import.schema";
 import {
 	ISSUE_OUTPUT_KEY,
+	amendEmailSelection,
+	emailMatchBatch,
 	isEmailSavedToAll,
 	linkOutputKey,
 	outputLinkOrdinal,
@@ -51,5 +53,35 @@ describe("uniqueGmailOrigins", () => {
 	it("collapses origins that name the same Gmail message", () => {
 		const origin = { kind: "history" as const, accountEmail: GmailAccountEmailSchema.parse("a@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 		assert.deepEqual(uniqueGmailOrigins([origin, { ...origin, accountEmail: GmailAccountEmailSchema.parse("A@gmail.com") }]), [{ ...origin, accountEmail: "A@gmail.com" }]);
+	});
+});
+
+describe("amendEmailSelection", () => {
+	it("assigns a shared match once and waits for both readlists and the article save", () => {
+		const work = emailMatchBatch("work", 0);
+		const science = emailMatchBatch("science", 0);
+		const first = { ...selection([ISSUE_OUTPUT_KEY]), matches: { [work]: null, [science]: null } };
+		const matched = amendEmailSelection(first, { kind: "match", batch: work, outputs: [link, link] });
+		assert.deepEqual(matched.matches?.[work], [link]);
+		assert.equal(isEmailSavedToAll({ selection: matched, savedOutputs: new Set([ISSUE_OUTPUT_KEY, link]) }), false);
+		const finished = amendEmailSelection(matched, { kind: "match", batch: science, outputs: [link] });
+		assert.deepEqual(finished.matches?.[science], []);
+		assert.deepEqual(finished.outputs, [ISSUE_OUTPUT_KEY, link]);
+		assert.equal(isEmailSavedToAll({ selection: finished, savedOutputs: new Set([ISSUE_OUTPUT_KEY]) }), false);
+		assert.equal(isEmailSavedToAll({ selection: finished, savedOutputs: new Set([ISSUE_OUTPUT_KEY, link]) }), true);
+		assert.equal(amendEmailSelection(finished, { kind: "match", batch: work, outputs: [] }), finished);
+	});
+
+	it("keeps the existing issue and decisions when a continuation appends links", () => {
+		const first = { ...selection([ISSUE_OUTPUT_KEY], true), nextLinkIndex: 300, matches: { "0#work": [] } };
+		const page = { ...selection([link]), matches: { "300#work": null } };
+		const continued = amendEmailSelection(first, { kind: "continue", start: 300, page });
+		assert.deepEqual(continued, { ...selection([ISSUE_OUTPUT_KEY, link]), matches: { "0#work": [], "300#work": null } });
+		assert.equal(amendEmailSelection(continued, { kind: "continue", start: 300, page }), continued);
+	});
+
+	it("can finish a continuation with no matching destinations", () => {
+		const first = { ...selection([ISSUE_OUTPUT_KEY], true), nextLinkIndex: 300 };
+		assert.deepEqual(amendEmailSelection(first, { kind: "continue", start: 300, page: selection([link]) }), selection([ISSUE_OUTPUT_KEY, link]));
 	});
 });

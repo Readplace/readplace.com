@@ -166,6 +166,12 @@ export const PURPOSE_ORIGINS = [...TAB_IDS, "preferences"] as const;
 
 export type PurposeOrigin = (typeof PURPOSE_ORIGINS)[number];
 
+export function readlistPreferencesSetupPath(readlist: ReadlistSlug, from: TabId): string {
+	return `${readlistPreferencesPath(readlist)}?setup_from=${from}`;
+}
+
+export const PREFERENCES_SETUP_SAVED = "preferences_setup_saved";
+
 export function readlistPurposeActionPath(input: { readlist: ReadlistSlug; from: PurposeOrigin }): string {
 	const path = readlistPreferencesPath(input.readlist);
 	return input.from === "preferences" ? path : `${path}?from=${input.from}`;

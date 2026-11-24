@@ -115,7 +115,21 @@ export function initDynamoDbInboxEmail(deps: {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }, { consistentRead: true }),
-		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts }) => {
+		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts, window }) => {
+			if (window) {
+				const first = window.start === 0;
+				await writeIfCondition(() => table.update({
+					Key: { userId, receivedAtMessageId },
+					ConditionExpression: first
+						? "attribute_exists(receivedAtMessageId) AND attribute_not_exists(countedThrough)"
+						: "countedThrough = :start",
+					UpdateExpression: first ? "SET countedThrough = :end, linkCounts = :counts"
+						: "SET countedThrough = :end, linkCounts.kept = linkCounts.kept + :kept, linkCounts.skipped = linkCounts.skipped + :skipped, linkCounts.truncated = :truncated",
+					ExpressionAttributeValues: first ? { ":end": window.end, ":counts": linkCounts }
+						: { ":end": window.end, ":start": window.start, ":kept": linkCounts.kept, ":skipped": linkCounts.skipped, ":truncated": linkCounts.truncated },
+				}));
+				return;
+			}
 			await table.update({
 				Key: { userId, receivedAtMessageId },
 				ConditionExpression: "attribute_exists(receivedAtMessageId)",

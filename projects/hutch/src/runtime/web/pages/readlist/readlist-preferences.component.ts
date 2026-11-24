@@ -64,6 +64,9 @@ const PANEL_CLASS: Record<PurposeState, string> = {
 	set: "readlist-preferences readlist-preferences--set",
 };
 
+import type { PurposeOrigin } from "./readlist.url";
+import { renderPreferencesSaved } from "./readlist-preferences-saved.component";
+
 const WIZARD_OPEN_CLASS = "readlist-preferences--wizard-open";
 
 const PAID_LOCKED_CLASS = "readlist-preferences--paid-locked";
@@ -136,6 +139,7 @@ export interface ReadlistPreferencesViewModel {
 	rail: ReadlistRailViewModel;
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	wizardOpen: boolean;
+	wizardFrom?: PurposeOrigin;
 	purposeError?: string;
 	inboxes: readonly InboxAddressEntry[];
 	inboxCreate: { submittedName: string | undefined; error: InboxNameError | undefined };
@@ -172,7 +176,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		wizard: renderReadlistPurposeWizard({
 			readlist: vm.readlist,
 			values: vm.values,
-			from: "preferences",
+			from: state === "unset" ? vm.wizardFrom ?? "preferences" : "preferences",
 			error: vm.purposeError,
 		}),
 		wizardOpenClasses: vm.wizardOpen ? [WIZARD_OPEN_CLASS] : [],
@@ -226,6 +230,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			choices: vm.choices,
 		}),
 		statusToastHtml: statusToastHtml(vm),
+		preferencesSavedHtml: renderPreferencesSaved({ label: vm.readlist.label, purpose: vm.readlist.purpose, query: vm.query }),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,

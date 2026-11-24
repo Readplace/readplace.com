@@ -395,7 +395,7 @@ describe("setReadlistDefinitionPurpose", () => {
 	it("writes only the purpose, on a row that must already exist", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			client: createFakeDynamo([{ Attributes: definitionItem() }], (c) => commands.push(c)),
 			userArticlesTableName: TABLE,
 		});
 
@@ -405,7 +405,7 @@ describe("setReadlistDefinitionPurpose", () => {
 				slug: WORK,
 				purpose: "Essays on how teams actually ship.",
 			}),
-		).toEqual({ updated: true });
+		).toEqual({ updated: true, firstSetup: true });
 		expect(commands[0].name).toBe("UpdateCommand");
 		expect(commands[0].input).toMatchObject({
 			TableName: TABLE,
@@ -414,6 +414,14 @@ describe("setReadlistDefinitionPurpose", () => {
 		});
 		expect(String(commands[0].input.UpdateExpression)).toContain("SET #purpose = :purpose");
 		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
+	});
+
+	it("distinguishes a first setup from an edit using the previous value", async () => {
+		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{ Attributes: definitionItem({ queuePurpose: "Previously saved" }) }], () => {}),
+			userArticlesTableName: TABLE,
+		});
+		await expect(setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Updated" })).resolves.toEqual({ updated: true, firstSetup: false });
 	});
 
 	it("reports a readlist that no longer has a definition row", async () => {

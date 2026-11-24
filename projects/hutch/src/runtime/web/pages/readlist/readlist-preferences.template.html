@@ -16,7 +16,7 @@
                 <div class="readlist-empty" data-test-preferences-empty>
                   <div class="readlist-empty__illustration">{{{setupIllustrationHtml}}}</div>
                   <h3 class="readlist-empty__title">Set up your readlist</h3>
-                  <p class="readlist-empty__text">Personalise this readlist by choosing what you want to read in it.</p>
+                  <p class="readlist-empty__text">{{t "readlistPreferences.setup"}}</p>
                   {{#each setupActions}}
                   <button class="btn btn--neutral readlist-empty__cta" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-setup">Set up readlist</button>
                   {{/each}}
@@ -41,6 +41,7 @@
           {{{onboardingHtml}}}
         </div>
       </div>
+      {{{preferencesSavedHtml}}}
       <div id="status-toast">{{{statusToastHtml}}}</div>
       {{{readlistRenamesHtml}}}
       {{{readlistCreateHtml}}}

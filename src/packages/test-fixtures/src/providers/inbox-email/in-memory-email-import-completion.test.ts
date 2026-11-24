@@ -39,6 +39,15 @@ describe("initInMemoryEmailImportCompletion", () => {
 		assert.deepEqual(await completion.findCompletion({ userId, receivedAtMessageId }), { selection, savedOutputs: new Set(["issue"]), origins: [origin] });
 	});
 
+	it("retains acknowledgements while adding a continuation", async () => {
+		const completion = await withEmail();
+		const key = { userId, receivedAtMessageId };
+		await completion.selectOutputs({ ...key, selection: { ...selection, truncated: true, nextLinkIndex: 300 } });
+		await completion.acknowledgeOutput({ ...key, output: ISSUE_OUTPUT_KEY });
+		assert.deepEqual(await completion.amendSelection({ ...key, change: { kind: "continue", start: 300, page: selection } }), selection);
+		assert.deepEqual(await completion.findCompletion(key), { selection, savedOutputs: new Set([ISSUE_OUTPUT_KEY]), origins: [] });
+	});
+
 	it("tracks nothing for an email that does not exist", async () => {
 		const emails = initInMemoryInboxEmail();
 		const completion = initInMemoryEmailImportCompletion({ getEmail: async () => undefined, listEmailsByUserId: emails.listEmailsByUserId });
