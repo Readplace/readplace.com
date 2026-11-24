@@ -362,7 +362,7 @@ import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { initDualAuth } from "./web/dual-auth.middleware";
+import { initDualAuth, initPresentedSirenBearerAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
@@ -1702,6 +1702,14 @@ export function createApp(dependencies: AppDependencies): Express {
 			refund: deps.refundUnstartedCharge,
 		}),
 	});
+	app.use(
+		"/upload",
+		initPresentedSirenBearerAuth({
+			validateAccessToken: deps.validateAccessToken,
+			baseUrl: deps.baseUrl,
+		}),
+		resolveVerificationStatus,
+	);
 	app.use(
 		"/upload",
 		initAnonymousUploadRoutes({

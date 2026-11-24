@@ -543,7 +543,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist", page: 2 }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "prev"]);
+		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "upload", "prev"]);
 	});
 
 	it("single page omits both pagination links", () => {
@@ -558,7 +558,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "account", "add-links-help"]);
+		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "upload"]);
 	});
 
 	it("preserves query params in pagination links", () => {
