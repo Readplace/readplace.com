@@ -220,6 +220,7 @@ enum Fixtures {
 		readAt: String? = nil,
 		isRead: Bool? = nil,
 		contentVersion: String? = nil,
+		contentState: String? = nil,
 		processingJSON: String? = nil,
 		messagesJSON: String? = nil
 	) -> String {
@@ -249,7 +250,7 @@ enum Fixtures {
 				\(readTimeField(readTime)),
 				"status": "\(status)",
 				"savedAt": "\(savedAt)",
-				\(field("readAt", readAt))\(boolField("isRead", isRead))\(contentVersion.map { ", \"contentVersion\": \"\($0)\"" } ?? "")\(processingJSON.map { ", \"processing\": \($0)" } ?? "")\(messagesJSON.map { ", \"messages\": [\($0)]" } ?? "")
+				\(field("readAt", readAt))\(boolField("isRead", isRead))\(contentVersion.map { ", \"contentVersion\": \"\($0)\"" } ?? "")\(contentState.map { ", \"contentState\": \"\($0)\"" } ?? "")\(processingJSON.map { ", \"processing\": \($0)" } ?? "")\(messagesJSON.map { ", \"messages\": [\($0)]" } ?? "")
 			},
 			"links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
 			"actions": [

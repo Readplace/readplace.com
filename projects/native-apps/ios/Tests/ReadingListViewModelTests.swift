@@ -2981,7 +2981,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
 			imageURL: nil, readTimeLabel: nil, isRead: false, savedAt: nil, contentVersion: nil,
-			actions: [], links: [], readHref: readHref, processing: nil, notice: nil
+			contentState: nil, actions: [], links: [], readHref: readHref, processing: nil, notice: nil
 		)
 	}
 
@@ -3279,6 +3279,105 @@ final class ReadingListViewModelTests: XCTestCase {
 			[.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
 		)
 		XCTAssertEqual(StubURLProtocol.records.prefix(2).map(\.request.timeoutInterval), [10, 10])
+	}
+
+	private func launchOffline(
+		firstPage: [String],
+		secondPage: [String]? = nil,
+		recording record: (OfflineDownloadManifest) -> Void = { _ in }
+	) throws -> ReadingListViewModel {
+		StubURLProtocol.setHandler { _, _ in throw URLError(.notConnectedToInternet) }
+		let href = "/queue?readlist=main"
+		let secondHref = "/queue?readlist=main&page=2"
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: href)
+		let container = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let next = secondPage.map { _ in ",{ \"rel\": [\"next\"], \"href\": \"\(secondHref)\" }" } ?? ""
+		try storeSnapshot(Fixtures.collection(entitiesJSON: firstPage, extraLinks: next), href: href, in: container)
+		if let secondPage {
+			try storeSnapshot(Fixtures.collection(entitiesJSON: secondPage, page: 2), href: secondHref, in: container)
+		}
+		record(OfflineDownloadManifest(container: container))
+		return makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults, offlineContainer: container)
+	}
+
+	func testAStoredListShowsTheContentBannerWhenAShownArticleWasRecordedWithoutContent() async throws {
+		let viewModel = try launchOffline(firstPage: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")]) {
+			$0.recordDownloaded(articleId: "a1", contentVersion: "v1", contentState: .unavailable)
+		}
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
+		XCTAssertEqual(
+			viewModel.contentBannerText,
+			"Readplace couldn't get the content of some of these articles, so they can't be read offline."
+		)
+	}
+
+	func testAStoredListShowsTheContentBannerWhenAStoredRowWasRenderedStillProcessing() async throws {
+		let viewModel = try launchOffline(firstPage: [Fixtures.article(id: "a1", contentState: "processing")])
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(
+			viewModel.contentBannerText,
+			"Some of these articles weren't downloaded with their content. Open them when you're back online to read them."
+		)
+	}
+
+	func testAnAppendedStoredPageOfAvailableArticlesKeepsTheContentBannerAnEarlierRowNeeds() async throws {
+		let viewModel = try launchOffline(
+			firstPage: [Fixtures.article(id: "a1")],
+			secondPage: [Fixtures.article(id: "a2", contentState: "available")]
+		) {
+			$0.recordDownloaded(articleId: "a1", contentVersion: "v1", contentState: .unavailable)
+		}
+		await viewModel.loadIfNeeded()
+		XCTAssertEqual(viewModel.contentBannerText, OfflineReading.listUnavailableText, "precondition: page 1 needs the banner")
+
+		await viewModel.loadMore()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
+		XCTAssertEqual(viewModel.contentBannerText, OfflineReading.listUnavailableText)
+	}
+
+	func testAnAppendedStoredPageWithAnUnavailableArticleShowsTheContentBanner() async throws {
+		let viewModel = try launchOffline(
+			firstPage: [Fixtures.article(id: "a1", contentState: "available")],
+			secondPage: [Fixtures.article(id: "a2", contentState: "unavailable")]
+		)
+		await viewModel.loadIfNeeded()
+		XCTAssertNil(viewModel.contentBannerText, "precondition: page 1 has content for every row")
+
+		await viewModel.loadMore()
+
+		XCTAssertEqual(viewModel.contentBannerText, OfflineReading.listUnavailableText)
+	}
+
+	func testAnArticleThatLeftTheListNoLongerKeepsTheContentBannerOn() async throws {
+		let viewModel = try launchOffline(firstPage: [Fixtures.article(id: "a1")]) {
+			$0.recordDownloaded(articleId: "gone", contentVersion: "v1", contentState: .unavailable)
+		}
+
+		await viewModel.loadIfNeeded()
+
+		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "the standard offline banner shows")
+		XCTAssertNil(viewModel.contentBannerText, "and alone, because the unavailable article is no longer shown")
+	}
+
+	func testTheReaderIsPresentedWithTheContentStateRecordedForItsArticle() async throws {
+		let viewModel = try launchOffline(firstPage: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")]) {
+			$0.recordDownloaded(articleId: "a1", contentVersion: "v1", contentState: .unavailable)
+			$0.recordDownloaded(articleId: "a2", contentVersion: "v1", contentState: .available)
+		}
+		await viewModel.loadIfNeeded()
+
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first { $0.id == "a1" }))
+		XCTAssertEqual(viewModel.readerPresentation?.contentState, .unavailable)
+
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first { $0.id == "a2" }))
+		XCTAssertEqual(viewModel.readerPresentation?.contentState, .available)
 	}
 
 	func testAnOfflineLaunchDoesNotShowAListStoredMoreThanThirtyDaysAgo() async throws {

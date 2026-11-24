@@ -51,7 +51,12 @@ enum ReaderPrefetch {
 struct OfflineArticle {
 	let id: String
 	let contentVersion: String?
+	let contentState: ContentState?
 	let request: URLRequest
+
+	var withUnknownContentState: OfflineArticle {
+		OfflineArticle(id: id, contentVersion: contentVersion, contentState: nil, request: request)
+	}
 }
 
 @MainActor
@@ -88,12 +93,15 @@ final class OfflineArticleQueue {
 @MainActor
 struct DownloadUnreadOffline {
 	static let concurrentArticles = 4
+	static let resolutionWaitCap: TimeInterval = 15 * 60
 
 	let api: ReadplaceAPI
 	let prefetchers: [ReaderPrefetching]
 	let sessionAction: SirenAction?
 	let manifest: OfflineDownloadManifest
 	let snapshot: OfflineReadlistSnapshot
+	let pause: (TimeInterval) async throws -> Void
+	let now: () -> Date
 
 	private final class Tally {
 		let expectedTotal: Int
@@ -111,6 +119,47 @@ struct DownloadUnreadOffline {
 
 		var progress: OfflineDownloadProgress {
 			OfflineDownloadProgress(completed: completed, total: shownTotal, failed: failed)
+		}
+	}
+
+	private struct Row {
+		let article: OfflineArticle
+		let refreshAfterSeconds: TimeInterval?
+	}
+
+	private struct HeldRow {
+		let article: OfflineArticle
+		let refreshAfterSeconds: TimeInterval
+		let pageHref: String
+	}
+
+	private struct ResolvingPages {
+		let hrefs: [String]
+		let held: [HeldRow]
+		let next: NextLink?
+	}
+
+	private struct NextLink {
+		let href: String
+		let isOfflinePrefetch: Bool
+	}
+
+	private final class Ledger {
+		private var counted: Set<String> = []
+		private var queued: Set<String> = []
+
+		func count(_ rows: [Row], in tally: Tally) {
+			for row in rows where counted.insert(row.article.id).inserted {
+				tally.total += 1
+			}
+		}
+
+		func isQueued(_ id: String) -> Bool {
+			queued.contains(id)
+		}
+
+		func unqueued(_ articles: [OfflineArticle]) -> [OfflineArticle] {
+			articles.filter { queued.insert($0.id).inserted }
 		}
 	}
 
@@ -162,25 +211,164 @@ struct DownloadUnreadOffline {
 		from href: String,
 		into queue: OfflineArticleQueue,
 		tally: Tally,
-		report: () -> Void
+		report: @escaping () -> Void
 	) async throws {
 		defer { queue.close() }
-		var path: String? = href
-		var reachedThroughPrefetchLink = false
-		while let current = path {
-			let page = try await reachedThroughPrefetchLink
-				? api.prefetchReadlist(path: current)
-				: api.loadReadlist(path: current)
-			snapshot.save(page, href: current, savedAt: Date())
-			let unread = unreadArticles(on: page)
-			tally.total += unread.count
-			report()
-			queue.push(unread)
-			path = page.nextHref
-			reachedThroughPrefetchLink = page.nextIsOfflinePrefetch
-		}
+		try await walkPages(
+			from: NextLink(href: href, isOfflinePrefetch: false), into: queue, ledger: Ledger(), tally: tally, report: report
+		)
 		tally.walking = false
 		report()
+	}
+
+	private func walkPages(
+		from start: NextLink?,
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: @escaping () -> Void
+	) async throws {
+		var link = start
+		while let current = link {
+			guard !current.isOfflinePrefetch else {
+				link = try await storeAsLastSeen(current.href, into: queue, ledger: ledger, tally: tally, report: report)
+				continue
+			}
+			let resolving = try await loadResolvingPages(from: current.href, into: queue, ledger: ledger, tally: tally, report: report)
+			try await withThrowingTaskGroup(of: Void.self) { group in
+				group.addTask {
+					try await finishResolution(of: resolving, into: queue, ledger: ledger, tally: tally, report: report)
+				}
+				group.addTask {
+					try await walkPages(from: resolving.next, into: queue, ledger: ledger, tally: tally, report: report)
+				}
+				try await group.waitForAll()
+			}
+			return
+		}
+	}
+
+	private func storeAsLastSeen(
+		_ href: String,
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: () -> Void
+	) async throws -> NextLink? {
+		let page = try await api.prefetchReadlist(path: href)
+		snapshot.save(page, href: href, savedAt: now())
+		let rows = unreadRows(on: page)
+		ledger.count(rows, in: tally)
+		report()
+		queue.push(ledger.unqueued(rows.map(\.article)))
+		return nextLink(of: page)
+	}
+
+	private func loadResolvingPages(
+		from href: String,
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: () -> Void
+	) async throws -> ResolvingPages {
+		var resolvingPages: [String] = []
+		var held: [HeldRow] = []
+		var link: NextLink? = NextLink(href: href, isOfflinePrefetch: false)
+		while let current = link, !current.isOfflinePrefetch {
+			let page = try await api.loadReadlist(path: current.href)
+			snapshot.save(page, href: current.href, savedAt: now())
+			resolvingPages.append(current.href)
+			let rows = unreadRows(on: page)
+			ledger.count(rows, in: tally)
+			report()
+			var settled: [OfflineArticle] = []
+			for row in rows where !ledger.isQueued(row.article.id) {
+				held.removeAll { $0.article.id == row.article.id }
+				if let refreshAfterSeconds = row.refreshAfterSeconds {
+					held.append(HeldRow(article: row.article, refreshAfterSeconds: refreshAfterSeconds, pageHref: current.href))
+				} else {
+					settled.append(row.article)
+				}
+			}
+			queue.push(ledger.unqueued(settled))
+			link = nextLink(of: page)
+		}
+		return ResolvingPages(hrefs: resolvingPages, held: held, next: link)
+	}
+
+	private func finishResolution(
+		of resolving: ResolvingPages,
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: () -> Void
+	) async throws {
+		let unsettled = try await waitForResolution(
+			of: resolving.held, on: resolving.hrefs, into: queue, ledger: ledger, tally: tally, report: report
+		)
+		queue.push(ledger.unqueued(unsettled.map(\.article)))
+	}
+
+	private func waitForResolution(
+		of initiallyHeld: [HeldRow],
+		on resolvingPages: [String],
+		into queue: OfflineArticleQueue,
+		ledger: Ledger,
+		tally: Tally,
+		report: () -> Void
+	) async throws -> [HeldRow] {
+		var held = initiallyHeld
+		let started = now()
+		while let interval = held.map(\.refreshAfterSeconds).min(),
+			now().timeIntervalSince(started) < Self.resolutionWaitCap
+		{
+			try await pause(interval)
+			held.removeAll { ledger.isQueued($0.article.id) }
+			let due = resolvingPages.filter { page in held.contains { $0.pageHref == page } }
+			var reloaded: Set<String> = []
+			var observed: Set<String> = []
+			for pageHref in due {
+				guard let page = try await reload(pageHref) else { continue }
+				reloaded.insert(pageHref)
+				snapshot.save(page, href: pageHref, savedAt: now())
+				let rows = unreadRows(on: page)
+				ledger.count(rows, in: tally)
+				var settled: [OfflineArticle] = []
+				for row in rows {
+					observed.insert(row.article.id)
+					let wasHeld = held.contains { $0.article.id == row.article.id }
+					held.removeAll { $0.article.id == row.article.id }
+					if wasHeld, let refreshAfterSeconds = row.refreshAfterSeconds {
+						held.append(HeldRow(article: row.article, refreshAfterSeconds: refreshAfterSeconds, pageHref: pageHref))
+					} else {
+						settled.append(row.article)
+					}
+				}
+				report()
+				queue.push(ledger.unqueued(settled))
+			}
+			let unobservable = held.filter { reloaded.contains($0.pageHref) && !observed.contains($0.article.id) }
+			held.removeAll { row in unobservable.contains { $0.article.id == row.article.id } }
+			queue.push(ledger.unqueued(unobservable.map(\.article.withUnknownContentState)))
+		}
+		return held
+	}
+
+	private func reload(_ href: String) async throws -> ReadlistPage? {
+		do {
+			return try await api.prefetchReadlist(path: href)
+		} catch let error where Task.isCancelled || Self.endsTheSession(error) {
+			throw error
+		} catch {
+			return nil
+		}
+	}
+
+	private static func endsTheSession(_ error: Error) -> Bool {
+		switch error {
+		case APIError.unauthorized, APIError.noToken: return true
+		default: return false
+		}
 	}
 
 	private func drain(
@@ -191,6 +379,9 @@ struct DownloadUnreadOffline {
 	) async throws {
 		while let article = await queue.next() {
 			if manifest.isCurrent(articleId: article.id, contentVersion: article.contentVersion) {
+				if let contentState = article.contentState {
+					manifest.record(contentState: contentState, articleId: article.id)
+				}
 				tally.completed += 1
 				report()
 				continue
@@ -200,7 +391,7 @@ struct DownloadUnreadOffline {
 			let stored = await prefetcher.prefetch(request: article.request, cookies: cookies)
 			guard !Task.isCancelled else { return }
 			if stored, let version = article.contentVersion {
-				manifest.recordDownloaded(articleId: article.id, contentVersion: version)
+				manifest.recordDownloaded(articleId: article.id, contentVersion: version, contentState: article.contentState)
 			}
 			if !stored { tally.failed += 1 }
 			tally.completed += 1
@@ -215,12 +406,24 @@ struct DownloadUnreadOffline {
 		return try await minting.value
 	}
 
-	private func unreadArticles(on page: ReadlistPage) -> [OfflineArticle] {
+	private func nextLink(of page: ReadlistPage) -> NextLink? {
+		page.nextHref.map { NextLink(href: $0, isOfflinePrefetch: page.nextIsOfflinePrefetch) }
+	}
+
+	private func unreadRows(on page: ReadlistPage) -> [Row] {
 		page.articles
 			.filter { !$0.isRead }
 			.compactMap { article in
 				ReaderRequest.prefetch(readHref: article.readHref, baseURL: api.baseURL).map {
-					OfflineArticle(id: article.id, contentVersion: article.contentVersion, request: $0)
+					Row(
+						article: OfflineArticle(
+							id: article.id,
+							contentVersion: article.contentVersion,
+							contentState: article.contentState,
+							request: $0
+						),
+						refreshAfterSeconds: article.processing?.refreshAfterSeconds
+					)
 				}
 			}
 	}
