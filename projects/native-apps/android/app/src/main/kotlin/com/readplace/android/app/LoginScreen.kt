@@ -219,14 +219,7 @@ fun LoginScreen(
 					verticalArrangement = Arrangement.spacedBy(10.dp),
 				) {
 					BrandMark(onReplay = intro::replay)
-					Text(
-						text = buildAnnotatedString {
-							append("Read")
-							withStyle(SpanStyle(color = brand.highlight)) { append("place") }
-						},
-						style = MaterialTheme.typography.headlineLarge,
-						fontWeight = FontWeight.Bold,
-					)
+					LoginWordmark()
 					Subtitle(
 						frame = subtitleFrame,
 						modifier = Modifier.onGloballyPositioned { subtitleRect = it.rectInWindow() },
@@ -435,12 +428,24 @@ private fun Footer(onOpenPrivacyPolicy: () -> Unit, onReplay: () -> Unit) {
 }
 
 @Composable
-private fun MuteButton(isMuted: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+internal fun LoginWordmark() {
+	Text(
+		text = buildAnnotatedString {
+			append("Read")
+			withStyle(SpanStyle(color = LocalBrandColors.current.amber)) { append("place") }
+		},
+		style = MaterialTheme.typography.headlineLarge,
+		fontWeight = FontWeight.Bold,
+	)
+}
+
+@Composable
+internal fun MuteButton(isMuted: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
 	Box(
 		modifier = modifier
 			.size(44.dp)
 			.clip(CircleShape)
-			.background(Color.Gray.copy(alpha = 0.55f))
+			.background(Color.Black.copy(alpha = 0.55f))
 			.clickable(
 				interactionSource = remember { MutableInteractionSource() },
 				indication = null,
