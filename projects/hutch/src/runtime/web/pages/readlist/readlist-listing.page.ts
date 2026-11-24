@@ -156,6 +156,7 @@ export function initReadlistListingRoutes(deps: Pick<
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						pinnedReadlists: context.pinnedReadlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						surfacePlatform: nativeSurfaceOf(req),
