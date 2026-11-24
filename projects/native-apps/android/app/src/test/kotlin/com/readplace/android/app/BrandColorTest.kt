@@ -111,6 +111,28 @@ class BrandColorTest {
 	}
 
 	@Test
+	fun `error text mirrors the error-text token`() {
+		assertHex(BrandColor.errorText, light = "#AF4646", dark = "#D08A8A")
+	}
+
+	@Test
+	fun `error and success text read at AA contrast in colour and greyscale on the surfaces a dialog or menu sits on`() {
+		for (isDark in listOf(false, true)) {
+			for (ink in listOf(BrandColor.errorText, BrandColor.successText)) {
+				for (ground in listOf(BrandColor.surface, BrandColor.surfaceSubtle)) {
+					val a = ink.resolve(isDark)
+					val b = ground.resolve(isDark)
+					val colour = contrast(a, b)
+					val grey = lumaGreyscaleContrast(a, b)
+					val pair = "isDark=$isDark ink=${hex(a)} ground=${hex(b)} colour=$colour greyscale=$grey"
+					assertTrue(pair, colour >= 4.5)
+					assertTrue(pair, grey >= 4.5)
+				}
+			}
+		}
+	}
+
+	@Test
 	fun `primary text reads at AA contrast on the surfaces a text button sits on`() {
 		for (isDark in listOf(false, true)) {
 			val ink = BrandColor.primaryText.resolve(isDark)
@@ -130,10 +152,19 @@ class BrandColorTest {
 	private fun luminance(rgb: Rgb): Double =
 		0.2126 * channel(rgb.red) + 0.7152 * channel(rgb.green) + 0.0722 * channel(rgb.blue)
 
-	private fun channel(value: Int): Double {
-		val srgb = value / 255.0
-		return if (srgb <= 0.04045) srgb / 12.92 else ((srgb + 0.055) / 1.055).pow(2.4)
+	private fun channel(value: Int): Double = linearise(value / 255.0)
+
+	private fun linearise(srgb: Double): Double =
+		if (srgb <= 0.04045) srgb / 12.92 else ((srgb + 0.055) / 1.055).pow(2.4)
+
+	private fun lumaGreyscaleContrast(a: Rgb, b: Rgb): Double {
+		val lighter = max(lumaGreyLuminance(a), lumaGreyLuminance(b))
+		val darker = min(lumaGreyLuminance(a), lumaGreyLuminance(b))
+		return (lighter + 0.05) / (darker + 0.05)
 	}
+
+	private fun lumaGreyLuminance(rgb: Rgb): Double =
+		linearise((0.2126 * rgb.red + 0.7152 * rgb.green + 0.0722 * rgb.blue) / 255.0)
 
 	private fun assertHex(pair: BrandColorPair, light: String, dark: String) {
 		assertEquals("light", light, hex(pair.resolve(isDark = false)))
