@@ -1,6 +1,12 @@
 export const enUS = {
 	billing: {
 		freeChip: "Free plan",
+		statusNote: {
+			trial: "When it ends, your account moves to the free plan: you keep every article you saved and can save up to {limit} new links a day.",
+			cancellationScheduled:
+				"You keep full access until then. After that, your account moves to the free plan: you keep every article you saved and can save up to {limit} new links a day.",
+			free: "You keep every article you saved and can save up to {limit} new links a day.",
+		},
 	},
 	ageLock: {
 		paused: {

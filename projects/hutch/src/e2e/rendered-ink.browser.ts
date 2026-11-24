@@ -23,12 +23,13 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 	function parseColour(value: string): Rgba {
 		const channels = value.match(/-?[\d.]+/g);
 		if (!channels || channels.length < 3) {
-			throw new Error(`cannot read "${value}" as an rgb()/rgba() colour`);
+			throw new Error(`cannot read "${value}" as an rgb()/rgba()/color(srgb) colour`);
 		}
+		const channelScale = value.startsWith("color(srgb ") ? 255 : 1;
 		return {
-			red: Number(channels[0]),
-			green: Number(channels[1]),
-			blue: Number(channels[2]),
+			red: Number(channels[0]) * channelScale,
+			green: Number(channels[1]) * channelScale,
+			blue: Number(channels[2]) * channelScale,
 			alpha: channels.length > 3 ? Number(channels[3]) : OPAQUE,
 		};
 	}

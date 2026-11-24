@@ -45,6 +45,7 @@ export type FinalizeArticle = (input: {
 	writeContext?: MediaWriteContext;
 	url: string;
 	documentUrl: string;
+	fetchedDocument?: true;
 	html: string;
 	/** The cascade the crawler already ran (SimpleCrawl with
 	 * `fetchThumbnail: true`). Its presence is what tells the finalizer the
@@ -129,6 +130,7 @@ export function initFinalizeArticle(deps: {
 		const parseResult = parseHtml({
 			url: input.url,
 			documentUrl: input.documentUrl,
+			...(input.fetchedDocument && { fetchedDocument: input.fetchedDocument }),
 			html: input.html,
 			thumbnailUrl,
 		});

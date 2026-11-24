@@ -76,6 +76,14 @@ final class BrandColorTests: XCTestCase {
 		assertHex(BrandColor.successText, light: "#367C63", dark: "#4A9F7F")
 	}
 
+	func testErrorTextMirrorsErrorTextToken() {
+		assertHex(BrandColor.errorText, light: "#AF4646", dark: "#D08A8A")
+	}
+
+	func testPrimaryTextOnTintMirrorsPrimaryTextOnTintToken() {
+		assertHex(BrandColor.primaryTextOnTint, light: "#7E481B", dark: "#EAA162")
+	}
+
 	private func assertHex(
 		_ color: UIColor,
 		light: String,

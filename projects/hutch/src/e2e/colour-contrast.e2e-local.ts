@@ -896,6 +896,79 @@ test.describe("A highlighted passage in the reader holds its WCAG contrast in bo
 			assertContrast(measurements, { theme, view: "reader-highlight" });
 		}
 	});
+
+	test("a highlight over a link or muted text clears colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-highlight-inherited-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const linkPassage = "a linked phrase under the reader's mark";
+		const quotePassage = "a quoted line under the reader's mark";
+		const captionPassage = "a captioned line under the reader's mark";
+		const placeholderPassage = "a placeholder line under the reader's mark";
+		const quotedLinkPassage = "a quoted link under the reader's mark";
+		const placeholderLinkPassage = "a placeholder link under the reader's mark";
+		const marks = [
+			{
+				passage: linkPassage,
+				locator: "[data-test-reader-content] p:not(blockquote p, .reader-video-placeholder) > a > mark.article-highlight",
+			},
+			{ passage: quotePassage, locator: "[data-test-reader-content] blockquote p > mark.article-highlight" },
+			{ passage: captionPassage, locator: "[data-test-reader-content] figcaption mark.article-highlight" },
+			{
+				passage: placeholderPassage,
+				locator: "[data-test-reader-content] .reader-video-placeholder > mark.article-highlight",
+			},
+			{ passage: quotedLinkPassage, locator: "[data-test-reader-content] blockquote a > mark.article-highlight" },
+			{
+				passage: placeholderLinkPassage,
+				locator: "[data-test-reader-content] .reader-video-placeholder > a > mark.article-highlight",
+			},
+		];
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-highlight-inherited-${run}`,
+				title: "A passage worth keeping in every container",
+				content: [
+					`<p>Lead words, <a href="https://example.com/colour-contrast-highlight-link-${run}">${linkPassage}</a>, trailing words.</p>`,
+					`<blockquote><p>${quotePassage}, and the quote goes on.</p></blockquote>`,
+					`<figure><figcaption>${captionPassage}, and the caption goes on.</figcaption></figure>`,
+					`<p class="reader-video-placeholder">${placeholderPassage}, and the placeholder goes on.</p>`,
+					`<blockquote><p>Quoted lead, <a href="https://example.com/colour-contrast-highlight-quoted-link-${run}">${quotedLinkPassage}</a>, quoted tail.</p></blockquote>`,
+					`<p class="reader-video-placeholder">Placeholder lead, <a href="https://example.com/colour-contrast-highlight-placeholder-link-${run}">${placeholderLinkPassage}</a>, placeholder tail.</p>`,
+				].join(""),
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
+		await loginChipReader(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		for (const { passage, locator } of marks) {
+			await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+			await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+			await page.locator('[data-test-action="highlight"]').click();
+			await expect(page.locator(locator)).toHaveText(passage, { timeout: SETTLE_MS });
+		}
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			for (const { passage, locator } of marks) {
+				await expect(page.locator(locator)).toHaveText(passage, { timeout: SETTLE_MS });
+			}
+			await page.mouse.move(0, 0);
+			const measurements = await stableMeasurements(page, "[data-test-reader-content]");
+			assert.ok(
+				measurements.some((measured) => measured.role === "text" && measured.name === "mark.article-highlight"),
+				`${theme}/reader-highlight-inherited-ink: the audit must measure the marked passages' ink`,
+			);
+			assertContrast(measurements, { theme, view: "reader-highlight-inherited-ink" });
+		}
+	});
 });
 
 test.describe("A highlight's note preview holds its WCAG contrast in both themes", () => {

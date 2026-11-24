@@ -356,15 +356,20 @@ struct ReadingListView: View {
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.background(Color.brandSurface.ignoresSafeArea())
 		.safeAreaInset(edge: .bottom) {
-			if !viewModel.messages.isEmpty {
-				ListBanner(
-					text: viewModel.messages.map(\.plainText).joined(separator: "\n"),
-					tone: viewModel.messages.contains { $0.kind == .error } ? .error : .warning
-				) { viewModel.messages = [] }
-			} else if let errorText = viewModel.errorText {
-				ListBanner(text: errorText, tone: BannerTone(errorText: errorText)) { viewModel.errorText = nil }
-			} else if let warningText = viewModel.warningText {
-				ListBanner(text: warningText, tone: .warning) { viewModel.warningText = nil }
+			VStack(spacing: 0) {
+				if !viewModel.messages.isEmpty {
+					ListBanner(
+						text: viewModel.messages.map(\.plainText).joined(separator: "\n"),
+						tone: viewModel.messages.contains { $0.kind == .error } ? .error : .warning
+					) { viewModel.messages = [] }
+				} else if let errorText = viewModel.errorText {
+					ListBanner(text: errorText, tone: BannerTone(errorText: errorText)) { viewModel.errorText = nil }
+				} else if let warningText = viewModel.warningText {
+					ListBanner(text: warningText, tone: .warning) { viewModel.warningText = nil }
+				}
+				if let contentBannerText = viewModel.contentBannerText {
+					ListBanner(text: contentBannerText, tone: .offline) { viewModel.contentBannerText = nil }
+				}
 			}
 		}
 	}

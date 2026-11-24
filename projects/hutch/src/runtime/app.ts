@@ -52,6 +52,7 @@ type AssemblyProvidedKeys =
 	| "analytics"
 	| "authDiagnosticsLogger"
 	| "signupLogger"
+	| "uploadLogger"
 	| "salt"
 	| "keepOfferCouponId"
 	| "keepOfferEndsAt"
@@ -118,6 +119,7 @@ export function assembleReadplaceApp(input: {
 		analytics: analyticsLogger,
 		authDiagnosticsLogger: Logger.fromJSON<Record<string, unknown>>(),
 		signupLogger: Logger.from(consoleLogger),
+		uploadLogger: Logger.from(consoleLogger),
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		newsletterCatalogSeed: readNewsletterCatalogSeed(),

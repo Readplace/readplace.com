@@ -400,6 +400,57 @@ describe("toArticleCollectionEntity", () => {
 		});
 	});
 
+	describe("current readlist destinations", () => {
+		const empty: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
+
+		it("gives a native app's named current readlist a Preferences destination tagged with its platform", () => {
+			const entity = toArticleCollectionEntity(
+				empty,
+				{ readlistKey: "readlist", readlist: WORK },
+				{ tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW, surfacePlatform: "ios" },
+			);
+
+			expect(entity.properties?.readlists).toEqual([
+				{ label: "All", rel: "readlist", href: "/queue" },
+				{
+					label: "Work",
+					rel: "current",
+					href: "/queue?readlist=work",
+					preferences: { label: "Preferences", href: "/queue/queues/work/preferences?platform=ios" },
+				},
+			]);
+		});
+
+		it.each([
+			{ where: "names no readlist", queryParams: { readlistKey: "readlist" } },
+			{ where: "names the default readlist", queryParams: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG } },
+		] as const)("gives the \"All\" readlist an Integrations destination when the collection $where", ({ queryParams }) => {
+			const entity = toArticleCollectionEntity(
+				empty,
+				queryParams,
+				{ tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW, surfacePlatform: "android" },
+			);
+
+			expect(entity.properties?.readlists).toEqual([
+				{ label: "All", rel: "current", href: "/queue", integrations: { label: "Connectors", href: "/newsletters?platform=android" } },
+				{ label: "Work", rel: "readlist", href: "/queue?readlist=work" },
+			]);
+		});
+
+		it.each([
+			{ where: "a named readlist", queryParams: { readlistKey: "readlist", readlist: WORK } },
+			{ where: "the default readlist", queryParams: { readlistKey: "readlist" } },
+		] as const)("advertises no destination on $where outside a native app", ({ queryParams }) => {
+			const entity = toArticleCollectionEntity(empty, queryParams, { tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW });
+
+			const entries = z.array(z.record(z.string(), z.unknown())).parse(entity.properties?.readlists);
+			expect(entries.map((entry) => Object.keys(entry).sort())).toEqual([
+				["href", "label", "rel"],
+				["href", "label", "rel"],
+			]);
+		});
+	});
+
 	it("advertises a titled add-links-help link so already-installed clients resolve the help URL", () => {
 		const result: FindArticlesResult = {
 			articles: [],
@@ -492,7 +543,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist", page: 2 }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "prev"]);
+		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "upload", "prev"]);
 	});
 
 	it("single page omits both pagination links", () => {
@@ -507,7 +558,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "account", "add-links-help"]);
+		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "upload"]);
 	});
 
 	it("preserves query params in pagination links", () => {

@@ -358,6 +358,14 @@ describe("BUTTON_STYLES", () => {
 		expect(declaredValue({ body: pressed, property: "color" })).toBe("var(--error-foreground)");
 	});
 
+	it("rings the on-dark-quiet button in the highlight amber", () => {
+		const rest = ruleBody({ css: BUTTON_STYLES, selector: ".btn--on-dark-quiet" });
+		const focused = ruleBody({ css: BUTTON_STYLES, selector: ".btn--on-dark-quiet:focus-visible" });
+		expect(declaredValue({ body: rest, property: "background" })).toBe("transparent");
+		expect(declaredValue({ body: rest, property: "color" })).toBe("var(--footer-link)");
+		expect(declaredValue({ body: focused, property: "outline-color" })).toBe("var(--color-highlight)");
+	});
+
 	it("brings a dimmed button back to full opacity while it shows its focus ring", () => {
 		const rule = ruleBody({ css: BUTTON_STYLES, selector: '.btn[aria-disabled="true"]:focus-visible' });
 		expect(declaredValue({ body: rule, property: "opacity" })).toBe("1");

@@ -362,7 +362,7 @@ import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { initDualAuth } from "./web/dual-auth.middleware";
+import { initDualAuth, initPresentedSirenBearerAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
@@ -719,6 +719,7 @@ export interface AppDependencies {
 	analytics: Logger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
 	signupLogger: Logger;
+	uploadLogger: Logger;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -1703,6 +1704,14 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use(
 		"/upload",
+		initPresentedSirenBearerAuth({
+			validateAccessToken: deps.validateAccessToken,
+			baseUrl: deps.baseUrl,
+		}),
+		resolveVerificationStatus,
+	);
+	app.use(
+		"/upload",
 		initAnonymousUploadRoutes({
 			findMediaUploadByCapability: deps.findMediaUploadByCapability,
 			claimMediaUpload: deps.claimMediaUpload,
@@ -1752,6 +1761,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
+			logger: deps.uploadLogger,
 			buildBannerState,
 			appOrigin,
 		}),

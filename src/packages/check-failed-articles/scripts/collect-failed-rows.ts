@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
 	classifyCrawlOutcome,
 	classifySummaryOutcome,
@@ -139,6 +140,7 @@ export async function collectFailedRows(deps: {
 	now: () => Date;
 	lookbackDays: number;
 	excludePatterns: readonly RegExp[];
+	ignoredKeyHashes?: ReadonlySet<string>;
 }): Promise<CollectedFailedRow[]> {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -152,9 +154,14 @@ export async function collectFailedRows(deps: {
 		});
 	}
 	const failed: CollectedFailedRow[] = [];
+	const { ignoredKeyHashes } = deps;
 	for (const row of candidates.values()) {
 		const effectiveUrl = row.originalUrl ?? row.url;
 		if (isExcluded(effectiveUrl, deps.excludePatterns)) continue;
+		if (
+			ignoredKeyHashes?.size &&
+			ignoredKeyHashes.has(createHash("sha256").update(row.url, "utf8").digest("hex"))
+		) continue;
 		const { axes, reasons } = classifyAxes(row);
 		if (axes.length === 0) continue;
 		failed.push({

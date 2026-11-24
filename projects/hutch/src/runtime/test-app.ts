@@ -117,6 +117,7 @@ interface TestAppOverrides {
 	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
 	signupLogger?: Logger;
+	uploadLogger?: Logger;
 	authDiagnosticsLogger?: Logger.Typed<Record<string, unknown>>;
 }
 
@@ -493,6 +494,7 @@ function flattenFixtureToAppDependencies(
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
 		signupLogger: noopLogger,
+		uploadLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
 		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,

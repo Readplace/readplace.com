@@ -138,6 +138,7 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 			isRead: false,
 			savedAt: nil,
 			contentVersion: "v1",
+			contentState: nil,
 			actions: [],
 			links: [],
 			readHref: "/queue/\(id)/view",
