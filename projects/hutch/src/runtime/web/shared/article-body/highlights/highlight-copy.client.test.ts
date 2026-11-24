@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { HighlightIdSchema } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
 import { renderHighlightPopoverPanel } from "../highlight-popover/highlight-popover.component";
-import { COPY_STATUS_RESET_MS } from "./highlight-copy.client";
+import { COPY_FAILED_CLASS, COPY_STATUS_RESET_MS } from "./highlight-copy.client";
 import { initHighlightCopy } from "./highlight-toolbar.client";
 import { renderHighlightToolbar, renderLocalHighlightToolbar } from "./highlight-toolbar.component";
 
@@ -12,26 +12,31 @@ const QUOTE = "the passage the reader kept";
 const COPIED = "Highlight copied";
 const FAILED = "Couldn't copy the highlight. Select its text to copy it.";
 
+type ClipboardAnswer = "grants" | "refuses";
+
 interface FakeClipboard {
 	writes: string[];
+	answer: ClipboardAnswer;
 	settled(): Promise<void>;
 	clipboard: { writeText(text: string): Promise<void> };
 }
 
-function clipboardThat(answer: "grants" | "refuses"): FakeClipboard {
+function clipboardThat(answer: ClipboardAnswer): FakeClipboard {
 	const writes: string[] = [];
 	let last: Promise<void> = Promise.resolve();
-	return {
+	const fake: FakeClipboard = {
 		writes,
+		answer,
 		settled: () => last.catch(() => undefined),
 		clipboard: {
 			writeText(text: string) {
 				writes.push(text);
-				last = answer === "grants" ? Promise.resolve() : Promise.reject(new Error("NotAllowedError"));
+				last = fake.answer === "grants" ? Promise.resolve() : Promise.reject(new Error("NotAllowedError"));
 				return last;
 			},
 		},
 	};
+	return fake;
 }
 
 interface Timer {
@@ -118,6 +123,7 @@ describe("initHighlightCopy", () => {
 		expect(h.document.documentElement.className).toBe("has-clipboard");
 		expect(fake.writes).toEqual([QUOTE]);
 		expect(h.shown()).toEqual({ status: COPIED, hidden: false, announced: COPIED });
+		expect(h.status().classList.contains(COPY_FAILED_CLASS)).toBe(false);
 		expect(h.beacons).toEqual([`/queue/abc/highlights/copied?platform=ios&highlight=${HIGHLIGHT_ID}&origin=panel`]);
 		expect(h.timers.map((timer) => timer.delayMs)).toEqual([COPY_STATUS_RESET_MS]);
 	});
@@ -136,6 +142,7 @@ describe("initHighlightCopy", () => {
 		await fake.settled();
 
 		expect(h.shown()).toEqual({ status: FAILED, hidden: false, announced: FAILED });
+		expect(h.status().classList.contains(COPY_FAILED_CLASS)).toBe(true);
 		expect(selection.toString()).toBe(before);
 		expect(h.beacons).toEqual([]);
 	});
@@ -250,14 +257,36 @@ describe("initHighlightCopy", () => {
 		expect(fake.writes).toEqual([]);
 	});
 
-	it("refuses to reset a status the page no longer renders", async () => {
-		const fake = clipboardThat("grants");
+	it("shows a copy that succeeds after a refused one as a success", async () => {
+		const fake = clipboardThat("refuses");
 		const h = page({ fake });
 
 		h.copyItem().click();
 		await fake.settled();
-		h.status().remove();
+		fake.answer = "grants";
+		h.copyItem().click();
+		await fake.settled();
 
-		expect(() => h.runLastTimer()).toThrow("a page that offers Copy highlight renders its copy status");
+		expect(h.shown()).toEqual({ status: COPIED, hidden: false, announced: COPIED });
+		expect(h.status().classList.contains(COPY_FAILED_CLASS)).toBe(false);
+	});
+
+	it.each([
+		{ missing: "[data-highlight-copy-status]", message: "a page that offers Copy highlight renders its copy status" },
+		{ missing: "[data-highlight-toolbar]", message: "a page that offers Copy highlight renders the highlight toolbar" },
+	])("refuses to copy before writing when the page lacks $missing", ({ missing, message }) => {
+		const fake = clipboardThat("grants");
+		const h = page({ fake });
+		h.document.querySelector(missing)?.remove();
+		const errors: string[] = [];
+		h.dom.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+
+		h.copyItem().click();
+
+		expect(errors).toEqual([message]);
+		expect(fake.writes).toEqual([]);
 	});
 });

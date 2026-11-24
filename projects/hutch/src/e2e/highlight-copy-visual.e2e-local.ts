@@ -10,6 +10,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
+import { COPY_FAILED_CLASS } from "../runtime/web/shared/article-body/highlights/highlight-copy.client";
 import { selectPassage } from "./highlight-a-passage.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -133,6 +134,17 @@ test.describe("Copy highlight in a highlight's actions", () => {
 				status.removeAttribute("hidden");
 			});
 			await captureCheckpoint(page, statusCheckpoint(`highlight-copy-status-${scheme}`));
+		});
+
+		test(`the copy status shows a failed copy as an error (${scheme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: scheme });
+			await openHighlightedReader(page, `failed-${scheme}-${testInfo.workerIndex}-${Date.now()}`);
+			await page.locator(COPY_STATUS).evaluate((status, failedClass) => {
+				status.textContent = status.getAttribute("data-copy-failed-text");
+				status.classList.add(failedClass);
+				status.removeAttribute("hidden");
+			}, COPY_FAILED_CLASS);
+			await captureCheckpoint(page, statusCheckpoint(`highlight-copy-status-failed-${scheme}`));
 		});
 	}
 });
