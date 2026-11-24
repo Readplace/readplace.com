@@ -110,6 +110,11 @@ describe("BASE_CSS_VARIABLES", () => {
 		expect(lightRootDeclarations()).toContain("--border: var(--color-border);");
 	});
 
+	it("inks the wordmark tail above the text floor on the light header and on the navy hero", () => {
+		expect(lightRootDeclarations()).toContain("--header-brand-tail: var(--primary-text);");
+		expect(lightRootDeclarations()).toContain("--header-brand-tail-on-navy: #D4A04A;");
+	});
+
 	it("tints the reader header's provenance glyph in the secondary ink the site glyph shares", () => {
 		expect(lightRootDeclarations()).toContain("--fact-provenance: var(--color-secondary-text);");
 	});

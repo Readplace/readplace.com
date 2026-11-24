@@ -296,6 +296,7 @@ function contrastShortfalls(pairs: InkPair[]): string[] {
 }
 
 const LIST_INK: readonly InkProbe[] = [
+	{ name: "brand tail", selector: ".list-view__brand-tail", ink: "color", surface: "ground", role: "text" },
 	{ name: "row title", selector: ".list-view__item-title", ink: "color", surface: "ground", role: "text" },
 	{
 		name: "site fact",
