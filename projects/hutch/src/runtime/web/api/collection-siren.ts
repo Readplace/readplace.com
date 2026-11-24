@@ -15,7 +15,7 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchApi } from "@packages/translations/hutch-api";
 import { buildReadlistList, type CurrentReadlistDestination, type ReadlistListEntry, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
-import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistPreferencesPath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistPinPath, readlistPreferencesPath, readlistRenamePath, readlistUnpinPath } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
@@ -67,6 +67,7 @@ export function toArticleCollectionEntity(
 	options: {
 		tabs: readonly StatusTab[];
 		readlists: readonly ReadlistOption[];
+		pinnedReadlists: readonly ReadlistSlug[];
 		addToReadlist: AddToReadlistOffer;
 		now: Date;
 		warning?: CollectionWarning;
@@ -141,6 +142,7 @@ export function toArticleCollectionEntity(
 		readlists: buildReadlistList({
 			readlists: options.readlists,
 			currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
+			pinnedReadlists: options.pinnedReadlists,
 			hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
 			destinationForCurrent: surfacePlatform === undefined
 				? undefined
@@ -287,6 +289,19 @@ export function toArticleCollectionEntity(
 							method: "POST",
 							type: "application/x-www-form-urlencoded",
 						},
+						options.pinnedReadlists.includes(namedReadlist)
+							? {
+									name: "unpin-readlist",
+									href: readlistUnpinPath(namedReadlist),
+									method: "POST",
+									type: "application/x-www-form-urlencoded",
+								}
+							: {
+									name: "pin-readlist",
+									href: readlistPinPath(namedReadlist),
+									method: "POST",
+									type: "application/x-www-form-urlencoded",
+								},
 					]),
 		],
 	};

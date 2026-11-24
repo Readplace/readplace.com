@@ -355,6 +355,16 @@ describe("/developers documents what the API emits", () => {
 		expect(named.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toEqual([
 			"https://example.com/parity",
 		]);
+		const pinned = await request(harness.server)
+			.post(actionNamed(named.body, "pin-readlist").href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.type("form")
+			.send({})
+			.redirects(0);
+		expect(pinned.status).toBe(303);
+		const namedPinned = await sirenGet(harness, { path: pinned.headers.location, token });
+		expect(namedPinned.status).toBe(200);
 		const all = await openAll(harness, token);
 		const slot = await request(harness.server)
 			.post(actionNamed(all.body, "save-content").href)
@@ -382,6 +392,7 @@ describe("/developers documents what the API emits", () => {
 			...new Set([
 				...namesOf(all.body),
 				...namesOf(named.body),
+				...namesOf(namedPinned.body),
 				...namesOf(saved.body),
 				...namesOf(slot.body),
 				...namesOf(uploadEntry.body),
@@ -595,7 +606,7 @@ describe("/developers copy", () => {
 				"pages: one {label, rel, href} per page, where the page you're on has the rel current, every earlier page prev and every later page next. An empty tab lists page 1 as current. The next and prev links step one page at a time, and the self link is the page you're on.",
 			],
 			readlists: [
-				"readlists: All and each named readlist, each a {label, rel, href}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
+				"readlists: All and each named readlist, each a {label, rel, href, pinned}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 			],
 			status: ["status: unread or read. Without it, search lists unread articles."],
 			order: [
