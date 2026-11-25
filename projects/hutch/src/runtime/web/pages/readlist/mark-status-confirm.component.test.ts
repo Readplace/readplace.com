@@ -60,7 +60,7 @@ describe("renderMarkStatusConfirm", () => {
 
 		assert(body, "the panel must state what the change will do");
 		assert(items, "the panel must list the readlists it will reach");
-		expect(body.textContent).toBe("This article also appears in other readlists. Marking it as read will update it everywhere:");
+		expect(body.textContent).toBe("When you mark this article as read, it’s marked as read in every readlist where you’ve saved it.");
 		expect(items.tagName).toBe("UL");
 		expect([...items.querySelectorAll(".confirm-popover__item-label")].map((label) => label.textContent)).toEqual([
 			"All",
@@ -88,18 +88,18 @@ describe("renderMarkStatusConfirm", () => {
 		);
 	});
 
-	it("asks about the direction the reader is actually taking", () => {
+	it("explains the direction the reader is actually taking", () => {
 		const read = panelFor({ status: "read" }).querySelector(".confirm-popover__title");
 		const unread = panelFor({ status: "unread", readlists: [DEFAULT_READLIST] });
 
 		assert(read, "the panel must carry a title");
-		expect(read.textContent).toBe("Mark as read in all readlists?");
+		expect(read.textContent).toBe("Read status is shared across readlists");
 		expect(unread.querySelector(".confirm-popover__title")?.textContent).toBe(
-			"Mark as unread in all readlists?",
+			"Read status is shared across readlists",
 		);
 		expect(
 			unread.getElementById("readlist-mark-status-confirm-abc123-body")?.textContent,
-		).toBe("This article will be marked as unread in all readlists it belongs to:");
+		).toBe("When you mark this article as unread, it’s marked as unread in every readlist where you’ve saved it.");
 		expect(
 			[
 				...(unread
@@ -107,35 +107,17 @@ describe("renderMarkStatusConfirm", () => {
 					?.querySelectorAll("li") ?? []),
 			].map((li) => li.textContent),
 		).toEqual(["All"]);
-		expect(unread.querySelector("[data-test-action='mark-status-confirm']")?.textContent).toBe("Mark as unread everywhere");
-		expect(unread.querySelector("[data-test-action='mark-status-confirm-never']")?.textContent).toBe("Mark as unread and don't ask again");
+		expect(unread.querySelector("[data-test-action='mark-status-confirm']")?.textContent).toBe("Got it");
 	});
 
-	it("stacks both answers across the full width of the panel", () => {
-		const buttons = panelFor().querySelector(".confirm-popover__buttons");
-
-		assert(buttons, "the answers must be rendered");
-		expect(buttons.classList.contains("confirm-popover__buttons--full-width")).toBe(true);
-	});
-
-	it("offers both a plain confirmation and one that also silences the panel", () => {
-		const doc = panelFor();
-		const confirm = doc.querySelector("[data-test-action='mark-status-confirm']");
-		const never = doc.querySelector("[data-test-action='mark-status-confirm-never']");
-
-		assert(confirm, "the plain confirmation must be rendered");
-		assert(never, "the suppressing confirmation must be rendered");
-		expect(confirm.textContent).toBe("Mark as read everywhere");
-		expect(never.textContent).toBe("Mark as read and don't ask again");
-		expect([...doc.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual(["mark-status-confirm-never", "mark-status-confirm"]);
-		expect(confirm.classList.contains("btn--primary")).toBe(true);
-		expect(never.classList.contains("btn--neutral")).toBe(true);
+	it("offers one acknowledgment that submits the change and remembers it", () => {
+		const buttons = panelFor().querySelectorAll(".confirm-popover__buttons button");
+		expect(buttons).toHaveLength(1);
+		const [confirm] = buttons;
+		expect(confirm.textContent).toBe("Got it");
 		expect(confirm.getAttribute("type")).toBe("submit");
-		expect(never.getAttribute("type")).toBe("submit");
-		expect(confirm.getAttribute("name")).toBeNull();
-		expect(never.getAttribute("name")).toBe("ack");
-		expect(never.getAttribute("value")).toBe(MARK_STATUS_ACK_NEVER);
-		expect(confirm.closest("form")).toBe(never.closest("form"));
+		expect(confirm.getAttribute("name")).toBe("ack");
+		expect(confirm.getAttribute("value")).toBe(MARK_STATUS_ACK_NEVER);
 	});
 
 	it("submits the status the reader is moving to", () => {
@@ -201,7 +183,7 @@ function focusTargets(scope: ParentNode): (string | null)[] {
 }
 
 describe("renderMarkStatusConfirm opening focus", () => {
-	it("opens on the confirm, so the never-ask submit stays a deliberate choice", () => {
+	it("opens on the acknowledgment", () => {
 		expect(focusTargets(panelFor())).toEqual(["mark-status-confirm"]);
 	});
 });

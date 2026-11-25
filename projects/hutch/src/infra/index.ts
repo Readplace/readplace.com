@@ -42,8 +42,6 @@ import {
 	StartGmailHistoryImportCommand,
 	MarkGmailEmailImportedCommand,
 	GmailModifyPermissionGrantedEvent,
-	StartGmailMarkBackfillCommand,
-	GmailMarkBackfillPageProcessedEvent,
 	SubmitNewsletterSenderCommand,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
@@ -89,7 +87,6 @@ import { NEWSLETTER_CATALOG_SUGGESTIONS_ENV } from "../runtime/newsletter-catalo
 import { GMAIL_HISTORY_IMPORT_ENV } from "../runtime/gmail-history-import.env";
 import { GMAIL_HISTORY_IMPORT_OUTCOMES_ENV } from "../runtime/gmail-history-import-outcomes.env";
 import { GMAIL_MESSAGE_UPDATE_ENV } from "../runtime/gmail-message-update.env";
-import { GMAIL_MARK_BACKFILL_ENV } from "../runtime/gmail-mark-backfill.env";
 import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "../runtime/gmail-history-import-dlq.env";
 import { HUTCH_HANDLER_ENV } from "../runtime/lambda.env";
 import { RECORD_MEDIA_INSPECTION_ENV } from "../runtime/record-media-inspection.env";
@@ -2302,76 +2299,6 @@ eventBus.subscribeAll(
 	],
 	gmailMessageUpdatesWithSqs,
 	{ name: "hutch-gmail-message-updates" },
-);
-
-const gmailMarkBackfillAccess = new DynamoDBAccess("hutch-gmail-mark-backfill-tables", {
-	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
-});
-const gmailMarkBackfillAccountRead = new DynamoDBAccess("hutch-gmail-mark-backfill-account-read", {
-	tables: [
-		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
-		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
-		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
-	],
-	actions: ["dynamodb:GetItem"],
-});
-const gmailMarkBackfillConnectionUpdate = new DynamoDBAccess("hutch-gmail-mark-backfill-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
-const gmailMarkBackfillInboxEmailsRead = new DynamoDBAccess("hutch-gmail-mark-backfill-inbox-emails-read", {
-	tables: [{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false }],
-	actions: ["dynamodb:Query"],
-});
-const gmailMarkBackfillQueue = new Sqs(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.markBackfill, {
-	visibilityTimeoutSeconds: 120,
-	dlqMaxReceiveCount: 5,
-	sharedDlq: gmailHistoryImportFailuresDlq,
-});
-const gmailMarkBackfillLambda = new Lambda("gmail-mark-backfill", {
-	entryPoint: "./src/runtime/gmail-mark-backfill.main.ts",
-	outputDir: ".lib/gmail-mark-backfill",
-	assetDir: "./src/runtime",
-	memorySize: 512,
-	timeout: 60,
-	environmentNames: GMAIL_MARK_BACKFILL_ENV,
-	environment: {
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		GMAIL_MARK_BACKFILL_QUEUE_URL: gmailMarkBackfillQueue.queueUrl,
-		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
-	},
-	policies: [
-		...gmailMarkBackfillAccess.policies,
-		...gmailMarkBackfillAccountRead.policies,
-		...gmailMarkBackfillConnectionUpdate.policies,
-		...gmailMarkBackfillInboxEmailsRead.policies,
-		...gmailMarkBackfillQueue.policies,
-	],
-	recursiveLoop: "Allow",
-});
-eventBus.grantPublish(gmailMarkBackfillLambda);
-const gmailMarkBackfillWithSqs = new SqsBackedLambda("gmail-mark-backfill", {
-	lambda: gmailMarkBackfillLambda,
-	queue: gmailMarkBackfillQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-eventBus.subscribeAll(
-	[
-		{ ...StartGmailMarkBackfillCommand, name: "hutch-start-gmail-mark-backfill" },
-		{ ...GmailMarkBackfillPageProcessedEvent, name: "hutch-gmail-mark-backfill-page-processed" },
-	],
-	gmailMarkBackfillWithSqs,
-	{ name: "hutch-gmail-mark-backfill" },
 );
 
 const gmailHistoryImportDlqHandler = new DLQEventHandler("gmail-history-import-dlq", {

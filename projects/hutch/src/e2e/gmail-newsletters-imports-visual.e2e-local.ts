@@ -131,7 +131,7 @@ async function panelFitsViewport(page: Page): Promise<void> {
 		await page.locator(DIALOG).evaluate((element) => element.scrollWidth <= element.clientWidth),
 		"the panel must never scroll sideways",
 	);
-	assert.ok(lastOption.y + lastOption.height <= footer.y + 0.5, "the import and mark-read options must sit above Cancel and Save");
+	assert.ok(lastOption.y + lastOption.height <= footer.y + 0.5, "the import option must sit above Cancel and Save");
 	assert.ok(
 		footer.y >= panel.y && footer.y + footer.height <= panel.y + panel.height + 0.5,
 		"Cancel and Save must stay visible at the panel bottom",

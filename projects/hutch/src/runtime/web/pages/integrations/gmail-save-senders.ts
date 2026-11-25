@@ -9,7 +9,7 @@ import type { MapSenderToReadlist } from "../../../domain/gmail/resolve-readlist
 import type { GmailImportActions } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { initSubmitNewsletterSenders } from "./gmail-submit-newsletter-senders";
-import { buildGmailUrl, GmailMarkChoiceSchema, type GmailPageError, type GmailPickerState, type GmailUrlParams, gmailSelectedReadlists, parseGmailPickerState } from "./gmail.url";
+import { buildGmailUrl, type GmailPageError, type GmailUrlParams, gmailSelectedReadlists, parseGmailPickerState } from "./gmail.url";
 
 const SendersBodySchema = z.object({
 	sender: z.union([ForwardableSenderSchema, z.array(ForwardableSenderSchema).min(1)])
@@ -19,22 +19,13 @@ const SendersBodySchema = z.object({
 const SaveBodySchema = z.object({
 	readlist: z.union([z.string(), z.array(z.string())]).optional(),
 	import: z.literal("1").optional().catch(undefined),
-	mark: GmailMarkChoiceSchema,
 });
 
 export function discoveryMatchesConnection(discovery: GmailDiscovery | undefined, connection: GmailConnection): boolean {
 	return discovery?.accountEmail.trim().toLowerCase() === connection.accountEmail?.trim().toLowerCase() && discovery?.gatewayAddress === connection.gatewayAddress;
 }
 
-export type SaveGmailSendersOutcome =
-	| { kind: "redirect"; url: string }
-	| { kind: "consent"; senders: readonly ForwardableSender[]; state: GmailPickerState; savedNotice: GmailUrlParams };
-
-export type SaveGmailSenders = (input: { userId: UserId; body: unknown }) => Promise<SaveGmailSendersOutcome>;
-
-function redirectTo(params: GmailUrlParams): SaveGmailSendersOutcome {
-	return { kind: "redirect", url: buildGmailUrl(params) };
-}
+export type SaveGmailSenders = (input: { userId: UserId; body: unknown }) => Promise<string>;
 
 export function initSaveGmailSenders(deps: {
 	gmail: GmailIntegrationDependencies;
@@ -47,8 +38,7 @@ export function initSaveGmailSenders(deps: {
 		const state = parseGmailPickerState(body);
 		const parsedSave = SaveBodySchema.safeParse(body);
 		const importChoice = parsedSave.success ? parsedSave.data.import : undefined;
-		const markChoice = parsedSave.success ? parsedSave.data.mark : undefined;
-		const invalid = (error: GmailPageError): SaveGmailSendersOutcome => redirectTo({ ...state, import: importChoice, mark: markChoice, error, discovery: "started" });
+		const invalid = (error: GmailPageError): string => buildGmailUrl({ ...state, import: importChoice, error, discovery: "started" });
 		if (!parsedSave.success) return invalid("readlist_invalid");
 		const parsedSenders = SendersBodySchema.safeParse(body);
 		if (!parsedSenders.success) return invalid("sender_invalid");
@@ -78,7 +68,6 @@ export function initSaveGmailSenders(deps: {
 			return invalid("readlist_choice_required");
 		}
 		const selected = readlists.filter((entry) => entry.slug !== DEFAULT_READLIST_SLUG && choices.includes(entry.slug)).map((entry) => entry.slug);
-		const markNow = markChoice === "1" && (await deps.imports.modifyGranted(userId));
 		const saved: { sender: ForwardableSender; destinations: [InboxAddress, ...InboxAddress[]]; newMapping: boolean }[] = [];
 		for (const sender of senders) {
 			const existing = existingFor(sender);
@@ -90,9 +79,6 @@ export function initSaveGmailSenders(deps: {
 				deliveryMode: state.delivery ?? pickerDeliveryMode(existing),
 			});
 			const newMapping = existing?.addedToFilterAt === undefined;
-			if (newMapping && markNow) {
-				await gmail.gmailMappingStore.setMarkImported({ userId, accountEmail, senderEmail: sender });
-			}
 			saved.push({ sender, destinations, newMapping });
 		}
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
@@ -102,7 +88,7 @@ export function initSaveGmailSenders(deps: {
 			: { notice: "senders_saved", saved: saved.length };
 		const kept: GmailUrlParams = { search: state.search, discovery: "started" };
 		const newMappings = saved.filter((entry) => entry.newMapping);
-		if (newMappings.length === 0) return redirectTo({ ...kept, ...savedNotice });
+		if (newMappings.length === 0) return buildGmailUrl({ ...kept, ...savedNotice });
 		let importNotice: GmailUrlParams["notice"];
 		if (importChoice === "1") {
 			let inProgress = false;
@@ -112,16 +98,12 @@ export function initSaveGmailSenders(deps: {
 					importNotice = outcome.notice;
 					continue;
 				}
-				if (outcome.error === "import_revoked") return redirectTo({ ...kept, ...savedNotice, error: "import_revoked" });
+				if (outcome.error === "import_revoked") return buildGmailUrl({ ...kept, ...savedNotice, error: "import_revoked" });
 				inProgress = true;
 			}
-			if (inProgress) return redirectTo({ ...kept, ...savedNotice, error: "import_in_progress" });
+			if (inProgress) return buildGmailUrl({ ...kept, ...savedNotice, error: "import_in_progress" });
 		}
-		if (markChoice === "1" && !markNow) {
-			if (connection.revokedAt !== undefined) return redirectTo({ ...kept, ...savedNotice, error: "mark_revoked" });
-			return { kind: "consent", senders: newMappings.map((entry) => entry.sender), state: { search: state.search }, savedNotice };
-		}
-		if (importNotice !== undefined) return redirectTo({ ...kept, notice: importNotice });
-		return redirectTo({ ...kept, ...(markNow ? { notice: "mark_on" } : savedNotice) });
+		if (importNotice !== undefined) return buildGmailUrl({ ...kept, notice: importNotice });
+		return buildGmailUrl({ ...kept, ...savedNotice });
 	};
 }

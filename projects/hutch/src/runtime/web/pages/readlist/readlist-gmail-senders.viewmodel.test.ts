@@ -88,6 +88,7 @@ function input(overrides: Partial<ReadlistGmailSendersInput> = {}): ReadlistGmai
 		canConnectGmail: true,
 		connection: connection(),
 		metadataScopeGranted: true,
+		modifyScopeGranted: true,
 		discovery: discovery(),
 		discoveredSenders: [
 			{ email: TLDR, name: "TLDR" }, { email: BREW, name: "Morning Brew" }, { email: BYTES, name: "Bytes" },

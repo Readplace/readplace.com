@@ -150,6 +150,23 @@ export const enUS = {
 			},
 		},
 	},
+	readlistMarkStatus: {
+		title: "Read status is shared across readlists",
+		body: {
+			read: "When you mark this article as read, it’s marked as read in every readlist where you’ve saved it.",
+			unread: "When you mark this article as unread, it’s marked as unread in every readlist where you’ve saved it.",
+		},
+		acknowledge: "Got it",
+	},
+	readlistDelete: {
+		label: "Delete from this readlist",
+		confirm: {
+			title: "Delete this article?",
+			body: "This article will be removed from this readlist. You can save it again later.",
+			lead: "Article: {title}",
+			never: "Delete and don't ask again",
+		},
+	},
 	readlistSaveLimit: {
 		formError: "You've reached today's limit for new saves.",
 	},

@@ -282,7 +282,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(marksOf(reopened).join("")).toBe("readability parser to extract");
 	});
 
-	it("answers 422 with the reader and a toast when exact is not at start, leaving the viewed time alone", async () => {
+	it("answers 422 with the reader and a refusal when exact is not at start, leaving the viewed time alone", async () => {
 		const harness = useApp(parsedFixture());
 		const url = "https://example.com/highlight-moved";
 		const { agent, articleId } = await saveArticle(harness, url);
@@ -305,7 +305,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		);
 	});
 
-	it("answers the same 422 with the reader and the toast to an htmx post when exact is not at start", async () => {
+	it("answers the same 422 with the reader and the refusal to an htmx post when exact is not at start", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -327,7 +327,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(doc(response.text).querySelector("main")).not.toBeNull();
 	});
 
-	it("answers 422 with a toast when there is no served body", async () => {
+	it("answers 422 with a refusal when there is no served body", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -343,7 +343,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.text).toContain("That passage changed; select it again");
 	});
 
-	it("answers 422 with a toast when exact is longer than 65536 code units", async () => {
+	it("answers 422 with a refusal when exact is longer than 65536 code units", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -360,7 +360,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.text).toContain("Select a shorter passage");
 	});
 
-	it("answers 422 with a toast when the merge is cancelled", async () => {
+	it("answers 422 with a refusal when the merge is cancelled", async () => {
 		const fixture = parsedFixture();
 		const harness = useApp(fixture);
 		const { agent, articleId } = await saveArticle(
@@ -1861,7 +1861,7 @@ describe("Add note without the Popover API (POST /queue/:id/highlights with afte
 		);
 	});
 
-	it("answers a refused create with the reader's 422 toast, as a plain Highlight does", async () => {
+	it("answers a refused create with the reader's 422 highlight status, as a plain Highlight does", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -1883,8 +1883,9 @@ describe("Add note without the Popover API (POST /queue/:id/highlights with afte
 		expect(response.status).toBe(422);
 		expect(response.headers["hx-redirect"]).toBeUndefined();
 		expect(
-			doc(response.text).querySelector(".toast")?.textContent,
-		).toContain("That passage changed; select it again");
+			doc(response.text).querySelector("[data-test-highlight-status]")?.textContent,
+		).toBe("That passage changed; select it again");
+		expect(doc(response.text).querySelector("[data-test-toast-message]")).toBeNull();
 	});
 
 	it("opens and focuses the named row's note form, leaving every other row closed", async () => {
