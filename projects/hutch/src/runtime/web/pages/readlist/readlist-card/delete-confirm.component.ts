@@ -1,11 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
-
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
-
-const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 
 export interface DeleteConfirmViewModel {
 	articleId: string;
@@ -23,6 +20,8 @@ export interface ArticleDeletion {
 type DeletionSurface = "queue-card" | "reader";
 
 export const DELETE_ACK_NEVER = "never";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const DELETION_SWAP: Record<DeletionSurface, string> = {
 	"queue-card": "outerHTML show:none",
@@ -65,7 +64,7 @@ function trackedDeletionUrl(input: { url: string; surface: DeletionSurface }): s
 export function renderDeleteMenuItems(input: { deletion: ArticleDeletion; surface: DeletionSurface }): string {
 	if (input.surface === "queue-card" && input.deletion.removePick) return "";
 	return render(DELETE_MENU_ITEMS_TEMPLATE, {
-		label: input.deletion.removePick ? t("handPicked.remove") : "Delete",
+		label: input.deletion.removePick ? t("handPicked.remove") : t("readlistDelete.label"),
 		url: trackedDeletionUrl({ url: input.deletion.url, surface: input.surface }),
 		swap: DELETION_SWAP[input.surface],
 		confirm: input.deletion.confirm,
@@ -73,8 +72,8 @@ export function renderDeleteMenuItems(input: { deletion: ArticleDeletion; surfac
 }
 
 const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{swap}}">
-	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Delete and don't ask again</button>
-	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm" autofocus>Delete article</button>
+	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">{{t "readlistDelete.confirm.never"}}</button>
+	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm" autofocus>{{t "readlistDelete.label"}}</button>
 </form>`;
 
 export function renderDeleteConfirm(input: {
@@ -87,9 +86,9 @@ export function renderDeleteConfirm(input: {
 		id: input.confirm.popoverId,
 		key: "delete",
 		subject: input.confirm.articleId,
-		title: "Delete this article?",
-		body: "This article will be removed from your readlist. You can save it again later.",
-		lead: `Article: ${input.title}`,
+		title: t("readlistDelete.confirm.title"),
+		body: t("readlistDelete.confirm.body"),
+		lead: t("readlistDelete.confirm.lead", { title: input.title }),
 		illustrationHtml: input.illustrationHtml,
 		actionsHtml: render(DELETE_CONFIRM_ACTIONS_TEMPLATE, {
 			url: trackedDeletionUrl({ url: input.confirm.url, surface: input.surface }),
