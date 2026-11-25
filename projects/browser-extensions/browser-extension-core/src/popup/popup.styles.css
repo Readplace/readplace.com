@@ -586,19 +586,21 @@ input {
 
 .list-view__row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   flex: none;
-  gap: 20px;
+  gap: 4px 20px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
 }
 
 .list-view__item {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 11rem;
   gap: 4px;
   min-width: 0;
-  padding: 19px 0;
+  padding: 9px 0;
   text-decoration: none;
   color: inherit;
 }
@@ -668,9 +670,10 @@ input {
 
 .list-view__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  flex-shrink: 0;
-  gap: 4px;
+  max-width: 100%;
+  gap: 20px 4px;
 }
 
 .list-view__control {
