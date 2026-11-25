@@ -39,8 +39,10 @@ export type EmailSelectionChange =
 
 export function amendEmailSelection(current: EmailOutputSelection, change: EmailSelectionChange): EmailOutputSelection {
 	if (change.kind === "match") {
-		if (current.matches?.[change.batch] !== null) return current;
+		const resolved = current.matches?.[change.batch];
+		if (resolved === undefined || (resolved !== null && resolved.length > 0)) return current;
 		const added = [...new Set(change.outputs)].filter((key) => !current.outputs.includes(key));
+		if (resolved !== null && added.length === 0) return current;
 		return { ...current, outputs: [...current.outputs, ...added], matches: { ...current.matches, [change.batch]: added } };
 	}
 	if (current.nextLinkIndex !== change.start) return current;

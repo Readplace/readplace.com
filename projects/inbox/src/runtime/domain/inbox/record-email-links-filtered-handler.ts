@@ -109,18 +109,19 @@ export function initRecordEmailLinksFilteredHandler(deps: {
 
 	const recordFilterFailed = async (detail: unknown): Promise<void> => {
 		const fact = FilterFailedFactSchema.parse(detail);
-		const { destination: { label } } = await destinationSnapshot(fact);
-		await putReadlistOutcome({
-			userId: fact.userId,
-			receivedAtMessageId: fact.receivedAtMessageId,
-			outcome: {
-				readlist: fact.readlist,
-				readlistLabel: label,
-				...(fact.startIndex !== undefined && { startIndex: fact.startIndex }),
-				decision: "failed",
-				fit: [],
-			},
-		});
+		const { destination, issue } = await destinationSnapshot(fact);
+		const key = { userId: fact.userId, receivedAtMessageId: fact.receivedAtMessageId };
+		const outcome: InboxReadlistOutcome = {
+			readlist: fact.readlist,
+			readlistLabel: destination.label,
+			...(fact.startIndex !== undefined && { startIndex: fact.startIndex }),
+			decision: "failed",
+			fit: [],
+		};
+		const written = await putReadlistOutcome({ ...key, outcome });
+		if (written === "stored" && issue && destination.qualification === "preferences") {
+			await deps.deliverIssueMatches({ ...key, outcome });
+		}
 	};
 
 	const recorders = new Map<string, (detail: unknown) => Promise<void>>([

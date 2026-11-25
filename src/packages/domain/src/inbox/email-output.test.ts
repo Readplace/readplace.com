@@ -72,6 +72,23 @@ describe("amendEmailSelection", () => {
 		assert.equal(amendEmailSelection(finished, { kind: "match", batch: work, outputs: [] }), finished);
 	});
 
+	it("lets a later decision fill a batch that a failed decision left empty", () => {
+		const work = emailMatchBatch("work", 0);
+		const failed = amendEmailSelection({ ...selection([ISSUE_OUTPUT_KEY]), matches: { [work]: null } }, { kind: "match", batch: work, outputs: [] });
+		assert.deepEqual(failed.matches?.[work], []);
+		assert.equal(isEmailSavedToAll({ selection: failed, savedOutputs: new Set([ISSUE_OUTPUT_KEY]) }), true);
+		assert.equal(amendEmailSelection(failed, { kind: "match", batch: work, outputs: [] }), failed);
+		const decided = amendEmailSelection(failed, { kind: "match", batch: work, outputs: [link] });
+		assert.deepEqual(decided.matches?.[work], [link]);
+		assert.deepEqual(decided.outputs, [ISSUE_OUTPUT_KEY, link]);
+		assert.equal(amendEmailSelection(decided, { kind: "match", batch: work, outputs: [] }), decided);
+	});
+
+	it("ignores a decision for a batch the selection does not hold", () => {
+		const first = selection([ISSUE_OUTPUT_KEY]);
+		assert.equal(amendEmailSelection(first, { kind: "match", batch: emailMatchBatch("work", 0), outputs: [link] }), first);
+	});
+
 	it("keeps the existing issue and decisions when a continuation appends links", () => {
 		const first = { ...selection([ISSUE_OUTPUT_KEY], true), nextLinkIndex: 300, matches: { "0#work": [] } };
 		const page = { ...selection([link]), matches: { "300#work": null } };

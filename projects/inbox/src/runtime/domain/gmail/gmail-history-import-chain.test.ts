@@ -475,6 +475,15 @@ function makePipeline(preferences?: string) {
 				}),
 			}]);
 		},
+		recordMatchFailed: async (receivedAtMessageId: string) => {
+			await run(recordMatch, [{
+				messageId: "preference-match-failed",
+				body: JSON.stringify({
+					"detail-type": "EmailLinksFilterFailed",
+					detail: { userId: READER, receivedAtMessageId, readlist: LATER, reason: "decision-retries-exhausted", receiveCount: 3 },
+				}),
+			}]);
+		},
 		published,
 		publishedOf,
 		readlistAddress,
@@ -750,6 +759,26 @@ describe("gmail history import chain (inbox half)", () => {
 		expect(pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail)).toContainEqual({
 			userId: READER, receivedAtMessageId: row.receivedAtMessageId, origin: HISTORY_ORIGIN,
 		});
+	});
+
+	it("finishes a newly imported issue when its preference match fails, and still saves a redriven match", async () => {
+		const pipeline = makePipeline("News about building software");
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>", deliveryMode: "issue" });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+		await pipeline.confirmSavedToAll();
+		const [row] = await pipeline.rows();
+
+		await pipeline.recordMatchFailed(row.receivedAtMessageId);
+		await pipeline.confirmSavedToAll();
+		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(0);
+		expect(pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail)).toContainEqual({
+			userId: READER, receivedAtMessageId: row.receivedAtMessageId, origin: HISTORY_ORIGIN,
+		});
+
+		await pipeline.recordMatch(row.receivedAtMessageId);
+		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(1);
 	});
 
 	it("marks an issue-mode import once the whole issue is confirmed in All", async () => {
