@@ -3,7 +3,9 @@ import request from "supertest";
 import { UploadIdSchema } from "@packages/media-contracts";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { type TestAppHarness, useTestServer } from "../../../test-app";
+import { accountLockedSirenError } from "../../api/account-locked-siren";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { UPLOAD_FAILED_MESSAGE, uploadErrorMessageOf } from "./upload.error";
 
 const useApp = useTestServer();
 const SIREN = "application/vnd.siren+json";
@@ -55,6 +57,10 @@ function sirenAs(harness: TestAppHarness, token: string) {
 		get: (path: string) => request(harness.server).get(path).set("Accept", SIREN).set("Authorization", `Bearer ${token}`),
 		post: (path: string) => request(harness.server).post(path).set("Accept", SIREN).set("Authorization", `Bearer ${token}`),
 	};
+}
+
+function errorMessages(body: string) {
+	return [{ type: "error", content: { type: "text/html", body } }];
 }
 
 function uploadIdOf(confirmHref: string) {
@@ -142,7 +148,7 @@ describe("Upload routes for a bearer client", () => {
 		expect(linkNamed(status.body, "self").href).toBe(`/upload/${uploadId}`);
 	});
 
-	it("commits a confirmed bearer upload straight to the owner's reading list", async () => {
+	it("commits a confirmed bearer upload straight to the owner's reading list, once across repeat confirms", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { token, userId } = await bearerFor(harness, "reader@example.com");
 		const client = sirenAs(harness, token);
@@ -155,6 +161,58 @@ describe("Upload routes for a bearer client", () => {
 		expect(received.status).toBe(303);
 		expect(received.headers.location).toBe("/queue");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted.map((event) => event.userId)).toEqual([userId]);
+
+		const repeat = await client.post(confirm);
+		expect(repeat.status).toBe(303);
+		expect(repeat.headers.location).toBe("/queue");
+		expect(harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
+	});
+
+	it("answers a too-large stage with messages", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { token } = await bearerFor(harness, "reader@example.com");
+
+		const response = await sirenAs(harness, token)
+			.post("/upload")
+			.type("form")
+			.send({ fileName: "huge.mp4", byteLength: String(2 * 1024 * 1024 * 1024 + 1) });
+
+		expect(response.status).toBe(413);
+		expect(response.body.properties).toEqual({
+			code: "upload_too_large",
+			message: "That file is over the upload limit.",
+			messages: errorMessages("That file is over the upload limit."),
+		});
+	});
+
+	it("answers confirm errors with messages: not received, unsupported type, then failed", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const { token } = await bearerFor(harness, "reader@example.com");
+		const client = sirenAs(harness, token);
+		const staged = await client.post("/upload").type("form").send({});
+		const confirm = actionNamed(staged.body, "confirm-received").href;
+		const uploadId = uploadIdOf(confirm);
+
+		const notYet = await client.post(confirm);
+		expect(notYet.status).toBe(409);
+		expect(notYet.body.properties.messages).toEqual(
+			errorMessages("We didn't receive your file. Choose it and upload it again."),
+		);
+
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: Buffer.from("not a zip at all") });
+		const unsupported = await client.post(confirm);
+		expect(unsupported.status).toBe(422);
+		expect(unsupported.body.properties.messages).toEqual(
+			errorMessages("That file type isn't supported. Upload a DRM-free EPUB, an MP3 or M4A file, or an MP4 file."),
+		);
+
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
+		expect((await client.post(confirm)).status).toBe(303);
+		await fixture.mediaUpload.failMediaUpload({ uploadId });
+		const failed = await client.get(`/upload/${uploadId}`);
+		expect(failed.status).toBe(422);
+		expect(failed.body.properties.messages).toEqual(errorMessages(UPLOAD_FAILED_MESSAGE));
 	});
 
 	it("hides one account's upload from another account's bearer", async () => {
@@ -173,6 +231,9 @@ describe("Upload routes for a bearer client", () => {
 		const received = await sirenAs(harness, other.token).post(confirm);
 		expect(received.status).toBe(404);
 		expect(received.body.properties.code).toBe("upload_session_not_found");
+		expect(received.body.properties.messages).toEqual(
+			errorMessages(uploadErrorMessageOf({ code: "upload_session_not_found", kinds: [] })),
+		);
 	});
 
 	it("refuses a locked account's bearer at stage and at confirm", async () => {
@@ -184,6 +245,7 @@ describe("Upload routes for a bearer client", () => {
 
 		const stage = await client.post("/upload").type("form").send({});
 		expect(stage.status).toBe(403);
+		expect(stage.body).toEqual(accountLockedSirenError());
 
 		const confirm = await client.post("/upload/0123456789abcdef0123456789abcdef/received");
 		expect(confirm.status).toBe(403);
