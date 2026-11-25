@@ -6,8 +6,8 @@ const IntentStateSchema: z.ZodType<GmailPickerState> = GmailPickerStateSchema;
 
 export const ConnectIntentSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("connect") }),
+	z.object({ kind: z.literal("modify") }),
 	z.object({ kind: z.literal("import"), sender: ForwardableSenderSchema, state: IntentStateSchema }),
-	z.object({ kind: z.literal("mark"), senders: z.array(ForwardableSenderSchema).min(1).readonly(), state: IntentStateSchema }),
 ]);
 export type ConnectIntent = z.infer<typeof ConnectIntentSchema>;
 
@@ -15,4 +15,4 @@ export const StatePayloadSchema = z.object({ nonce: z.string(), createdAt: z.num
 export type StatePayload = z.infer<typeof StatePayloadSchema>;
 
 export const ImportIntentBodySchema = z.object({ intent: z.literal("import"), sender: ForwardableSenderSchema });
-export const MarkIntentBodySchema = z.object({ intent: z.literal("mark"), sender: ForwardableSenderSchema });
+export const ModifyIntentBodySchema = z.object({ intent: z.literal("modify") });

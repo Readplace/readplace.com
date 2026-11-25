@@ -146,11 +146,11 @@ describe("GET /privacy", () => {
 		expect(items).toContain("Highlights kept before signing up: the passages you highlight on a shared article, your notes on them, and the address of each article. They stay in your browser until you choose to create an account or log in, and are then sent to Readplace to add to that account.");
 	});
 
-	it("says what records the Gmail import and mark-as-read options keep, and how long the original copies stay", async () => {
+	it("says what records Gmail imports and message updates keep, and how long the original copies stay", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Import unread messages and Marking imported emails as read each keep records of their work: your Gmail address, each sender's address, the Readplace addresses the messages are delivered to, the dates an import covers, when you turned marking on, identifiers of the messages, where each run stopped, and what happened to each message and when. Import unread messages also stores the original copy of each message it downloads and deletes that copy within 31 days, whether or not Gmail stays connected.");
+		expect(response.text).toContain("Readplace keeps records of imports and Gmail message updates: your Gmail address, each sender's address, the Readplace addresses the messages are delivered to, the dates an import covers, identifiers of the messages, where each run stopped, and what happened to each message and when. Import unread messages also stores the original copy of each message it downloads and deletes that copy within 31 days, whether or not Gmail stays connected.");
 	});
 
 	it("says disconnecting Gmail deletes the import and mark-as-read records", async () => {
@@ -287,8 +287,9 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Import unread messages asks for permission to read your email");
-		expect(response.text).toContain("Marking imported emails as read asks for permission to modify your email");
+		expect(response.text).toContain("Older connections may ask for permission to read Gmail when you choose Import unread messages.");
+		expect(response.text).toContain("Connecting Gmail asks for permission to modify your email.");
+		expect(response.text).toContain("It checks each original and, if it is still unread, marks it as read and adds the imported-to-readplace label");
 		expect(response.text).toContain("Readplace never sends or deletes your email.");
 	});
 

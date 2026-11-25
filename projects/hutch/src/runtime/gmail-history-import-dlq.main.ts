@@ -3,13 +3,12 @@ import { createDynamoDocumentClient } from "@packages/storage-client";
 import { GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES, type GmailEmailUpdateFailedLine } from "@packages/infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { Logger, consoleLogger } from "@packages/logger";
-import { initDynamoDbGmailHistoryImport, initDynamoDbGmailMarkBackfill, initDynamoDbGmailMessageUpdate } from "@packages/inbox-store";
+import { initDynamoDbGmailHistoryImport, initDynamoDbGmailMessageUpdate } from "@packages/inbox-store";
 import { readEnv } from "@packages/require-env";
 import {
 	initGmailHistoryImportOutcomeDlqHandler,
 	initGmailHistoryImportPageDlqHandler,
 } from "./domain/gmail/gmail-history-import-dlq-handler";
-import { initGmailMarkBackfillDlqHandler } from "./domain/gmail/gmail-mark-backfill";
 import { initGmailMessageUpdateDlqHandler } from "./domain/gmail/gmail-message-update-handler";
 import { initRecordGmailDiagnostic } from "./observability/gmail-diagnostics";
 import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "./gmail-history-import-dlq.env";
@@ -40,10 +39,7 @@ export const handler = initDeadLetterRouter({
 			logger,
 			now,
 		}),
-		[GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES.markBackfill]: initGmailMarkBackfillDlqHandler({
-			failBackfill: initDynamoDbGmailMarkBackfill({ client, tableName }).failBackfill,
-			logger,
-			now,
-		}),
+		// Acknowledge messages from the retired worker that were already in the shared DLQ at rollout.
+		[GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES.markBackfill]: async () => ({ batchItemFailures: [] }),
 	},
 });

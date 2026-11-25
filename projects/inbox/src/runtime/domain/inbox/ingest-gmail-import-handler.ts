@@ -114,6 +114,7 @@ export function initIngestGmailImportHandler(deps: {
 
 		const gmailOrigin: GmailMessageOrigin = {
 			kind: "history",
+			jobId,
 			accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
 			gmailMessageId: GmailMessageIdSchema.parse(detail.gmailMessageId),
 			senderEmail: sender,
