@@ -73,11 +73,11 @@ const KeepBodySchema = z.object({
 });
 
 const EventQuerySchema = z.union([
-	z.object({ action: z.enum(["kept", "limit-reached"]) }),
+	z.object({ action: z.enum(["kept", "limit-reached", "copied"]) }),
 	z.object({ origin: z.literal("mark") }),
 ]);
 
-const EVENT_ACTIONS = { kept: "kept", "limit-reached": "limit_reached" } as const;
+const EVENT_ACTIONS = { kept: "kept", "limit-reached": "limit_reached", copied: "copied" } as const;
 
 function claimedLocation(articleId: string | undefined): string {
 	return articleId === undefined
