@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { shell } from "@packages/translations/shell";
 import type { IconName } from "@packages/ui-icons";
 import type { AppearanceSetting } from "./base.styles";
 import type { ChangelogBanner, FETCH_CHANGELOG_BANNER_IN_BROWSER } from "./changelog-banner";
@@ -99,19 +101,20 @@ const NAV_SOURCE = "header-nav";
 
 const NAV_LINK_CLASS = "nav__link";
 
+const { t } = translator(shell, DEFAULT_LOCALE);
+
 /** Builds a nav item with its href pre-tagged for internal-click tracking and
  * the matching UTM dimensions exposed for the template's hidden inputs. The
  * item `key` doubles as `utm_content` so each destination is distinct. */
 function navItem(input: {
 	key: NavItemKey;
-	label: string;
 	path: string;
 	method: "GET" | "POST";
 	iconName: IconName;
 }): NavItem {
 	return {
 		key: input.key,
-		label: input.label,
+		label: t(`nav.item.${input.key}`),
 		href: withInternalTracking(input.path, { source: NAV_SOURCE, content: input.key }),
 		method: input.method,
 		iconName: input.iconName,
@@ -174,26 +177,20 @@ export interface BannerState {
 	cspNonce: CspNonce;
 }
 
-const NAV_READLIST = navItem({ key: "queue", label: "Readlist", path: "/queue", method: "GET", iconName: "book" });
-const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-down" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Newsletters", path: "/inbox", method: "GET", iconName: "news" });
-const NAV_INTEGRATIONS = navItem({
-	key: "integrations",
-	label: "Connectors",
-	path: "/newsletters",
-	method: "GET",
-	iconName: "plug",
-});
+const NAV_READLIST = navItem({ key: "queue", path: "/queue", method: "GET", iconName: "book" });
+const NAV_IMPORT = navItem({ key: "import", path: "/import", method: "GET", iconName: "file-down" });
+const NAV_INBOX = navItem({ key: "inbox", path: "/inbox", method: "GET", iconName: "news" });
+const NAV_INTEGRATIONS = navItem({ key: "integrations", path: "/newsletters", method: "GET", iconName: "plug" });
 
-const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
-const NAV_BLOG = navItem({ key: "blog", label: "Blog", path: "/blog", method: "GET", iconName: "note" });
-const NAV_PRIVACY = navItem({ key: "privacy", label: "Privacy", path: "/privacy", method: "GET", iconName: "file" });
-const NAV_TERMS = navItem({ key: "terms", label: "Terms", path: "/terms", method: "GET", iconName: "file" });
-const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
-const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", iconName: "download" });
-const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#ways-to-save", method: "GET", iconName: "sparkles" });
+const NAV_ACCOUNT = navItem({ key: "account", path: "/account", method: "GET", iconName: "user" });
+const NAV_BLOG = navItem({ key: "blog", path: "/blog", method: "GET", iconName: "note" });
+const NAV_PRIVACY = navItem({ key: "privacy", path: "/privacy", method: "GET", iconName: "file" });
+const NAV_TERMS = navItem({ key: "terms", path: "/terms", method: "GET", iconName: "file" });
+const NAV_LOGOUT = navItem({ key: "logout", path: "/logout", method: "POST", iconName: "log-out" });
+const NAV_INSTALL = navItem({ key: "install", path: "/install", method: "GET", iconName: "download" });
+const NAV_FEATURES = navItem({ key: "features", path: "/#ways-to-save", method: "GET", iconName: "sparkles" });
 const NAV_LOGIN: NavItem = {
-	...navItem({ key: "login", label: "Log in", path: "/login", method: "GET", iconName: "log-in" }),
+	...navItem({ key: "login", path: "/login", method: "GET", iconName: "log-in" }),
 	linkClass: `${NAV_LINK_CLASS} btn btn--primary btn--m`,
 };
 
@@ -220,8 +217,8 @@ function lockedInbox(upgrade: UpgradeTarget): NavItem {
  * commit their selection. */
 export function buildGuestNavGroups(): NavGroup[] {
 	return [
-		{ key: "library", label: "Library", items: [NAV_INSTALL, NAV_IMPORT, NAV_FEATURES] },
-		{ key: "account", label: "Account", items: [NAV_LOGIN] },
+		{ key: "library", label: t("nav.group.library"), items: [NAV_INSTALL, NAV_IMPORT, NAV_FEATURES] },
+		{ key: "account", label: t("nav.group.account"), items: [NAV_LOGIN] },
 	];
 }
 
@@ -239,8 +236,8 @@ export function buildNavGroups(input: { paidFeaturesLocked: boolean; upgrade?: U
 	};
 	const inbox = inboxByStanding[navStandingOf(input)];
 	return [
-		{ key: "library", label: "Library", items: [NAV_READLIST, NAV_INSTALL, ...inbox, NAV_INTEGRATIONS] },
-		{ key: "account", label: "Account", items: [NAV_ACCOUNT, NAV_BLOG, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
+		{ key: "library", label: t("nav.group.library"), items: [NAV_READLIST, NAV_INSTALL, ...inbox, NAV_INTEGRATIONS] },
+		{ key: "account", label: t("nav.group.account"), items: [NAV_ACCOUNT, NAV_BLOG, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
 	];
 }
 
