@@ -203,6 +203,13 @@ Content-Type: {{sirenMediaType}}</code></pre>
                   {{/each}}
                 </ul>
                 <p class="developers__text">A value Readplace doesn't accept is dropped, not refused. <code>search</code> always lists All, so inside a named readlist, follow its <code>tabs</code> and <code>pages</code> hrefs instead.</p>
+                <p class="developers__text" data-test-copy="find-articles"><code data-test-action>find-articles</code> searches and filters the readlist and tab you're on. Send every <code>hidden</code> field with its <code>value</code>, and fill in these:</p>
+                <ul class="developers__list">
+                  {{#each findArticlesFields}}
+                  <li class="developers__item"><code data-test-find-articles-field>{{name}}</code>: {{{description}}}</li>
+                  {{/each}}
+                </ul>
+                <p class="developers__text">Each field has a <code>title</code> to show, and each option a <code>value</code> to send, a <code>title</code> and whether it's <code>selected</code> now. Send <code>time</code> and <code>saved</code> once per choice, the way an HTML form repeats a checkbox name. The answer's <code>total</code>, <code>pages</code>, <code>next</code>, <code>sort</code> and <code>tabs</code> cover every matching article and keep your choices, and its <code>readlists</code> keep the choices but not the text. Without the action, a listing ignores search and filters.</p>
               </div>
             </div>
           </section>
@@ -412,7 +419,7 @@ WWW-Authenticate: Bearer error="invalid_token", resource_metadata="https://readp
                 <ul class="developers__list">
                   <li class="developers__item" data-test-copy="delete">Deleting an article stays in the Readplace app. The API advertises no delete action, and <code>remove-from-readlist</code> takes nothing out of All.</li>
                   <li class="developers__item">No webhooks or feeds. Poll the collection to see what changed.</li>
-                  <li class="developers__item">No full-text search. <code>search</code> narrows by status, order, page and URL only.</li>
+                  <li class="developers__item">No full-text search. <code>find-articles</code> matches titles, site names and hosts, not what an article says.</li>
                   <li class="developers__item">No page-size control. The server picks the page size.</li>
                 </ul>
               </div>

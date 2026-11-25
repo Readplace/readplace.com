@@ -23,8 +23,10 @@ import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
+import type { ReadlistDiscovery } from "../pages/readlist/readlist.url";
 import { toArticleSubEntity } from "./article-siren";
 import type { ReaderProvenance } from "../shared/article-body/article-header/provenance-label";
+import { type FindArticlesProperty, findArticlesAction, findArticlesProperty } from "./find-articles-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
 import { isOfflinePrefetchPage } from "../shared/offline-prefetch";
 
@@ -45,6 +47,7 @@ export type CollectionProperties = {
 	warning?: CollectionWarning;
 	messages?: SirenMessage[];
 	hint?: { text: string; link: { label: string; href: string } };
+	findArticles?: FindArticlesProperty;
 };
 
 const { t } = translator(hutchApi, DEFAULT_LOCALE);
@@ -77,6 +80,11 @@ function setHomeAction(input: { target: HomeReadlistPreference; label: string; r
 	};
 }
 
+function filtersOnly(discovery: ReadlistDiscovery | undefined): ReadlistDiscovery | undefined {
+	if (discovery === undefined || discovery.time.length + discovery.saved.length === 0) return undefined;
+	return { time: discovery.time, saved: discovery.saved };
+}
+
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
@@ -98,6 +106,7 @@ export function toArticleCollectionEntity(
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		totalLabel?: (input: { total: number }) => string;
 		sort?: { options: readonly SortOption[]; current: SortOrder };
+		findArticlesMatchedNothing?: boolean;
 	},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
@@ -151,7 +160,10 @@ export function toArticleCollectionEntity(
 		readlists: options.readlists,
 		pinnedReadlists: options.pinnedReadlists,
 		currentReadlist: queryParams.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : queryParams.readlist ?? DEFAULT_READLIST_SLUG,
-		hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
+		hrefForReadlist: (readlist) =>
+			queryParams.findArticles === undefined
+				? readlistHref({ readlist, readlistKey: queryParams.readlistKey })
+				: `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist, findArticles: { discovery: filtersOnly(queryParams.findArticles.discovery) } })}`,
 		destinationForCurrent: surfacePlatform === undefined
 			? undefined
 			: (readlist) => readlistDestination({ readlist, platform: surfacePlatform }),
@@ -177,7 +189,7 @@ export function toArticleCollectionEntity(
 		tabs: buildTabList({
 			tabs: options.tabs,
 			currentStatus: queryParams.status,
-			hrefForStatus: (status) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status, order: queryParams.order })}`,
+			hrefForStatus: (status) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status, order: queryParams.order, findArticles: queryParams.findArticles })}`,
 		}),
 		readlists: filingReadlists,
 	};
@@ -186,7 +198,7 @@ export function toArticleCollectionEntity(
 		properties.sort = buildSortList({
 			options: options.sort.options,
 			currentOrder: options.sort.current,
-			hrefForOrder: (order) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order })}`,
+			hrefForOrder: (order) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order, findArticles: queryParams.findArticles })}`,
 		});
 	}
 	if (options.appearance) properties.appearance = options.appearance;
@@ -199,6 +211,14 @@ export function toArticleCollectionEntity(
 	// other client — including those apps' in-app web surfaces — simply never
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
+	const activeDiscovery = queryParams.findArticles?.discovery;
+	if (activeDiscovery !== undefined) {
+		properties.findArticles = findArticlesProperty({
+			queryParams,
+			discovery: activeDiscovery,
+			noMatches: options.findArticlesMatchedNothing === true,
+		});
+	}
 
 	const setHomeActions = options.setHome ? [setHomeAction({ ...options.setHome, returnTo: `/queue${buildQueryString(queryParams)}` })] : [];
 	const namedReadlist = (queryParams.readlist === DEFAULT_READLIST_SLUG || queryParams.readlist === HAND_PICKED_SCOPE) ? undefined : queryParams.readlist;
@@ -283,6 +303,7 @@ export function toArticleCollectionEntity(
 				method: "GET",
 				fields: [{ name: "url", type: "url" }],
 			},
+			findArticlesAction(queryParams),
 			// Mints a browser session cookie from the bearer token so a client's
 			// in-app reader can load the cookie-authenticated reader page. Advertised
 			// (rather than the client hard-coding the route + method) so it can move
