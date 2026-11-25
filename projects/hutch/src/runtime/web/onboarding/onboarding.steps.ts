@@ -12,7 +12,7 @@ import type {
 	OnboardingAction,
 	OnboardingStep,
 } from "./onboarding.types";
-import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH } from "../pages/readlist/readlist.url";
+import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH, READLIST_SMART_READLIST_STEP_DISMISS_PATH } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
@@ -199,20 +199,18 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	{
 		id: "create-smart-readlist",
 		isApplicable: (ctx) => ctx.smartReadlist !== undefined,
-		isComplete: (ctx) => ctx.smartReadlist?.count === 10,
-		isHidden: (ctx) => ctx.smartReadlist?.count === 10,
+		isComplete: (ctx) => ctx.smartReadlist?.count === 10 || ctx.smartReadlist?.dismissed === true,
+		isHidden: (ctx) => ctx.smartReadlist?.count === 10 || ctx.smartReadlist?.dismissed === true,
 		title: () => t("smartReadlist.title"),
 		description: ({ smartReadlist: smart }) => smart?.configured ? t("smartReadlist.file")
 			: smart?.target ? t("smartReadlist.configure") : t("smartReadlist.start"),
 		chip: (ctx) => ctx.smartReadlist?.count === undefined ? t("smartReadlist.unavailable")
 			: t("smartReadlist.progress", { count: ctx.smartReadlist.count }),
 		partialProgress: (ctx) => (ctx.smartReadlist?.count ?? 0) / 10,
-		actions: ({ smartReadlist: smart }) => {
-			if (!smart?.target) return [{ key: "create-readlist", method: "POST", href: READLIST_CREATE_PATH, label: t("smartReadlist.create"), variant: "primary" }];
-			if (!smart.configured) return [{ key: "set-preferences", method: "GET", href: `${readlistPreferencesPath(smart.target)}?setup=1`, label: t("smartReadlist.preferences"), variant: "primary" }];
-			if (smart.viewingTarget) return [{ key: "open-all", method: "GET", href: READLIST_PATH, label: t("smartReadlist.all"), variant: "primary" }];
-			return [{ key: "open-smart-readlist", method: "GET", href: buildReadlistUrl({ readlist: smart.target }), label: t("smartReadlist.open"), variant: "primary" }];
-		},
+		actions: ({ smartReadlist: smart }) => [
+			smartReadlistPrimaryAction(smart),
+			{ key: "smart-readlist-dismiss", method: "POST", href: READLIST_SMART_READLIST_STEP_DISMISS_PATH, label: t("smartReadlist.dismiss"), variant: "text" },
+		],
 	},
 	{
 		id: "save-enough-for-next-read",
@@ -225,6 +223,13 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		chip: (ctx) => ctx.hasInstallableClient ? `Saved ${Math.min(ctx.savedCount, NEXT_READ_MINIMUM_SAVES)} of ${NEXT_READ_MINIMUM_SAVES}` : "",
 	},
 ];
+
+function smartReadlistPrimaryAction(smart: OnboardingContext["smartReadlist"]): OnboardingAction {
+	if (!smart?.target) return { key: "create-readlist", method: "POST", href: READLIST_CREATE_PATH, label: t("smartReadlist.create"), variant: "primary" };
+	if (!smart.configured) return { key: "set-preferences", method: "GET", href: `${readlistPreferencesPath(smart.target)}?setup=1`, label: t("smartReadlist.preferences"), variant: "primary" };
+	if (smart.viewingTarget) return { key: "open-all", method: "GET", href: READLIST_PATH, label: t("smartReadlist.all"), variant: "primary" };
+	return { key: "open-smart-readlist", method: "GET", href: buildReadlistUrl({ readlist: smart.target }), label: t("smartReadlist.open"), variant: "primary" };
+}
 
 function versionFor(steps: readonly OnboardingStep[]): string {
 	return createHash("sha256")
@@ -247,6 +252,11 @@ export function onboardingVersion(ctx: OnboardingContext): string {
 
 export function hasOutstandingGmailStep(ctx: OnboardingContext): boolean {
 	return ctx.gmail !== undefined && !ctx.gmail.connected && !ctx.gmail.dismissed;
+}
+
+export function hasOutstandingSmartReadlistStep(ctx: OnboardingContext): boolean {
+	const smart = ctx.smartReadlist;
+	return smart !== undefined && !smart.dismissed && smart.count !== undefined && smart.count < 10;
 }
 
 export function firstOutstandingStep(

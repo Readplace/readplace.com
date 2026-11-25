@@ -11,6 +11,7 @@ export const enUS = {
 		file: "Open the “All” readlist, choose an article, and use Add to file it in your Smart Readlist. If your library is empty, save a link there first.",
 		progress: "{count}/10 articles saved to Smart Readlists",
 		unavailable: "Progress unavailable",
+		dismiss: "I don't want to do this",
 	},
 	readlistPicker: {
 		filter: {

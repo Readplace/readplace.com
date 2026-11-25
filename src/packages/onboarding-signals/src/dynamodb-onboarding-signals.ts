@@ -19,6 +19,7 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -40,6 +41,7 @@ const OnboardingRow = z.object({
 	firstInboxArticleQueuedAt: dynamoField(z.string()),
 	emailStepMarkedDoneAt: dynamoField(z.string()),
 	gmailStepDismissedAt: dynamoField(z.string()),
+	smartReadlistStepDismissedAt: dynamoField(z.string()),
 	onboardingOutstandingVersion: dynamoField(z.string()),
 	markReadAcrossQueuesAckedAt: dynamoField(z.string()),
 	deleteArticleAckedAt: dynamoField(z.string()),
@@ -68,6 +70,7 @@ export function initOnboardingSignals(deps: {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
@@ -114,6 +117,15 @@ export function initOnboardingSignals(deps: {
 			Key: { userId },
 			UpdateExpression:
 				"SET smartReadlistMinimumReachedAt = if_not_exists(smartReadlistMinimumReachedAt, :now)",
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
+	const recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed = async ({ userId }) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET smartReadlistStepDismissedAt = if_not_exists(smartReadlistStepDismissedAt, :now)",
 			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 		});
 	};
@@ -201,8 +213,8 @@ export function initOnboardingSignals(deps: {
 		return outcome.kind === "written" ? "claimed" : "already-sent";
 	};
 
-	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
-		const row = await onboarding.get({ userId }, { consistentRead: true });
+	const getOnboardingSignals: GetOnboardingSignals = async ({ userId, consistentRead }) => {
+		const row = await onboarding.get({ userId }, { consistentRead });
 		const reachedAt = row?.nextReadMinimumReachedAt;
 		const queuedAt = row?.firstInboxArticleQueuedAt;
 		const markedDoneAt = row?.emailStepMarkedDoneAt;
@@ -222,6 +234,7 @@ export function initOnboardingSignals(deps: {
 			firstInboxArticleQueuedAt: queuedAt ? new Date(queuedAt) : undefined,
 			emailStepMarkedDoneAt: markedDoneAt ? new Date(markedDoneAt) : undefined,
 			gmailStepDismissedAt: gmailDismissedAt ? new Date(gmailDismissedAt) : undefined,
+			smartReadlistStepDismissedAt: row?.smartReadlistStepDismissedAt ? new Date(row.smartReadlistStepDismissedAt) : undefined,
 			onboardingOutstandingVersion: row?.onboardingOutstandingVersion,
 			markReadAcrossQueuesAckedAt: ackedAt ? new Date(ackedAt) : undefined,
 			deleteArticleAckedAt: deleteAckedAt ? new Date(deleteAckedAt) : undefined,
@@ -236,6 +249,7 @@ export function initOnboardingSignals(deps: {
 		recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle,
 		recordSmartReadlistMinimumReached,
+		recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached,
 		recordInboxArticleQueued,
 		recordEmailStepMarkedDone,

@@ -184,6 +184,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				getEffectiveAccess: deps.getEffectiveAccess,
 				recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
 				recordGmailStepDismissed: deps.recordGmailStepDismissed,
+				recordSmartReadlistStepDismissed: deps.recordSmartReadlistStepDismissed,
 				secureCookies: deps.secureCookies,
 			},
 			shared,

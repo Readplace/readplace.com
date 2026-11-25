@@ -1612,7 +1612,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					FilterExpression: "attribute_exists(savedAt)",
 					ProjectionExpression: "#url",
 					ExpressionAttributeNames: { "#url": "url" },
-					ConsistentRead: true, Limit: 10, ExclusiveStartKey: cursor,
+					ConsistentRead: true, Limit: 100, ExclusiveStartKey: cursor,
 				});
 				for (const { url } of page.items) {
 					witnesses.set(url, readlist);

@@ -468,6 +468,7 @@ async function seedAccount(
 	await s.onboarding.recordInboxArticleQueued({ userId });
 	await s.onboarding.recordEmailStepMarkedDone({ userId });
 	await s.onboarding.recordGmailStepDismissed({ userId });
+	await s.onboarding.recordSmartReadlistStepDismissed({ userId });
 	await s.onboarding.recordOnboardingOutstandingVersion({ userId, version: "seeded-version" });
 
 	if (subscription === "active") {
@@ -670,6 +671,7 @@ describe("delete-account handler", () => {
 			firstInboxArticleQueuedAt: undefined,
 			emailStepMarkedDoneAt: undefined,
 			gmailStepDismissedAt: undefined,
+			smartReadlistStepDismissedAt: undefined,
 			onboardingOutstandingVersion: undefined,
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,
@@ -760,6 +762,7 @@ describe("delete-account handler", () => {
 			firstInboxArticleQueuedAt: SEED_NOW,
 			emailStepMarkedDoneAt: SEED_NOW,
 			gmailStepDismissedAt: SEED_NOW,
+			smartReadlistStepDismissedAt: SEED_NOW,
 			onboardingOutstandingVersion: "seeded-version",
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,

@@ -6,7 +6,7 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import type { PitchablePlatform } from "./extension-install";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
-import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep } from "./onboarding.steps";
+import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep, hasOutstandingSmartReadlistStep } from "./onboarding.steps";
 import type {
 	OnboardingAction,
 	OnboardingActionKey,
@@ -202,7 +202,7 @@ export function OnboardingChecklist(
 		}),
 	);
 	if (!ctx.hasInstallableClient) {
-		const keepDismissed = options.dismissed && !hasOutstandingGmailStep(ctx) && ctx.smartReadlist?.count === undefined;
+		const keepDismissed = options.dismissed && !hasOutstandingGmailStep(ctx) && !hasOutstandingSmartReadlistStep(ctx);
 		return renderNoClientCard(options, keepDismissed ? [] : steps, percent);
 	}
 	const allComplete = outstanding === undefined;

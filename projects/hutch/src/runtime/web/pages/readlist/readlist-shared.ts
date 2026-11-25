@@ -92,7 +92,7 @@ import { tabQuery } from "./readlist.tabs";
 import type { MoveFlash, StatusFlash } from "./readlist.error";
 import { toReadlistViewModel } from "./readlist.viewmodel";
 import { formatReaderDocumentTitle, } from "../reader/reader.component";
-import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
+import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingSmartReadlistStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
 import { gmailConnectionState, } from "@packages/domain/gmail";
 import { canConnectGmail } from "../integrations/gmail-connection-access";
 import {
@@ -527,7 +527,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 				try {
 					await deps.recordSmartReadlistMinimumReached({ userId });
 				} catch (error) {
-					if (!(await deps.getOnboardingSignals({ userId })).smartReadlistMinimumReachedAt) throw error;
+					if (!(await deps.getOnboardingSignals({ userId, consistentRead: true })).smartReadlistMinimumReachedAt) throw error;
 				}
 			}
 			return count;
@@ -551,11 +551,13 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const candidateSlugs = new Set(candidates.map((list) => list.slug));
 		const target = candidateSlugs.has(active) ? active : [...nav.railEntries, ...nav.moreEntries]
 			.find((list) => candidateSlugs.has(list.slug))?.slug;
+		const dismissed = signals?.smartReadlistStepDismissedAt !== undefined;
 		return {
-			count: signals && await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured),
+			count: signals && !dismissed ? await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured) : undefined,
 			target,
 			configured: configured.length > 0,
 			viewingTarget: target === active,
+			dismissed,
 		};
 	};
 
@@ -657,7 +659,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			deleteArticleAckedAt,
 			onboarding: {
 				context,
-				dismissed: (installed || (nativeAppPlatform !== undefined && !signals)) && dismissTokenMatches && !hasOutstandingGmailStep(context) && !(smartReadlist?.count !== undefined && smartReadlist.count < 10),
+				dismissed: (installed || (nativeAppPlatform !== undefined && !signals)) && dismissTokenMatches && !hasOutstandingGmailStep(context) && !hasOutstandingSmartReadlistStep(context),
 				completedBefore: onboardingCompletedBefore,
 				completionUnearned: !seenUnderThisVersion,
 			},

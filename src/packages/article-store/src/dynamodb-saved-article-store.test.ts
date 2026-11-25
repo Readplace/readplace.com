@@ -4299,7 +4299,7 @@ describe("countSmartReadlistArticles", () => {
 		expect(commands).toHaveLength(4);
 		for (const [index, { input }] of commands.entries()) {
 			expect(input).toMatchObject({
-				ConsistentRead: true, Limit: 10, ProjectionExpression: "#url",
+				ConsistentRead: true, Limit: 100, ProjectionExpression: "#url",
 				FilterExpression: "attribute_exists(savedAt)", ExclusiveStartKey: index % 2 === 1 ? cursor : undefined,
 				ExpressionAttributeValues: { ":partition": `${USER}#queue/${index < 2 ? work : later}` },
 			});

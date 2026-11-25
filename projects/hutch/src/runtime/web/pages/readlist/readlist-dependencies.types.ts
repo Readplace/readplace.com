@@ -128,6 +128,7 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordOnboardingOutstandingVersion,
@@ -254,6 +255,7 @@ export interface ReadlistDependencies {
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;

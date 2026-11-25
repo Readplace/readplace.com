@@ -50,6 +50,24 @@ describe("Smart Readlist guide", () => {
 		expect(count).toHaveBeenCalledTimes(2);
 	});
 
+	it.each(["/queue", prefs])("lets a reader permanently dismiss the step from %s without counting again", async (path) => {
+		const { agent, count, fixture, userId, view } = await setup();
+		const dismissed = `${cookies}; ${DISMISS_COOKIE_NAME}=fd8f9d8a`;
+		const form = (await view(path)).querySelector(step)?.querySelector('[data-test-onboarding-action="smart-readlist-dismiss"]')?.closest("form");
+		expect(form?.textContent?.trim()).toBe("I don't want to do this");
+		const action = form?.getAttribute("action");
+		assert(action);
+		await agent.post(action).set("User-Agent", chrome).set("Cookie", cookies).expect(303);
+		expect((await fixture.onboardingSignals.getOnboardingSignals({ userId })).smartReadlistStepDismissedAt).toBeInstanceOf(Date);
+		count.mockClear();
+		for (const cookie of [cookies, dismissed]) {
+			expect((await view(path, cookie)).querySelector(step)).toBeNull();
+		}
+		expect((await view(path, dismissed)).querySelector(".setup-guide--hidden")).toBeTruthy();
+		expect((await view("/queue", `${DISMISS_COOKIE_NAME}=no-client`, "unrecognised")).querySelector(".setup-guide--visible")).toBeNull();
+		expect(count).not.toHaveBeenCalled();
+	});
+
 	it.each(["initial row", "count"] as const)("a failed first %s read cannot earn success on retry", async (failure) => {
 		const { count, read, view } = await setup();
 		count.mockResolvedValue(10);

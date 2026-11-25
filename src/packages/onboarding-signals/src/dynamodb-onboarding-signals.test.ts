@@ -156,6 +156,17 @@ describe("initOnboardingSignals", () => {
 		});
 	});
 
+	describe("recordSmartReadlistStepDismissed", () => {
+		it("sets the permanent dismissal only once in the user's existing onboarding row", async () => {
+			const { client, commands } = createFakeClient({});
+			await initSignal(client).recordSmartReadlistStepDismissed({ userId: USER });
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe("SET smartReadlistStepDismissedAt = if_not_exists(smartReadlistStepDismissedAt, :now)");
+			expect(update?.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
+		});
+	});
+
 	describe("recordOnboardingOutstandingVersion", () => {
 		it("overwrites the outstanding version with a plain SET keyed by userId", async () => {
 			const { client, commands } = createFakeClient({});
@@ -219,6 +230,7 @@ describe("initOnboardingSignals", () => {
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
 				gmailStepDismissedAt: undefined,
+				smartReadlistStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -242,6 +254,7 @@ describe("initOnboardingSignals", () => {
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
 				gmailStepDismissedAt: undefined,
+				smartReadlistStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -269,6 +282,7 @@ describe("initOnboardingSignals", () => {
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
 				gmailStepDismissedAt: undefined,
+				smartReadlistStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -317,6 +331,11 @@ describe("initOnboardingSignals", () => {
 			expect((await initSignal(client).getOnboardingSignals({ userId: USER })).gmailStepDismissedAt).toEqual(NOW);
 		});
 
+		it("reads the Smart Readlist dismissal timestamp from an existing row", async () => {
+			const { client } = createFakeClient({ row: { userId: USER, smartReadlistStepDismissedAt: NOW.toISOString() } });
+			expect((await initSignal(client).getOnboardingSignals({ userId: USER })).smartReadlistStepDismissedAt).toEqual(NOW);
+		});
+
 		it("surfaces the outstanding version as the stored string, not a Date", async () => {
 			const { client } = createFakeClient({
 				row: { userId: "user-1", onboardingOutstandingVersion: "0badf00d" },
@@ -344,6 +363,7 @@ describe("initOnboardingSignals", () => {
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
 				gmailStepDismissedAt: undefined,
+				smartReadlistStepDismissedAt: undefined,
 				onboardingOutstandingVersion: undefined,
 				markReadAcrossQueuesAckedAt: undefined,
 				deleteArticleAckedAt: undefined,
@@ -448,7 +468,7 @@ describe("initOnboardingSignals", () => {
 	});
 });
 
-it("stamps the first confirmed Smart Readlist minimum and reads it consistently on another device", async () => {
+it("stamps the first confirmed Smart Readlist minimum and reads it consistently only when asked", async () => {
 	const { client, commands } = createFakeClient({ row: { userId: USER, smartReadlistMinimumReachedAt: NOW.toISOString() } });
 	const signals = initSignal(client);
 	await Promise.all([signals.recordSmartReadlistMinimumReached({ userId: USER }), signals.recordSmartReadlistMinimumReached({ userId: USER })]);
@@ -459,5 +479,7 @@ it("stamps the first confirmed Smart Readlist minimum and reads it consistently 
 		});
 	}
 	expect((await signals.getOnboardingSignals({ userId: USER })).smartReadlistMinimumReachedAt).toEqual(NOW);
+	expect(commands.at(-1)?.input).not.toHaveProperty("ConsistentRead");
+	expect((await signals.getOnboardingSignals({ userId: USER, consistentRead: true })).smartReadlistMinimumReachedAt).toEqual(NOW);
 	expect(commands.at(-1)?.input).toMatchObject({ ConsistentRead: true, Key: { userId: USER } });
 });

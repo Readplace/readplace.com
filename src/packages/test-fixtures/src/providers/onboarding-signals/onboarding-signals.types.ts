@@ -9,6 +9,7 @@ export type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
