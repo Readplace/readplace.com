@@ -1,10 +1,12 @@
 // An optional loopback endpoint reuses a local DynamoDB instance when debugging the worker.
 const assert = require("node:assert/strict");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
 const { setTimeout: delay } = require("node:timers/promises");
 const { randomUUID } = require("node:crypto");
 const { createRequire } = require("node:module");
 const path = require("node:path");
+const { createInterface } = require("node:readline");
+const { getEnv } = require("@packages/require-env");
 const storageRequire = createRequire(path.resolve(__dirname, "../../../src/packages/storage-client/package.json"));
 const { DynamoDBClient, CreateTableCommand, DeleteTableCommand } = storageRequire("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, PutCommand, GetCommand, DeleteCommand, TransactWriteCommand } = storageRequire("@aws-sdk/lib-dynamodb");
@@ -284,11 +286,44 @@ async function main(endpoint) {
 	}
 }
 
+async function runWithJava(directory) {
+	const libraries = path.join(directory, "DynamoDBLocal_lib");
+	const classpath = [directory, path.join(directory, "DynamoDBLocal.jar"), path.join(libraries, "*")].join(path.delimiter);
+	const server = spawn("java", ["-Djava.library.path=" + libraries, "-cp", classpath, "LoopbackDynamoDB"], {
+		stdio: ["pipe", "pipe", "inherit"],
+	});
+	const exited = new Promise(resolve => server.once("close", (code, signal) => resolve(signal || code)));
+	let spawnError;
+	server.once("error", error => { spawnError = error; });
+	const startupTimeout = setTimeout(() => server.kill(), 180_000);
+	let ready = false;
+	let status;
+	try {
+		for await (const line of createInterface({ input: server.stdout })) {
+			if (/^http:\/\/127\.0\.0\.1:\d+$/.test(line)) {
+				ready = true;
+				clearTimeout(startupTimeout);
+				await main(line);
+				break;
+			}
+			console.log(line);
+		}
+	} finally {
+		clearTimeout(startupTimeout);
+		server.stdin.end();
+		status = await exited;
+	}
+	if (!ready || status !== 0) throw spawnError || new Error("DynamoDB Local exited unexpectedly (" + status + ")");
+}
+
 async function run() {
 	if (process.argv[2]) return main(process.argv[2]);
+	const dynamoDbLocalHome = getEnv("DYNAMODB_LOCAL_HOME");
+	if (dynamoDbLocalHome) return runWithJava(dynamoDbLocalHome);
 	const docker = (...args) => execFileSync("docker", args, { encoding: "utf8" }).trim();
 	const container = docker("run", "--detach", "--rm", "--publish", "127.0.0.1::8000",
-		"amazon/dynamodb-local:2.5.4", "-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb");
+		"amazon/dynamodb-local:2.5.4@sha256:cf8cebd061f988628c02daff10fdb950a54478feff9c52f6ddf84710fe3c3906",
+		"-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb", "-disableTelemetry");
 	const stop = () => docker("rm", "--force", container);
 	const interrupted = () => { stop(); process.exit(130); };
 	process.once("SIGINT", interrupted);
