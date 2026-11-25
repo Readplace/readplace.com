@@ -10,6 +10,7 @@
           <div class="readlist__browse">
             {{{purposeCardHtml}}}
             {{{tabsHtml}}}
+            {{#unless smart}}
             <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
               <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
               <div class="readlist-preferences__unset">
@@ -31,6 +32,7 @@
               </div>
               {{/each}}
             </section>
+            {{/unless}}
             {{{inboxesHtml}}}
             {{{gmailSendersHtml}}}
             {{{choicesHtml}}}

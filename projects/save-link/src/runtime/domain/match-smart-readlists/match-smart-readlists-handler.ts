@@ -29,6 +29,7 @@ import { type DecideReadlistFit, READLIST_FIT_EXAMPLES_MAX } from "@packages/rea
 import { resolvePlanAccess } from "@packages/subscription-access";
 import type { SQSBatchResponse, SQSEvent, Handler } from "aws-lambda";
 import type { SmartReadlistMatchDecidedLine } from "./smart-readlist-match-log-lines.types";
+import { MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT } from "./timeouts";
 
 export class SmartMatchMetadataPendingError extends Error {
 	constructor(storedKey: string) {
@@ -141,6 +142,10 @@ export function initMatchSmartReadlistsHandler(deps: {
 			report: async ({ record, error, detail }) => {
 				const { messageId, receiveCount } = record;
 				if (error instanceof SmartMatchMetadataPendingError) {
+					if (receiveCount >= MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT) {
+						logger.error("[match-smart-readlists] dead-lettered while the crawl is still pending", { messageId, receiveCount, error });
+						return;
+					}
 					logger.info("[match-smart-readlists] waiting for the crawl", { messageId, receiveCount });
 					return;
 				}

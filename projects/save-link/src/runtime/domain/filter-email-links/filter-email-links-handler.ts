@@ -128,7 +128,7 @@ export function initFilterEmailLinksHandler(deps: {
 		if (definition.filing?.mode === "smart") {
 			return { ...NO_MODEL_CALL, readlistLabel: definition.label, decision: "smart-matching" };
 		}
-		const purpose = definition.filing?.mode === "manual" ? undefined : definition.purpose;
+		const { purpose } = definition;
 		if (purpose === undefined) {
 			return {
 				...NO_MODEL_CALL,

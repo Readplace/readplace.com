@@ -183,9 +183,9 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
 			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
 			UpdateExpression: "SET #purpose = :purpose",
-			ConditionExpression: "attribute_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
-			ExpressionAttributeValues: { ":purpose": params.purpose },
+			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
+			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
+			ExpressionAttributeValues: { ":purpose": params.purpose, ":smart": "smart" },
 		}));
 		if (outcome.kind === "condition-failed") return { updated: false };
 		return { updated: true };
@@ -242,8 +242,9 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
 			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
 			UpdateExpression: "REMOVE #purpose",
-			ConditionExpression: "attribute_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
+			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
+			ExpressionAttributeValues: { ":smart": "smart" },
 		}));
 		if (outcome.kind === "condition-failed") return { cleared: false };
 		return { cleared: true };

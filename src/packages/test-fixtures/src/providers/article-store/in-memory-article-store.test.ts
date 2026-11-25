@@ -2272,6 +2272,25 @@ describe("initInMemoryArticleStore", () => {
 			).toEqual([["work", "Work", undefined]]);
 		});
 
+		it("leaves a Smart Readlist's purpose to its smart rule", async () => {
+			const store = initInMemoryArticleStore();
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date("2026-08-19T10:00:00.000Z") });
+			await store.setSmartReadlistRule({
+				userId: USER_A,
+				slug: WORK,
+				purpose: "Essays on how teams actually ship.",
+				effectiveAt: new Date("2026-08-20T10:00:00.000Z"),
+			});
+
+			expect(await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Anything" })).toEqual({
+				updated: false,
+			});
+			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({ cleared: false });
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
+				"Essays on how teams actually ship.",
+			]);
+		});
+
 		it("reports a readlist the reader does not hold as uncleared", async () => {
 			const store = initInMemoryArticleStore();
 

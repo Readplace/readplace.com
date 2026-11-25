@@ -1465,7 +1465,7 @@ export function initInMemoryArticleStore(): {
 	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { updated: false };
+		if (!definition || definition.filingMode === "smart") return { updated: false };
 		definition.purpose = params.purpose;
 		return { updated: true };
 	};
@@ -1496,7 +1496,7 @@ export function initInMemoryArticleStore(): {
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { cleared: false };
+		if (!definition || definition.filingMode === "smart") return { cleared: false };
 		definition.purpose = undefined;
 		return { cleared: true };
 	};

@@ -201,7 +201,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),
-		purposeCardHtml: renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
+		purposeCardHtml: smart ? "" : renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
@@ -210,6 +210,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		),
 		panelClass: [PANEL_CLASS[state], ...controls.modifierClasses].join(" "),
 		state,
+		smart,
 		readlistLabel: vm.readlist.label,
 		setupIllustrationHtml: renderIllustration("book-lightbulb"),
 		setupActions: controls.setupActions,
@@ -245,7 +246,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		readlistRenamesHtml: panels.renames,
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
-		wizardPopoverHtml: controls.wizardPopoverHtml,
+		wizardPopoverHtml: smart ? "" : controls.wizardPopoverHtml,
 	});
 
 	return {

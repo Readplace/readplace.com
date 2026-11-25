@@ -159,6 +159,21 @@ describe("Smart Readlist preferences", () => {
 		expect(doc.querySelector("[data-test-readlist-inboxes]")).toBeNull();
 		expect(doc.querySelector("[data-test-readlist-gmail-senders]")).toBeNull();
 		expect(doc.querySelector("[data-test-filter-beta]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-readlist-purpose]")).toBeNull();
+		expect(doc.querySelector("[data-test-readlist-preferences]")).toBeNull();
+	});
+
+	it("keeps a smart readlist's purpose when the old purpose form is cleared or edited", async () => {
+		const { harness, agent } = await setUp();
+		const slug = await createReadlist(agent, { label: "Systems", smart: "1", purpose: PURPOSE });
+		const before = await definitionOf(harness, slug);
+
+		await agent.post(preferencesPath(slug)).type("form").send({ purpose: "" });
+		await agent.post(preferencesPath(slug)).type("form").send({ purpose: "Only consensus papers." });
+
+		const after = await definitionOf(harness, slug);
+		expect(after?.purpose).toBe(PURPOSE);
+		expect(after?.filing).toEqual(before?.filing);
 	});
 
 	it("bumps the revision when the instructions change", async () => {

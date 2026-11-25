@@ -20,6 +20,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initMatchSmartReadlistsHandler } from "./match-smart-readlists-handler";
+import { MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT } from "./timeouts";
 import type { SmartReadlistMatchDecidedLine } from "./smart-readlist-match-log-lines.types";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -143,13 +144,14 @@ function makeHarness(opts: {
 		assert(rule.kind === "set");
 		return rule.revision;
 	};
-	const run = async (storedKey: string = STORED_KEY) => {
+	const run = async (storedKey: string = STORED_KEY, receiveCount = 1) => {
 		const event = buildSqsEvent([
 			{
 				messageId: "rec-1",
 				body: JSON.stringify({ detail: { userId: USER, storedKey, savedAt: SAVED_AT.toISOString() }, time: SAVED_AT.toISOString() }),
 			},
 		]);
+		event.Records[0].attributes.ApproximateReceiveCount = String(receiveCount);
 		const result = await handler(event, buildLambdaContext(), () => {});
 		assert(result);
 		return result.batchItemFailures;
@@ -264,6 +266,20 @@ describe("initMatchSmartReadlistsHandler", () => {
 		assert.deepEqual(harness.callFailedLines, []);
 		assert.equal(harness.logLines.some(([message]) => message === "[match-smart-readlists] waiting for the crawl"), true);
 		assert.equal(harness.logLines.some(([message]) => message === "[match-smart-readlists] record failed"), false);
+		assert.equal(harness.logLines.some(([message]) => message === "[match-smart-readlists] dead-lettered while the crawl is still pending"), false);
+	});
+
+	it("logs an error naming the pending crawl on the final receive, before the record dead-letters", async () => {
+		const harness = makeHarness({ crawl: { status: "pending", startedAt: SAVED_AT.toISOString() } });
+		await harness.save();
+		await harness.smartList({ slug: WORK, purpose: WORK_PURPOSE });
+
+		assert.deepEqual(await harness.run(STORED_KEY, MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT), [{ itemIdentifier: "rec-1" }]);
+
+		assert.deepEqual(harness.recorded, []);
+		assert.deepEqual(harness.callFailedLines, []);
+		assert.equal(harness.logLines.some(([message]) => message === "[match-smart-readlists] dead-lettered while the crawl is still pending"), true);
+		assert.equal(harness.logLines.some(([message]) => message === "[match-smart-readlists] waiting for the crawl"), false);
 	});
 
 	it("files one save into both smart readlists it fits once the crawl is ready", async () => {

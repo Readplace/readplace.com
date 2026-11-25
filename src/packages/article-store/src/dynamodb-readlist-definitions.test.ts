@@ -562,13 +562,16 @@ describe("setReadlistDefinitionPurpose", () => {
 		expect(commands[0].input).toMatchObject({
 			TableName: TABLE,
 			Key: { userId: USER, url: "readplace:queue-def/work" },
-			ExpressionAttributeValues: { ":purpose": "Essays on how teams actually ship." },
+			ExpressionAttributeValues: { ":purpose": "Essays on how teams actually ship.", ":smart": "smart" },
 		});
 		expect(String(commands[0].input.UpdateExpression)).toContain("SET #purpose = :purpose");
-		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
+		expect(commands[0].input.ConditionExpression).toBe(
+			"attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
+		);
+		expect(commands[0].input.ExpressionAttributeNames).toMatchObject({ "#mode": "filingMode" });
 	});
 
-	it("reports a readlist that no longer has a definition row", async () => {
+	it("refuses a readlist that no longer has a definition row, or is a Smart Readlist whose rule this form must not edit", async () => {
 		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[
@@ -621,12 +624,13 @@ describe("clearReadlistDefinitionPurpose", () => {
 			TableName: TABLE,
 			Key: { userId: USER, url: "readplace:queue-def/work" },
 			UpdateExpression: "REMOVE #purpose",
-			ConditionExpression: "attribute_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
+			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
+			ExpressionAttributeValues: { ":smart": "smart" },
 		});
 	});
 
-	it("reports a readlist that no longer has a definition row", async () => {
+	it("refuses a readlist that no longer has a definition row, or is a Smart Readlist whose rule must keep its purpose", async () => {
 		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[

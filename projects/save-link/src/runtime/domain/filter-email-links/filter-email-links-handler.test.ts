@@ -651,22 +651,27 @@ describe("initFilterEmailLinksHandler", () => {
 		expect(harness.decidedLines).toEqual([]);
 	});
 
-	it("files every link in the no-purpose form when a manual readlist still stores a purpose", async () => {
+	it("filters a manual readlist by its purpose, like a readlist with no filing mode", async () => {
 		const harness = makeHarness({ definitions: [{ ...workDefinition(PURPOSE), filing: { mode: "manual" } }] });
 
 		await harness.run(TRIAGED);
 
-		expect(harness.decisions).toEqual([]);
-		expect(filings(harness.published)).toEqual(
-			TRIAGED.links.map((link) => ({
-				url: link.url,
+		expect(harness.decisions).toHaveLength(1);
+		expect(filings(harness.published)).toEqual([
+			{
+				url: "https://a.test/small-prs",
 				userId: USER,
 				readlist: "a1b2c3d4",
 				provenance: EMAIL_PROVENANCE,
-				fit: { kind: "no-purpose", source: { kind: "email", receivedAtMessageId: RAM, ordinal: link.ordinal } },
-			})),
-		);
-		expect(harness.published.at(-1)?.detail).toMatchObject({ decision: "no-purpose", readlistLabel: "Work", fit: [] });
+				fit: {
+					verdict: "keep",
+					reason: "Shipping small changes.",
+					purposeVersion: PURPOSE_VERSION,
+					source: { kind: "email", receivedAtMessageId: RAM, ordinal: "0000" },
+				},
+			},
+		]);
+		expect(harness.published.at(-1)?.detail).toMatchObject({ decision: "filtered", readlistLabel: "Work" });
 	});
 
 	it("fails a triage aimed at All, which is never filtered", async () => {
