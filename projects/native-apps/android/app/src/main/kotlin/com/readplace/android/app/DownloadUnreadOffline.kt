@@ -55,7 +55,7 @@ class DownloadUnreadOffline(
 		val kept = pages.keep(
 			readerUrl = queued.readerUrl,
 			articleId = queued.id,
-			contentVersion = response.contentVersion ?: queued.contentVersion,
+			contentVersion = queued.contentVersion,
 			response = response,
 			generation = generation,
 		)
@@ -76,8 +76,10 @@ class DownloadUnreadOffline(
 	}
 
 	private suspend fun enqueue(page: ReadlistPage, queue: SendChannel<QueuedArticle>, tally: Tally) {
-		val articles = page.articles
-			.filter { !it.isRead }
+		val unread = page.articles.filter { !it.isRead }
+		val (ready, notReady) = unread.partition { it.isReadyToRead }
+		if (notReady.isNotEmpty()) tally.notReady(notReady.size)
+		val articles = ready
 			.mapNotNull { article ->
 				article.readHref
 					?.let { ReaderRequest.url(it, api.baseUrl) }
@@ -98,8 +100,11 @@ class DownloadUnreadOffline(
 		private var completed = 0
 		private var total = 0
 		private var failed = 0
+		private var notReady = 0
 
 		suspend fun queued(count: Int) = change { total += count }
+
+		suspend fun notReady(count: Int) = lock.withLock { notReady += count }
 
 		suspend fun stored() = change { completed += 1 }
 
@@ -109,7 +114,7 @@ class DownloadUnreadOffline(
 				failed += 1
 			}
 
-		fun outcome(): OfflineDownloadOutcome = OfflineDownloadOutcome.of(failed = failed, total = total)
+		fun outcome(): OfflineDownloadOutcome = OfflineDownloadOutcome.of(failed = failed, notReady = notReady, total = total)
 
 		private suspend fun change(update: () -> Unit) =
 			lock.withLock {

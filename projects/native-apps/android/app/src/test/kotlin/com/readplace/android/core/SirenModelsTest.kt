@@ -228,6 +228,26 @@ class SirenModelsTest {
 	}
 
 	@Test
+	fun `an article is ready to read only when the server said its content is available`() {
+		val articles = listOf("\"available\"", "\"processing\"", "\"unavailable\"", "\"later\"", "3", null).map { state ->
+			val property = state?.let { ", \"contentState\": $it" }.orEmpty()
+			decodedArticle("""{ "properties": { "id": "a1", "url": "https://example.com/a1"$property } }""")
+		}
+
+		assertEquals(
+			listOf(
+				ContentState.Available to true,
+				ContentState.Processing to false,
+				ContentState.Unavailable to false,
+				null to false,
+				null to false,
+				null to false,
+			),
+			articles.map { it.contentState to it.isReadyToRead },
+		)
+	}
+
+	@Test
 	fun `a non-array where the server should send an array carries nothing`() {
 		val entity = decodedEntity(
 			"""

@@ -90,6 +90,7 @@ data class ReadingListState(
 	val isOffline: Boolean = false,
 	val offlineDownload: OfflineDownloadProgress? = null,
 	val interruptedOfflineDownload: OfflineDownloadRun? = null,
+	val readerBaseUrl: String,
 ) {
 	val offlineDownloadHref: String? get() = tabs.firstOrNull()?.href
 
@@ -100,8 +101,11 @@ data class ReadingListState(
 			else -> interruptedOfflineDownload?.let { OfflineDownloadStatus.Resumable(it) }
 		}
 
-	fun isAvailableOffline(article: Article): Boolean =
-		downloadedVersions.isCurrent(articleId = article.id, contentVersion = article.contentVersion)
+	fun isAvailableOffline(article: Article, now: Instant): Boolean {
+		if (!article.isReadyToRead) return false
+		val readerUrl = article.readHref?.let { ReaderRequest.url(it, readerBaseUrl) } ?: return false
+		return downloadedVersions.isCurrent(readerUrl = readerUrl, contentVersion = article.contentVersion, now = now)
+	}
 
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
@@ -173,7 +177,7 @@ class ReadingListViewModel(
 	private val readerPages: OfflineReaderPages,
 	private val scope: CoroutineScope,
 ) {
-	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
+	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP), readerBaseUrl = api.baseUrl))
 	val state: StateFlow<ReadingListState> = states.asStateFlow()
 
 	init {

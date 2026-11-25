@@ -8,6 +8,7 @@ import com.readplace.android.core.AccessToken
 import com.readplace.android.core.ApiError
 import com.readplace.android.core.DownloadedVersions
 import com.readplace.android.core.EphemeralCookieJar
+import com.readplace.android.core.KeptVersion
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineCopy
@@ -312,7 +313,7 @@ class DownloadUnreadOfflineTest {
 
 		val outcome = download(RecordingPrefetcher(), pages = pages(directory)).run(START) {}
 
-		assertEquals(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 1), outcome)
+		assertEquals(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 0, total = 1), outcome)
 	}
 
 	@Test
@@ -391,17 +392,62 @@ class DownloadUnreadOfflineTest {
 	}
 
 	@Test
-	fun `a row still processing is stored like any other`() = runTest {
-		server.handle(listing(listOf(listOf(Fixtures.article("a1", processing = true)))))
+	fun `a row the server has not marked available is neither fetched, kept nor warmed`() = runTest {
+		server.handle(
+			listing(
+				listOf(
+					listOf(
+						Fixtures.article("a1", processing = true),
+						Fixtures.article("a2", contentState = "unavailable"),
+						Fixtures.article("a3", contentState = null),
+						Fixtures.article("a4", contentVersion = "v4"),
+					),
+				),
+			),
+		)
 		val prefetcher = RecordingPrefetcher()
+		val pages = pages()
 
-		download(prefetcher).run(START) {}
+		download(prefetcher, pages = pages).run(START) {}
 
-		assertEquals(listOf(readerUrl("a1")), prefetcher.urls)
+		assertEquals(
+			listOf(listOf(readerUrl("a4")), listOf("/queue/a4/view"), listOf(readerUrl("a4"))),
+			listOf(prefetcher.urls, server.records.filter { it.path.endsWith("/view") }.map { it.path }, pages.versions.value.byReaderUrl.keys.toList()),
+		)
 	}
 
 	@Test
-	fun `a kept page is badged at the version the server answered, else the list's`() = runTest {
+	fun `rows not ready are reported apart from failures and are not counted as stored`() = runTest {
+		server.handle(
+			listing(
+				listOf(listOf(Fixtures.article("a1", processing = true), Fixtures.article("a2", processing = true), Fixtures.article("a3"))),
+				reader = refusing("a3"),
+			),
+		)
+		val reports = mutableListOf<OfflineDownloadProgress>()
+
+		val outcome = download(RecordingPrefetcher()).run(START) { reports += it }
+
+		assertEquals(
+			listOf(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 2, total = 1), OfflineDownloadProgress(completed = 1, total = 1)),
+			listOf(outcome, reports.last()),
+		)
+	}
+
+	@Test
+	fun `a run whose rows are all not ready mints no session`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1", processing = true)))))
+
+		val outcome = download(RecordingPrefetcher()).run(START) {}
+
+		assertEquals(
+			listOf(OfflineDownloadOutcome.PartiallyDownloaded(failed = 0, notReady = 1, total = 0), emptyList<Record>()),
+			listOf(outcome, server.records("/auth/session")),
+		)
+	}
+
+	@Test
+	fun `a kept page is badged at the list's version, whatever version the reader answered`() = runTest {
 		server.handle(
 			listing(
 				listOf(
@@ -425,7 +471,15 @@ class DownloadUnreadOfflineTest {
 
 		download(RecordingPrefetcher(), pages = pages).run(START) {}
 
-		assertEquals(DownloadedVersions(mapOf("a1" to "v1", "a4" to "v4-served")), pages.versions.value)
+		assertEquals(
+			DownloadedVersions(
+				mapOf(
+					readerUrl("a1") to KeptVersion("v1", savedAt = Instant.EPOCH),
+					readerUrl("a4") to KeptVersion("v4-list", savedAt = Instant.EPOCH),
+				),
+			),
+			pages.versions.value,
+		)
 	}
 
 	@Test
@@ -453,7 +507,13 @@ class DownloadUnreadOfflineTest {
 			listOf(
 				listOf(readerUrl("a2"), readerUrl("a3")),
 				OfflineDownloadProgress(completed = 3, total = 3),
-				DownloadedVersions(mapOf("a1" to "v1", "a2" to "v2-new", "a3" to "v3")),
+				DownloadedVersions(
+					mapOf(
+						readerUrl("a1") to KeptVersion("v1", savedAt = Instant.EPOCH),
+						readerUrl("a2") to KeptVersion("v2-new", savedAt = Instant.EPOCH),
+						readerUrl("a3") to KeptVersion("v3", savedAt = Instant.EPOCH),
+					),
+				),
 			),
 			listOf(prefetcher.urls, reports.last(), pages.versions.value),
 		)
@@ -539,7 +599,7 @@ class DownloadUnreadOfflineTest {
 		val outcome = download(RecordingPrefetcher()).run(START) { reports += it }
 
 		assertEquals(
-			listOf(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2), OfflineDownloadProgress(completed = 2, total = 2)),
+			listOf(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 0, total = 2), OfflineDownloadProgress(completed = 2, total = 2)),
 			listOf(outcome, reports.last()),
 		)
 	}
@@ -620,7 +680,13 @@ class DownloadUnreadOfflineTest {
 	}
 
 	private object Fixtures {
-		fun article(id: String, readLink: Boolean = true, processing: Boolean = false, contentVersion: String? = null): String {
+		fun article(
+			id: String,
+			readLink: Boolean = true,
+			processing: Boolean = false,
+			contentVersion: String? = null,
+			contentState: String? = if (processing) "processing" else "available",
+		): String {
 			val links = if (readLink) """[{ "rel": ["read"], "href": "/queue/$id/view" }]""" else "[]"
 			val processingProperty = if (processing) {
 				""", "processing": { "label": "Processing", "refresh": { "href": "/queue/$id", "afterSeconds": 3 } }"""
@@ -628,11 +694,12 @@ class DownloadUnreadOfflineTest {
 				""
 			}
 			val versionProperty = if (contentVersion != null) """, "contentVersion": "$contentVersion"""" else ""
+			val stateProperty = if (contentState != null) """, "contentState": "$contentState"""" else ""
 			return """
 				{
 					"class": ["article"],
 					"rel": ["item"],
-					"properties": { "id": "$id", "url": "https://example.com/$id", "title": "$id", "status": "unread"$processingProperty$versionProperty },
+					"properties": { "id": "$id", "url": "https://example.com/$id", "title": "$id", "status": "unread"$processingProperty$versionProperty$stateProperty },
 					"links": $links
 				}
 			"""
