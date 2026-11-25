@@ -497,6 +497,10 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			pinReadlistDefinition: articleStoreMemory.pinReadlistDefinition,
 			unpinReadlistDefinition: articleStoreMemory.unpinReadlistDefinition,
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
+			setSmartReadlistRule: articleStoreMemory.setSmartReadlistRule,
+			turnOffSmartReadlistMatching: articleStoreMemory.turnOffSmartReadlistMatching,
+			findSmartMatchRevisions: articleStoreMemory.findSmartMatchRevisions,
+			recordSmartMatchRevision: articleStoreMemory.recordSmartMatchRevision,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: async ({ url, viewer }) =>

@@ -3,6 +3,7 @@ import {
 	initCanonicalAliasStore,
 	initDynamoDbArticleCrawl,
 	initDynamoDbGeneratedSummary,
+	initDynamoDbReadlistDefinitions,
 	initDynamoDbSavedArticleStore,
 	initS3ReadContent,
 } from "@packages/article-store";
@@ -43,6 +44,10 @@ const crawlStore = initDynamoDbArticleCrawl({ client: dynamoClient, tableName: a
 const summaryStore = initDynamoDbGeneratedSummary({ client: dynamoClient, tableName: articlesTable, now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const onboardingSignals = initOnboardingSignals({ client: dynamoClient, onboardingTableName: onboardingTable, now });
+const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+	client: dynamoClient,
+	userArticlesTableName: userArticlesTable,
+});
 const { putTierSource } = initPutTierSource({ client: s3Client, bucketName: contentBucketName });
 
 export const handler = initSaveEmailIssueCommandHandler({
@@ -66,6 +71,7 @@ export const handler = initSaveEmailIssueCommandHandler({
 			.findByUserId,
 		now,
 	}),
+	listReadlistDefinitions,
 	putTierSource,
 	recordInboxArticleQueued: onboardingSignals.recordInboxArticleQueued,
 	publishEvent,

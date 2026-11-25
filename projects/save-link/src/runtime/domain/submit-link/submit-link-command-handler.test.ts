@@ -377,7 +377,8 @@ describe("initSubmitLinkCommandHandler", () => {
 			},
 		});
 		const filter = initFilterEmailLinksHandler({
-			listReadlistDefinitions: store.listReadlistDefinitions,
+			listReadlistDefinitions: async (owner) =>
+				(await store.listReadlistDefinitions(owner)).map(({ filing: _legacyRowsHaveNoFilingMode, ...definition }) => definition),
 			listReadlistFitOverrides: store.listReadlistFitOverrides,
 			admitTriagedMessage: initAdmitTriagedMessage({
 				listLinksByEmail: inboxEmailLinks.listLinksByEmail,

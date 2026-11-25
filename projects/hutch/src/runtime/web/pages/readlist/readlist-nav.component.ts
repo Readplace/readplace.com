@@ -128,6 +128,9 @@ export interface ReadlistNavItem {
 	itemClass: string;
 	linkClass: string;
 	isActive: boolean;
+	smart: boolean;
+	smartLabel: boolean;
+	accessibleName: string;
 }
 
 interface ReadlistNavPopover {
@@ -143,7 +146,7 @@ export interface ReadlistNavDisplayModel {
 	items: readonly ReadlistNavItem[];
 	popovers: readonly ReadlistNavPopover[];
 	moreCount: number;
-	current: { title: string; iconName: IconName };
+	current: { title: string; iconName: IconName; smart: boolean };
 	createForms: readonly ReadlistCreateForm[];
 	limitForms: readonly ReadlistLimitForm[];
 }
@@ -269,6 +272,9 @@ function navItem(input: {
 		itemClass: `${classes.item}${isActive ? classes.selected : ""}`,
 		linkClass: classes.link,
 		isActive,
+		smart: readlist.smart === true,
+		smartLabel: readlist.smart === true && isActive,
+		accessibleName: t("readlistSmart.accessibleName", { name: readlist.label }),
 		autofocus: input.autofocus,
 		menuHtml: render(MENU_TEMPLATE, {
 			...menu,
@@ -346,7 +352,7 @@ export function buildReadlistNav(
 		items,
 		popovers,
 		moreCount: layout.moreCount,
-		current: { title: current.title, iconName: current.iconName },
+		current: { title: current.title, iconName: current.iconName, smart: current.smart },
 		createForms: input.canCreate
 			? [
 					{

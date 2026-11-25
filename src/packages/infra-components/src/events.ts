@@ -1274,7 +1274,7 @@ export const EmailLinksFilteredEvent = defineEvent({
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
 		readlistLabel: z.string(),
-		decision: z.enum(["filtered", "no-purpose", "readlist-missing"]),
+		decision: z.enum(["filtered", "no-purpose", "readlist-missing", "smart-matching"]),
 		fit: z.array(
 			z.object({
 				ordinal: z.string(),
@@ -1817,3 +1817,35 @@ export const HighlightsReanchoredEvent = defineEvent({
 	}),
 });
 export type HighlightsReanchoredDetail = z.infer<typeof HighlightsReanchoredEvent.detailSchema>;
+
+export const MatchSmartReadlistsCommand = defineEvent({
+	name: "match-smart-readlists-command",
+	source: "hutch.app",
+	detailType: "MatchSmartReadlistsCommand",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		storedKey: z.string().min(1),
+		savedAt: z.iso.datetime(),
+	}),
+});
+export type MatchSmartReadlistsDetail = z.infer<typeof MatchSmartReadlistsCommand.detailSchema>;
+
+export const SmartReadlistsMatchedEvent = defineEvent({
+	name: "smart-readlists-matched",
+	source: "hutch.save-link",
+	detailType: "SmartReadlistsMatched",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		storedKey: z.string().min(1),
+		outcome: z.enum(["matched", "paid-plan-required", "not-in-all", "nothing-to-match", "not-an-article"]),
+		readlists: z.array(
+			z.object({
+				readlist: z.string(),
+				revision: z.number().int().nonnegative(),
+				verdict: z.enum(["keep", "drop", "unsure"]),
+				filing: z.enum(["filed", "newer-row-won", "readlist-gone", "removed-after-request", "not-in-all", "smart-rule-changed"]).optional(),
+			}),
+		),
+	}),
+});
+export type SmartReadlistsMatchedDetail = z.infer<typeof SmartReadlistsMatchedEvent.detailSchema>;

@@ -98,8 +98,13 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 			};
 
 			const definitions = await deps.listReadlistDefinitions(userId);
-			if (!definitions.some((definition) => definition.slug === readlist)) {
+			const target = definitions.find((definition) => definition.slug === readlist);
+			if (target === undefined) {
 				skip("readlist-gone");
+				return;
+			}
+			if (target.filing?.mode === "smart" && detail.fit.source.kind === "email") {
+				skip("smart-matching");
 				return;
 			}
 			const found = await deps.findSavedArticleForLink({ userId, url: detail.url });

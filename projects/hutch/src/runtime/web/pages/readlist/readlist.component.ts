@@ -364,6 +364,7 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 					key: "readlist-create",
 					action: readlistCreateAction(rail.newReadlistAction),
 					hiddenFields: [],
+					smart: { checked: false, purpose: "" },
 				})
 			: "",
 	};

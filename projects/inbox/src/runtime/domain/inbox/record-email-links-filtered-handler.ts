@@ -22,7 +22,7 @@ const FilteredFactSchema = InboxReadlistOutcomeSchema.extend({
 	scope: z.enum(["email", "link"]),
 	userId: UserIdSchema,
 	receivedAtMessageId: z.string(),
-	decision: z.enum(["filtered", "no-purpose", "readlist-missing"]),
+	decision: z.enum(["filtered", "no-purpose", "readlist-missing", "smart-matching"]),
 });
 
 const FilterFailedFactSchema = z.object({

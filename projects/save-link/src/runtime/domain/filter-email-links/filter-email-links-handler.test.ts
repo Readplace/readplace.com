@@ -618,6 +618,57 @@ describe("initFilterEmailLinksHandler", () => {
 		expect(harness.unsureLines).toEqual([]);
 	});
 
+	it("leaves a Smart Readlist's links to its matching, without asking the model or filing them", async () => {
+		const harness = makeHarness({
+			definitions: [
+				{
+					...workDefinition(PURPOSE),
+					filing: { mode: "smart", revision: 1, effectiveAt: new Date("2026-09-20T00:00:00.000Z") },
+				},
+			],
+		});
+
+		await harness.run(TRIAGED);
+
+		expect(harness.decisions).toEqual([]);
+		expect(harness.published).toEqual([
+			{
+				detailType: "EmailLinksFiltered",
+				detail: {
+					scope: "email",
+					userId: USER,
+					receivedAtMessageId: RAM,
+					readlist: "a1b2c3d4",
+					readlistLabel: "Work",
+					decision: "smart-matching",
+					fit: [],
+					inputTokens: 0,
+					outputTokens: 0,
+					reasoningTokens: 0,
+				},
+			},
+		]);
+		expect(harness.decidedLines).toEqual([]);
+	});
+
+	it("files every link in the no-purpose form when a manual readlist still stores a purpose", async () => {
+		const harness = makeHarness({ definitions: [{ ...workDefinition(PURPOSE), filing: { mode: "manual" } }] });
+
+		await harness.run(TRIAGED);
+
+		expect(harness.decisions).toEqual([]);
+		expect(filings(harness.published)).toEqual(
+			TRIAGED.links.map((link) => ({
+				url: link.url,
+				userId: USER,
+				readlist: "a1b2c3d4",
+				provenance: EMAIL_PROVENANCE,
+				fit: { kind: "no-purpose", source: { kind: "email", receivedAtMessageId: RAM, ordinal: link.ordinal } },
+			})),
+		);
+		expect(harness.published.at(-1)?.detail).toMatchObject({ decision: "no-purpose", readlistLabel: "Work", fit: [] });
+	});
+
 	it("fails a triage aimed at All, which is never filtered", async () => {
 		const harness = makeHarness({});
 

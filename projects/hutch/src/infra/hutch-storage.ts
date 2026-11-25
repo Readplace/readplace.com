@@ -91,6 +91,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 		this.userArticlesTable = new aws.dynamodb.Table(`hutch-user-articles`, {
 			name: args.tableNames.userArticles,
 			billingMode: "PAY_PER_REQUEST",
+			streamEnabled: true,
+			streamViewType: "NEW_IMAGE",
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },
 			hashKey: "userId",

@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
-import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
+import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DynamoDbStreamBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
 import {
 	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
@@ -99,6 +99,7 @@ import { SUBSCRIPTION_EVENTS_ENV } from "../runtime/subscription-events.env";
 import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "../runtime/send-trial-feedback-email.env";
 import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-email-notice.env";
 import { REANCHOR_HIGHLIGHTS_ENV } from "../runtime/reanchor-highlights.env";
+import { SMART_READLIST_INTAKE_ENV } from "../runtime/smart-readlist-intake.env";
 import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
 import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
@@ -1806,6 +1807,36 @@ new aws.cloudwatch.LogMetricFilter("highlights-orphaned-filter", {
 		defaultValue: "0",
 		unit: "Count",
 	},
+});
+
+const smartReadlistIntakeUserArticlesDynamodb = new DynamoDBAccess("smart-readlist-intake-user-articles-dynamodb", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
+});
+
+const smartReadlistIntakeLambda = new Lambda("smart-readlist-intake", {
+	entryPoint: "./src/runtime/smart-readlist-intake.main.ts",
+	outputDir: ".lib/smart-readlist-intake",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environmentNames: SMART_READLIST_INTAKE_ENV,
+	environment: {
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...smartReadlistIntakeUserArticlesDynamodb.policies],
+});
+
+eventBus.grantPublish(smartReadlistIntakeLambda);
+
+new DynamoDbStreamBackedLambda("smart-readlist-intake", {
+	lambda: smartReadlistIntakeLambda,
+	streamArn: storage.userArticlesTable.streamArn,
+	eventNames: ["INSERT"],
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 10,
+	maximumRetryAttempts: 3,
 });
 
 // --- Gmail forwarding filter worker ---

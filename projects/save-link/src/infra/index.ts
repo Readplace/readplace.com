@@ -36,6 +36,7 @@ import {
 	ComputeRelatedPastReadsCommand,
 	ComputeRelatedPassesCommand,
 	EmailLinksTriagedEvent,
+	MatchSmartReadlistsCommand,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
@@ -63,6 +64,10 @@ import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "../runtime/domain/re
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "../runtime/domain/filter-email-links/max-receive-count";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
+import {
+	MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT,
+	MATCH_SMART_READLISTS_TIMEOUTS,
+} from "../runtime/domain/match-smart-readlists/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
@@ -91,6 +96,7 @@ import { ANONYMOUS_LINK_SAVED_ENV } from "../runtime/anonymous-link-saved.env";
 import { CANONICAL_CONTENT_CHANGED_ENV } from "../runtime/canonical-content-changed.env";
 import { COMPUTE_RELATED_ARTICLES_ENV } from "../runtime/compute-related-articles.env";
 import { FILTER_EMAIL_LINKS_ENV } from "../runtime/filter-email-links.env";
+import { MATCH_SMART_READLISTS_ENV } from "../runtime/match-smart-readlists.env";
 import { FILE_ARTICLE_INTO_READLIST_ENV } from "../runtime/file-article-into-readlist.env";
 import { RECRAWL_LINK_INITIATED_ENV } from "../runtime/recrawl-link-initiated.env";
 import { RECRAWL_CONTENT_EXTRACTED_ENV } from "../runtime/recrawl-content-extracted.env";
@@ -1897,6 +1903,62 @@ const filterEmailLinksLambdaWithSQS = new SqsBackedLambda("filter-email-links", 
 });
 
 eventBus.subscribe(EmailLinksTriagedEvent, filterEmailLinksLambdaWithSQS);
+
+const matchSmartReadlistsQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.matchSmartReadlists, {
+	visibilityTimeoutSeconds: MATCH_SMART_READLISTS_TIMEOUTS.sqsVisibilitySeconds,
+	dlqMaxReceiveCount: MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT,
+});
+
+const matchSmartReadlistsUserArticlesDynamodb = new DynamoDBAccess("match-smart-readlists-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem"],
+});
+
+const matchSmartReadlistsSubscriptionProvidersDynamodb = new DynamoDBAccess(
+	"match-smart-readlists-subscription-providers-dynamodb",
+	{
+		tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem"],
+	},
+);
+
+const matchSmartReadlistsArticlesDynamodb = new DynamoDBAccess("match-smart-readlists-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+
+const matchSmartReadlistsLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.matchSmartReadlists, {
+	entryPoint: "./src/runtime/match-smart-readlists.main.ts",
+	outputDir: ".lib/match-smart-readlists",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: MATCH_SMART_READLISTS_TIMEOUTS.lambdaSeconds,
+	environmentNames: MATCH_SMART_READLISTS_ENV,
+	environment: {
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		READLIST_FIT_ENGINE: readlistFitEngine,
+	},
+	policies: [
+		...matchSmartReadlistsUserArticlesDynamodb.policies,
+		...matchSmartReadlistsSubscriptionProvidersDynamodb.policies,
+		...matchSmartReadlistsArticlesDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(matchSmartReadlistsLambda);
+
+const matchSmartReadlistsLambdaWithSQS = new SqsBackedLambda("match-smart-readlists", {
+	lambda: matchSmartReadlistsLambda,
+	queue: matchSmartReadlistsQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(MatchSmartReadlistsCommand, matchSmartReadlistsLambdaWithSQS);
 
 const fileArticleIntoReadlistQueue = new Sqs("file-article-into-readlist", {
 	visibilityTimeoutSeconds: 300,

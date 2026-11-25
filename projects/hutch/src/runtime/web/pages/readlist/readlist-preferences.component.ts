@@ -52,6 +52,7 @@ import {
 } from "./readlist-purpose-card.component";
 import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
 import type { ReadlistRailViewModel } from "./readlist-rail";
+import { type ReadlistFilingMode, renderReadlistSmartFiling } from "./readlist-smart-filing.component";
 import { readlistReturnQuery } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
@@ -137,6 +138,9 @@ export interface ReadlistPreferencesViewModel {
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	wizardOpen: boolean;
 	purposeError?: string;
+	filing: ReadlistFilingMode;
+	smartPurpose: string | undefined;
+	smartError: string | undefined;
 	inboxes: readonly InboxAddressEntry[];
 	inboxCreate: { submittedName: string | undefined; error: InboxNameError | undefined };
 	inboxCreated: AliasName | undefined;
@@ -178,6 +182,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		wizardOpenClasses: vm.wizardOpen ? [WIZARD_OPEN_CLASS] : [],
 	});
 	const panels = readlistPanels(vm.rail);
+	const smart = vm.filing === "smart";
 	const side = readlistSideColumn({
 		banner: vm.subscriptionBanner,
 		onboarding: vm.onboarding,
@@ -210,17 +215,26 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		setupActions: controls.setupActions,
 		setupLocks: controls.setupLocks,
 		inlineWizards: controls.inlineWizards,
-		inboxesHtml: renderReadlistInboxes(
-			buildReadlistInboxes({
-				readlist: vm.readlist,
-				inboxes: vm.inboxes,
-				readlists: vm.rail.readlists,
-				create: vm.inboxCreate,
-				standing,
-				offer: vm.rail.offer,
-			}),
-		),
-		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
+		smartFilingHtml: renderReadlistSmartFiling({
+			slug: vm.readlist.slug,
+			mode: vm.filing,
+			purpose: vm.smartPurpose,
+			paidFeaturesLocked: vm.paidFeaturesLocked,
+			error: vm.smartError,
+		}),
+		inboxesHtml: smart
+			? ""
+			: renderReadlistInboxes(
+				buildReadlistInboxes({
+					readlist: vm.readlist,
+					inboxes: vm.inboxes,
+					readlists: vm.rail.readlists,
+					create: vm.inboxCreate,
+					standing,
+					offer: vm.rail.offer,
+				}),
+			),
+		gmailSendersHtml: smart || vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
 		choicesHtml: renderReadlistFitChoices({
 			readlist: vm.readlist,
 			choices: vm.choices,

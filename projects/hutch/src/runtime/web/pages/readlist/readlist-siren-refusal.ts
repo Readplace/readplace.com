@@ -8,6 +8,7 @@ type ReadlistRefusalCode =
 	| "invalid-name"
 	| "reserved-name"
 	| "name-taken"
+	| "invalid-purpose"
 	| "limit-reached"
 	| "pin-limit-reached";
 
@@ -17,6 +18,7 @@ const REFUSAL_STATUS: Record<ReadlistRefusalCode, 404 | 422> = {
 	"invalid-name": 422,
 	"reserved-name": 422,
 	"name-taken": 422,
+	"invalid-purpose": 422,
 	"limit-reached": 422,
 	"pin-limit-reached": 422,
 };

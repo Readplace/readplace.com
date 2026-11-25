@@ -1,6 +1,7 @@
 
 import assert from "node:assert";
-import type { Request, Response, Router } from "express";
+import type { Request, RequestHandler, Response, Router } from "express";
+import { z } from "zod";
 import express from "express";
 import type { UserId } from "@packages/domain/user";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -15,6 +16,7 @@ import {
 import {
 	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
+	parseReadlistPurpose,
 	type ReadlistSlug,
 	decideReadlistDelete,
 	decideReadlistMigration,
@@ -35,10 +37,18 @@ import type { ReadlistShared, } from "./readlist-shared";
 
 const READLIST_PURGE_PAGE_SIZE = 25;
 
+const ReadlistCreateBodySchema = z
+	.object({
+		label: z.string().catch(""),
+		smart: z.literal("1").optional().catch(undefined),
+		purpose: z.string().catch(""),
+	})
+	.catch({ label: "", smart: undefined, purpose: "" });
+
 export function initReadlistQueueRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findReadlistArticles" | "upsertReadlist" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "moveReadlistArticles" | "purgeReadlistFitOverrides" | "deleteReadlistDefinition" | "now"
+		"findReadlistArticles" | "upsertReadlist" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "moveReadlistArticles" | "purgeReadlistFitOverrides" | "deleteReadlistDefinition" | "now" | "requirePaidFeatures" | "setSmartReadlistRule"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -64,12 +74,23 @@ export function initReadlistQueueRoutes(
 		}
 	};
 
-	router.post("/queues", requireNotLocked, async (req: Request, res: Response) => {
+	const requirePaidFeaturesForSmart: RequestHandler = (req, res, next) => {
+		if (ReadlistCreateBodySchema.parse(req.body).smart === undefined) {
+			next();
+			return;
+		}
+		deps.requirePaidFeatures(req, res, next);
+	};
+
+	router.post("/queues", requireNotLocked, requirePaidFeaturesForSmart, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
-		const label = typeof req.body?.label === "string" ? req.body.label : "";
-		const outcome = await deps.upsertReadlist({ userId, name: label });
+		const body = ReadlistCreateBodySchema.parse(req.body);
+		const label = body.label;
+		const smartPurpose = body.smart === undefined ? undefined : parseReadlistPurpose(body.purpose) ?? null;
+		const outcome =
+			smartPurpose === null ? { status: "invalid-purpose" as const } : await deps.upsertReadlist({ userId, name: label });
 		const refused = (reason: ReadlistCreateDialogRejection): ReadlistNaming => ({
 			refusal: buildReadlistUrl(context.state, [["queue_error", `create_${reason}`]]),
 			form: () =>
@@ -80,9 +101,18 @@ export function initReadlistQueueRoutes(
 					value: label,
 					error: READLIST_CREATE_REJECTIONS[reason].message,
 					hiddenFields: [],
+					smart: { checked: body.smart !== undefined, purpose: body.purpose },
 				}),
 			siren: { code: reason, message: READLIST_CREATE_REJECTIONS[reason].message },
 		});
+		if (typeof smartPurpose === "string" && outcome.status === "ok" && outcome.created) {
+			await deps.setSmartReadlistRule({
+				userId,
+				slug: outcome.readlist.slug,
+				purpose: smartPurpose,
+				effectiveAt: deps.now(),
+			});
+		}
 		const naming = ((): ReadlistNaming => {
 			switch (outcome.status) {
 				case "ok":
@@ -94,6 +124,7 @@ export function initReadlistQueueRoutes(
 					};
 				case "invalid-name":
 				case "reserved-name":
+				case "invalid-purpose":
 					return refused(outcome.status);
 				case "limit-reached":
 					return {

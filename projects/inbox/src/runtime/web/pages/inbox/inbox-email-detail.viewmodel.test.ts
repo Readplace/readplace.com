@@ -1263,12 +1263,12 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		]);
 	});
 
-	it("says nothing about a readlist that no longer exists", () => {
+	it.each(["readlist-missing", "smart-matching"] as const)("says nothing about a readlist decided %s", (decision) => {
 		const vm = build({
 			links: [kept("0000")],
 			linksMeta: routedMeta({
 				eligibleArticleCount: 1,
-				readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision: "readlist-missing", fit: [] }],
+				readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision, fit: [] }],
 			}),
 		});
 

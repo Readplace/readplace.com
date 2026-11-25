@@ -164,6 +164,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistPreferencesRoutes({
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			setSmartReadlistRule: deps.setSmartReadlistRule,
+			turnOffSmartReadlistMatching: deps.turnOffSmartReadlistMatching,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
@@ -267,6 +269,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				moveReadlistArticles: deps.moveReadlistArticles,
 				purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,
 				deleteReadlistDefinition: deps.deleteReadlistDefinition,
+				requirePaidFeatures: deps.requirePaidFeatures,
+				setSmartReadlistRule: deps.setSmartReadlistRule,
 				now: deps.now,
 			},
 			shared,

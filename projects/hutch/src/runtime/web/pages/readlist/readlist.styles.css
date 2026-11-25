@@ -160,6 +160,18 @@
   outline-offset: 2px;
 }
 
+.readlist-nav__smart {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-inline-start: 4px;
+  color: var(--primary-text);
+}
+
+.readlist-nav__smart-label {
+  flex-shrink: 0;
+  margin-inline-start: 6px;
+}
+
 .readlist-nav__switcher-chevron {
   display: inline-flex;
   justify-content: center;

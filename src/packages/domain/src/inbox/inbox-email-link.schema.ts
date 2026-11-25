@@ -49,7 +49,7 @@ export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;
 export const InboxReadlistOutcomeSchema = z.object({
 	readlist: ReadlistSlugSchema,
 	readlistLabel: z.string().min(1),
-	decision: z.enum(["filtered", "no-purpose", "readlist-missing", "failed"]),
+	decision: z.enum(["filtered", "no-purpose", "readlist-missing", "smart-matching", "failed"]),
 	fit: z.array(
 		z.object({
 			ordinal: EmailLinkOrdinalSchema,
