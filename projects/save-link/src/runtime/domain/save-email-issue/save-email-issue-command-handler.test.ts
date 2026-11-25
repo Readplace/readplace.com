@@ -225,6 +225,13 @@ describe("initSaveEmailIssueCommandHandler", () => {
 		assert.deepEqual(harness.requests, [new Date(TIME)]);
 	});
 
+	it("uses the original newsletter delivery time when the extractor publishes later", async () => {
+		const harness = makeHarness({});
+		const requestedAt = NOW.toISOString();
+		await harness.run({ ...COMMAND, requestedAt });
+		assert.deepEqual(harness.requests, [NOW]);
+	});
+
 	it("fails a record whose body carries no envelope time", async () => {
 		const harness = makeHarness({});
 

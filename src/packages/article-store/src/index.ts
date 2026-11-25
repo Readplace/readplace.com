@@ -75,3 +75,6 @@ export { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";
 export { initDynamoDbPrivateItem } from "./dynamodb-private-item";
 export { initDynamoDbPrivateItemMedia } from "./dynamodb-private-item-media";
 export { initDynamoDbFindQueueRowKeys } from "./dynamodb-queue-row-keys";
+export { BULK_ARTICLE_JOB_PREFIX, canonicalRemovalKey, readlistDefinitionKey, readlistPartitionValue } from "./user-readlist-partition";
+
+export { readlistRemovedAtAttribute } from "./readlist-removal-marker";

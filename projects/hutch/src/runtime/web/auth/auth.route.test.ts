@@ -121,7 +121,7 @@ describe("Auth routes", () => {
 			const response = await agent.get("/login");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		});
 
 		it("should include return URL in form action when provided", async () => {
@@ -218,7 +218,7 @@ describe("Auth routes", () => {
 				.send({ email: "test@example.com", password: "password123" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
 			// Persistent (not a bare session cookie) so an already-signed-in browser —
 			// e.g. iOS Chrome-first login — still carries it after the browser closes.
@@ -304,7 +304,7 @@ describe("Auth routes", () => {
 				.send({ email: "test@example.com", password: "password123" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		});
 
 		it("should ignore non-relative return URLs", async () => {
@@ -318,7 +318,7 @@ describe("Auth routes", () => {
 				.send({ email: "test@example.com", password: "password123" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		});
 
 		it("should show validation error for empty email", async () => {
@@ -512,7 +512,7 @@ describe("Auth routes", () => {
 			const response = await agent.get("/signup");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		});
 
 		it("should include return URL in form action when provided", async () => {
@@ -585,7 +585,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
 			expect(response.headers["clear-site-data"]).toBe('"storage"');
 
@@ -616,7 +616,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
 
 			const lookup = await auth.findUserByEmail("trial@example.com");
@@ -723,7 +723,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("should send the email verification email on free signup", async () => {
@@ -1018,7 +1018,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 		});
 
@@ -1050,7 +1050,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 		}, 30000);
 
@@ -1068,7 +1068,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(response.headers["clear-site-data"]).toBe('"storage"');
 			const sent = email.getSentEmails();
 			const verification = sent.find((m) => m.to === "verify-trial@example.com");
@@ -1090,7 +1090,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(successResponse.status).toBe(303);
-			expect(successResponse.headers.location).toBe("/queue");
+			expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("should redirect to return URL after successful Stripe checkout", async () => {
@@ -1126,7 +1126,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(successResponse.status).toBe(303);
-			expect(successResponse.headers.location).toBe("/queue");
+			expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("should ignore non-relative return URLs on signup", async () => {
@@ -1144,7 +1144,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(successResponse.status).toBe(303);
-			expect(successResponse.headers.location).toBe("/queue");
+			expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("signs in to the existing account instead of creating one when the email is registered and the password matches", async () => {
@@ -1159,7 +1159,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 			expect(response.headers["clear-site-data"]).toBe('"storage"');
 			expect(await auth.countUsers()).toBe(1);
@@ -1408,7 +1408,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		});
 
 		it("still creates the account for a crawler-submitted signup but emits no user_created conversion, so the acquisition count a launch is judged on only ever moves for a real client", async () => {
@@ -1763,7 +1763,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("redirects a free signup to a plain /queue when no hutch_lastview cookie is present", async () => {
@@ -1777,7 +1777,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("ignores a tampered hutch_lastview cookie and redirects to a plain /queue", async () => {
@@ -1795,7 +1795,7 @@ describe("Auth routes", () => {
 				});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 		}, 30000);
 
 		it("auto-saves through the trial signup branch when the founding allocation is exhausted", async () => {
@@ -2041,7 +2041,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(retried.status).toBe(303);
-			expect(retried.headers.location).toBe("/queue");
+			expect(retried.headers.location).toBe("/queue?scope=hand-picked");
 			const created = await harness.auth.findUserByEmail("recovered@example.com");
 			assert(created, "the retried signup must persist a user");
 		});
@@ -2084,7 +2084,7 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(botDefense.events).toEqual([]);
 
 			const lookup = await auth.findUserByEmail("real@example.com");

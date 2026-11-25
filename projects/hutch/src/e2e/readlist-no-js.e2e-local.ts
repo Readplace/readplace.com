@@ -67,7 +67,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 	}
 
 	async function loginAs(page: Page, email: string): Promise<void> {
-		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 		await page.locator("#email").fill(email);
 		await page.locator("#password").fill(PASSWORD);
 		await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -128,6 +128,22 @@ test.describe("The readlist is whole without client JavaScript", () => {
 			await step.getByRole("button", { name: "Open Smart Readlist" }).press("Enter");
 			await expect(page).toHaveURL((url) => url.searchParams.get("queue") === slug);
 		});
+	});
+
+	test("previews removal and restores the original page through the shared action menu", async ({ page }, testInfo) => {
+		await loginAs(page, await seedArticle(page, `bulk-${testInfo.workerIndex}-${Date.now()}`));
+		await page.getByText("Manage articles", { exact: true }).click();
+		const toggle = page.locator("form[action*='/manage/preview'] summary.menu__toggle");
+		await toggle.focus();
+		await toggle.press("Enter");
+		await page.getByRole("button", { name: "Remove from “All”" }).click();
+		await expect(page.getByText("Ready to confirm", { exact: true })).toBeVisible();
+		await page.getByRole("button", { name: "Confirm", exact: true }).click();
+		await expect(page.getByText("Finished", { exact: true })).toBeVisible();
+		await page.getByRole("button", { name: "Restore removed articles" }).click();
+		await expect(page.getByText("Restore finished", { exact: true })).toBeVisible();
+		await page.getByRole("link", { name: "Back to All" }).click();
+		await expect(page.locator("[data-test-article-title]")).toHaveText("A saved article");
 	});
 
 	test("reading an article and marking it read work as plain form submits", async ({

@@ -1,3 +1,6 @@
+import { newsletterSourceStore, type NewsletterSourceDependencies } from "./newsletter-source";
+import type { ManagedArticleSource } from "./readlist.url";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	CountArticlesByUser,
@@ -23,7 +26,7 @@ export interface ReadlistScopedStore {
 }
 
 export interface ReadlistScopedStoreDependencies
-	extends ReadlistBoundArticleStoreDependencies,
+	extends ReadlistBoundArticleStoreDependencies, NewsletterSourceDependencies,
 		ReadlistScopedStore {
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
@@ -33,6 +36,9 @@ export interface ReadlistScopedStoreDependencies
 export function readlistScopedStore(
 	deps: ReadlistScopedStoreDependencies,
 	readlist: ReadlistSlug,
+	reviewOlder = false,
+	managedSource?: ManagedArticleSource,
+	sender?: string,
 ): ReadlistScopedStore {
 	const mainline: ReadlistScopedStore = {
 		findArticlesByUser: deps.findArticlesByUser,
@@ -41,7 +47,30 @@ export function readlistScopedStore(
 		deleteArticle: deps.deleteArticle,
 		markArticleViewed: deps.markArticleViewed,
 	};
-	if (readlist === DEFAULT_READLIST_SLUG) return mainline;
+	if (readlist === DEFAULT_READLIST_SLUG && managedSource === "sender") return { ...mainline, ...newsletterSourceStore(deps, sender) };
+	if (readlist === DEFAULT_READLIST_SLUG && (managedSource === "bulk" || managedSource === "unknown")) return {
+		...mainline,
+		findArticlesByUser: query => deps.findArticlesByUser({ ...query, managedOrigin: managedSource }),
+		countArticlesByUser: query => deps.countArticlesByUser({ ...query, managedOrigin: managedSource }),
+	};
+	if (readlist === DEFAULT_READLIST_SLUG && !reviewOlder && !managedSource) return mainline;
+	const uncertain = reviewOlder;
+	const personalScope = uncertain ? "uncertain" : "picked";
+	if (readlist === HAND_PICKED_SCOPE || uncertain || managedSource === "picked") return {
+		...mainline,
+		findArticlesByUser: query => deps.findArticlesByUser({ ...query, personalScope }),
+		countArticlesByUser: async query => {
+			if (query.status) return deps.countArticlesByUser({ ...query, personalScope });
+			const unread = await deps.countArticlesByUser({ ...query, personalScope, status: "unread" });
+			if (query.countLimit !== undefined && unread >= query.countLimit) return query.countLimit;
+			return unread + await deps.countArticlesByUser({ ...query, countLimit: query.countLimit === undefined ? undefined : query.countLimit - unread, personalScope, status: "read" });
+		},
+		findArticleById: async (id, userId) => {
+			const article = await deps.findArticleById(id, userId);
+			const belongs = uncertain ? article?.personalReviewPending : article?.personalPickedAt;
+			return belongs ? article : null;
+		},
+	};
 	return {
 		...mainline,
 		...bindArticleStoreToReadlist(deps, readlist),

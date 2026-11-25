@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import {
 	type ReaderSectionInput,
 	requestedReaderSection,
@@ -59,6 +60,7 @@ import { wantsSiren } from "../../content-negotiation";
 import { FreshForComponent } from "../../conditional-get";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import {
+	buildReadlistUrl,
 	parseReadlistUrl,
 	READLIST_PATH,
 	readlistReturnQuery,
@@ -204,8 +206,9 @@ export const pastReadsPollUrlFor = (params: {
 	articleId: string;
 	pollCount: number;
 	surfaceQuery: string;
+	readlist?: ReadlistSlug;
 }): string =>
-	`${READLIST_PATH}/${params.articleId}/topic-reads?poll=${params.pollCount}${joinedSurfaceQuery(params.surfaceQuery)}`;
+	`${READLIST_PATH}/${params.articleId}/topic-reads?poll=${params.pollCount}${joinedSurfaceQuery(params.surfaceQuery)}${joinedSurfaceQuery(readlistReturnQuery({ readlist: params.readlist }).slice(1))}`;
 
 const { t: tReader } = translator(hutchReader, DEFAULT_LOCALE);
 
@@ -345,6 +348,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		saveArticleFromUrl,
 	});
 	const resolveReadlistContext = initResolveReadlistContext({
+		bulkEnabled: Boolean(deps.bulkArticles),
 		listReadlistDefinitions: deps.listReadlistDefinitions,
 		findSessionReadlistFilter: deps.findSessionReadlistFilter,
 	});
@@ -372,7 +376,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	 * The default readlist answers with the untouched mainline dependencies, so every
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own readlists. */
-	const storeFor = (readlist: ReadlistSlug) => readlistScopedStore(deps, readlist);
+	const storeFor = (readlist: ReadlistSlug, reviewOlder = false, source?: ReadlistUrlState["managedSource"], sender?: string) => readlistScopedStore(deps, readlist, reviewOlder, source, sender);
 
 	const rememberReadlistFilter = async (req: Request, filter: ReadlistFilter): Promise<void> => {
 		const sessionId = sessionIdOf(req);
@@ -471,7 +475,8 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			const parts: string[] = [];
 			const surface = nativeSurfaceQuery(req);
 			if (surface !== "") parts.push(surface);
-			if (readlist !== undefined) parts.push(`queue=${encodeURIComponent(readlist)}`);
+			if (readlist === HAND_PICKED_SCOPE) parts.push("scope=hand-picked");
+			else if (readlist !== undefined) parts.push(`queue=${encodeURIComponent(readlist)}`);
 			const query = parts.join("&");
 			return query === ""
 				? `${READLIST_PATH}/${articleId}/view`
@@ -479,7 +484,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		};
 
 	const readerReturnPath = (req: Request, articleId: string): string =>
-		readerPathFor(req)(articleId);
+		readerPathForReadlist(req)(articleId, requestReadlistContext(req).state.readlist === HAND_PICKED_SCOPE ? HAND_PICKED_SCOPE : undefined);
 
 	const epubGuideFor = (req: Request, article: SavedArticle): EpubDownloadGuide | undefined =>
 		isAppPlatform(req) || parseEmailIssueArticleUrl(article.url) !== undefined
@@ -718,7 +723,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	}): Promise<boolean> => {
 		if (params.result.articles.length > 0) return true;
 		if (params.state.discovery === undefined) return false;
-		const held = await storeFor(params.state.readlist).countArticlesByUser({
+		const held = await storeFor(params.state.readlist, params.state.reviewOlder, params.state.managedSource, params.state.sender).countArticlesByUser({
 			userId: params.userId,
 			status: tabQuery(params.state.tab).status,
 			countLimit: 1,
@@ -843,7 +848,17 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
 		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, offer: upgradeOffer, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), purpose: input.context.activePurpose };
-		const page = ReadlistPage(vm, { ...pageOptions, keepOffer, query: req.query });
+		let reviewOlderHref: string | undefined;
+		if (input.context.state.readlist === HAND_PICKED_SCOPE) {
+			for (const [tab, status] of [["queue", "unread"], ["done", "read"]] as const) {
+				if (await deps.countArticlesByUser({ userId: input.userId, status, personalScope: "uncertain", countLimit: 1 })) {
+					reviewOlderHref = buildReadlistUrl({ readlist: DEFAULT_READLIST_SLUG, tab, reviewOlder: true });
+					break;
+				}
+			}
+		}
+		const senders = input.context.state.managedSource === "sender" ? await deps.listReceivedSenders(input.userId) : [];
+		const page = ReadlistPage(vm, { ...pageOptions, bulkEnabled: Boolean(deps.bulkArticles), senders, reviewOlderHref, keepOffer, query: req.query });
 		if (keepOffer.shown) {
 			deps.recordAnalyticsEvent(
 				req,

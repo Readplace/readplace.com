@@ -111,7 +111,7 @@ async function seedEmailedCard(
 
 async function loginAs(page: Page, email: string): Promise<void> {
 	await page.addInitScript(disableLocalTimeTick);
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();

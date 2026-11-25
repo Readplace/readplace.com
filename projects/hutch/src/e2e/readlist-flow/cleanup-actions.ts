@@ -40,11 +40,13 @@ export function createCleanupActions(
 				return isOnPage(page, 'page-readlist')
 			},
 			execute: async (page) => {
+				await page.goto('/queue', { waitUntil: 'domcontentloaded' })
 				await clearCurrentTab(page)
 
 				await page.goto('/queue?tab=done', { waitUntil: 'domcontentloaded' })
 				await clearCurrentTab(page)
 
+				await page.goto('/queue', { waitUntil: 'domcontentloaded' })
 				cleanupProgress.previousArticlesDeleted = true
 			},
 		},

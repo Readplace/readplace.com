@@ -183,6 +183,28 @@ describe("saveArticleFromUrl", () => {
 		expect(triggers).toEqual([trigger]);
 	});
 
+	it("carries the originating request identity into an individual save", async () => {
+		const tracker = makeTracker();
+		const saveArticle = jest.fn(tracker.deps.saveArticle);
+		const personalPickAt = "2026-03-03T01:00:00.000Z";
+		await initSaveArticleFromUrl({ ...tracker.deps, saveArticle })({
+			userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt,
+			saveAttemptId, personalPickAt, freshness: { action: "new", identity: ownIdentity },
+		});
+		expect(saveArticle.mock.calls[0]?.[0].personalPick).toEqual({ requestedAt: personalPickAt, attemptId: saveAttemptId });
+	});
+
+	it("keeps a one-item batch identifiable as bulk when the client also supports individual saves", async () => {
+		const tracker = makeTracker();
+		const saveArticle = jest.fn(tracker.deps.saveArticle);
+		await initSaveArticleFromUrl({ ...tracker.deps, saveArticle })({
+			userId, url: exampleUrl, provenance, saveTrigger: "manual", bulkSave: true, personalPickAt: operationSavedAt.toISOString(), savedAt: operationSavedAt,
+			saveAttemptId, freshness: { action: "new", identity: ownIdentity },
+		});
+		expect(saveArticle.mock.calls[0]?.[0]).toMatchObject({ bulkSave: true });
+		expect(saveArticle.mock.calls[0]?.[0].personalPick).toBeUndefined();
+	});
+
 	it("writes an import commit's row as a reader's choice while still deferring its metered legs", async () => {
 		const tracker = makeTracker();
 		const triggers: SaveTrigger[] = [];
@@ -457,6 +479,19 @@ describe("saveArticleFromUrl", () => {
 		expect(storeSavedAt).toEqual([operationSavedAt]);
 	});
 
+	it("keeps the read time when an automatic delivery finds a read article", async () => {
+		const tracker = makeTracker(makeSaved({ status: "read", readAt: operationSavedAt }));
+		const result = await initSaveArticleFromUrl(tracker.deps)({
+			userId, url: exampleUrl, provenance: { kind: "email", senderEmail: "news@example.com" },
+			saveTrigger: "automatic", savedAt: operationSavedAt, saveAttemptId,
+			freshness: { action: "skip", identity: ownIdentity },
+		});
+		expect(tracker.calls.updateArticleStatusUnread).toBe(0);
+		expect(result.saved.readAt).toEqual(operationSavedAt);
+		expect(result.saved.status).toBe("read");
+		expect(result.resurfacedFromRead).toBe(false);
+	});
+
 	it("flips a previously-read article back to unread after a re-save", async () => {
 		const previouslyRead = makeSaved({ status: "read", readAt: new Date() });
 		const tracker = makeTracker(previouslyRead);
@@ -474,6 +509,35 @@ describe("saveArticleFromUrl", () => {
 		expect(result.saved.status).toBe("unread");
 		expect(result.saved.readAt).toBeUndefined();
 		expect(result.resurfacedFromRead).toBe(true);
+	});
+
+	it("returns the reader's later state when the saved snapshot changed before resurfacing", async () => {
+		const previous = makeSaved({ status: "read", readAt: operationSavedAt, statusRevision: 2 });
+		const later = { ...previous, readAt: new Date(operationSavedAt.getTime() + 1000), statusRevision: 4 };
+		const tracker = makeTracker(previous);
+		const updateArticleStatus = jest.fn().mockResolvedValue(later);
+		const result = await initSaveArticleFromUrl({ ...tracker.deps, updateArticleStatus })({
+			userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId,
+			freshness: { action: "skip", identity: ownIdentity },
+		});
+		expect(updateArticleStatus).toHaveBeenCalledWith(previous.id, userId, "unread", {
+			savedAt: previous.savedAt, readAt: previous.readAt, statusRevision: 2,
+		});
+		expect(result.saved).toEqual(later);
+		expect(result.resurfacedFromRead).toBe(false);
+	});
+
+	it("leaves a deleted article out of the resurfaced count and forwards bulk request time independently of picks", async () => {
+		const previous = makeSaved({ status: "read", readAt: operationSavedAt });
+		const tracker = makeTracker(previous);
+		const saveArticle = jest.fn(tracker.deps.saveArticle);
+		const result = await initSaveArticleFromUrl({ ...tracker.deps, saveArticle, updateArticleStatus: async () => null })({
+			userId, url: exampleUrl, provenance, saveTrigger, requestedAt: operationSavedAt.toISOString(), bulkSave: true,
+			savedAt: operationSavedAt, saveAttemptId, freshness: { action: "skip", identity: ownIdentity },
+		});
+		expect(saveArticle.mock.calls[0]?.[0].requestedAt).toEqual(operationSavedAt);
+		expect(saveArticle.mock.calls[0]?.[0].personalPick).toBeUndefined();
+		expect(result.resurfacedFromRead).toBe(false);
 	});
 
 	it("reports no resurfacing when the re-saved row was still unread", async () => {

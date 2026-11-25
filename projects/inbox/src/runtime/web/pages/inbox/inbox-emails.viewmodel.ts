@@ -68,6 +68,14 @@ export interface InboxEmailsPaginationLink {
 }
 
 export interface InboxEmailsViewModel {
+	senderFilter: {
+		currentLabel: string;
+		allSelected: boolean;
+		options: { address: string; selected: boolean }[];
+		label: string;
+		all: string;
+		action: string;
+	} | undefined;
 	countLabel: string;
 	empty: InboxEmailsEmptyViewModel | undefined;
 	rows: InboxEmailRowViewModel[];
@@ -133,8 +141,8 @@ function rowLinkCountLabel(entry: InboxEmailEntry): string {
 	);
 }
 
-function paginationHref(cursor: InboxEmailsCursor): string {
-	return withInternalTracking(buildInboxEmailsUrl({ cursor }), {
+function paginationHref(cursor: InboxEmailsCursor, sender: string | undefined): string {
+	return withInternalTracking(buildInboxEmailsUrl({ cursor, sender }), {
 		source: INBOX_PAGINATION_SOURCE,
 		content: cursor.direction,
 	});
@@ -142,6 +150,7 @@ function paginationHref(cursor: InboxEmailsCursor): string {
 
 function buildPaginationLinks(
 	result: ListInboxEmailsResult,
+	sender?: string,
 ): InboxEmailsPaginationLink[] {
 	return [
 		{
@@ -152,7 +161,7 @@ function buildPaginationLinks(
 				? paginationHref({
 						direction: "newer",
 						receivedAtMessageId: result.emails[0].receivedAtMessageId,
-					})
+					}, sender)
 				: undefined,
 		},
 		{
@@ -163,7 +172,7 @@ function buildPaginationLinks(
 				? paginationHref({
 						direction: "older",
 						receivedAtMessageId: result.emails[result.emails.length - 1].receivedAtMessageId,
-					})
+					}, sender)
 				: undefined,
 		},
 	];
@@ -195,14 +204,24 @@ export function toInboxEmailsViewModel(
 		activeAddresses: InboxEmptyAddressViewModel[];
 		paidFeaturesLocked: boolean;
 		highlight?: string;
+		sender?: string;
+		senders?: string[];
 	},
 ): InboxEmailsViewModel {
 	return {
+		senderFilter: options.senders?.length || options.sender ? {
+			currentLabel: options.sender ? (options.senders?.includes(options.sender) ? options.sender : t("senderFilter.unavailable")) : t("senderFilter.all"),
+			allSelected: !options.sender,
+			options: (options.senders ?? []).map(address => ({ address, selected: address === options.sender })),
+			label: t("senderFilter.label"),
+			all: t("senderFilter.all"),
+			action: buildInboxEmailsUrl({}),
+		} : undefined,
 		countLabel: buildCountLabel(result),
 		empty:
-			result.emails.length === 0 ? buildEmptyState(options) : undefined,
+			result.emails.length === 0 && options.sender === undefined ? buildEmptyState(options) : undefined,
 		showPagination: result.hasNewer || result.hasOlder,
-		paginationLinks: buildPaginationLinks(result),
+		paginationLinks: buildPaginationLinks(result, options.sender),
 		rows: result.emails.map((entry) => ({
 			href: withInternalTracking(
 				buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),
