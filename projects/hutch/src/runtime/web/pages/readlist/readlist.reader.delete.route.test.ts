@@ -134,7 +134,7 @@ describe("Deleting an article from the owner reader", () => {
 
 			const doc = parse((await agent.get(`/queue/${articleId}/view`)).text);
 
-			expect(deleteForm(doc).querySelector("button")?.textContent).toBe("Delete");
+			expect(deleteForm(doc).querySelector("button")?.textContent).toBe("Delete from this readlist");
 		});
 
 		it("renders the confirmation once, directly under <main> and outside every polled region", async () => {

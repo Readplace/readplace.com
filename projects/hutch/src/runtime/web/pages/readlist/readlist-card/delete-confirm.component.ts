@@ -64,7 +64,7 @@ export function renderDeleteMenuItems(input: { deletion: ArticleDeletion; surfac
 
 const DELETE_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{swap}}">
 	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="delete-confirm-never">Delete and don't ask again</button>
-	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm" autofocus>Delete article</button>
+	<button class="btn btn--primary" type="submit" data-test-action="delete-confirm" autofocus>Delete from this readlist</button>
 </form>`;
 
 export function renderDeleteConfirm(input: {
@@ -78,7 +78,7 @@ export function renderDeleteConfirm(input: {
 		key: "delete",
 		subject: input.confirm.articleId,
 		title: "Delete this article?",
-		body: "This article will be removed from your readlist. You can save it again later.",
+		body: "This article will be removed from this readlist. You can save it again later.",
 		lead: `Article: ${input.title}`,
 		illustrationHtml: input.illustrationHtml,
 		actionsHtml: render(DELETE_CONFIRM_ACTIONS_TEMPLATE, {

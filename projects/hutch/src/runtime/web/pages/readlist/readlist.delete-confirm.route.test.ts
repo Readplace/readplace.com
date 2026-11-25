@@ -102,7 +102,7 @@ describe("Readlist delete confirmation", () => {
 
 		const [articleId, bodyId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
 		expect(doc.getElementById(bodyId ?? "")?.textContent).toBe(
-			"This article will be removed from your readlist. You can save it again later.",
+			"This article will be removed from this readlist. You can save it again later.",
 		);
 		assert.match(doc.getElementById(articleId ?? "")?.textContent ?? "", /^Article: /);
 	});
@@ -120,7 +120,7 @@ describe("Readlist delete confirmation", () => {
 		const doc = readlistDocument((await agent.get("/queue?tab=done&order=asc")).text);
 		const cta = doc.querySelector("[data-test-action='delete-confirm']");
 		assert(cta, "confirm call to action must be rendered");
-		expect(cta.textContent).toBe("Delete article");
+		expect(cta.textContent).toBe("Delete from this readlist");
 
 		const form = cta.closest("form");
 		assert(form, "the confirm call to action must submit a real form");
