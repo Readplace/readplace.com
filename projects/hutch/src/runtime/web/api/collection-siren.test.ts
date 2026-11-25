@@ -262,8 +262,8 @@ describe("toArticleCollectionEntity", () => {
 	});
 
 	it.each([
-		{ addToReadlist: "advertised", now: NOW, names: ["update-status", "add-to-readlist"] },
-		{ addToReadlist: "withheld", now: NOW, names: ["update-status"] },
+		{ addToReadlist: "advertised", now: NOW, names: ["update-status", "add-to-hand-picked", "add-to-readlist"] },
+		{ addToReadlist: "withheld", now: NOW, names: ["update-status", "add-to-hand-picked"] },
 	] as const)("gives every embedded article the item actions an add-to-readlist offer of $addToReadlist allows", ({ addToReadlist, names }) => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
@@ -565,7 +565,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist", page: 2 }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "upload", "prev"]);
+		expect(linkRels).toEqual(["self", "root", "home", "account", "add-links-help", "upload", "prev"]);
 	});
 
 	it("single page omits both pagination links", () => {
@@ -580,7 +580,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "upload"]);
+		expect(linkRels).toEqual(["self", "root", "home", "account", "add-links-help", "upload"]);
 	});
 
 	it("preserves query params in pagination links", () => {
@@ -759,6 +759,7 @@ describe("toArticleCollectionEntity", () => {
 			"save-content",
 			"stage-upload",
 			"search",
+			"lookup-article",
 			"create-session",
 			"create-browser-handoff",
 			"report-age-range",
@@ -1181,7 +1182,7 @@ describe("toArticleCollectionEntity", () => {
 
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
-		expect(Object.keys(entity.properties ?? {}).sort()).toEqual(["pageSize", "pages", "readlists", "tabs"]);
+		expect(Object.keys(entity.properties ?? {}).sort()).toEqual(["browseReadlists", "pageSize", "pages", "readlists", "tabs"]);
 	});
 
 	it("answers a collection naming the default readlist with the entity a client that names none already reads", () => {

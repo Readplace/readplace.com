@@ -558,7 +558,7 @@ describe("ViewPage", () => {
 			Array.from(doc.querySelectorAll("main.view > :not(style)"), (child) => [child.className, child.id, child.getAttribute("data-test-confirm-popover")]),
 		).toEqual([
 			["reading-layout", "", null],
-			["confirm-popover", "reader-share", "share"],
+			["confirm-popover popover--scrimmed", "reader-share", "share"],
 		]);
 		const layout = doc.querySelector("main.view > .reading-layout");
 		assert(layout, "the reading layout must be rendered");

@@ -139,6 +139,9 @@ export const SubmitLinkCommand = defineEvent({
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
 			saveTrigger: z.enum(["automatic", "manual"]),
+			requestedAt: z.iso.datetime().optional(),
+			personalPickAt: z.iso.datetime().optional(),
+			bulkSave: z.literal(true).optional(),
 			rawHtml: z.string().optional(),
 			emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 		}),
@@ -449,6 +452,11 @@ export const LinkDequeuedEvent = defineEvent({
 	}),
 });
 export type LinkDequeuedDetail = z.infer<typeof LinkDequeuedEvent.detailSchema>;
+
+export const ReleaseHeldUploadCommand = defineEvent({
+	name: "release-held-upload", source: "hutch.user-data-jobs", detailType: "ReleaseHeldUploadCommand",
+	detailSchema: z.object({ marker: z.string().regex(/^readplace:removed-article\/[a-f0-9]{64}$/) }),
+});
 
 export const AnonymousLinkSavedEvent = defineEvent({
 	name: "anonymous-link-saved",
@@ -781,6 +789,14 @@ const SavedLinksJobSendersSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("all") }),
 	z.object({ kind: z.literal("chosen"), senderEmails: z.array(z.string()) }),
 ]);
+
+const BulkArticlesStep = z.object({ userId: UserIdSchema, id: z.uuid(), generation: z.number().int().nonnegative() });
+export const RunBulkArticlesCommand = defineEvent({
+	name: "run-bulk-articles-command", source: "hutch.api", detailType: "RunBulkArticlesCommand", detailSchema: BulkArticlesStep.extend({ intent: z.enum(["confirm", "restore", "retry"]).optional() }),
+});
+export const BulkArticlesProgressedEvent = defineEvent({
+	name: "bulk-articles-progressed", source: "hutch.user-data-jobs", detailType: "BulkArticlesProgressed", detailSchema: BulkArticlesStep,
+});
 
 export const RunSavedLinksJobCommand = defineEvent({
 	name: "run-saved-links-job-command",
@@ -1235,6 +1251,7 @@ export const SaveEmailIssueCommand = defineEvent({
 	source: "hutch.inbox",
 	detailType: "SaveEmailIssueCommand",
 	detailSchema: z.object({
+		requestedAt: z.iso.datetime().optional(),
 		userId: UserIdSchema,
 		saveAttemptId: SaveAttemptIdSchema,
 		receivedAtMessageId: z.string(),

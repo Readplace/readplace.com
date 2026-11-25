@@ -18,6 +18,7 @@ const TABLES: DynamoTables = {
 	pendingViewHighlights: "hutch-pending-view-highlights",
 	media: "hutch-media",
 	inboxAddresses: "hutch-inbox-addresses",
+	inboxEmails: "hutch-inbox-emails",
 	inboxEmailLinks: "hutch-inbox-email-links",
 	inboxSavedLinks: "hutch-inbox-saved-links",
 	subscriptionProviders: "hutch-subscription-providers",

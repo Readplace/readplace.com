@@ -40,6 +40,7 @@ type SaveLinkDeps = Parameters<typeof initMcpSaveLink>[0];
 
 function fakeDeps(overrides: Partial<SaveLinkDeps> = {}): SaveLinkDeps {
 	return {
+		now: () => saved.savedAt,
 		resolveSaveAccess: async () => ({ allowed: true }),
 		claimDailySaves: async ({ urls }) => ({ granted: [...urls], refused: [], retryAfterSeconds: undefined }),
 		validateNewSaveUrl: withNewSavePreparation(validateSaveableUrl),

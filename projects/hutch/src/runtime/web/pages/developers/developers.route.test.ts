@@ -388,8 +388,13 @@ describe("/developers documents what the API emits", () => {
 			.send({ fileName: "dune.epub", byteLength: "1024" });
 		expect(staged.body.class).toEqual(["upload-staged"]);
 
+		const unpick = actionNamed(all.body.entities[0], "remove-from-hand-picked");
+		await request(harness.server).post(unpick.href).set("Authorization", `Bearer ${token}`)
+			.set("Accept", SIREN_MEDIA_TYPE).type("form").send({ membership: "remove" }).expect(303);
+		const afterUnpick = await openAll(harness, token);
 		const emitted = [
 			...new Set([
+				...namesOf(afterUnpick.body),
 				...namesOf(all.body),
 				...namesOf(named.body),
 				...namesOf(namedPinned.body),

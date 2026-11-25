@@ -43,6 +43,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var processingReceivedAt: [String: Date] = [:]
 
 	private var nextHref: String?
+	private var filingReadlists: [Readlist] = []
 	private var rootHref: String?
 	private var currentTabHref: String?
 	private var tabGeneration = 0
@@ -192,6 +193,7 @@ final class ReadingListViewModel: ObservableObject {
 	var shareTargetHrefs: Set<String> { shareTarget?.hrefs ?? [] }
 
 	func toggleSharedArticlesDrop(into readlist: Readlist) {
+		guard !hasLoadedOnce || filingReadlists.contains(where: { $0.href == readlist.href }) else { return }
 		objectWillChange.send()
 		if Href.matches(readlist.href, anyOf: Array(shareTargetHrefs), baseURL: api.baseURL) {
 			shareTarget?.remove(href: readlist.href)
@@ -201,6 +203,8 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	var offersReadlistSwitching: Bool { readlists.count > 1 }
+
+	var currentReadlistDescription: String? { readlists.first { isOnScreen($0) }?.description }
 
 	var currentReadlistLabel: String? {
 		readlists.first { isOnScreen($0) }?.label
@@ -212,7 +216,7 @@ final class ReadingListViewModel: ObservableObject {
 
 	var sharedArticlesDrop: SharedArticlesDrop? {
 		guard shareTarget != nil, offersReadlistSwitching, let landing = tabs.first?.href, landing == selectedTabHref,
-			let readlist = readlists.first(where: { isOnScreen($0) })
+			let readlist = filingReadlists.first(where: { isOnScreen($0) })
 		else { return nil }
 		return SharedArticlesDrop(
 			readlist: readlist, mainlineHref: rootHref, tickedHrefs: shareTargetHrefs, baseURL: api.baseURL
@@ -269,6 +273,7 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await loadList(path: landing, orStored: landing == href ? nil : href)
 			guard tabUnchanged(since: generation) else { return }
+			if let home = page.homeHref, home != href { return await select(readlistHref: home) }
 			replace(with: page, deeperPages: [], read: read)
 		} catch {
 			guard tabUnchanged(since: generation) else { return }
@@ -778,7 +783,8 @@ final class ReadingListViewModel: ObservableObject {
 			homeHref = page.homeHref
 			setHomeAction = page.isStoredCopy ? nil : page.action(named: "set-home-readlist")
 			tabs = page.tabs
-			readlists = page.readlists
+			readlists = page.browseReadlists
+			filingReadlists = page.readlists
 			appearance = page.appearance
 			if let current = page.currentTabHref {
 				currentTabHref = current

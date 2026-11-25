@@ -1,3 +1,4 @@
+import { initLocalBulkOperations } from "./bulk-articles/local-operations";
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import request from "supertest";
@@ -106,6 +107,7 @@ import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { type EffectiveAccess, initGetEffectiveAccess, isDailyLimited } from "@packages/subscription-access";
 
 interface TestAppOverrides {
+	bulkArticles?: Parameters<typeof createApp>[0]["bulkArticles"];
 	isDailyLimited?: (access: EffectiveAccess) => boolean;
 	drawRandomByte?: () => number;
 	getSessionUserId?: GetSessionUserId;
@@ -264,6 +266,7 @@ function flattenFixtureToAppDependencies(
 		allocateSavedAtSequence: fixture.articleStore.allocateSavedAtSequence,
 		findSavedUrls: fixture.articleStore.findSavedUrls,
 		saveArticleGlobally: fixture.articleStore.saveArticleGlobally,
+		changePersonalPick: fixture.articleStore.changePersonalPick,
 		deleteArticle: fixture.articleStore.deleteArticle,
 		updateArticleStatus: fixture.articleStore.updateArticleStatus,
 		markArticleViewed: fixture.articleStore.markArticleViewed,
@@ -438,6 +441,13 @@ function flattenFixtureToAppDependencies(
 				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 			}),
 		clearReadlistFromAddresses: fixture.inboxAddress.inboxAddressStore.clearReadlistFromAddresses,
+		listReceivedSenders: fixture.inboxEmail.inboxEmailStore.listReceivedSenders,
+		bulkArticles: initLocalBulkOperations({ articles: fixture.articleStore, findArticleById: fixture.articleStore.findArticleById,
+			findUserById: fixture.auth.findUserById, listSenderIssues: fixture.inboxEmail.inboxEmailStore.listEmailsByUserId,
+			listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
+			resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: fixture.articleStore.findIdentityRow }),
+			publishLinkQueued: fixture.events.publishLinkQueued, publishLinkDequeued: fixture.events.publishLinkDequeued, now: fixture.shared.now }),
+		listSenderIssues: fixture.inboxEmail.inboxEmailStore.listEmailsByUserId,
 		listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: fixture.inboxEmail.inboxEmailLinkStore.getLink,
 		findIssueLinkSaveStates: fixture.inboxEmail.inboxSavedLinkStore.findSavedLinks,

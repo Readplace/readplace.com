@@ -287,8 +287,7 @@ export function genericEntityAction(
 }
 
 export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
-	const handlers = new Map<string, ActionHandler>();
-	handlers.set("search", (sirenAction, context) => {
+	const readCollection: ActionHandler = (sirenAction, context) => {
 		return async (fields) => {
 			const actionUrl = resolveHref({ base: context.serverUrl, href: sirenAction.href });
 			assert(actionUrl, "search action href is not actionable");
@@ -327,8 +326,8 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 				messages: [],
 			};
 		};
-	});
-	return handlers;
+	};
+	return new Map([["search", readCollection], ["lookup-article", readCollection]]);
 }
 
 export function followPageWith(context: ActionContext): (href: string) => Promise<NavigationResult> {

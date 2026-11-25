@@ -1,3 +1,5 @@
+import { bulkArticleRoutes } from "./bulk-articles.page";
+import { personalHomeEnabled } from "./built-in-readlists";
 import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
@@ -22,6 +24,17 @@ import { initBuildArticleEpub } from "../../shared/epub/article-epub";
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const router = express.Router();
+	if (!personalHomeEnabled()) {
+		// A form opened before rollback may still point at the picked scope. Its delete
+		// action removes membership and must never fall through to deleting the save.
+		router.use((req, res, next) => {
+			if (!req.query.readlist && !req.query.queue && (req.query.scope === "hand-picked" || req.query.review === "older")) {
+				res.sendStatus(404);
+				return;
+			}
+			next();
+		});
+	}
 	const shared = initReadlistShared(deps);
 	const { findNonEmptyReadlists, resolveOnboardingSignals } = shared;
 	const buildArticleEpub = initBuildArticleEpub({
@@ -81,6 +94,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
+	if (deps.bulkArticles) router.use(bulkArticleRoutes(deps, shared, deps.bulkArticles));
 	router.use(
 		initHighlightRoutes(
 			{
@@ -175,6 +189,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				findHomeReadlist: deps.findHomeReadlist,
 				setHomeReadlist: deps.setHomeReadlist,
 				listReadlistDefinitions: deps.listReadlistDefinitions,
+				resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 				now: deps.now,
 				setKeepOfferDismissed: deps.setKeepOfferDismissed,
 				recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
@@ -297,6 +312,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initReadlistCardRoutes(
 			{
+				changePersonalPick: deps.changePersonalPick,
 				appOrigin: deps.appOrigin,
 				findArticleById: deps.findArticleById,
 				findArticleCrawlStatus: deps.findArticleCrawlStatus,

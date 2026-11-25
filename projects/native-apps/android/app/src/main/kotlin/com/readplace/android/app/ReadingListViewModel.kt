@@ -71,6 +71,7 @@ data class ReadingListState(
 	/** The reader's sibling readlists, in server order. More than one earns the
 	 * switcher. */
 	val readlists: List<Readlist> = emptyList(),
+	val filingReadlists: List<Readlist> = readlists,
 	/** The readlist the list is showing — the server's confirmed current one, or the
 	 * one the reader just tapped while its load is pending. */
 	val selectedReadlistHref: String? = null,
@@ -110,7 +111,9 @@ data class ReadingListState(
 
 	/** The label of the readlist on screen, for the subtitle, or null before one has
 	 * loaded. */
-	val currentReadlistLabel: String? get() = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) }?.label
+	private val currentReadlist: Readlist? get() = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) }
+	val currentReadlistLabel: String? get() = currentReadlist?.label
+	val currentReadlistDescription: String? get() = currentReadlist?.description
 
 	/** The switcher menu, built only from advertised readlists — a stale stored share
 	 * destination the server no longer lists produces no item. */
@@ -131,7 +134,7 @@ data class ReadingListState(
 		if (!offersReadlistSwitching) return null
 		val landing = tabs.firstOrNull()?.href ?: return null
 		if (landing != selectedTabHref) return null
-		val readlist = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) } ?: return null
+		val readlist = filingReadlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) } ?: return null
 		return SharedArticlesDrop.of(readlist, mainlineHref = rootHref, tickedHrefs = shareTargetHrefs)
 	}
 }
@@ -337,6 +340,7 @@ class ReadingListViewModel(
 	 * without a fetch. Removing the last extra leaves a chosen-empty answer, not an
 	 * unasked one. */
 	fun toggleSharedArticlesDrop(readlist: Readlist) {
+		if (hasLoadedOnce && states.value.filingReadlists.none { it.href == readlist.href }) return
 		if (readlist.matches(shareTarget.hrefs)) {
 			shareTarget.remove(readlist.href)
 		} else {
@@ -370,6 +374,7 @@ class ReadingListViewModel(
 		try {
 			val page = loadFirstPage(path = href)
 			if (!tabUnchanged(generation)) return
+			page.homeHref?.takeIf { it != href }?.let { return select(readlistHref = it) }
 			replace(firstPage = page, deeperPages = emptyList(), read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
@@ -406,7 +411,8 @@ class ReadingListViewModel(
 		mutate { it.copy(errorText = null, messages = emptyList()) }
 		try {
 			val page = loadFirstPage(path = currentTabHref)
-			if (tabUnchanged(generation)) replace(firstPage = page, deeperPages = emptyList(), read = read)
+			if (!tabUnchanged(generation)) return
+			replace(firstPage = page, deeperPages = emptyList(), read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
@@ -1008,7 +1014,8 @@ class ReadingListViewModel(
 				homeHref = page.homeHref,
 				setHomeAction = page.action(named = "set-home-readlist").takeUnless { page.isStoredCopy },
 				tabs = page.tabs,
-				readlists = page.readlists,
+				readlists = page.browseReadlists,
+				filingReadlists = page.readlists,
 				selectedTabHref = page.currentTabHref ?: current.selectedTabHref,
 				selectedReadlistHref = page.currentReadlistHref ?: current.selectedReadlistHref,
 				shareTargetHrefs = shareTarget.hrefs,

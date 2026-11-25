@@ -1,22 +1,22 @@
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 
 describe("parseReturnUrl", () => {
-	it("should return /queue when query has no return param", () => {
-		expect(parseReturnUrl({})).toBe("/queue");
+	it("opens the advertised home when query has no return param", () => {
+		expect(parseReturnUrl({})).toBe("/queue?scope=hand-picked");
 	});
 
-	it("should return /queue when query is not an object", () => {
-		expect(parseReturnUrl(null)).toBe("/queue");
-		expect(parseReturnUrl(undefined)).toBe("/queue");
-		expect(parseReturnUrl("string")).toBe("/queue");
+	it("opens the advertised home when query is not an object", () => {
+		expect(parseReturnUrl(null)).toBe("/queue?scope=hand-picked");
+		expect(parseReturnUrl(undefined)).toBe("/queue?scope=hand-picked");
+		expect(parseReturnUrl("string")).toBe("/queue?scope=hand-picked");
 	});
 
-	it("should return /queue when return param is not a string", () => {
-		expect(parseReturnUrl({ return: 123 })).toBe("/queue");
+	it("opens the advertised home when return param is not a string", () => {
+		expect(parseReturnUrl({ return: 123 })).toBe("/queue?scope=hand-picked");
 	});
 
-	it("should return /queue when return param is empty", () => {
-		expect(parseReturnUrl({ return: "" })).toBe("/queue");
+	it("opens the advertised home when return param is empty", () => {
+		expect(parseReturnUrl({ return: "" })).toBe("/queue?scope=hand-picked");
 	});
 
 	it("should preserve valid relative URLs", () => {
@@ -24,11 +24,11 @@ describe("parseReturnUrl", () => {
 	});
 
 	it("should reject protocol-relative URLs", () => {
-		expect(parseReturnUrl({ return: "//evil.com" })).toBe("/queue");
+		expect(parseReturnUrl({ return: "//evil.com" })).toBe("/queue?scope=hand-picked");
 	});
 
 	it("should reject absolute URLs", () => {
-		expect(parseReturnUrl({ return: "https://evil.com" })).toBe("/queue");
+		expect(parseReturnUrl({ return: "https://evil.com" })).toBe("/queue?scope=hand-picked");
 	});
 
 	it.each([
@@ -38,7 +38,7 @@ describe("parseReturnUrl", () => {
 		["a backslash after the first slash", "/\\/example.org"],
 		["a backslash authority no URL parser accepts", "/\\["],
 	])("should reject %s, which a browser resolves off-site", (_case, returnUrl) => {
-		expect(parseReturnUrl({ return: returnUrl })).toBe("/queue");
+		expect(parseReturnUrl({ return: returnUrl })).toBe("/queue?scope=hand-picked");
 		expect(extractReturnUrl({ return: returnUrl })).toBeUndefined();
 	});
 
@@ -47,7 +47,7 @@ describe("parseReturnUrl", () => {
 	});
 
 	it("should reject URLs without leading slash", () => {
-		expect(parseReturnUrl({ return: "evil.com" })).toBe("/queue");
+		expect(parseReturnUrl({ return: "evil.com" })).toBe("/queue?scope=hand-picked");
 	});
 });
 

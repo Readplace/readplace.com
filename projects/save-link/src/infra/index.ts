@@ -527,6 +527,7 @@ const submitLinkUserArticlesDynamodb = new DynamoDBAccess(
 			"dynamodb:UpdateItem",
 			"dynamodb:Query",
 			"dynamodb:BatchGetItem",
+			"dynamodb:ConditionCheckItem",
 		],
 	},
 );

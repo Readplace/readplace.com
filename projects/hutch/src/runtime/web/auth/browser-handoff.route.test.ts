@@ -115,7 +115,7 @@ describe("Browser handoff", () => {
 
 			const response = await request(harness.server).get("/auth/handoff").query({ code });
 
-			assert.equal(response.headers.location, "/queue");
+			assert.equal(response.headers.location, "/queue?scope=hand-picked");
 			assert(sessionCookie(response), "expected the hutch_sid session cookie");
 		});
 
@@ -129,7 +129,7 @@ describe("Browser handoff", () => {
 
 			const response = await request(harness.server).get("/auth/handoff").query({ code, return: returnUrl });
 
-			assert.equal(response.headers.location, "/queue");
+			assert.equal(response.headers.location, "/queue?scope=hand-picked");
 		});
 
 		it("mints a session bound to no OAuth grant", async () => {

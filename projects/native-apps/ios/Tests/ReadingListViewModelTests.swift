@@ -1248,6 +1248,27 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue", "switching back moves the preference back")
 	}
 
+	func testNeutralLaunchFollowsAdvertisedHomeWhenAllWasRemembered() async {
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue")
+		StubURLProtocol.setHandler { request, _ in
+			let picked = request.url?.query == "scope=hand-picked"
+			return .json(200, """
+			{"class":["collection","articles"],"entities":[],"links":[{"rel":["home"],"href":"/queue?scope=hand-picked"}],
+			"properties":{"readlists":[{"rel":"current","label":"All","href":"/queue"}],
+			"browseReadlists":[{"rel":"\(picked ? "current" : "readlist")","label":"Hand Picked","href":"/queue?scope=hand-picked","description":"All your manual saves are added here"},
+			{"rel":"\(picked ? "readlist" : "current")","label":"All","href":"/queue"}]}}
+			""")
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.loadIfNeeded()
+		await viewModel.loadIfNeeded()
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue?scope=hand-picked"])
+		XCTAssertEqual(viewModel.currentReadlistLabel, "Hand Picked")
+		XCTAssertEqual(viewModel.currentReadlistDescription, "All your manual saves are added here")
+		XCTAssertNil(viewModel.sharedArticlesDrop)
+	}
+
 	func testLaunchDiscoversHomeBeforeUsingAnOlderServersRememberedReadlist() async {
 		StubURLProtocol.setHandler(readlistedHandler())
 		let defaults = TestSupport.ephemeralDefaults()

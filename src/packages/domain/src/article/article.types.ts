@@ -25,6 +25,14 @@ export type ServedBody = { kind: "legacy" } | { kind: "withheld" } | { kind: "co
 type DisplayMetadata = Omit<ArticleMetadata, "siteName"> & { siteName: SiteLabel };
 
 export interface SavedArticle {
+	statusRevision?: number;
+	lastSummaryOpenedAt?: Date;
+	lastSummaryClosedAt?: Date;
+	restoredAt?: Date;
+	personalPickedAt?: Date;
+	personalDecision?: string;
+	personalReviewPending?: true;
+	bulkSave?: true;
 	id: ReaderArticleHashId;
 	userId: UserId;
 	/** Identity: the URL every lookup keys on (crawl status, content, freshness).

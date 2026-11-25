@@ -5,7 +5,7 @@ import type { Logger } from "@packages/logger";
 import type { ReleasePrivateItem } from "./private-item-release-steps";
 
 export function initMediaReleaseHandler(deps: {
-	releasePrivateItem: ReleasePrivateItem;
+	releasePrivateItem: (item: Parameters<ReleasePrivateItem>[0]) => Promise<Awaited<ReturnType<ReleasePrivateItem>> | "retained">;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return initSqsRecordHandler({

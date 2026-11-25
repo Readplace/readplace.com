@@ -3308,6 +3308,27 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `a neutral launch follows the advertised home when All was remembered`() = runTest {
+		server.handle { record ->
+			val picked = record.request.url.query == "scope=hand-picked"
+			Stub.json(200, """
+				{"class":["collection","articles"],"entities":[],"links":[{"rel":["home"],"href":"/queue?scope=hand-picked"}],
+				"properties":{"readlists":[{"rel":"current","label":"All","href":"/queue"}],
+				"browseReadlists":[{"rel":"${if (picked) "current" else "readlist"}","label":"Hand Picked","href":"/queue?scope=hand-picked","description":"All your manual saves are added here"},
+				{"rel":"${if (picked) "readlist" else "current"}","label":"All","href":"/queue"}]}}
+			""".trimIndent())
+		}
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue") }
+		val model = viewModel(lastViewed = lastViewed)
+		model.loadIfNeeded()
+		model.loadIfNeeded()
+		assertEquals(listOf(null, "scope=hand-picked"), server.records.map { it.request.url.query })
+		assertEquals("Hand Picked", model.state.value.currentReadlistLabel)
+		assertEquals("All your manual saves are added here", model.state.value.currentReadlistDescription)
+		assertNull(model.state.value.sharedArticlesDrop)
+	}
+
+	@Test
 	fun `an older server without Home uses the remembered readlist after discovery`() = runTest {
 		server.handle(readlistedHandler())
 		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") }

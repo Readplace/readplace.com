@@ -1,3 +1,4 @@
+import { HAND_PICKED, HAND_PICKED_SCOPE, isBuiltInReadlist } from "./built-in-readlists";
 import {
 	DEFAULT_READLIST_SLUG,
 	pinnedReadlistSlugs,
@@ -29,7 +30,7 @@ const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
 
 export function readlistToFileInto(context: ReadlistContext): ReadlistSlug | undefined {
 	const { slug } = context.activeReadlist;
-	return slug === DEFAULT_READLIST_SLUG ? undefined : slug;
+	return isBuiltInReadlist(slug) ? undefined : slug;
 }
 
 export function mainlineReadlistContext(query: Record<string, unknown>): ReadlistContext {
@@ -60,6 +61,7 @@ function withRememberedFilter(state: ReadlistUrlState, remembered: ReadlistFilte
 }
 
 export function initResolveReadlistContext(deps: {
+	bulkEnabled?: boolean;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 }): (req: ReadlistRequest, userId: UserId, home?: {
@@ -77,7 +79,8 @@ export function initResolveReadlistContext(deps: {
 		]);
 		const readlists = readerReadlists(definitions);
 		const homeSlug = homeReadlistOf(home?.preference, definitions);
-		const parsed = parseReadlistUrl(req.query);
+		const { source: _source, sender: _sender, ...plainQuery } = req.query;
+		const parsed = parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query);
 		const requested = withRememberedFilter({ ...parsed, readlist: home?.open ? homeSlug : parsed.readlist }, remembered);
 		const targets = new Map<ReadlistSlug, HomeReadlistPreference>();
 		if (home) {
@@ -86,7 +89,7 @@ export function initResolveReadlistContext(deps: {
 				if (target && slug !== homeSlug) targets.set(slug, target);
 			}
 		}
-		const activeReadlist = readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
+		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			state: { ...requested, readlist: activeReadlist.slug },
 			activeReadlist,

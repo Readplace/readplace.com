@@ -1,5 +1,10 @@
-.gmail-dialog {
+.gmail-dialog > .confirm-popover__surface {
   padding-bottom: 0;
+}
+
+.gmail-dialog:popover-open > .confirm-popover__surface {
+  border-radius: inherit;
+  background: var(--card);
 }
 
 .gmail-dialog .gmail__mapping-choice,

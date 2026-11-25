@@ -61,9 +61,13 @@ struct ReadingListView: View {
 			VStack(spacing: 0) {
 				if let readlist = viewModel.currentReadlistLabel {
 					HStack {
-						Text(readlist)
-							.font(.subheadline)
-							.foregroundStyle(Color.brandTextSecondary)
+						VStack(alignment: .leading, spacing: 2) {
+							Text(readlist).font(.subheadline)
+							if let description = viewModel.currentReadlistDescription {
+								Text(description).font(.caption)
+							}
+						}
+						.foregroundStyle(Color.brandTextSecondary)
 						Spacer(minLength: 0)
 					}
 					.padding(.horizontal)

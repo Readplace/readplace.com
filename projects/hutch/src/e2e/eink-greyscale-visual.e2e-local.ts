@@ -208,8 +208,8 @@ async function createReadlist(page: Page, label: string): Promise<string> {
 	return slug;
 }
 
-async function loginAs(page: Page, email: string): Promise<void> {
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+async function loginAs(page: Page, email: string, destination = "/queue"): Promise<void> {
+	await page.goto(`${BASE_URL}/login?return=${encodeURIComponent(destination)}`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -524,17 +524,20 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			// The deferred offline control adds a row above the floating menu's anchor.
 			await expect(page.locator("[data-test-offline-download-start]")).toBeVisible();
 			await page.addStyleTag({ path: CONTRAST_SENSITIVE.stylePath });
-			await page.locator(READLIST_LIST).scrollIntoViewIfNeeded();
+			await page.locator(READLIST_LIST).evaluate(list => list.scrollIntoView({ block: "center", behavior: "instant" }));
 			await settle(page, READLIST_LIST);
 			const card = page.locator("[data-test-article]").first();
 			await card.locator('[data-test-action="article-menu"]').click();
 			await expect(card.locator(".menu__panel")).toBeVisible();
 			await page.mouse.move(0, 0);
 
-			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
-				`eink-readlist-menu-open-${theme}.png`,
-				CONTRAST_SENSITIVE,
-			);
+			// Capturing the viewport clip leaves the open menu at its original scroll position.
+			const clip = await measuredBox(page, READLIST_LIST);
+			await expect(page).toHaveScreenshot(`eink-readlist-menu-open-${theme}.png`, {
+				clip,
+				threshold: CONTRAST_SENSITIVE.threshold,
+			});
+			await expect(card.locator(".menu__panel")).toBeVisible();
 		});
 
 		test(`the open readlist switcher keeps its selected row in greyscale (${theme})`, async ({
@@ -648,7 +651,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await clickAndWaitForPageReload(page, await nameNewReadlist(page, "Ideas & Inspiration"));
 			await openReadlistSwitcher(page);
 			await clickAndWaitForPageReload(page, await nameNewReadlist(page, "Finance"));
-			await expect(page.locator(`${READLIST_RAIL} [data-test-readlist]`)).toHaveCount(3);
+			await expect(page.locator(`${READLIST_RAIL} [data-test-readlist]`)).toHaveCount(4);
 			const [first] = await renameableSlugs(page);
 			await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
@@ -768,7 +771,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				page,
 				`readlist-empty-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
-			await loginAs(page, email);
+			await loginAs(page, email, "/");
 			await expect(page.locator("[data-test-empty-readlist]")).toBeVisible();
 			await expect(page.locator("#readlist-count")).toHaveText("0 Saved Articles");
 			await settle(page, "[data-test-listing]");

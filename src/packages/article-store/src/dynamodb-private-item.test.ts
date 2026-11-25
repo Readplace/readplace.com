@@ -7,6 +7,7 @@ import {
 	TransactionCanceledException,
 } from "@packages/storage-client";
 import { initDynamoDbPrivateItem } from "./dynamodb-private-item";
+import { canonicalRemovalKey } from "./user-readlist-partition";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
@@ -87,9 +88,15 @@ describe("initDynamoDbPrivateItem savePrivateItem", () => {
 						status: "unread",
 						provenance: { kind: "upload" },
 						handPickedAt: "2026-11-05T10:00:00.000Z",
+						personalPickedAt: "2026-11-05T10:00:00.000Z",
+						personalDecision: `2026-11-05T10:00:00.000Z#${routeId}`,
+						personalScope: "owner-user#picked#unread",
+						personalOrder: `2026-11-05T10:00:00.000Z#${routeId}`,
 					},
 				},
 			},
+			{ ConditionCheck: { TableName: "user-articles", Key: canonicalRemovalKey(OWNER, KEY),
+				ConditionExpression: "attribute_not_exists(privateReleaseClaim)" } },
 		]);
 	});
 

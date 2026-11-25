@@ -137,8 +137,10 @@ describe("Add article", () => {
 		const doc = addLinkDoc();
 
 		const tip = element(doc, "#add-link #save-tip");
-		expect(tip.parentElement?.id).toBe("add-link");
-		expect(element(doc, '#add-link [data-test-form="save-article"]').getAttribute("data-save-tip")).toBe("due");
+		const form = element(doc, '#add-link [data-test-form="save-article"]');
+		expect(tip.closest("form")).toBeNull();
+		expect(form.compareDocumentPosition(tip)).toBe(doc.DOCUMENT_POSITION_FOLLOWING);
+		expect(form.getAttribute("data-save-tip")).toBe("due");
 	});
 
 	it("carries the advice state the session has reached", () => {

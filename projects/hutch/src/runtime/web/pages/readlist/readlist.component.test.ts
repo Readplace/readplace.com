@@ -663,13 +663,14 @@ describe("ReadlistPage", () => {
 		const drawer = doc.querySelector("[data-test-discovery-drawer]");
 		assert(drawer, "the filter drawer must render inside main");
 		expect(drawer.closest("main")).toBe(doc.querySelector("main"));
+		expect(drawer.classList.contains("popover--scrimmed")).toBe(true);
 	});
 
 	it("ships the search row and drawer styles with the readlist page", () => {
 		const styles = buildPage().styles;
 
 		expect(styles).toContain(".readlist-discovery--visible {");
-		expect(styles).toContain(".readlist-filters::backdrop {");
+		expect(styles).toContain(".readlist-filters:popover-open {");
 	});
 
 	it("hides the list header on an empty list", () => {

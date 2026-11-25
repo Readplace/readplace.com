@@ -77,8 +77,11 @@ for (const viewport of VIEWPORTS) {
 					"side-by-side capabilities must run left to right without overlapping");
 			}
 
-			await page.locator('[data-test-hero-input="homepage-link-input"]')
-				.fill(`${BASE_URL}/e2e/fixtures/unfetchable/home-c-paste-${viewport.width}`);
+			const urlInput = page.locator('[data-test-hero-input="homepage-link-input"]');
+			await urlInput.click();
+			await page.locator('[data-test-action="save-tip-continue"]').click();
+			await expect(urlInput).toBeFocused();
+			await urlInput.fill(`${BASE_URL}/e2e/fixtures/unfetchable/home-c-paste-${viewport.width}`);
 			await clickAndWaitForPageReload(page, page.locator('[data-test-cta="homepage-link-input"]'));
 			assert.equal(new URL(page.url()).pathname.startsWith("/view"), true,
 				`a pasted link must open in the reader, landed on ${page.url()}`);

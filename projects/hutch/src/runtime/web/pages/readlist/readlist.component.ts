@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE, isBuiltInReadlist, builtInCaption } from "./built-in-readlists";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
@@ -119,6 +120,9 @@ export interface ReadlistOnboarding {
 }
 
 export interface ReadlistPageOptions {
+	senders?: string[];
+	bulkEnabled?: boolean;
+	reviewOlderHref?: string;
 	cspNonce: CspNonce;
 	deviceClass: DeviceClass;
 	readlistHoldsArticles: boolean;
@@ -336,7 +340,7 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 	renames: string;
 	create: string;
 } {
-	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
+	const owned = rail.readlists.filter((readlist) => !isBuiltInReadlist(readlist.slug));
 	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
 	return {
 		deleteConfirms: owned
@@ -422,7 +426,7 @@ function firstByteTotal(vm: ReadlistViewModel): number | undefined {
 
 export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions): PageBody {
 	const { articles, filters } = vm;
-	const isDefaultReadlist = filters.readlist === DEFAULT_READLIST.slug;
+	const isDefaultReadlist = isBuiltInReadlist(filters.readlist);
 	const effectiveOrder = filters.order ?? tabQuery(filters.tab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
 	const sort: { label: string; iconName: IconName } = {
@@ -440,7 +444,10 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		onboarding: options.onboarding,
 		returnQuery: readlistReturnQuery(filters),
 	});
-	const empty = emptyState({
+	const empty = filters.readlist === HAND_PICKED_SCOPE && !filters.discovery ? {
+		title: t("handPicked.empty"), text: "", ...PLAIN_COPY,
+		actions: [navigateAction({ key: "browse-all", href: withInternalTracking("/queue", { source: "queue-empty", content: "browse-all" }), label: t("handPicked.browse") })],
+	} : emptyState({
 		tab: filters.tab,
 		readlistHoldsArticles: options.readlistHoldsArticles,
 		tabHoldsRows: options.tabHoldsRows,
@@ -479,6 +486,26 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		: NO_ADD_LINK;
 
 	const content = render(TEMPLATE, {
+		reviewOlderHref: options.reviewOlderHref,
+		reviewingOlder: filters.reviewOlder,
+		manageArticles: options.bulkEnabled && filters.readlist === DEFAULT_READLIST.slug && !filters.reviewOlder ? {
+			open: filters.managedSource !== undefined,
+			bulkForm: vm.articles.length > 0 ? {
+				href: withInternalTracking(`/queue/manage/preview${readlistReturnQuery(filters)}`, { source: "manage-articles", content: "preview" }),
+				visible: vm.articles.map(article => article.id),
+				unread: filters.tab === "queue",
+				destinations: options.rail.readlists.filter(list => !isBuiltInReadlist(list.slug)),
+			} : undefined,
+			senderLabel: filters.managedSource === "sender" ? filters.sender ?? t("manage.sender") : undefined,
+			senders: options.senders?.map(address => ({ address, selected: address === filters.sender, href: withInternalTracking(buildReadlistUrl({ ...filters, page: 1, sender: address }), { source: "manage-articles", content: "filter-sender" }) })),
+			options: (["all", "picked", "sender", "bulk", "unknown"] as const).map(source => ({
+				label: t(`manage.${source}`),
+				selected: (filters.managedSource ?? "all") === source,
+				href: withInternalTracking(buildReadlistUrl({ ...filters, page: 1, sender: undefined, managedSource: source === "all" ? undefined : source }), { source: "manage-articles", content: `filter-${source}` }),
+			})),
+		} : undefined,
+		builtInTitle: options.rail.activeReadlist.label,
+		builtInCaption: builtInCaption(filters.readlist),
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
 				readlists: options.rail.readlists,

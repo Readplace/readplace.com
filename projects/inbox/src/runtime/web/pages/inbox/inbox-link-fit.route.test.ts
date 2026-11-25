@@ -433,6 +433,7 @@ describe("Inbox link fit route", () => {
 			url: input.url,
 			readlist: DEFAULT_READLIST_SLUG,
 			provenance: { kind: "email", senderEmail: "news@example.com" },
+			personalPickAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
 			saveTrigger: "manual",
 		});
 

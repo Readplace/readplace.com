@@ -1,8 +1,8 @@
+import { isBuiltInReadlist } from "./built-in-readlists";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
@@ -194,7 +194,7 @@ function navMenu(input: {
 	pinState: ReadlistPinState;
 	inputSuffix: string;
 }): ReadlistNavMenu {
-	const isDeletable = input.slug !== DEFAULT_READLIST_SLUG;
+	const isDeletable = !isBuiltInReadlist(input.slug);
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
@@ -256,7 +256,7 @@ function navItem(input: {
 	const { nav, readlist } = input;
 	const classes = PLACEMENT_CLASSES[input.placement];
 	const isActive = readlist.slug === nav.activeSlug;
-	const kind = readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom";
+	const kind = isBuiltInReadlist(readlist.slug) ? "default" : "custom";
 	const menu = navMenu({
 		slug: readlist.slug,
 		viewedSlug: nav.activeSlug,

@@ -104,6 +104,36 @@ describe("moveNewsletterLinkToHold", () => {
 		assert.equal(deletion.ExpressionAttributeValues[":cutoff"], CUTOFF.toISOString());
 	});
 
+	it("removes the uncertain row from the listing index while preserving its position for restore", async () => {
+		const personalScope = `${READER}#uncertain#unread`;
+		const personalOrder = "2026-11-20T00:00:00.000Z#article";
+		const { removedLinks, sent } = createScriptedClient({
+			GetCommand: [found(emailLink({ personalScope, personalOrder }))], TransactWriteCommand: [written],
+		});
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "held" });
+		const held = Object(transactItems(sent)[0]).Put.Item;
+		assert.equal(held.personalScope, undefined);
+		assert.equal(held.personalOrder, undefined);
+		assert.equal(held.heldPersonalScope, personalScope);
+		assert.equal(held.heldPersonalOrder, personalOrder);
+	});
+
+	it("checks the previously observed membership decision before holding an unpicked link", async () => {
+		const { removedLinks, sent } = createScriptedClient({
+			GetCommand: [found(emailLink({ personalDecision: "previous" }))], TransactWriteCommand: [written],
+		});
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "held" });
+		const deletion = Object(transactItems(sent)[1]).Delete;
+		assert.match(deletion.ConditionExpression, /personalDecision = :decision/);
+		assert.equal(deletion.ExpressionAttributeValues[":decision"], "previous");
+	});
+
+	it("keeps a newsletter link explicitly added to Hand Picked", async () => {
+		const { removedLinks, sent } = createScriptedClient({ GetCommand: [found(emailLink({ personalPickedAt: NOW.toISOString() }))] });
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "not-selected" });
+		assert.equal(sent.length, 1);
+	});
+
 	it("does not select an absent row or one from a sender the reader did not choose", async () => {
 		const { removedLinks, sent } = createScriptedClient({ GetCommand: [found(undefined), found(emailLink())] });
 
@@ -222,6 +252,26 @@ describe("restoreHeldLink", () => {
 		assert.deepEqual(Object(put).Put.Item, { ...emailLink(), restoredAt: NOW.toISOString() });
 		assert.equal(Object(put).Put.ConditionExpression, "attribute_not_exists(#url)");
 		assert.deepEqual(Object(remove).Delete.Key, { userId: HOLD, url: HELD_KEY });
+	});
+
+	it("returns a restored uncertain link to its original review position", async () => {
+		const scope = `${READER}#uncertain#unread`;
+		const order = "2026-11-20T00:00:00.000Z#article";
+		const { removedLinks, sent } = createScriptedClient({
+			GetCommand: [found(heldRow({ heldPersonalScope: scope, heldPersonalOrder: order })), found({})],
+			TransactWriteCommand: [written],
+		});
+		assert.deepEqual(await removedLinks.restoreHeldLink(restoreParams), { outcome: "restored" });
+		assert.deepEqual(Object(transactItems(sent)[0]).Put.Item, { ...emailLink(), personalScope: scope, personalOrder: order, restoredAt: NOW.toISOString() });
+	});
+
+	it("skips an expired hold and a hold superseded by a later removal", async () => {
+		const { removedLinks } = createScriptedClient({
+			GetCommand: [found(heldRow({ expiresAt: NOW.getTime() / 1000 })), found(heldRow()), found({})],
+			TransactWriteCommand: [cancelled("None", "None", "ConditionalCheckFailed")],
+		});
+		assert.deepEqual(await removedLinks.restoreHeldLink(restoreParams), { outcome: "gone" });
+		assert.deepEqual(await removedLinks.restoreHeldLink(restoreParams), { outcome: "unrestorable" });
 	});
 
 	it("is already in All when the reader saved the link again, and gone when another restore took it", async () => {

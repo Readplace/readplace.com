@@ -1,3 +1,5 @@
+import { HAND_PICKED_SCOPE, isBuiltInReadlist, personalHomeEnabled } from "./built-in-readlists";
+import { personalPickAction } from "./personal-pick-action";
 import {
 	ABSENT_ENCLOSURE,
 	type CrawlRemainingEstimate,
@@ -92,6 +94,8 @@ export interface ArticleAction {
 }
 
 export interface ReadlistArticleViewModel {
+	reviewOlder?: boolean;
+	personalPick?: ReturnType<typeof personalPickAction>;
 	suggestionLabel?: string;
 	id: string;
 	title: string;
@@ -330,8 +334,8 @@ export function toReadlistArticleViewModel(params: {
 	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
-	const moveInput = { articleId: id, from: filters.readlist, returnQuery, filing: params.filing };
-	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
+	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing };
+	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged, removePick: filters.readlist === HAND_PICKED_SCOPE });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
 	const readTime = displayableTime({ article, enclosure: params.enclosure });
@@ -347,6 +351,8 @@ export function toReadlistArticleViewModel(params: {
 				};
 	return {
 		id,
+		reviewOlder: filters.reviewOlder,
+		personalPick: personalHomeEnabled() && isBuiltInReadlist(filters.readlist) ? personalPickAction(article, returnQuery) : undefined,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		excerpt: excerpt.text,
