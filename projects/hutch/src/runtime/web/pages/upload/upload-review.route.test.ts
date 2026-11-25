@@ -135,7 +135,7 @@ describe("Guest upload routes", () => {
 		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
 		const received = await agent.post(`/upload/${uploadId}/received`);
 
-		expect(received.headers.location).toBe("/queue");
+		expect(received.headers.location).toBe("/queue?queue=default");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
 		expect(harness.mediaUpload.publishedMediaUploadStaged).toEqual([]);
 		const guest = await request(harness.server)
@@ -408,13 +408,13 @@ describe("Guest upload routes", () => {
 
 		const commit = await agent.post(`/upload/${uploadId}/commit`);
 		expect(commit.status).toBe(303);
-		expect(commit.headers.location).toBe("/queue");
+		expect(commit.headers.location).toBe("/queue?queue=default");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([
 			expect.objectContaining({ uploadId, userId, etag: head.etag, saveAttemptId: guestSession?.saveAttemptId }),
 		]);
 
 		const again = await agent.post(`/upload/${uploadId}/commit`);
-		expect(again.headers.location).toBe("/queue");
+		expect(again.headers.location).toBe("/queue?queue=default");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
 	});
 

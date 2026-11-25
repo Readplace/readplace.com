@@ -347,7 +347,7 @@ describe("empty states", () => {
 		const viewUnread = doc.querySelector('[data-test-empty-action="view-unread"]');
 		assert(viewUnread, "the view-unread action must be rendered");
 		expect(submittedUrl(viewUnread)).toBe(
-			"/queue?utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
+			"/queue?queue=default&utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
 		);
 		expect(emptyActionKeys(empty)).toEqual(["view-unread"]);
 	});

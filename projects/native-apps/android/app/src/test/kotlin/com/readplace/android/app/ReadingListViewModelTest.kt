@@ -3308,15 +3308,15 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `a remembered readlist is requested directly on a fresh load`() = runTest {
+	fun `an older server without Home uses the remembered readlist after discovery`() = runTest {
 		server.handle(readlistedHandler())
 		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") }
 		val viewModel = viewModel(lastViewed = lastViewed)
 
 		viewModel.loadIfNeeded()
 
-		assertEquals("the remembered readlist is the first thing requested", "queue=work", server.records.first().request.url.query)
-		assertTrue("no entry-point flash precedes it", server.records("/").isEmpty())
+		assertEquals("the remembered readlist follows entry discovery", "queue=work", server.records.last().request.url.query)
+		assertEquals("one Home discovery precedes selection", 1, server.records("/").size)
 		assertEquals(listOf("w1"), viewModel.articleIds)
 		assertEquals("/queue?queue=work", viewModel.state.value.selectedReadlistHref)
 	}
@@ -3372,7 +3372,7 @@ class ReadingListViewModelTest {
 		var expiries = 0
 		server.handle { record ->
 			when (record.path) {
-				"/queue" -> Stub.json(401, Fixtures.sirenError(code = "invalid-token", message = "expired"))
+				"/", "/queue" -> Stub.json(401, Fixtures.sirenError(code = "invalid-token", message = "expired"))
 				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
 				else -> Stub.json(404, "{}")
 			}
@@ -3385,7 +3385,7 @@ class ReadingListViewModelTest {
 		viewModel.loadIfNeeded()
 
 		assertEquals("an auth failure funnels into the existing sign-out", 1, expiries)
-		assertTrue("with no entry-point fallback", server.records("/").isEmpty())
+		assertEquals("entry-point discovery is attempted once", 1, server.records("/").size)
 	}
 
 	@Test
@@ -3439,7 +3439,7 @@ class ReadingListViewModelTest {
 			"/queue?queue=work",
 			viewModel.state.value.selectedReadlistHref,
 		)
-		assertTrue("a cancelled reopen never falls back to entry-point discovery", server.records("/").isEmpty())
+		assertEquals("a cancelled reopen does not repeat entry-point discovery", 1, server.records("/").size)
 		assertEquals("a cancelled reopen applies nothing", emptyList<String>(), viewModel.articleIds)
 	}
 
@@ -4961,6 +4961,14 @@ class ReadingListViewModelTest {
 	private fun mainReadlistHandler(): (Record) -> Stub = { record ->
 		val readlistsJson = """{ "label": "Main", "rel": "current", "href": "/queue?readlist=main" }"""
 		when {
+			record.path == "/" -> Stub.json(
+				200,
+				Fixtures.collection(
+					emptyList(),
+					extraLinks = """, {"rel":["home"],"href":"/queue?readlist=main"}""",
+					readlistsJson = Fixtures.readlists(current = "/queue"),
+				),
+			)
 			record.path == "/queue" && record.request.url.queryParameter("readlist") == "main" ->
 				Stub.json(200, Fixtures.collection(listOf(Fixtures.article("m1")), tabsJson = mainTabs, readlistsJson = readlistsJson))
 			record.path == "/queue" && record.request.url.queryParameter("status") == "unread" ->
@@ -5028,7 +5036,54 @@ class ReadingListViewModelTest {
 		wednesday.loadIfNeeded()
 
 		assertEquals(listOf("t1", "t2", "t3", "m1"), wednesday.articleIds)
-		assertEquals(listOf("/queue?readlist=main"), network.refused)
+		assertEquals(listOf("/"), network.refused)
+	}
+
+	@Test
+	fun `set Home on the loaded readlist and reopen its cached copy after visiting All`() = runTest {
+		val home = "/queue?queue=work"
+		val chooseHome = """, {"name":"set-home-readlist","title":"Set Work as home","method":"POST","href":"/choose-home"}"""
+		var designated = "/queue"
+		server.handle { record ->
+			when (record.path) {
+				"/choose-home" -> {
+					designated = home
+					Stub.redirect(to = home)
+				}
+				"/", "/queue" -> {
+					val current = if (record.request.url.queryParameter("queue") == "work") home else "/queue"
+					Stub.json(
+						200,
+						Fixtures.collection(
+							listOf(Fixtures.article(if (current == home) "work" else "all")),
+							extraLinks = """, {"rel":["home"],"href":"$designated"}""",
+							readlistsJson = Fixtures.readlists(current = current),
+							tabsJson = Fixtures.tabs(queue = current),
+							actionsJson = Fixtures.COLLECTION_ACTIONS + if (current != designated) chooseHome else "",
+						),
+					)
+				}
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val directory = folder.newFolder()
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage())
+		val live = viewModel(lastViewed = lastViewed, snapshot = store(directory))
+		live.loadIfNeeded()
+		live.select(home)
+		live.invoke(checkNotNull(live.state.value.setHomeAction))
+		assertEquals("Work is now your home readlist.", live.state.value.homeStatus)
+		live.select("/queue")
+		assertEquals(home, live.state.value.readlistMenu.single { it.isHome }.href)
+
+		val offline = viewModel(
+			lastViewed = lastViewed,
+			snapshot = store(directory),
+			network = OfflineSwitch().apply { down = true },
+		)
+		offline.loadIfNeeded()
+		assertEquals(listOf("work"), offline.articleIds)
+		assertNull(offline.state.value.setHomeAction)
 	}
 
 	@Test
@@ -5039,7 +5094,7 @@ class ReadingListViewModelTest {
 
 		viewModel.loadIfNeeded()
 
-		assertEquals(listOf("/queue?queue=work", "/"), network.refused)
+		assertEquals(listOf("/"), network.refused)
 		assertEquals(emptyList<String>(), viewModel.articleIds)
 		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
 	}

@@ -9,6 +9,8 @@ import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindSessionReadlistFilter } from "@packages/provider-contracts/auth";
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
+import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
+import { homeReadlistOf, homeReadlistTarget } from "./readlist-home";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
@@ -20,6 +22,7 @@ export interface ReadlistContext {
 	readlists: readonly Readlist[];
 	activePurpose: string | undefined;
 	pinnedReadlists: readonly ReadlistSlug[];
+	home?: { slug: ReadlistSlug; targets: ReadonlyMap<ReadlistSlug, HomeReadlistPreference> };
 }
 
 const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
@@ -59,18 +62,30 @@ function withRememberedFilter(state: ReadlistUrlState, remembered: ReadlistFilte
 export function initResolveReadlistContext(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
-}): (req: ReadlistRequest, userId: UserId) => Promise<ReadlistContext> {
+}): (req: ReadlistRequest, userId: UserId, home?: {
+	preference: HomeReadlistPreference | undefined;
+	open: boolean;
+}) => Promise<ReadlistContext> {
 	const rememberedFilterOf = async (req: ReadlistRequest): Promise<ReadlistFilter | undefined> => {
 		const sessionId = sessionIdOf(req);
 		return sessionId === undefined ? undefined : deps.findSessionReadlistFilter(sessionId);
 	};
-	return async (req, userId) => {
+	return async (req, userId, home) => {
 		const [definitions, remembered] = await Promise.all([
 			deps.listReadlistDefinitions(userId),
 			rememberedFilterOf(req),
 		]);
 		const readlists = readerReadlists(definitions);
-		const requested = withRememberedFilter(parseReadlistUrl(req.query), remembered);
+		const homeSlug = homeReadlistOf(home?.preference, definitions);
+		const parsed = parseReadlistUrl(req.query);
+		const requested = withRememberedFilter({ ...parsed, readlist: home?.open ? homeSlug : parsed.readlist }, remembered);
+		const targets = new Map<ReadlistSlug, HomeReadlistPreference>();
+		if (home) {
+			for (const { slug } of readlists) {
+				const target = homeReadlistTarget(slug, definitions);
+				if (target && slug !== homeSlug) targets.set(slug, target);
+			}
+		}
 		const activeReadlist = readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			state: { ...requested, readlist: activeReadlist.slug },
@@ -78,6 +93,7 @@ export function initResolveReadlistContext(deps: {
 			readlists,
 			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
 			pinnedReadlists: pinnedReadlistSlugs(definitions),
+			...(home ? { home: { slug: homeSlug, targets } } : {}),
 		};
 	};
 }

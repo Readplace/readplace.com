@@ -57,7 +57,7 @@ import type {
 	ReaderProvenance,
 } from "../../shared/article-body/article-header/provenance-label";
 import type { ReadlistUrlState } from "./readlist.url";
-import { READLIST_PATH, buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
+import { ALL_READLIST_PATH, READLIST_PATH, buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
 import type { MoveFlash, StatusFlash } from "./readlist.error";
 import type { MoveUndoFields } from "./readlist-mutation-fragments";
@@ -392,7 +392,7 @@ function moveToastFor(flash: MoveFlash, returnQuery: string): NonNullable<Readli
 		return {
 			message: flash.message,
 			undoUrl: `${READLIST_PATH}/${flash.articleId}/unassign`,
-			undoFields: { queue: flash.undoQueues, returnTo: `${READLIST_PATH}${returnQuery}` },
+			undoFields: { queue: flash.undoQueues, returnTo: returnQuery ? `${READLIST_PATH}${returnQuery}` : ALL_READLIST_PATH },
 		};
 	}
 	return {

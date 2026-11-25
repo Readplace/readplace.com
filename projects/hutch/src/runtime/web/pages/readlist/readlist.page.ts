@@ -148,6 +148,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(
 		initReadlistPreferencesRoutes({
+			findHomeReadlist: deps.findHomeReadlist,
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
@@ -171,6 +172,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initReadlistListingRoutes(
 			{
+				findHomeReadlist: deps.findHomeReadlist,
+				setHomeReadlist: deps.setHomeReadlist,
+				listReadlistDefinitions: deps.listReadlistDefinitions,
 				now: deps.now,
 				setKeepOfferDismissed: deps.setKeepOfferDismissed,
 				recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,

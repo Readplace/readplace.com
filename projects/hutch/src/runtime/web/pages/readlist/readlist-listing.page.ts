@@ -18,6 +18,11 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { readlistHref } from "../../api/readlist-href";
+import { safeReturnPath } from "../../shared/safe-return-path";
+import { HOME_READLIST_SAVED, homeReadlistTarget } from "./readlist-home";
+import { UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
 import { buildQueryString } from "../../api/collection-query";
 import {
 	parseReadlistUrl,
@@ -35,13 +40,14 @@ import { READLIST_SORT_OPTIONS } from "./readlist-sort";
 import { readlistTotalLabel } from "./readlist-tab-total.component";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
-import { collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, } from "./readlist.error";
+import { READLIST_ERROR_UNKNOWN_READLIST, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, } from "./readlist.error";
 import { initRequireGmailConnectionAccess } from "../integrations/require-gmail-connection-access";
 import {
 	hasInstallableClient,
 } from "../../onboarding/extension-install";
 import {
 	hasBackgroundSaveContinuity,
+	HOME_READLIST_HEADER,
 	isNativeClient,
 	nativeClientOf,
 	nativeSurfaceOf,
@@ -74,7 +80,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
+		"now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -94,7 +100,12 @@ export function initReadlistListingRoutes(deps: Pick<
 			);
 		}
 		const siren = wantsSiren(req);
-		const context = await resolveReadlistContext(req, userId);
+		const homeSupported = nativeClient !== undefined && req.get(HOME_READLIST_HEADER) === "1";
+		const home = !siren || homeSupported ? {
+			preference: await deps.findHomeReadlist(userId),
+			open: !siren && req.query.utm_medium !== "extension" && Object.keys(req.query).every((key) => key.startsWith("utm_")),
+		} : undefined;
+		const context = await resolveReadlistContext(req, userId, home);
 		const urlState = context.state;
 		const store = storeFor(urlState.readlist);
 		const tab = tabQuery(urlState.tab);
@@ -149,6 +160,7 @@ export function initReadlistListingRoutes(deps: Pick<
 
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			setSirenCollectionCaching(req, res);
+			if (req.query[HOME_READLIST_SAVED] !== undefined) res.set("Cache-Control", "private, no-cache");
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					filtered,
@@ -157,6 +169,9 @@ export function initReadlistListingRoutes(deps: Pick<
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
 						pinnedReadlists: context.pinnedReadlists,
+						homeHref: readlistHref({ readlist: homeSupported ? context.home?.slug ?? DEFAULT_READLIST_SLUG : DEFAULT_READLIST_SLUG, readlistKey }),
+						setHome: homeSupported ? context.home?.targets.get(urlState.readlist) : undefined,
+						homeLabel: context.activeReadlist.label,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						surfacePlatform: nativeSurfaceOf(req),
@@ -218,6 +233,29 @@ export function initReadlistListingRoutes(deps: Pick<
 		});
 	});
 
+	router.post("/queues/:slug/home", requireNotLocked, async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const siren = wantsSiren(req);
+		const slug = ReadlistSlugSchema.safeParse(req.params.slug);
+		const target = slug.success && homeReadlistTarget(slug.data, await deps.listReadlistDefinitions(req.userId));
+		const landing = new URL(safeReturnPath(siren ? req.query.returnTo : req.body?.returnTo), "https://readlist.invalid");
+		if (landing.pathname === "/") landing.pathname = READLIST_PATH;
+		if (landing.pathname === READLIST_PATH && !landing.searchParams.has("queue") && !landing.searchParams.has("readlist")) {
+			landing.searchParams.set(siren ? readlistQueryKeyOf(req) : "queue", DEFAULT_READLIST_SLUG);
+		}
+		landing.searchParams.delete(HOME_READLIST_SAVED);
+		if (!target || target.createdAt !== req.query.createdAt || !(await deps.setHomeReadlist({ userId: req.userId, preference: target }))) {
+			if (siren) {
+				refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+				return;
+			}
+			landing.searchParams.set("queue_error", READLIST_ERROR_UNKNOWN_READLIST);
+		} else {
+			landing.searchParams.set(HOME_READLIST_SAVED, target.slug);
+		}
+		res.redirect(303, landing.pathname + landing.search);
+	});
+
 	router.get("/counts", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -266,7 +304,7 @@ export function initReadlistListingRoutes(deps: Pick<
 	router.post("/keep-offer/dismiss", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.setKeepOfferDismissed({ userId: req.userId, dismissedAt: deps.now() });
-		res.redirect(303, READLIST_PATH);
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 
 	router.post("/onboarding/email/done", async (req: Request, res: Response) => {

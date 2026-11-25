@@ -19,6 +19,7 @@ import { TAB_IDS, type TabId, tabQuery } from "./readlist.tabs";
  * query strings built here — all derive from this constant so they can't drift
  * from the mount point. */
 export const READLIST_PATH = "/queue";
+export const ALL_READLIST_PATH = `${READLIST_PATH}?queue=${DEFAULT_READLIST_SLUG}`;
 
 export type LinkParams = readonly (readonly [string, string])[];
 
@@ -124,7 +125,8 @@ function readlistQueryString(state: Partial<ReadlistUrlState>, extraParams: Link
 
 export function buildReadlistUrl(state: Partial<ReadlistUrlState>, extraParams: LinkParams = []): string {
 	const qs = readlistQueryString(state, extraParams);
-	return qs ? `${READLIST_PATH}?${qs}` : READLIST_PATH;
+	if (qs) return `${READLIST_PATH}?${qs}`;
+	return state.readlist === DEFAULT_READLIST_SLUG ? ALL_READLIST_PATH : READLIST_PATH;
 }
 
 export function readlistReturnQuery(state: Partial<ReadlistUrlState>): string {

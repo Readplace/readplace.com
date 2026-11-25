@@ -118,7 +118,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 
 		const redirect = await agent.post(MARK_DONE_PATH).set("User-Agent", CHROME_UA);
 		assert.equal(redirect.status, 303);
-		assert.equal(redirect.headers.location, "/queue");
+		assert.equal(redirect.headers.location, "/queue?queue=default");
 
 		const signals = await fixture.onboardingSignals.getOnboardingSignals({ userId });
 		assert(signals.emailStepMarkedDoneAt instanceof Date, "the marked-done instant must be stamped");

@@ -88,7 +88,7 @@ data class AffordancePresentation(
 			// Not a user control: the client invokes this bespoke to mint the reader
 			// session cookie (like a capture-only save), so it never renders in the
 			// toolbar even though it is advertised on the collection.
-			"create-session" -> AffordancePresentation(
+			"create-session", "set-home-readlist" -> AffordancePresentation(
 				icon = AffordanceIcon.KEY,
 				tint = AffordanceTint.NEUTRAL,
 				isDestructive = false,
@@ -167,7 +167,7 @@ val Affordance.presentation: AffordancePresentation get() = AffordancePresentati
  */
 val Affordance.Companion.structuralRels: Set<String> get() = STRUCTURAL_RELS
 
-private val STRUCTURAL_RELS: Set<String> = setOf("self", "root", "prev", "next", "item")
+private val STRUCTURAL_RELS: Set<String> = setOf("self", "root", "home", "prev", "next", "item")
 
 /**
  * Whether a link `rel` is one the client renders through its own in-app

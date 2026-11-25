@@ -362,7 +362,7 @@ describe("POST /queue/:id/move", () => {
 			expect(undoFieldPairs(doc)).toEqual([
 				["queue", finance],
 				["queue", weekend],
-				["returnTo", "/queue"],
+				["returnTo", "/queue?queue=default"],
 			]);
 
 			const undone = await agent

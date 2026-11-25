@@ -32,7 +32,7 @@ struct OfflineReadlistSnapshot {
 		guard let body = page.sirenBody else { return }
 		let key = href ?? Self.entryPoint
 		write(Stored(href: key, savedAt: savedAt, body: body))
-		if href == nil, let current = page.currentTabHref {
+		if let current = page.currentTabHref, current != key {
 			write(Stored(href: current, savedAt: savedAt, body: body))
 		}
 	}

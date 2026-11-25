@@ -12,6 +12,7 @@ enum RedirectHeaders {
 		"User-Agent",
 		AppConfig.clientHeader,
 		AppConfig.saveContinuityHeader,
+		AppConfig.homeReadlistHeader,
 	]
 
 	static func preserving(from original: URLRequest?, onto redirected: URLRequest) -> URLRequest {

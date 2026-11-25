@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import {
 	NATIVE_CLIENT_HEADER,
+	HOME_READLIST_HEADER,
 	SAVE_CONTINUITY_HEADER,
 	isNativeClient,
 } from "./onboarding/native-client";
@@ -16,6 +17,7 @@ const COLLECTION_VARY = [
 	"User-Agent",
 	NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_HEADER,
+	HOME_READLIST_HEADER,
 ].join(", ");
 
 export function setSirenCollectionCaching(req: Request, res: Response): void {

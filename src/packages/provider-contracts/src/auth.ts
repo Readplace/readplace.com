@@ -1,3 +1,4 @@
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ReadlistFilter } from "@packages/domain/article";
 import type { OAuthClientId, OAuthGrantId } from "@packages/domain/oauth";
 import type { AppearancePreference, AuthenticatedUserId, DisplayName, UserId } from "@packages/domain/user";
@@ -144,6 +145,18 @@ export type CountEarlyIntentionalSave = (params: { userId: UserId; at: Date }) =
 	| { inWindow: false }
 	| { inWindow: true; count: number; registeredAt: string; signupOAuthClientId: OAuthClientId | null }
 >;
+
+export interface HomeReadlistPreference {
+	readonly slug: ReadlistSlug;
+	readonly createdAt?: string;
+}
+
+export type FindHomeReadlist = (userId: UserId) => Promise<HomeReadlistPreference | undefined>;
+
+export type SetHomeReadlist = (input: {
+	userId: UserId;
+	preference: HomeReadlistPreference;
+}) => Promise<boolean>;
 
 export type SetUserAppearance = (input: {
 	userId: UserId;

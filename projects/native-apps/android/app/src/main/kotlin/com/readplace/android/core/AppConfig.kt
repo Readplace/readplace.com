@@ -35,6 +35,7 @@ object AppConfig {
 	 * notice asking the user not to close it. The server never advertises the
 	 * header: a build that predates the background leg simply never sends it and
 	 * keeps the notice, for which it is still true. */
+	const val HOME_READLIST_HEADER = "X-Readplace-Home-Readlist"
 	const val SAVE_CONTINUITY_HEADER = "X-Readplace-Save-Continuity"
 	const val SAVE_CONTINUITY_BACKGROUND = "background"
 

@@ -29,7 +29,7 @@ describe("Readlist routes", () => {
 				.send({ url: "https://example.com/article" });
 
 			expect(saveResponse.status).toBe(303);
-			expect(saveResponse.headers.location).toBe("/queue#latest-saved");
+			expect(saveResponse.headers.location).toBe("/queue?queue=default#latest-saved");
 
 			const readlistResponse = await agent.get("/queue");
 			const doc = new JSDOM(readlistResponse.text).window.document;
@@ -162,7 +162,7 @@ describe("Readlist routes", () => {
 				expect(response.status).toBe(204);
 				expect(response.headers["x-readplace-save-attempt-id"]).toEqual(expect.any(String));
 				expect(JSON.parse(response.headers["hx-location"])).toEqual({
-					path: "/queue",
+					path: "/queue?queue=default",
 					source: "#add-link",
 					target: "main",
 					select: "main",
@@ -521,7 +521,7 @@ describe("Readlist routes", () => {
 				.send({ status: "invalid-status" });
 
 			expect(statusResponse.status).toBe(303);
-			expect(statusResponse.headers.location).toBe("/queue");
+			expect(statusResponse.headers.location).toBe("/queue?queue=default");
 		});
 
 		it("should redirect without error for malformed article id", async () => {
@@ -535,7 +535,7 @@ describe("Readlist routes", () => {
 				.send({ status: "read" });
 
 			expect(statusResponse.status).toBe(303);
-			expect(statusResponse.headers.location).toBe("/queue");
+			expect(statusResponse.headers.location).toBe("/queue?queue=default");
 		});
 
 		describe("article_read analytics emission", () => {
@@ -969,7 +969,7 @@ describe("Readlist routes", () => {
 			const deleteResponse = await agent.post("/queue/not-a-valid-hash/delete");
 
 			expect(deleteResponse.status).toBe(303);
-			expect(deleteResponse.headers.location).toBe("/queue");
+			expect(deleteResponse.headers.location).toBe("/queue?queue=default");
 		});
 	});
 

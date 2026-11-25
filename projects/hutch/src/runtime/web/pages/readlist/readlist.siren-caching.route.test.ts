@@ -8,7 +8,7 @@ import {
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import {
-	NATIVE_CLIENT_HEADER,
+	HOME_READLIST_HEADER, NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_HEADER,
 } from "../../onboarding/native-client";
 import { SIREN_DISCOVERY_MAX_AGE_SECONDS } from "../../siren-discovery-cache";
@@ -44,6 +44,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"user-agent",
 			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
+			HOME_READLIST_HEADER,
 		]);
 		const etag = response.headers.etag;
 		assert(etag, "the collection must carry an ETag so a stale copy can revalidate");
@@ -108,6 +109,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"user-agent",
 			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
+			HOME_READLIST_HEADER,
 		]);
 	});
 
@@ -129,6 +131,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"user-agent",
 			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
+			HOME_READLIST_HEADER,
 		]);
 	});
 

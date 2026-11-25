@@ -1,3 +1,4 @@
+import { ALL_READLIST_PATH } from "../readlist/readlist.url";
 import assert from "node:assert";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
@@ -132,7 +133,7 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 		);
 	},
 	committed: (res) => {
-		res.redirect(303, "/queue");
+		res.redirect(303, ALL_READLIST_PATH);
 	},
 	"staged-for-review": (res, outcome) => {
 		res.redirect(303, `/upload/${outcome.uploadId}`);

@@ -4,6 +4,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { type EnclosureRead, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
+import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
+import { setHomeReadlistPath } from "../pages/readlist/readlist-home";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
@@ -74,6 +76,9 @@ export function toArticleCollectionEntity(
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
 		appearance?: AppearancePreference;
+		homeHref?: string;
+		setHome?: HomeReadlistPreference;
+		homeLabel?: string;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
@@ -97,9 +102,11 @@ export function toArticleCollectionEntity(
 		: "/account";
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
-		{ rel: ["root"], href: "/queue" },
+		{ rel: options.homeHref === "/queue" ? ["root", "home"] : ["root"], href: "/queue" },
 		{ rel: ["account"], title: "Account", href: accountHref },
 	];
+
+	if (options.homeHref && options.homeHref !== "/queue") links.push({ rel: ["home"], href: options.homeHref });
 
 	// Older iOS builds resolve the Share-help URL from this rel; the current client
 	// holds the path itself and ignores this link, but it stays advertised so those
@@ -165,6 +172,9 @@ export function toArticleCollectionEntity(
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
+	const setHome = options.setHome;
+	const homePath = setHome && new URL(setHomeReadlistPath(setHome), "https://readlist.invalid");
+	if (homePath) homePath.searchParams.set("returnTo", `/queue${buildQueryString(queryParams)}`);
 	const namedReadlist = queryParams.readlist === DEFAULT_READLIST_SLUG ? undefined : queryParams.readlist;
 	return {
 		class: ["collection", "articles"],
@@ -182,6 +192,12 @@ export function toArticleCollectionEntity(
 		),
 		links,
 		actions: [
+			...(homePath ? [{
+				name: "set-home-readlist",
+				title: `Set ${options.homeLabel} as home`,
+				href: homePath.pathname + homePath.search,
+				method: "POST",
+			}] : []),
 			{
 				name: "save-article",
 				title: "Save a link",

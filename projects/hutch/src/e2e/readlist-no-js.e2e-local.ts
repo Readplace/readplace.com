@@ -117,6 +117,31 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		});
 	});
 
+	test("sets Home with the keyboard from the phone switcher", async ({ page }, testInfo) => {
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-home`);
+		await loginAs(page, email);
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
+		const slug = new URL(created.url()).searchParams.get("queue");
+		assert(slug, "creating Weekend must return its readlist URL");
+
+		await page.goto(`${BASE_URL}/queue?queue=default`, { waitUntil: "domcontentloaded" });
+		await page.locator('[data-test-action="readlist-switcher"]').press("Enter");
+		const options = page.locator(`[data-test-readlist-menu="${slug}"]`);
+		await options.locator('[data-test-action="readlist-menu"]').press("Enter");
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			options.getByRole("button", { name: "Set as home readlist" }).press("Enter"),
+		]);
+
+		await expect(page.locator('[data-test-readlist="default"]')).toHaveAttribute("aria-current", "page");
+		const status = page.locator('[role="status"][autofocus]');
+		await expect(status).toHaveText("Weekend is now your home readlist.");
+		await expect(status).toBeFocused();
+
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(`[data-test-readlist="${slug}"]`)).toHaveAttribute("aria-current", "page");
+	});
+
 	test("a status toast's Undo works as a plain form submit", async ({ page }, testInfo) => {
 		const email = await seedArticle(
 			page,

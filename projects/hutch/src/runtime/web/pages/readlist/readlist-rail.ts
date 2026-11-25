@@ -3,7 +3,8 @@ import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import type { ReadlistContext } from "./readlist-context";
 import type { Readlist } from "./readlist.nav";
 import { READLIST_ERROR_LIMIT } from "./readlist.error";
-import { READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
+import { HOME_READLIST_SAVED } from "./readlist-home";
+import { READLIST_PATH, READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 
 export interface ReadlistRailViewModel {
 	readlists: readonly Readlist[];
@@ -14,15 +15,28 @@ export interface ReadlistRailViewModel {
 	offer: UpgradeOffer | undefined;
 	nonEmptyReadlists: readonly ReadlistSlug[];
 	pinnedReadlists: readonly ReadlistSlug[];
+	home?: ReadlistContext["home"] & { returnTo: string; status?: string };
 }
 
 export function buildReadlistRail(input: {
 	context: ReadlistContext;
 	offer: UpgradeOffer | undefined;
 	nonEmptyReadlists: readonly ReadlistSlug[];
+	originalUrl?: string;
 }): ReadlistRailViewModel {
 	const custom = input.context.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
+	const { home } = input.context;
+	const landing = new URL(input.originalUrl ?? buildReadlistUrl(input.context.state), "https://readlist.invalid");
+	const saved = landing.searchParams.get(HOME_READLIST_SAVED);
+	landing.searchParams.delete(HOME_READLIST_SAVED);
+	if (landing.pathname === READLIST_PATH || landing.pathname === `${READLIST_PATH}/`) {
+		landing.pathname = READLIST_PATH;
+		landing.searchParams.delete("readlist");
+		landing.searchParams.set("queue", input.context.state.readlist);
+	}
+	const label = saved === home?.slug ? input.context.readlists.find(({ slug }) => slug === saved)?.label : undefined;
 	return {
+		home: home && { ...home, returnTo: landing.pathname + landing.search, status: label && `${label} is now your home readlist.` },
 		readlists: input.context.readlists,
 		activeReadlist: input.context.activeReadlist,
 		newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(input.context.state)}`,

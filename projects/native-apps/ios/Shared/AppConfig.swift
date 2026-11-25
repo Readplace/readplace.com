@@ -50,6 +50,7 @@ enum AppConfig {
 	/// not to close it. The server never advertises the header: a shipped build that
 	/// predates the background leg simply never sends it and keeps the notice, for
 	/// which it is still true.
+	static let homeReadlistHeader = "X-Readplace-Home-Readlist"
 	static let saveContinuityHeader = "X-Readplace-Save-Continuity"
 	static let saveContinuityBackground = "background"
 

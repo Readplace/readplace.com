@@ -457,6 +457,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				]);
 			}
 			expect([...params(element(doc, '[data-test-readlist="default"]').getAttribute("href")).keys()]).toEqual([
+				"queue",
 				"utm_source",
 				"utm_medium",
 				"utm_content",
@@ -581,7 +582,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			const deleted = await agent.post(`/queue/queues/${work}/delete?queue=${work}&q=focus`).type("form").send({});
 
 			expect([renamed.status, renamed.headers.location]).toEqual([303, `/queue?queue=${work}`]);
-			expect([deleted.status, deleted.headers.location]).toEqual([303, "/queue"]);
+			expect([deleted.status, deleted.headers.location]).toEqual([303, "/queue?queue=default"]);
 		});
 
 		it("lands a save from a narrowed listing on the whole listing", async () => {
@@ -593,7 +594,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				.type("form")
 				.send({ url: "https://example.com/new-save" });
 
-			expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+			expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default#latest-saved"]);
 		});
 
 		it("keeps the search when the setup guide is dismissed or its email step is done", async () => {
@@ -701,7 +702,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				"/queue/filters?utm_source=queue-empty&utm_medium=internal&utm_content=clear-discovery",
 			]);
 			const cleared = await agent.post(actionOf(form)).type("form").send("");
-			expect([cleared.status, cleared.headers.location]).toEqual([303, "/queue"]);
+			expect([cleared.status, cleared.headers.location]).toEqual([303, "/queue?queue=default"]);
 			expect(await listedOn(agent, "/queue")).toEqual(["https://example.com/focus"]);
 		});
 
@@ -846,7 +847,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			const response = await agent.post("/queue/filters");
 
-			expect([response.status, response.headers.location]).toEqual([303, "/queue"]);
+			expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default"]);
 			expect(await listedOn(agent, "/queue")).toEqual([SHORT.url, MEDIUM.url]);
 		});
 

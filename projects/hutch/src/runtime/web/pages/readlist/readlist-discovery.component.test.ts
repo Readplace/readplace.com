@@ -128,8 +128,9 @@ describe("buildReadlistDiscovery", () => {
 		]);
 	});
 
-	it("needs only the tracking fields to search the default listing", () => {
+	it("addresses the default readlist when searching its listing", () => {
 		expect(hiddenFields(element(discoveryDoc(), '[data-test-form="readlist-search"]'))).toEqual([
+			["queue", "default"],
 			["utm_source", "queue-search"],
 			["utm_medium", "internal"],
 			["utm_content", "search"],

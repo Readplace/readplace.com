@@ -80,6 +80,8 @@ import type {
 	FindUserById,
 	SetSessionReadlistFilter,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 } from "@packages/provider-contracts/auth";
 import type {
 	FindArticleCrawlStatus,
@@ -283,4 +285,6 @@ export interface ReadlistDependencies {
 	now: () => Date;
 	keepOffer: ReturnType<typeof initKeepOffer>;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 }

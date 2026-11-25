@@ -48,7 +48,7 @@ describe("save_refused on the gated save routes", () => {
 
 		const response = await agent.post("/queue/save").set("Accept", "text/html").type("form").send({ url: "https://example.com/a" });
 
-		expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+		expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default#latest-saved"]);
 		expect(refusalsIn(harness)).toEqual([]);
 	});
 

@@ -5,6 +5,8 @@ struct LastViewedReadlist {
 
 	private enum Key {
 		static let readlistHref = "readingList.lastViewedReadlistHref"
+		static let homeHref = "readingList.cachedHomeHref"
+		static let currentTabHref = "readingList.cachedCurrentTabHref"
 		static let landingTabHref = "readingList.lastViewedLandingTabHref"
 	}
 
@@ -28,7 +30,17 @@ struct LastViewedReadlist {
 		defaults.set(landingTabHref, forKey: Key.landingTabHref)
 	}
 
+	var homeHref: String? { defaults.string(forKey: Key.homeHref) }
+	var currentTabHref: String? { defaults.string(forKey: Key.currentTabHref) }
+
+	func remember(homeHref: String?, currentTabHref: String?) {
+		defaults.set(homeHref, forKey: Key.homeHref)
+		defaults.set(currentTabHref, forKey: Key.currentTabHref)
+	}
+
 	func forget() {
+		defaults.removeObject(forKey: Key.homeHref)
+		defaults.removeObject(forKey: Key.currentTabHref)
 		defaults.removeObject(forKey: Key.readlistHref)
 		defaults.removeObject(forKey: Key.landingTabHref)
 	}

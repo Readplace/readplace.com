@@ -189,6 +189,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			buildReadlistNav({
 				readlists: vm.rail.readlists,
 				pinnedReadlists: vm.rail.pinnedReadlists,
+				home: vm.rail.home,
 				activeSlug: vm.rail.activeReadlist.slug,
 				newReadlistAction: vm.rail.newReadlistAction,
 				limitAlertHref: vm.rail.limitAlertHref,

@@ -206,14 +206,14 @@ describe("Readlist nav", () => {
 			expect(onWork.querySelector('[data-test-form="save-article"]')).toBeNull();
 		});
 
-		it("should leave the default readlist unnamed when clamping a page past the end of the listing", async () => {
+		it("should preserve the default readlist when clamping a page past the end of the listing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/queue?queue=default&page=2");
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?queue=default");
 		});
 	});
 

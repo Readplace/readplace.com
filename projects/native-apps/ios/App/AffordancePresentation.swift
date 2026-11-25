@@ -51,7 +51,7 @@ struct AffordancePresentation {
 			isToolbarControl = false
 			isRecognizedToken = true
 			showsTitle = false
-		case "create-session", "create-browser-handoff":
+		case "create-session", "create-browser-handoff", "set-home-readlist":
 			// Not a user control: the client invokes this bespoke to mint the reader
 			// session cookie (like a capture-only save), so it never renders in the
 			// toolbar even though it is advertised on the collection.
@@ -122,7 +122,7 @@ extension Affordance {
 	/// resolution (`item`) — never rendered as user controls. Single source so the
 	/// presentation switch and any other structural classification can't drift on
 	/// which rels are plumbing rather than affordances.
-	static let structuralRels: Set<String> = ["self", "root", "prev", "next", "item"]
+	static let structuralRels: Set<String> = ["self", "root", "home", "prev", "next", "item"]
 
 	/// Whether a link `rel` is one the client renders through its own in-app
 	/// presentation rather than browsing to the href in the web view. The

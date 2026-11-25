@@ -1,3 +1,4 @@
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
@@ -62,6 +63,8 @@ import type {
 	MarkSessionAdminMfaVerified,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
+	FindHomeReadlist,
+	SetHomeReadlist,
 	SetUserDisplayName,
 	UpdatePassword,
 	UserAcquisitionAttribution,
@@ -93,6 +96,7 @@ const UserRow = z.object({
 	first_seen_at: dynamoField(z.string()),
 	landing_path: dynamoField(z.string()),
 	deletedAt: dynamoField(z.string()),
+	homeReadlist: dynamoField(z.object({ slug: ReadlistSlugSchema, createdAt: z.string().optional() })),
 	appearance: dynamoField(AppearancePreferenceSchema),
 	displayName: dynamoField(DisplayNameSchema),
 	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
@@ -158,6 +162,8 @@ export function initDynamoDbAuth(deps: {
 	findUserById: FindUserById;
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 	markActivationThresholdReached: MarkActivationThresholdReached;
@@ -754,6 +760,28 @@ export function initDynamoDbAuth(deps: {
 		return { kind: "set", updatedAt: row.passwordUpdatedAt };
 	};
 
+	const findHomeReadlist: FindHomeReadlist = async (userId) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return undefined;
+		const row = await users.get({ email }, {
+			projection: ["email", "userId", "deletedAt", "homeReadlist"],
+			consistentRead: true,
+		});
+		return liveUserRow(row)?.homeReadlist;
+	};
+
+	const setHomeReadlist: SetHomeReadlist = async ({ userId, preference }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return false;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET homeReadlist = :preference",
+			ConditionExpression: "userId = :userId AND attribute_not_exists(deletedAt)",
+			ExpressionAttributeValues: { ":userId": userId, ":preference": preference },
+		});
+		return true;
+	};
+
 	const setUserAppearance: SetUserAppearance = async ({ userId, appearance }) => {
 		const email = await findEmailByUserId(userId);
 		if (email === null) return;
@@ -873,6 +901,8 @@ export function initDynamoDbAuth(deps: {
 		findUserById,
 		findUserPasswordStatus,
 		setUserAppearance,
+		findHomeReadlist,
+		setHomeReadlist,
 		setUserDisplayName,
 		setQueueDigestOptOut,
 		markActivationThresholdReached,

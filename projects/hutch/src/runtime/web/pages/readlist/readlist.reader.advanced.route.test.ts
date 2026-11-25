@@ -648,7 +648,7 @@ describe("Readlist routes", () => {
 				.send({ url: "https://example.com/broken" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue#latest-saved");
+			expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		});
 
 		it("should show fallback title from hostname when fetch fails", async () => {

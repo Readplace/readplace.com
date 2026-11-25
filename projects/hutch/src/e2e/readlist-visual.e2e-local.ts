@@ -345,7 +345,7 @@ async function railMenuGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: READLIST_MENU_FLYOUT,
 		toggle: READLIST_MENU_SUMMARY,
-		rows: 2,
+		rows: 3,
 	});
 }
 

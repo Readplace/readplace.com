@@ -1321,7 +1321,7 @@ describe("Save a newsletter to a readlist", () => {
 		expect((await gmail.addresses.listAddressesByUserId(userId)).filter((entry) => entry.purpose === "gmail-readlist").map((entry) => entry.readlist)).toEqual([TECH]);
 		const doc = load((await agent.get(GMAIL)).text);
 		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-destination]"), (el) => el.textContent)).toEqual(["Saved to All, Tech", "Saved to All, Tech"]);
-		const allHref = "/queue?utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist";
+		const allHref = "/queue?queue=default&utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist";
 		const techHref = "/queue?queue=tech&utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist";
 		expect(Array.from(doc.querySelectorAll("[data-test-gmail-mapping-destination] a"), (link) => link.getAttribute("href"))).toEqual([allHref, techHref, allHref, techHref]);
 	});
@@ -1830,7 +1830,7 @@ describe("Your newsletters", () => {
 		assert(section);
 		const targets = Array.from(section.querySelectorAll("form"), (form) => new URL(form.getAttribute("action") ?? "", "https://readplace.com").pathname);
 		expect([...new Set(targets)].sort()).toEqual([GMAIL, IMPORT_START, MARK_START, REMOVE, RETRY].sort());
-		expect(Array.from(section.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual(["/queue?utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist"]);
+		expect(Array.from(section.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual(["/queue?queue=default&utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist"]);
 		const edit = rowAction(row(doc, TLDR), "edit");
 		expect(hiddenFields(edit)).toMatchObject({ sender: TLDR, readlist: "default", edit: "1" });
 		const remove = rowAction(row(doc, TLDR), "remove");

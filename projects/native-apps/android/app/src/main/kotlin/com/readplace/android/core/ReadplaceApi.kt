@@ -77,6 +77,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 	 * every save also drops into. Null when the server advertised no root, in which
 	 * case the client never guesses which readlist is mainline. */
 	val rootHref: String?
+	val homeHref: String?
 
 	/** The status tabs and sibling readlists the collection advertised, in server
 	 * order. Empty when the server offered none. */
@@ -110,6 +111,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 		nextHref = next?.href
 		nextIsOfflinePrefetch = next?.classes.orEmpty().contains("offline-prefetch")
 		rootHref = links.firstOrNull { it.rel.contains("root") }?.href
+		homeHref = links.firstOrNull { it.rel.contains("home") }?.href
 		val actionAffordances = collection.actions.orEmpty().mapNotNull { Affordance.of(it) }
 		val linkAffordances = links.mapNotNull { Affordance.of(it) }
 		affordances = actionAffordances + linkAffordances
@@ -539,6 +541,7 @@ class ReadplaceApi(
 			// records onboarding completion per-user (a browser on the same phone can't
 			// see the app's cookies, so it can't rely on the extension's cookie signals).
 			.header(AppConfig.CLIENT_HEADER, AppConfig.CLIENT_ANDROID)
+			.header(AppConfig.HOME_READLIST_HEADER, "1")
 			.header(AppConfig.SAVE_CONTINUITY_HEADER, AppConfig.SAVE_CONTINUITY_BACKGROUND)
 			.header("User-Agent", nativeUserAgent)
 			.build()

@@ -5,6 +5,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
 } from "@packages/storage-client";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema, hashPassword } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
@@ -1824,6 +1825,40 @@ describe("initDynamoDbAuth", () => {
 					{ Delete: { TableName: "users", Key: { email: "canonical#johndoe@gmail.com" } } },
 				],
 			});
+		});
+	});
+
+	describe("home readlist preference", () => {
+		const preference = { slug: ReadlistSlugSchema.parse("weekend"), createdAt: "2026-11-01T00:00:00.000Z" };
+
+		it("writes the preference to the live account and reads it from the base table", async () => {
+			const row = { email: "user@example.com", userId: USER };
+			const { client, commands } = createQueryFakeClient({ row });
+			const query = client.send;
+			client.send = (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+				if (command.constructor.name === "GetCommand") {
+					commands.push({ name: "GetCommand", input: command.input });
+					return { Item: { ...row, homeReadlist: preference } };
+				}
+				return Reflect.apply(query, client, [command]);
+			}) as DynamoDBDocumentClient["send"];
+			const auth = initAuth(client);
+
+			expect(await auth.setHomeReadlist({ userId: USER, preference })).toBe(true);
+			expect(await auth.findHomeReadlist(USER)).toEqual(preference);
+			expect(commands.find(({ name }) => name === "UpdateCommand")?.input).toMatchObject({
+				Key: { email: row.email },
+				UpdateExpression: "SET homeReadlist = :preference",
+				ConditionExpression: "userId = :userId AND attribute_not_exists(deletedAt)",
+				ExpressionAttributeValues: { ":userId": USER, ":preference": preference },
+			});
+			expect(commands.find(({ name }) => name === "GetCommand")?.input).toMatchObject({ ConsistentRead: true });
+		});
+
+		it("has no preference to read or write when the account is missing", async () => {
+			const auth = initAuth(createQueryFakeClient({}).client);
+			expect(await auth.findHomeReadlist(USER)).toBeUndefined();
+			expect(await auth.setHomeReadlist({ userId: USER, preference })).toBe(false);
 		});
 	});
 

@@ -308,7 +308,7 @@ describe("Readlist onboarding", () => {
 		const response = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", CHROME_UA);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 		const cookies = response.headers["set-cookie"];
 		assert(cookies, "set-cookie header must be present");
 		const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;

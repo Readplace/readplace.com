@@ -156,7 +156,7 @@ describe("Guest audio review", () => {
 		const commit = await agent.post(`/upload/${uploadId}/commit`);
 
 		expect(commit.status).toBe(303);
-		expect(commit.headers.location).toBe("/queue");
+		expect(commit.headers.location).toBe("/queue?queue=default");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([
 			expect.objectContaining({ uploadId, kind: "audio", chargedSeconds: 600 }),
 		]);
