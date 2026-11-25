@@ -129,7 +129,7 @@ export function createOnboardingActions(
 					'true',
 				)
 				await expect(page.locator(EMAIL_STEP)).toBeVisible()
-				expect(await currentStepIds(page)).toEqual(['save-enough-for-next-read'])
+				expect(await currentStepIds(page)).toEqual(['create-smart-readlist'])
 				await expect(page.locator('[data-test-onboarding-steps]')).toHaveCount(1)
 
 				progress.markedEmailDone = true

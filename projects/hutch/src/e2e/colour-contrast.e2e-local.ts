@@ -781,6 +781,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 	test("the setup guide's neutral tag clears its contrast minimum", async ({ page }, testInfo) => {
 		const email = `colour-contrast-chip-tag-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createChipReader(page, email);
+		assert.equal((await page.request.post(`${BASE_URL}/e2e/seed-smart-readlist-milestone`, { data: { userId } })).status(), 201);
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, { data: { userId } });
 		assert.equal(seeded.status(), 201);
 		await page.context().addCookies(
@@ -798,7 +799,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-			await expect(page.locator("[data-test-onboarding-chip]")).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator('[data-test-onboarding-step="save-enough-for-next-read"] [data-test-onboarding-chip]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: "[data-test-setup-guide]", theme, view: "chip/setup-guide" });
 		}
 	});
