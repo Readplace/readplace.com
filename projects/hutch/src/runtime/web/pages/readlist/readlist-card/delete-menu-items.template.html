@@ -1,6 +1,6 @@
 <form method="POST" action="{{url}}" class="article-delete__form{{#if confirm}} article-delete__form--fallback{{/if}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{swap}}">
-  <button class="menu__item" type="submit" title="Delete from this readlist" data-test-action="{{#if confirm}}delete-fallback{{else}}delete{{/if}}">{{icon "trash"}}<span>Delete from this readlist</span></button>
+  <button class="menu__item" type="submit" title="{{t "readlistDelete.label"}}" data-test-action="{{#if confirm}}delete-fallback{{else}}delete{{/if}}">{{icon "trash"}}<span>{{t "readlistDelete.label"}}</span></button>
 </form>
 {{#if confirm}}
-<button class="menu__item article-delete__trigger" type="button" popovertarget="{{confirm.popoverId}}" title="Delete from this readlist" aria-haspopup="dialog" data-test-action="delete">{{icon "trash"}}<span>Delete from this readlist</span></button>
+<button class="menu__item article-delete__trigger" type="button" popovertarget="{{confirm.popoverId}}" title="{{t "readlistDelete.label"}}" aria-haspopup="dialog" data-test-action="delete">{{icon "trash"}}<span>{{t "readlistDelete.label"}}</span></button>
 {{/if}}

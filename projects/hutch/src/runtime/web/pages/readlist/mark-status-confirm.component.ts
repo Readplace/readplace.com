@@ -1,5 +1,7 @@
 import type { ArticleStatus } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 
@@ -13,6 +15,8 @@ export interface MarkStatusConfirmViewModel {
 
 export const MARK_STATUS_ACK_NEVER = "never";
 
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
 /**
  * The `readlist-mark-status-confirm-` prefix is load-bearing, not cosmetic: a
  * ReaderArticleHashId is /^[0-9a-f]{32}$/ and may start with a digit, which is a
@@ -25,7 +29,7 @@ export function markStatusConfirmPopoverId(articleId: string): string {
 
 const MARK_STATUS_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons confirm-popover__buttons--full-width" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 	<input type="hidden" name="status" value="{{status}}">
-	<button class="btn btn--primary" type="submit" name="ack" value="{{ackNever}}" data-test-action="mark-status-confirm" autofocus>Got it</button>
+	<button class="btn btn--primary" type="submit" name="ack" value="{{ackNever}}" data-test-action="mark-status-confirm" autofocus>{{t "readlistMarkStatus.acknowledge"}}</button>
 </form>`;
 
 export function renderMarkStatusConfirm(input: {
@@ -40,8 +44,8 @@ export function renderMarkStatusConfirm(input: {
 		close: {},
 		oob: input.oob,
 		subject: input.confirm.articleId,
-		title: "Read status is shared across readlists",
-		body: `When you mark this article as ${input.confirm.status}, it’s marked as ${input.confirm.status} in every readlist where you’ve saved it.`,
+		title: t("readlistMarkStatus.title"),
+		body: t(`readlistMarkStatus.body.${input.confirm.status}`),
 		bodyItems: input.confirm.readlists.map((readlist) => ({
 			label: readlist.label,
 			icon: READLIST_KIND_ICON[readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom"],
