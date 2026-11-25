@@ -70,6 +70,7 @@ export {
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
+export { personalDecisionKey, personalReadlistPartition, personalReadlistOrder, type PersonalPickRequest, type PersonalReadlist } from "./personal-readlist";
 export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
 export {
 	REMOVAL_SKIP_REASONS,

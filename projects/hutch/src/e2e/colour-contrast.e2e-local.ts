@@ -52,6 +52,7 @@ const SAVED_FACT_TOKEN = "--fact-saved";
 const BANNER_AREA_ROOT = ".banner-area";
 const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 function minimumRatio(measured: RenderedInk): number {
 	return measured.role === "text" ? textMinimum(measured) : NON_TEXT_MINIMUM;
@@ -685,16 +686,57 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
 	});
 
-	test("homepage arm C's capabilities clear their contrast minimum", async ({ page }) => {
-		await page.context().addCookies([{
-			name: EXPERIMENT_COOKIE_NAME,
-			value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[1].slug}`,
-			url: BASE_URL,
-		}]);
+	for (const arm of [
+		{ title: "homepage arm B's comparison clears its contrast minimum", variant: HOMEPAGE_SPLIT.variants[0], section: "compare", view: "home-b/compare" },
+		{ title: "homepage arm C's capabilities clear their contrast minimum", variant: HOMEPAGE_SPLIT.variants[1], section: "capabilities", view: "home-c/capabilities" },
+	]) {
+		test(arm.title, async ({ page }) => {
+			await page.context().addCookies([{
+				name: EXPERIMENT_COOKIE_NAME,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${arm.variant.slug}`,
+				url: BASE_URL,
+			}]);
+			const root = `[data-test-section="${arm.section}"]`;
+			for (const theme of ["light", "dark"] as const) {
+				await page.emulateMedia({ colorScheme: theme });
+				await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+				await expect(page.locator(root)).toBeVisible({ timeout: SETTLE_MS });
+				await auditRoot(page, { root, theme, view: arm.view });
+			}
+		});
+	}
+});
+
+const WORDMARK_TAIL = "header.header .header__brand-mark";
+
+test.describe("The header wordmark holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the wordmark tail clears its contrast minimum on the default header", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+
 		await page.emulateMedia({ colorScheme: "light" });
-		await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator('[data-test-section="capabilities"]')).toBeVisible({ timeout: SETTLE_MS });
-		await auditRoot(page, { root: '[data-test-section="capabilities"]', theme: "light", view: "home-c/capabilities" });
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-login");
+		await auditRoot(page, { root: WORDMARK_TAIL, theme: "light", view: "login/wordmark" });
+
+		await signUpFreshUser(page, `colour-contrast-wordmark-${run}@example.com`);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-readlist");
+			await auditRoot(page, { root: WORDMARK_TAIL, theme, view: "queue/wordmark" });
+		}
+	});
+
+	test("the wordmark tail on the landing hero clears its contrast minimum against the navy", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-landing");
+		const [tail] = await stableMeasurements(page, ".header--transparent .header__brand-mark");
+		assert.ok(tail, "the landing hero's transparent header must render the wordmark tail");
+		const navy = await resolveInk(page, "--color-secondary");
+		assertContrast([{ ...tail, surface: navy }], { theme: "light", view: "landing/wordmark-on-navy" });
 	});
 });
 
@@ -796,6 +838,32 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await auditRoot(page, { root: "[data-test-article-history]", theme, view: "chip/article-history" });
 		}
 	});
+
+	test("the Saved offline badge clears its contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-chip-offline-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-offline-${run}`,
+				title: "A settled article kept for offline reading",
+				content: "<p>Seeded body for the Saved offline badge contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A concise summary.", excerpt: "Lead line." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.locator("[data-test-offline-download-start]").click();
+		await expect(page.locator("[data-offline-tag]")).toBeVisible({ timeout: DOWNLOAD_TIMEOUT_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await auditRoot(page, { root: "[data-offline-tag]", theme, view: "chip/saved-offline" });
+		}
+	});
 });
 
 test.describe("The reader's failed-crawl notice holds its WCAG contrast in both themes", () => {
@@ -886,6 +954,79 @@ test.describe("A highlighted passage in the reader holds its WCAG contrast in bo
 				`${theme}/reader-highlight: the audit must measure the marked passage's ink`,
 			);
 			assertContrast(measurements, { theme, view: "reader-highlight" });
+		}
+	});
+
+	test("a highlight over a link or muted text clears colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-highlight-inherited-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const linkPassage = "a linked phrase under the reader's mark";
+		const quotePassage = "a quoted line under the reader's mark";
+		const captionPassage = "a captioned line under the reader's mark";
+		const placeholderPassage = "a placeholder line under the reader's mark";
+		const quotedLinkPassage = "a quoted link under the reader's mark";
+		const placeholderLinkPassage = "a placeholder link under the reader's mark";
+		const marks = [
+			{
+				passage: linkPassage,
+				locator: "[data-test-reader-content] p:not(blockquote p, .reader-video-placeholder) > a > mark.article-highlight",
+			},
+			{ passage: quotePassage, locator: "[data-test-reader-content] blockquote p > mark.article-highlight" },
+			{ passage: captionPassage, locator: "[data-test-reader-content] figcaption mark.article-highlight" },
+			{
+				passage: placeholderPassage,
+				locator: "[data-test-reader-content] .reader-video-placeholder > mark.article-highlight",
+			},
+			{ passage: quotedLinkPassage, locator: "[data-test-reader-content] blockquote a > mark.article-highlight" },
+			{
+				passage: placeholderLinkPassage,
+				locator: "[data-test-reader-content] .reader-video-placeholder > a > mark.article-highlight",
+			},
+		];
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-highlight-inherited-${run}`,
+				title: "A passage worth keeping in every container",
+				content: [
+					`<p>Lead words, <a href="https://example.com/colour-contrast-highlight-link-${run}">${linkPassage}</a>, trailing words.</p>`,
+					`<blockquote><p>${quotePassage}, and the quote goes on.</p></blockquote>`,
+					`<figure><figcaption>${captionPassage}, and the caption goes on.</figcaption></figure>`,
+					`<p class="reader-video-placeholder">${placeholderPassage}, and the placeholder goes on.</p>`,
+					`<blockquote><p>Quoted lead, <a href="https://example.com/colour-contrast-highlight-quoted-link-${run}">${quotedLinkPassage}</a>, quoted tail.</p></blockquote>`,
+					`<p class="reader-video-placeholder">Placeholder lead, <a href="https://example.com/colour-contrast-highlight-placeholder-link-${run}">${placeholderLinkPassage}</a>, placeholder tail.</p>`,
+				].join(""),
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
+		await loginChipReader(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		for (const { passage, locator } of marks) {
+			await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+			await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+			await page.locator('[data-test-action="highlight"]').click();
+			await expect(page.locator(locator)).toHaveText(passage, { timeout: SETTLE_MS });
+		}
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			for (const { passage, locator } of marks) {
+				await expect(page.locator(locator)).toHaveText(passage, { timeout: SETTLE_MS });
+			}
+			await page.mouse.move(0, 0);
+			const measurements = await stableMeasurements(page, "[data-test-reader-content]");
+			assert.ok(
+				measurements.some((measured) => measured.role === "text" && measured.name === "mark.article-highlight"),
+				`${theme}/reader-highlight-inherited-ink: the audit must measure the marked passages' ink`,
+			);
+			assertContrast(measurements, { theme, view: "reader-highlight-inherited-ink" });
 		}
 	});
 });

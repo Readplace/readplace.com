@@ -41,7 +41,7 @@ function harness(): Harness {
 		appOrigin: "https://readplace.com",
 	}).html;
 	const dom = new JSDOM(
-		`<!doctype html><html><body><main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}<header><h1>Header title.</h1></header>${reader}<p id="outside">Outside the article.</p></main></body></html>`,
+		`<!doctype html><html><body><main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal: undefined })}<header><h1>Header title.</h1></header>${reader}<p id="outside">Outside the article.</p></main></body></html>`,
 	);
 	const doc = dom.window.document;
 	const timers = new Map<number, { callback: () => void; delayMs: number }>();
@@ -106,6 +106,12 @@ function harness(): Harness {
 		isAutoPopoverOpen: () => false,
 		paintDraft: () => undefined,
 		clearDraft: () => undefined,
+		paintPending: () => false,
+		clearPending: () => undefined,
+		fetchReader: async () => ({ ok: false, html: "" }),
+		parseHtml: () => {
+			throw new Error("these tests never check a highlight");
+		},
 		chromeBottom: () => 0,
 	});
 	const marked = elementOf(h, ".article-body__content em");

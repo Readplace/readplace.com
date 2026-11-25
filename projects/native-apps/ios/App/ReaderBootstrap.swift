@@ -37,6 +37,10 @@ enum ReaderBootstrap: Equatable {
 	func showsOfflineBanner(fellBackToCache: Bool) -> Bool {
 		fellBackToCache || self == .offline
 	}
+
+	func contentBannerText(fellBackToCache: Bool, contentState: ContentState?) -> String? {
+		showsOfflineBanner(fellBackToCache: fellBackToCache) ? OfflineReading.readerContentBannerText(for: contentState) : nil
+	}
 }
 
 enum ReaderRequest {

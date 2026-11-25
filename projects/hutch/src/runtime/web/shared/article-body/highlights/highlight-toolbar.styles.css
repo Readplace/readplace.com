@@ -58,12 +58,72 @@
   display: none;
 }
 
-main:has(.highlight-toolbar__form.htmx-request) .article-body__content {
+::highlight(highlight-pending) {
+  background-color: light-dark(
+    color-mix(in srgb, var(--color-highlight) 25%, transparent),
+    color-mix(in srgb, var(--color-highlight) 30%, transparent)
+  );
+}
+
+main:has(.highlight-toolbar__form.htmx-request:not([data-highlight-pending])) .article-body__content {
   opacity: 0.6;
   transition: opacity 150ms ease;
+}
+
+.highlight-status:not([data-highlight-status-shown]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.highlight-status[data-highlight-status-shown] {
+  position: fixed;
+  inset-inline: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 50;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.highlight-status__message,
+.highlight-status__quote {
+  margin: 0;
+}
+
+.highlight-status__quote:not([hidden]) {
+  display: block;
+  margin-block-start: 4px;
+  font-style: italic;
+}
+
+.highlight-status__actions:has(button:not([hidden])) {
+  display: flex;
+  gap: 8px;
+  margin-block-start: 8px;
 }
 
 .article-highlight:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+.article-body__content :where(blockquote, figcaption, .reader-video-placeholder) .article-highlight {
+  color: light-dark(var(--muted-foreground), var(--foreground));
+}
+
+.article-body__content a .article-highlight {
+  color: light-dark(var(--primary-text-on-tint), var(--foreground));
+}
+
+.highlight-status [data-highlight-status-action][hidden],
+.highlight-status [data-highlight-status-dismiss][hidden] {
+  display: none;
 }

@@ -1,3 +1,5 @@
+import { HAND_PICKED_SCOPE, personalHomeEnabled } from "../pages/readlist/built-in-readlists";
+import { personalPickAction } from "../pages/readlist/personal-pick-action";
 import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
@@ -13,14 +15,17 @@ import { displayableTime } from "../shared/displayable-time";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import { MAX_POLLS, POLL_INTERVAL_SECONDS } from "@packages/web-shell";
+import { MAX_POLLS, POLL_INTERVAL_SECONDS, withInternalTracking } from "@packages/web-shell";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 import { type CollectionQueryParams, type ReadlistQueryKey, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
-import { cardKindOf } from "../pages/readlist/readlist-card/card-kind-label";
+import { cardKindLabel, cardKindOf } from "../pages/readlist/readlist-card/card-kind-label";
+import { cardSuggestionLabel } from "../pages/readlist/readlist-card/card-suggestion";
+import { readlistCardVia } from "../pages/readlist/readlist-card/readlist-card-via";
+import type { ReaderProvenance } from "../shared/article-body/article-header/provenance-label";
 import { type CardPhase, cardProcessingOf } from "../pages/readlist/readlist-card/card-processing";
 import type { ContentState } from "../pages/readlist/readlist-card/content-state";
 import { staleNoticeHtml } from "../pages/readlist/readlist-card/stale-notice";
@@ -55,6 +60,9 @@ export type ArticleEntityProperties = {
 		refresh: { href: string; afterSeconds: number };
 	};
 	messages?: SirenMessage[];
+	kindLabel?: string;
+	suggestion?: string;
+	via?: { label: string; sender?: { name: string; address: string } };
 };
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
@@ -112,6 +120,47 @@ export function articleSelfHref(id: string): string {
 	return `/queue/${id}/card`;
 }
 
+export const UPLOAD_AGAIN_HREF = withInternalTracking("/upload", { source: "app-card", content: "failed-card" });
+
+function cardDisplay(params: {
+	article: SavedArticle;
+	readTime: DisplayableReadTime | undefined;
+	readerProvenance: ReaderProvenance | undefined;
+}): Pick<ArticleEntityProperties, "kindLabel" | "suggestion" | "via"> {
+	const { article } = params;
+	const cardKind = cardKindOf(article);
+	const suggestion = cardSuggestionLabel(article);
+	const via = readlistCardVia(params.readerProvenance);
+	return {
+		...(cardKind === undefined
+			? {}
+			: {
+					kindLabel: cardKindLabel({
+						kind: cardKind.kind,
+						estimatedReadTime: article.estimatedReadTime,
+						wordCount: article.metadata.wordCount,
+						sectionCount: article.media?.sectionCount,
+						readTime: params.readTime,
+					}),
+				}),
+		...(suggestion === undefined ? {} : { suggestion }),
+		...(via === undefined
+			? {}
+			: { via: { label: via.label, ...(via.sender === undefined ? {} : { sender: via.sender }) } }),
+	};
+}
+
+function cardRecoveryLinks(article: SavedArticle): SirenLink[] {
+	const original: SirenLink[] = isPrivateItemUrl(article.url)
+		? []
+		: [{ rel: ["original"], href: article.destinationUrl, type: "text/html" }];
+	const uploadAgain: SirenLink[] =
+		article.processingNotice === undefined
+			? []
+			: [{ rel: ["upload-again"], href: UPLOAD_AGAIN_HREF, type: "text/html" }];
+	return [...original, ...uploadAgain];
+}
+
 export function toArticleSubEntity(
 	article: SavedArticle,
 	options: {
@@ -122,12 +171,14 @@ export function toArticleSubEntity(
 		now: Date;
 		pollCount?: number;
 		enclosure?: EnclosureRead;
+		readerProvenance?: ReaderProvenance;
 	},
 ): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
 		{ rel: ["read"], title: "Read", href: `/queue/${id}/view${options.collectionQuery ? buildQueryString({ readlistKey: options.collectionQuery.readlistKey, readlist: options.collectionQuery.readlist }) : ""}` },
 		{ rel: ["self"], href: articleSelfHref(id) },
+		...cardRecoveryLinks(article),
 	];
 
 	const isRead = article.status === "read";
@@ -135,7 +186,7 @@ export function toArticleSubEntity(
 	const enclosure = options.enclosure ?? ABSENT_ENCLOSURE;
 	const readTime = displayableTime({ article, enclosure });
 	const hrefQuery = options.collectionQuery ? buildQueryString(options.collectionQuery) : "";
-	const ownReadlist = options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG ? undefined : options.collectionQuery?.readlist;
+	const ownReadlist = (options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG || options.collectionQuery?.readlist === HAND_PICKED_SCOPE) ? undefined : options.collectionQuery?.readlist;
 	const { label, phase, contentState } = cardProcessingOf({
 		article,
 		crawl: options.crawl,
@@ -186,6 +237,7 @@ export function toArticleSubEntity(
 				}
 			: {}),
 		...(messages.length === 0 ? {} : { messages }),
+		...cardDisplay({ article, readTime, readerProvenance: options.readerProvenance }),
 	};
 
 	return {
@@ -202,6 +254,7 @@ export function toArticleSubEntity(
 				type: "application/x-www-form-urlencoded",
 				fields: [{ name: "status", type: "hidden", value: targetStatus }],
 			},
+			...(personalHomeEnabled() && ownReadlist === undefined ? [personalPickAction(article, hrefQuery)] : []),
 			...(options.addToReadlist === "withheld"
 				? []
 				: [

@@ -17,7 +17,6 @@ import {
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { viewerOf } from "@packages/viewer-identity";
 import { hashIp } from "@packages/web-analytics";
-import { renderToast } from "@packages/web-shell";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { parseHTML } from "linkedom";
@@ -31,6 +30,7 @@ import {
 	pushesHistory,
 	renderHighlightNoteCreateForm,
 } from "../../shared/article-body/highlights/highlight-note-dialog.component";
+import type { HighlightRefusal } from "../../shared/article-body/highlights/highlight-toolbar.component";
 import { prepareReaderContent } from "../../shared/article-body/reader-slot/reader-content";
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { servedContentHash } from "../../shared/article-body/reader-slot/served-content-hash";
@@ -73,19 +73,10 @@ const HighlightCopiedQuerySchema = z.object({
 	origin: z.literal("panel"),
 });
 
-const TOAST_DISMISS_MS = 6000;
-
-const OUTCOME_TOASTS = {
+const DIALOG_ERRORS: Record<HighlightRefusal, string> = {
 	"passage-changed": "That passage changed; select it again",
 	"too-long": "Select a shorter passage",
 	"notes-too-long": `Joined with the highlights it overlaps, the notes are over ${HIGHLIGHT_NOTE_MAX_LENGTH.toLocaleString(DEFAULT_LOCALE)} characters.`,
-	cancelled: "That highlight just changed; try again",
-} as const;
-
-type HighlightRefusal = keyof typeof OUTCOME_TOASTS;
-
-const DIALOG_ERRORS: Record<HighlightRefusal, string> = {
-	...OUTCOME_TOASTS,
 	cancelled: "That highlight just changed; try again.",
 };
 
@@ -134,9 +125,6 @@ export function initHighlightRoutes(
 		const id = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		return id.success ? reader.findOwnedArticle(req, id.data) : null;
 	};
-
-	const toastOf = (message: string): string =>
-		renderToast({ message, dismissMs: TOAST_DISMISS_MS, actions: [] });
 
 	router.post(
 		"/:id/highlights",
@@ -201,7 +189,7 @@ export function initHighlightRoutes(
 				}
 				await reader.renderOwnerReader(req, res, {
 					statusCode: 422,
-					toast: toastOf(OUTCOME_TOASTS[status]),
+					highlightRefusal: status,
 					markViewed: false,
 				});
 			};

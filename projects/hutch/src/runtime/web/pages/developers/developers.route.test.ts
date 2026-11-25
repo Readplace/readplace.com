@@ -139,6 +139,7 @@ describe("GET /developers", () => {
 			"collection",
 			"articles",
 			"saving",
+			"uploads",
 			"status",
 			"readlists",
 			"caching",
@@ -243,7 +244,7 @@ describe("/developers on-this-page navigation", () => {
 			return [link.textContent, target?.querySelector("h2, h3")?.textContent];
 		});
 
-		expect(links.length).toBe(17);
+		expect(links.length).toBe(18);
 		for (const [linkText, headingText] of links) {
 			expect(headingText).toBe(linkText);
 		}
@@ -354,6 +355,16 @@ describe("/developers documents what the API emits", () => {
 		expect(named.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toEqual([
 			"https://example.com/parity",
 		]);
+		const pinned = await request(harness.server)
+			.post(actionNamed(named.body, "pin-readlist").href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.type("form")
+			.send({})
+			.redirects(0);
+		expect(pinned.status).toBe(303);
+		const namedPinned = await sirenGet(harness, { path: pinned.headers.location, token });
+		expect(namedPinned.status).toBe(200);
 		const all = await openAll(harness, token);
 		const slot = await request(harness.server)
 			.post(actionNamed(all.body, "save-content").href)
@@ -364,9 +375,34 @@ describe("/developers documents what the API emits", () => {
 			.field("size", String(50 * 1024 * 1024));
 		expect(slot.status).toBe(200);
 		expect(slot.body.class).toEqual(["upload-slot"]);
+		const uploadLink = all.body.links.find((link: { rel: string[] }) => link.rel.includes("upload"));
+		assert(uploadLink, "the collection must link to the upload entry");
+		const uploadEntry = await sirenGet(harness, { path: uploadLink.href, token });
+		expect(uploadEntry.body.class).toEqual(["upload"]);
+		expect(actionNamed(all.body, "stage-upload")).toEqual(actionNamed(uploadEntry.body, "stage-upload"));
+		const staged = await request(harness.server)
+			.post(actionNamed(uploadEntry.body, "stage-upload").href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.type("form")
+			.send({ fileName: "dune.epub", byteLength: "1024" });
+		expect(staged.body.class).toEqual(["upload-staged"]);
 
+		const unpick = actionNamed(all.body.entities[0], "remove-from-hand-picked");
+		await request(harness.server).post(unpick.href).set("Authorization", `Bearer ${token}`)
+			.set("Accept", SIREN_MEDIA_TYPE).type("form").send({ membership: "remove" }).expect(303);
+		const afterUnpick = await openAll(harness, token);
 		const emitted = [
-			...new Set([...namesOf(all.body), ...namesOf(named.body), ...namesOf(saved.body), ...namesOf(slot.body)]),
+			...new Set([
+				...namesOf(afterUnpick.body),
+				...namesOf(all.body),
+				...namesOf(named.body),
+				...namesOf(namedPinned.body),
+				...namesOf(saved.body),
+				...namesOf(slot.body),
+				...namesOf(uploadEntry.body),
+				...namesOf(staged.body),
+			]),
 		].sort();
 		expect(marked(root, "data-test-action").sort()).toEqual(emitted);
 	});
@@ -491,13 +527,15 @@ describe("/developers copy", () => {
 			"stale-href":
 				"If a request to an href or action you kept fails with anything other than a 401, 403 or 422 refusal, such as a 404 or 405, drop your copy, start again from / and retry once.",
 			classes:
-				"An entity's class says what it is: collection and articles on a collection, article on an article, error on a refusal and on a 409, save-articles-result on a save-articles answer, and upload-slot on an upload slot.",
+				"An entity's class says what it is: collection and articles on a collection, article on an article, error on a refusal and on a 409, save-articles-result on a save-articles answer, upload-slot on an upload slot, and upload and upload-staged on the upload entry and a staged upload.",
 			"past-last": "A page past the last answers 200 with no entities, a prev link and no next link.",
 			"offline-prefetch":
 				"A next link can carry a class of offline-prefetch. It tells Readplace's own apps how to load that page while they download a readlist for offline reading, so ignore it.",
-			rels: "Links use the IANA rel where one exists, such as self, next and prev. read, root, account and add-links-help are Readplace's own.",
+			rels: "Links use the IANA rel where one exists, such as self, next and prev. original is Memento's. read, upload-again, root, account, add-links-help and upload are Readplace's own.",
 			"article-self":
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",
+			"article-original":
+				"An article whose source is public also carries an original link of type text/html, with no title: the page it came from, to open in a browser without the token. An uploaded file or other private item has none, even though its url is set. An upload Readplace couldn't use carries an untitled upload-again link of type text/html to the signed-in upload page, until the next version of the article drops it. Show each only while it's present.",
 			storefront:
 				"A client installed from an app store may send its storefront's three-letter code in an X-Readplace-Storefront header, or in a readplace_storefront cookie from a web view. For China mainland (CHN), responses leave out text a model wrote: summaries, Next read and Already read.",
 			"markdown-layout":
@@ -534,6 +572,20 @@ describe("/developers copy", () => {
 			delete:
 				"Deleting an article stays in the Readplace app. The API advertises no delete action, and remove-from-readlist takes nothing out of All.",
 			"walkthrough-entry": "Request / with the token and the Siren media type. It answers with the collection.",
+			"upload-link":
+				"Every collection carries an upload link with no title. Follow it with the token to reach the upload entry, which keeps a file only the reader can open, not a page at a URL.",
+			"upload-entry":
+				"The entry is an entity of class upload. properties.kinds lists the kinds of file this reader can upload, each with its name (book, audio or video), a description to show, accepts (each media type with its file extensions), uploadCeilingBytes and ceilingLabel. heading and transcriptAllowance are text to show as given.",
+			"stage-upload":
+				"stage-upload: send its fields, fileName and the file's size in bytes as byteLength. It answers 200 with an entity of class upload-staged, a self link to this upload's status, and two actions. The collection offers the same action.",
+			"upload-content-multipart":
+				"upload-content here is a multipart POST: send every field it lists with the value it carries, then the file in the file field, last. Storage answers 201. The same action name on an upload slot is a PUT, so follow each action's own method, type and fields.",
+			"confirm-received":
+				"confirm-received: submit it once storage has answered. It answers 303 to the reader's collection, where the file appears.",
+			"upload-status":
+				"If your app stops between steps, fetch the self link you kept. While the file is still to be confirmed it answers upload-staged again, with confirm-received. Once the file is saved it answers 303 to the collection, and when Readplace can't open the file it answers 422 upload_failed.",
+			"upload-refusals":
+				"File and quota refusals carry code, message, and messages. An expired or invalid token answers 401 invalid-token, and a locked account 403. 404 upload_session_not_found means the upload isn't this reader's, or has expired. 409 upload_not_received means storage hasn't got the file yet. 413 upload_too_large means the file is over its kind's uploadCeilingBytes. 422 carries upload_unsupported_type, transcript-quota, transcript-too-long, unreadable-audio, no-audio-track or book-quota, whose retryAt property says when the reader can upload another book.",
 		});
 	});
 
@@ -547,6 +599,7 @@ describe("/developers copy", () => {
 
 		expect({
 			pages: itemOf("data-test-collection-property", "pages"),
+			readlists: itemOf("data-test-collection-property", "readlists"),
 			status: itemOf("data-test-field", "status"),
 			order: itemOf("data-test-field", "order"),
 			url: itemOf("data-test-field", "url"),
@@ -556,6 +609,9 @@ describe("/developers copy", () => {
 		}).toEqual({
 			pages: [
 				"pages: one {label, rel, href} per page, where the page you're on has the rel current, every earlier page prev and every later page next. An empty tab lists page 1 as current. The next and prev links step one page at a time, and the self link is the page you're on.",
+			],
+			readlists: [
+				"readlists: All and each named readlist, each a {label, rel, href, pinned}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 			],
 			status: ["status: unread or read. Without it, search lists unread articles."],
 			order: [
@@ -645,6 +701,7 @@ describe("/developers copy", () => {
 			"#collection",
 			"#articles",
 			"#saving",
+			"#uploads",
 			"#status",
 			"#readlists",
 			"#caching",

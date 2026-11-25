@@ -210,6 +210,8 @@ export interface AccountViewModel {
 	statusLine: string;
 	statusDate?: LocalTime;
 	statusDateTail?: string;
+	/** What the reader keeps once the current state ends; empty where nothing changes. */
+	statusNote: string;
 	/** Only the active state overrides this; every other state keeps the hidden value
 	 * from `baseFor`, so a state cannot start announcing a charge by accident. */
 	nextCharge: NextChargeViewModel;
@@ -684,6 +686,7 @@ function baseFor(input: {
 		title: input.title,
 		chips: input.chips,
 		price: HIDDEN_PRICE,
+		statusNote: "",
 		nextCharge: HIDDEN_NEXT_CHARGE,
 		managePanel: CLOSED_MANAGE_PANEL,
 		pollState: "idle",
@@ -702,6 +705,7 @@ export function toAccountViewModel(input: {
 	plan: BillingPlan | undefined;
 	hasCustomer: boolean;
 	payment: PaymentSectionInput;
+	dailySaveLimit: number;
 }): AccountViewModel {
 	return {
 		...stateViewModel(input),
@@ -748,8 +752,9 @@ function stateViewModel(input: {
 	now: Date;
 	nextCharge: SubscriptionNextCharge | undefined;
 	plan: BillingPlan | undefined;
+	dailySaveLimit: number;
 }): Omit<AccountViewModel, "dangerConfirmation" | "payment" | "billingHistory"> {
-	const { access, queryState, now, nextCharge, plan } = input;
+	const { access, queryState, now, nextCharge, plan, dailySaveLimit } = input;
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {
@@ -804,6 +809,7 @@ function stateViewModel(input: {
 				statusLine: "Your free trial ends on ",
 				statusDate: toAbsoluteDate({ iso: trialEndsAt }),
 				statusDateTail: ` — ${daysLeft} ${daysLeftWord} left.`,
+				statusNote: t("billing.statusNote.trial", { limit: dailySaveLimit }),
 			};
 		}
 		case "cancellation-scheduled":
@@ -817,6 +823,7 @@ function stateViewModel(input: {
 				statusLine: "Your subscription ends on ",
 				statusDate: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 				statusDateTail: ".",
+				statusNote: t("billing.statusNote.cancellationScheduled", { limit: dailySaveLimit }),
 			};
 		case "free":
 			return {
@@ -827,6 +834,7 @@ function stateViewModel(input: {
 					actions: [SUBSCRIBE_ACTION],
 				}),
 				statusLine: "",
+				statusNote: t("billing.statusNote.free", { limit: dailySaveLimit }),
 			};
 	}
 }

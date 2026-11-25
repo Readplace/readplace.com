@@ -1,11 +1,3 @@
-import {
-	DARK_ONLY_BODY_CLASS,
-	LIGHT_ONLY_BODY_CLASS,
-	SCRIM_BLUR,
-	SCRIM_DARK,
-	SCRIM_LIGHT,
-} from "../../base.styles";
-
 export const CONFIRM_POPOVER_STYLES = `
 /**
  * Confirmation panel — native popover.
@@ -21,11 +13,6 @@ export const CONFIRM_POPOVER_STYLES = `
  *    \`[popover] { margin: auto }\` at any specificity. Without this line the
  *    panel pins to the top-left — and stays visible and clickable, so no
  *    test catches it.
- * 3. Interpolate SCRIM_LIGHT and SCRIM_DARK into ::backdrop. Custom properties did not inherit there in the first engines with popover support, so var() could silently drop the scrim.
- * 4. pointer-events is left at the UA default. \`::backdrop\` carries
- *    \`pointer-events: none !important\` in the UA origin, which no author
- *    declaration can beat; making the scrim hit-testable is impossible,
- *    not merely undesirable.
  */
 .confirm-popover {
 	display: none; /* 1 */
@@ -35,14 +22,21 @@ export const CONFIRM_POPOVER_STYLES = `
 	width: min(600px, calc(100% - 32px));
 	height: fit-content;
 	max-height: calc(100% - 32px);
-	padding: 24px;
+	padding: 0;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-lg);
 	background: var(--card);
 	color: var(--card-foreground);
-	container-type: inline-size;
 	overflow: auto;
 	overscroll-behavior: contain;
+}
+
+.confirm-popover__surface {
+	position: relative;
+	/* Paint the panel's contents together, above the backdrop dismiss button. */
+	isolation: isolate;
+	padding: 24px;
+	container-type: inline-size;
 }
 
 @supports selector(:popover-open) {
@@ -51,43 +45,11 @@ export const CONFIRM_POPOVER_STYLES = `
 	}
 }
 
-.confirm-popover::backdrop {
-	background: ${SCRIM_LIGHT}; /* 3, 4 */
-	backdrop-filter: blur(${SCRIM_BLUR});
-}
-
-@media (prefers-color-scheme: dark) {
-	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover::backdrop {
-		background: ${SCRIM_DARK}; /* 3 */
-	}
-}
-
-body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
-	background: ${SCRIM_DARK}; /* 3 */
-}
-
 .confirm-popover--beside-passage {
 	inset: auto 0 16px 0;
 	margin: 0 auto;
 	max-height: 50dvh;
 	box-shadow: var(--shadow-menu);
-}
-
-.confirm-popover--beside-passage::backdrop {
-	background: transparent;
-	backdrop-filter: none;
-}
-
-@media (prefers-color-scheme: dark) {
-	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover--beside-passage::backdrop {
-		background: transparent;
-		backdrop-filter: none;
-	}
-}
-
-body.${DARK_ONLY_BODY_CLASS} .confirm-popover--beside-passage::backdrop {
-	background: transparent;
-	backdrop-filter: none;
 }
 
 :root:has(.confirm-popover--beside-passage:popover-open) {
@@ -265,17 +227,22 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover--beside-passage::backdrop {
 }
 
 @supports selector(:popover-open) {
-	.confirm-popover:popover-open:has(> .confirm-popover__items) {
+	.confirm-popover:popover-open:has(> .confirm-popover__surface > .confirm-popover__items),
+	.confirm-popover__surface:has(> .confirm-popover__items) {
 		display: flex;
 		flex-direction: column;
 	}
 }
 
-.confirm-popover:has(> .confirm-popover__items) > * {
+.confirm-popover__surface:has(> .confirm-popover__items) {
+	min-height: 0;
+}
+
+.confirm-popover__surface:has(> .confirm-popover__items) > * {
 	flex: none;
 }
 
-.confirm-popover > .confirm-popover__items {
+.confirm-popover__surface > .confirm-popover__items {
 	flex: 1 1 auto;
 	min-height: 44px;
 	overflow-y: auto;
@@ -283,7 +250,7 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover--beside-passage::backdrop {
 }
 
 @media (min-width: 768px) {
-	.confirm-popover {
+	.confirm-popover__surface {
 		padding: 32px;
 	}
 

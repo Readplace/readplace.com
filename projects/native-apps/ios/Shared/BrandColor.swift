@@ -9,7 +9,6 @@ enum BrandColor {
 	static let primaryFill = rgb(173, 98, 37)
 	static let highlight = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let success = dynamic(light: rgb(61, 139, 110), dark: rgb(74, 159, 127))
-	static let warning = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let error = dynamic(light: rgb(196, 92, 92), dark: rgb(212, 107, 107))
 	static let splashBackground = rgb(18, 18, 18)
 	static let surface = dynamic(light: rgb(255, 255, 255), dark: rgb(18, 18, 18))
@@ -22,6 +21,10 @@ enum BrandColor {
 	static let secondary = dynamic(light: rgb(245, 230, 211), dark: rgb(61, 42, 24))
 	static let primaryText = dynamic(light: rgb(168, 90, 30), dark: rgb(218, 141, 78))
 	static let successText = dynamic(light: rgb(54, 124, 99), dark: rgb(74, 159, 127))
+	static let errorText = dynamic(light: rgb(175, 70, 70), dark: rgb(208, 138, 138))
+	static let primaryTextOnTint = dynamic(light: rgb(126, 72, 27), dark: rgb(234, 161, 98))
+	static let warningText = dynamic(light: rgb(159, 115, 45), dark: rgb(212, 160, 74))
+	static let errorFill = rgb(185, 80, 80)
 
 	private static func dynamic(light: UIColor, dark: UIColor) -> UIColor {
 		UIColor { trait in trait.userInterfaceStyle == .dark ? dark : light }
@@ -35,9 +38,7 @@ enum BrandColor {
 extension Color {
 	static let brandAmber = Color(uiColor: BrandColor.amber)
 	static let brandPrimaryFill = Color(uiColor: BrandColor.primaryFill)
-	static let brandHighlight = Color(uiColor: BrandColor.highlight)
 	static let brandSuccess = Color(uiColor: BrandColor.success)
-	static let brandWarning = Color(uiColor: BrandColor.warning)
 	static let brandError = Color(uiColor: BrandColor.error)
 	static let brandSplashBackground = Color(uiColor: BrandColor.splashBackground)
 	static let brandSurface = Color(uiColor: BrandColor.surface)
@@ -50,11 +51,13 @@ extension Color {
 	static let brandSecondary = Color(uiColor: BrandColor.secondary)
 	static let brandPrimaryText = Color(uiColor: BrandColor.primaryText)
 	static let brandSuccessText = Color(uiColor: BrandColor.successText)
+	static let brandErrorFill = Color(uiColor: BrandColor.errorFill)
+	static let brandAppTint = Color.brandPrimaryText
 }
 
 extension UIColor {
 	static let brandSuccess = BrandColor.success
-	static let brandWarning = BrandColor.warning
+	static let brandWarningText = BrandColor.warningText
 	static let brandError = BrandColor.error
 	static let brandSurface = BrandColor.surface
 	static let brandTextPrimary = BrandColor.textPrimary

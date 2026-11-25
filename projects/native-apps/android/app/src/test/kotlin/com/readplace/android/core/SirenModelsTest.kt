@@ -1439,4 +1439,75 @@ class SirenModelsTest {
 		assertNull(noticeOf("[${messageJson("info", "Note.")}]"))
 		assertNull(decodedArticle(articleWithProperties("")).notice)
 	}
+
+	@Test
+	fun `a card's kind label, suggestion and newsletter sender decode beside the existing fields`() {
+		val article = decodedArticle(
+			"""
+			{ "properties": { "id": "a1", "url": "https://example.com/post",
+			  "kindLabel": "Book · 12 chapters", "suggestion": "Added by Readplace",
+			  "via": { "label": "via TLDR", "sender": { "name": "TLDR", "address": "dan@tldr.tech" } } } }
+			""",
+		)
+		assertEquals("Book · 12 chapters", article.kindLabel)
+		assertEquals("Added by Readplace", article.suggestion)
+		assertEquals(ArticleVia(label = "via TLDR", sender = ArticleSender(name = "TLDR", address = "dan@tldr.tech")), article.via)
+	}
+
+	@Test
+	fun `a malformed sender drops the disclosure alone and keeps the via label`() {
+		val article = decodedArticle(
+			"""
+			{ "properties": { "id": "a1", "url": "https://example.com/post", "via": { "label": "via TLDR", "sender": { "name": 7 } } } }
+			""",
+		)
+		assertEquals(ArticleVia(label = "via TLDR", sender = null), article.via)
+	}
+
+	@Test
+	fun `a malformed via or kind label leaves the rest of the row intact`() {
+		val article = decodedArticle(
+			"""
+			{ "properties": { "id": "a1", "url": "https://example.com/post", "title": "Kept", "via": "nope", "kindLabel": 3, "suggestion": "" } }
+			""",
+		)
+		assertEquals("Kept", article.title)
+		assertNull(article.via)
+		assertNull(article.kindLabel)
+		assertNull(article.suggestion)
+	}
+
+	@Test
+	fun `a legacy entity with none of the card fields still decodes`() {
+		val article = decodedArticle("""{ "properties": { "id": "a1", "url": "https://example.com/post" } }""")
+		assertNull(article.via)
+		assertNull(article.originalUrl)
+		assertNull(article.uploadAgainLink)
+	}
+
+	@Test
+	fun `only a web original is kept, so another scheme never reaches the browser opener`() {
+		fun originalOf(href: String): String? = decodedArticle(
+			"""
+			{ "properties": { "id": "a1", "url": "https://example.com/post" },
+			  "links": [{ "rel": ["original"], "href": "$href", "type": "text/html" }] }
+			""",
+		).originalUrl
+		assertEquals("https://example.com/post", originalOf("https://example.com/post"))
+		assertEquals("http://example.com/post", originalOf("http://example.com/post"))
+		assertNull(originalOf("javascript:alert(1)"))
+		assertNull(originalOf("/queue/a1/view"))
+		assertNull(originalOf("intent://example.com"))
+	}
+
+	@Test
+	fun `the upload-again link is kept with its type for the recovery control`() {
+		val article = decodedArticle(
+			"""
+			{ "properties": { "id": "a1", "url": "https://uploads.readplace.invalid/0123" },
+			  "links": [{ "rel": ["upload-again"], "href": "/upload", "type": "text/html" }] }
+			""",
+		)
+		assertEquals(SirenLink(rel = listOf("upload-again"), href = "/upload", title = null, classes = null), article.uploadAgainLink)
+	}
 }

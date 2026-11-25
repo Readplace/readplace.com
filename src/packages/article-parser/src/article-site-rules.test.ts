@@ -1,15 +1,20 @@
 import { matchingSiteRuleUrl } from "@packages/site-rules";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
+import { bugzillaSiteRules } from "./bugzilla-site-rules";
 import { danaMcNeilSiteRules } from "./dana-mcneil-site-rules";
+import { defensePhotoSiteRules } from "./defense-photo-site-rules";
 import { githubPullRequestSiteRules } from "./github-pull-request-site-rules";
 import { granolaSiteRules } from "./granola-site-rules";
+import { intuitPrivacySiteRules } from "./intuit-privacy-site-rules";
+import { lavcaSiteRules } from "./lavca-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
 import { quoraSiteRules } from "./quora-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
+import { xkcdSiteRules } from "./xkcd-site-rules";
 import { youtubeSiteRules } from "./youtube-site-rules";
 
 function recordingCrawlFetch(requested: string[]): CrawlFetch {
@@ -30,6 +35,9 @@ describe("initArticleSiteRules", () => {
 		});
 
 		expect(siteRules).toEqual([
+			xkcdSiteRules,
+			lavcaSiteRules,
+			defensePhotoSiteRules,
 			theInformationSiteRules,
 			mediumSiteRules,
 			linkedinSiteRules,
@@ -40,6 +48,8 @@ describe("initArticleSiteRules", () => {
 			youtubeSiteRules,
 			githubPullRequestSiteRules,
 			danaMcNeilSiteRules,
+			bugzillaSiteRules,
+			intuitPrivacySiteRules,
 			...crawlClaimingSiteRules,
 		]);
 		expect(crawlClaimingSiteRules).toHaveLength(8);

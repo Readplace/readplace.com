@@ -7,9 +7,42 @@ You have been triggered because the `Failed articles canary` workflow surfaced o
 
 `crawlStatus = unsupported` and `summaryStatus = skipped` are NOT failures — they are complete, *supported* terminal outcomes, and the canary does not surface them. `unsupported` is a deliberate determination that the URL is a content type the product does not render (e.g., an image); `skipped` is the summary worker intentionally producing no summary (content too short, crawl failed first, etc.). The canary derives this split from `classifyCrawlOutcome` / `classifySummaryOutcome` in `src/packages/article-state-types/`.
 
-This canary is a **debug worklist**, not a pass/fail health check. The script always exits 0; a non-empty report means real customer URLs were dropped and the operator wants to investigate each one.
+This canary produces a **debug worklist**. A successful scan can find failed articles for the operator to investigate.
 
 Only articles with a recorded full-processing admission for the latest attempt qualify. Deferred-only imports and unverifiable history are excluded. Summary failures hidden by the reader are excluded.
+
+## Exact-key exceptions
+
+The initial list covers 197 articles from [#1456](https://github.com/Readplace/readplace.com/issues/1456). It includes 62 login, share, subscription or account pages, 56 apps, indexes, storefronts, profiles or other non-article destinations, 40 access refusals or challenges, and 39 redirect notices. A new article in any of these groups remains eligible for the report unless its own key is added.
+
+Three individually approved keys from [#1491](https://github.com/Readplace/readplace.com/issues/1491) with no verifiable article-specific access history bring the list to 200. All other rows with missing access history still follow the ordinary eligibility rules.
+
+Keep the canonical JSON array in private storage. For each individually approved article, add the lowercase SHA-256 hex digest of the raw DynamoDB `url` key encoded as UTF-8, preserving the key's case and every character. Use the physical key as stored, without formatting it as a URL or substituting `originalUrl`. Keep the entries unique and read the keys in a private local session.
+
+The scan requires `FAILED_ARTICLES_IGNORED_KEY_HASHES`. Use `[]` for an intentionally empty list. For a local run, set `ignored_key_hashes_file` to the path of the private JSON file. Use the same environment variable alongside the usual canary settings.
+
+```sh
+FAILED_ARTICLES_IGNORED_KEY_HASHES="$(cat "$ignored_key_hashes_file")" \
+  pnpm nx run @packages/check-failed-articles:check-failed-articles
+```
+
+GitHub Actions secrets are write-only. After updating the private copy, replace the full secret in the `prod` environment from that file.
+
+```sh
+gh secret set FAILED_ARTICLES_IGNORED_KEY_HASHES --env prod < "$ignored_key_hashes_file"
+```
+
+## Reviewed access history
+
+Use the optional `FAILED_ARTICLES_REVIEWED_ACCESS` prod secret to retain access history independently verified from multiple records when the canary's live evidence is incomplete or has expired. Keep a private JSON array of `[digest, category]` pairs with one entry per digest. Compute each digest as lowercase SHA-256 hex of the UTF-8 bytes of `JSON.stringify([physicalArticleKey, savedAt, fullCrawlRequestedAt])`. Preserve the exact stored strings. A new save or processing admission has a different digest.
+
+The accepted categories are `signed-in-reader-opened-before-failure`, `public-reader-opened-before-failure`, `readlist-admission-reader-history-incomplete`, `authenticated-submission`, `scheduled-digest-preparation` and `operator-recrawl`. For a reader open, match both the event and the terminal failure to the saved lifetime and processing attempt, and check that the open precedes the failure. For an admission category, confirm the trigger for that exact admission. A readlist admission alone leaves reader history incomplete. With the secret unset or empty, or set to `[]`, the report uses live evidence. Confirmed reader opens from either source take precedence and count once per route.
+
+After updating the private copy, replace the full secret in the `prod` environment.
+
+```sh
+gh secret set FAILED_ARTICLES_REVIEWED_ACCESS --env prod < "$reviewed_access_file"
+```
 
 ## Your Task
 
@@ -19,7 +52,7 @@ Only articles with a recorded full-processing admission for the latest attempt q
    - By **failure-reason kind** (`http-error:403`, `non-html-content:application/pdf`, `exhausted-retries`, `crawl-failed`, etc.).
    - By **host/domain** (`medium.com`, `substack.com`, `nytimes.com`).
    - By **axis** (crawl vs summary).
-   - By **recorded access** across saves of the same article. The reader-open group counts each article once when either the signed-in reader or the public reader was confirmed before the latest processing admission, or a signed-in reader request directly triggered that admission. The issue shows both route counts and their overlap. The admin report shows the confirmed routes on each row. A readlist-triggered admission with sufficient evidence and no confirmed reader open belongs to the readlist group. Rows with inconclusive history go under other or unknown. Opening the signed-in reader on a supported client can trigger a local HTML capture. Confirming an upload requires separate evidence.
+   - By **recorded access** for the saved lifetime and latest processing attempt. The reader-open group counts opens recorded before admission, signed-in reader requests that triggered admission, and independently verified opens before the terminal failure for that attempt. The issue shows both route counts and their overlap. The admin report shows the confirmed routes on each row. Confirmed readlist admissions have separate groups for sufficient evidence of no recorded reader open and incomplete reader history. Other verified triggers have their own groups. Opening the signed-in reader on a supported client can trigger a local HTML capture. Confirming an upload requires separate evidence.
 
 3. **Do not edit the issue.** This canary's workflow skips its scheduled scan while an open tracking issue exists — the operator closes the issue manually once they have worked through the backlog. Closing is the operator's signal that the worklist is processed.
 
@@ -27,6 +60,7 @@ Only articles with a recorded full-processing admission for the latest attempt q
 
 - Follow ALL CLAUDE.md guidelines.
 - **Never copy a reader's URL, user id or token into an issue, comment, commit or log line.** The repository is public. Cite a row by its number on the report, and name a host only when the host itself is the finding.
+- **Keep the exact-key and reviewed access lists private.** Share aggregate counts in issues, comments, commits and logs.
 - **Read the report's rows, and any row's production record, in a local session or an admin's browser, never through `@claude` in GitHub Actions.** The `@claude` listener's run log shows every tool result, and that log is public.
 - **The stored `crawl-failed` / `summary-failed` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `SummaryFailureReasonSchema`).
 - **Never edit `src/packages/check-failed-articles/scripts/exclude-patterns.ts` to make the canary quiet.** Each entry must represent a class of URL that is genuinely unsupported by product policy. Adding a fixable failure URL silently hides the regression and tomorrow's cron emits a shorter (misleading) list.

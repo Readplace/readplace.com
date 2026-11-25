@@ -562,6 +562,10 @@ describe("Highlight refusals and notes in the iOS app reader", () => {
 		const createAction = page.querySelector("[data-test-highlight-create-form]")?.getAttribute("action");
 		expect(createAction).toContain("platform=ios");
 		expect(createAction).toContain("utm_source=highlight-toolbar");
+		const status = page.querySelector("[data-highlight-status]");
+		expect(status?.getAttribute("data-highlight-refusal")).toBe("passage-changed");
+		expect(status?.hasAttribute("data-highlight-status-shown")).toBe(true);
+		expect(page.querySelector("[data-test-highlight-status]")?.textContent).toBe("That passage changed; select it again");
 	});
 
 	it("answers an htmx create with a note with an HX-Location that keeps the surface and does not push", async () => {

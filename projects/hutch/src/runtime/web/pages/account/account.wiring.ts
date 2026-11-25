@@ -5,7 +5,7 @@ import { initDeleteAccount } from "../../../domain/account/delete-account";
 import type { initAccountRoutes } from "./account.page";
 
 export function accountDependenciesFrom(
-	deps: Pick<AppDependencies, "subscriptionProviders" | "findEmailByUserId" | "findUserById" | "findUserPasswordStatus" | "setUserAppearance" | "setUserDisplayName" | "destroyUserSessions" | "revokeAllUserOAuthTokens" | "revokeUserOAuthClient" | "markAccountDeleted" | "publishDeleteAccountCommand" | "publishCancelSubscriptionCommand" | "publishSubscriptionReactivated" | "createCheckoutSession" | "createSubscriptionOnExistingCustomer" | "findSubscriptionNextCharge" | "findSubscriptionPaymentMethod" | "listInvoices" | "reverseScheduledCancellation" | "paymentMethods" | "stripePublishableKey" | "trialScheduler" | "storePendingSignup" | "resolvePriceId" | "keepOfferCouponId" | "salt" | "logError" | "now">,
+	deps: Pick<AppDependencies, "subscriptionProviders" | "findEmailByUserId" | "findUserById" | "findUserPasswordStatus" | "setUserAppearance" | "setUserDisplayName" | "destroyUserSessions" | "revokeAllUserOAuthTokens" | "revokeUserOAuthClient" | "markAccountDeleted" | "publishDeleteAccountCommand" | "publishCancelSubscriptionCommand" | "publishSubscriptionReactivated" | "createCheckoutSession" | "createSubscriptionOnExistingCustomer" | "findSubscriptionNextCharge" | "findSubscriptionPaymentMethod" | "listInvoices" | "reverseScheduledCancellation" | "paymentMethods" | "stripePublishableKey" | "trialScheduler" | "storePendingSignup" | "resolvePriceId" | "keepOfferCouponId" | "salt" | "logError" | "now" | "rateLimitRules">,
 	built: Pick<
 		Parameters<typeof initAccountRoutes>[0],
 		"keepOffer" | "getEffectiveAccess" | "listConnectedOAuthClients" | "appOrigin" | "buildBannerState" | "recordSubscriptionEvent" | "recordAnalyticsEvent"
@@ -67,6 +67,7 @@ export function accountDependenciesFrom(
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
 			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,
+		dailySaveLimit: deps.rateLimitRules.dailySaves.limit,
 		logger: Logger.from({
 			info: ignoreLogLine,
 			error: (...args) => {

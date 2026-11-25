@@ -93,6 +93,7 @@ describe("toArticleSubEntity", () => {
 			links: [
 				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 				{ rel: ["self"], href: `/queue/${ARTICLE_ID}/card` },
+				{ rel: ["original"], href: ARTICLE_URL, type: "text/html" },
 			],
 			actions: [
 				{
@@ -102,6 +103,14 @@ describe("toArticleSubEntity", () => {
 					method: "POST",
 					type: "application/x-www-form-urlencoded",
 					fields: [{ name: "status", type: "hidden", value: "read" }],
+				},
+				{
+					name: "add-to-hand-picked",
+					title: "Add to Hand Picked",
+					href: `/queue/${ARTICLE_ID}/hand-picked`,
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+					fields: [{ name: "membership", type: "hidden", value: "add" }],
 				},
 				{
 					name: "add-to-readlist",
@@ -328,17 +337,17 @@ describe("toArticleSubEntity", () => {
 			{
 				where: "outside any collection",
 				options: { addToReadlist: "advertised", now: NOW },
-				names: ["update-status", "add-to-readlist"],
+				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
 			},
 			{
 				where: "in a collection that names no readlist",
 				options: { addToReadlist: "advertised", now: NOW, collectionQuery: { readlistKey: "readlist", status: "unread" } },
-				names: ["update-status", "add-to-readlist"],
+				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
 			},
 			{
 				where: "in the default readlist",
 				options: { addToReadlist: "advertised", now: NOW, collectionQuery: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
-				names: ["update-status", "add-to-readlist"],
+				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
 			},
 			{
 				where: "in one of the reader's own readlists",
@@ -348,17 +357,17 @@ describe("toArticleSubEntity", () => {
 			{
 				where: "outside any collection when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW },
-				names: ["update-status"],
+				names: ["update-status", "add-to-hand-picked"],
 			},
 			{
 				where: "in a collection that names no readlist when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW, collectionQuery: { readlistKey: "readlist", status: "unread" } },
-				names: ["update-status"],
+				names: ["update-status", "add-to-hand-picked"],
 			},
 			{
 				where: "in the default readlist when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW, collectionQuery: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
-				names: ["update-status"],
+				names: ["update-status", "add-to-hand-picked"],
 			},
 			{
 				where: "in one of the reader's own readlists when add-to-readlist is withheld",
@@ -377,6 +386,7 @@ describe("toArticleSubEntity", () => {
 		expect(subEntity.links).toEqual([
 			{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 			{ rel: ["self"], href: `/queue/${ARTICLE_ID}/card` },
+			{ rel: ["original"], href: ARTICLE_URL, type: "text/html" },
 		]);
 	});
 
@@ -505,6 +515,111 @@ describe("toArticleSubEntity", () => {
 		const subEntity = toArticleSubEntity(article, { addToReadlist: "advertised", now: NOW });
 
 		expect(subEntity.properties?.readAt).toBe("2026-03-04T12:00:00.000Z");
+	});
+});
+
+describe("card display and source links", () => {
+	const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+	const linkOf = (entity: ReturnType<typeof toArticleSubEntity>, rel: string) =>
+		entity.links?.filter((link) => link.rel.includes(rel));
+
+	it("opens a redirected article's original at its destination, the page the web card links to", () => {
+		const entity = toArticleSubEntity(
+			makeArticle({ url: "https://example.com/article.html", destinationUrl: destinationUrl("https://example.com/article") }),
+			{ addToReadlist: "advertised", now: NOW },
+		);
+
+		expect(linkOf(entity, "original")).toEqual([
+			{ rel: ["original"], href: "https://example.com/article", type: "text/html" },
+		]);
+	});
+
+	it("leaves both links untitled, so a shipped app that renders titled links as row controls keeps its row as it was", () => {
+		const entity = toArticleSubEntity(makeArticle({ processingNotice: "Couldn't read this upload" }), { addToReadlist: "advertised", now: NOW });
+
+		expect(entity.links?.filter((link) => link.title !== undefined).map((link) => link.rel)).toEqual([["read"]]);
+	});
+
+	it("offers no original for a private item even though its url is set", () => {
+		const entity = toArticleSubEntity(
+			makeArticle({ url: PRIVATE_URL, destinationUrl: destinationUrl(PRIVATE_URL), media: { kind: "book", fileName: "dune.epub", routeId: ReaderArticleHashId.from(PRIVATE_URL) } }),
+			{ addToReadlist: "advertised", now: NOW },
+		);
+
+		expect(linkOf(entity, "original")).toEqual([]);
+	});
+
+	it("offers the web upload page beside a failed upload's notice, and drops it once the notice is gone", () => {
+		const failed = toArticleSubEntity(
+			makeArticle({ url: PRIVATE_URL, destinationUrl: destinationUrl(PRIVATE_URL), processingNotice: "Couldn't read this upload" }),
+			{ addToReadlist: "advertised", now: NOW },
+		);
+		const recovered = toArticleSubEntity(makeArticle({ url: PRIVATE_URL, destinationUrl: destinationUrl(PRIVATE_URL) }), {
+			addToReadlist: "advertised",
+			now: NOW,
+		});
+
+		expect({ failed: linkOf(failed, "upload-again"), recovered: linkOf(recovered, "upload-again") }).toEqual({
+			failed: [
+				{ rel: ["upload-again"], href: "/upload?utm_source=app-card&utm_medium=internal&utm_content=failed-card", type: "text/html" },
+			],
+			recovered: [],
+		});
+	});
+
+	it("names a book's kind, chapters and read time in one label, as the web card does", () => {
+		const entity = toArticleSubEntity(
+			makeArticle({ url: PRIVATE_URL, destinationUrl: destinationUrl(PRIVATE_URL), media: { kind: "book", fileName: "dune.epub", routeId: ReaderArticleHashId.from(PRIVATE_URL), sectionCount: 12 }, estimatedReadTime: 185 as Minutes }),
+			{ addToReadlist: "advertised", now: NOW },
+		);
+
+		expect(entity.properties?.kindLabel).toBe("Book · 12 chapters · 3 h 5 min read");
+	});
+
+	it("carries no kind label, suggestion or via for an ordinary link with no provenance", () => {
+		const { properties } = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", now: NOW });
+
+		expect([properties?.kindLabel, properties?.suggestion, properties?.via]).toEqual([undefined, undefined, undefined]);
+	});
+
+	it("labels a Hacker News suggestion as Readplace's", () => {
+		const { properties } = toArticleSubEntity(
+			makeArticle({ provenance: { kind: "hn-suggestion", campaignId: "c", snapshotAt: "s", hnItemId: 1, rank: 1 } }),
+			{ addToReadlist: "advertised", now: NOW },
+		);
+
+		expect(properties?.suggestion).toBe("Added by Readplace from Hacker News");
+	});
+
+	it("shows an unrecognised email sender in the plain label, with no sender disclosure", () => {
+		const provenance = { kind: "email" as const, senderEmail: "someone@example.com" };
+		const { properties } = toArticleSubEntity(makeArticle({ provenance }), {
+			addToReadlist: "advertised",
+			now: NOW,
+			readerProvenance: provenance,
+		});
+
+		expect(properties?.via).toEqual({ label: "via someone@example.com" });
+	});
+
+	it("names a recognised newsletter and discloses its sender address", () => {
+		const { properties } = toArticleSubEntity(makeArticle({ provenance: { kind: "email", senderEmail: "dan@tldr.tech" } }), {
+			addToReadlist: "advertised",
+			now: NOW,
+			readerProvenance: { kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" },
+		});
+
+		expect(properties?.via).toEqual({ label: "via TLDR", sender: { name: "TLDR", address: "dan@tldr.tech" } });
+	});
+
+	it("shows no via for a save that did not arrive by email, as the web card shows none", () => {
+		const { properties } = toArticleSubEntity(makeArticle({ provenance: { kind: "web" } }), {
+			addToReadlist: "advertised",
+			now: NOW,
+			readerProvenance: { kind: "web" },
+		});
+
+		expect(properties?.via).toBeUndefined();
 	});
 });
 
@@ -701,6 +816,7 @@ describe("toSavedArticleEntity", () => {
 
 		expect(entity.actions?.map(({ name, href }) => ({ name, href }))).toEqual([
 			{ name: "update-status", href: `/queue/${ARTICLE_ID}/status` },
+			{ name: "add-to-hand-picked", href: `/queue/${ARTICLE_ID}/hand-picked` },
 			{ name: "add-to-readlist", href: `/queue/${ARTICLE_ID}/assign` },
 		]);
 	});

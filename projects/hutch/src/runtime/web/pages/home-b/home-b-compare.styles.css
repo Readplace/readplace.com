@@ -12,7 +12,7 @@
 }
 
 .home-compare__highlight {
-  color: var(--color-highlight);
+  color: var(--primary-text);
 }
 
 .home-compare__table {

@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, personalReadlistOrder, personalReadlistPartition } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { MEDIA_KINDS } from "@packages/media-contracts";
 import {
@@ -17,6 +17,7 @@ import type {
 	SavePrivateItem,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
+import { canonicalRemovalKey } from "./user-readlist-partition";
 
 const ItemOwnerRow = z.object({ ownerUserId: dynamoField(UserIdSchema) });
 
@@ -76,9 +77,15 @@ export function initDynamoDbPrivateItem(deps: {
 									status: "unread",
 									provenance: { kind: "upload" },
 									handPickedAt: savedAt,
+									personalPickedAt: savedAt,
+									personalDecision: `${savedAt}#${routeId}`,
+									personalScope: personalReadlistPartition(params.ownerUserId, "picked", "unread"),
+									personalOrder: personalReadlistOrder(savedAt, ReaderArticleHashId.fromHash(routeId)),
 								},
 							},
 						},
+						{ ConditionCheck: { TableName: deps.userArticlesTableName, Key: canonicalRemovalKey(params.ownerUserId, key),
+							ConditionExpression: "attribute_not_exists(privateReleaseClaim)" } },
 					],
 				}),
 			),

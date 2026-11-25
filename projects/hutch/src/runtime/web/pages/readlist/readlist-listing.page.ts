@@ -12,7 +12,7 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
-import { articlesSavedAt } from "./articles-saved-at";
+import { articlesSavedAt, savedArticleUrlPage } from "./articles-saved-at";
 import { FREE_PLAN_BANNER_DISMISS_COOKIE_NAME } from "./free-plan-banner-dismiss";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { wantsSiren } from "../../content-negotiation";
@@ -74,7 +74,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"now" | "recordNativeAppAnyActivity" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
+		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -96,11 +96,13 @@ export function initReadlistListingRoutes(deps: Pick<
 		const siren = wantsSiren(req);
 		const context = await resolveReadlistContext(req, userId);
 		const urlState = context.state;
-		const store = storeFor(urlState.readlist);
+		const store = storeFor(urlState.readlist, urlState.reviewOlder, urlState.managedSource, urlState.sender);
 		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
 		const readlistKey = readlistQueryKeyOf(req);
-		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status: tab.status, order: urlState.order, page: urlState.page, url: filterUrl };
+		const lookup = siren && req.query.lookup === "1" && !urlState.managedSource;
+		const status = lookup && req.query.status === undefined && req.query.tab === undefined ? undefined : tab.status;
+		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status, order: urlState.order, page: urlState.page, url: filterUrl, lookup };
 		if (siren && readlistKey === "readlist" && req.query.queue !== undefined && req.query.readlist === undefined) {
 			setSirenCanonicalRedirectCaching(res);
 			res.redirect(303, `${READLIST_PATH}${buildQueryString(canonicalQuery)}`);
@@ -110,29 +112,37 @@ export function initReadlistListingRoutes(deps: Pick<
 		tagPageviewSortOrder(res, urlState.order);
 		const order = urlState.order ?? tab.defaultOrder;
 		const discovery = siren ? undefined : storeDiscoveryOf(urlState);
-		const result = await store.findArticlesByUser({
+		const pageSize = readlistPageSizeForClient(req.oauthClientId);
+		const result = lookup ? await savedArticleUrlPage({
+			url: filterUrl, userId, status, page: urlState.page, pageSize,
+			resolveCanonicalIdentity: deps.resolveCanonicalIdentity, findArticleById: store.findArticleById,
+		}) : await store.findArticlesByUser({
 			userId,
 			status: tab.status,
 			sort: tab.sort,
 			order,
 			page: urlState.page,
-			pageSize: readlistPageSizeForClient(req.oauthClientId),
+			pageSize,
 			includeTotal: siren,
 			excludeContent: true,
 			discovery,
 		});
 
 		if (siren) {
-			const filteredArticles = filterUrl
+			const filteredArticles = filterUrl && !lookup
 				? articlesSavedAt({ articles: result.articles, url: filterUrl })
 				: result.articles;
-			const filtered = filterUrl
+			const filtered = filterUrl && !lookup
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
 				: result;
-			const [loadedCrawlByUrl, loadedSummaryByUrl] = await Promise.all([
+			const [loadedCrawlByUrl, loadedSummaryByUrl, readerProvenances] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, filtered.articles, deps.logError),
 				loadSummaries({ findGeneratedSummaries: deps.findGeneratedSummaries, articles: filtered.articles, viewer: viewerFor(userId), generatedContent: generatedContentOf(req), logError: deps.logError }),
+				deps.resolveReaderProvenances(filtered.articles.map((article) => article.provenance)),
 			]);
+			const readerProvenanceByUrl = new Map(
+				filtered.articles.map((article, index) => [article.url, readerProvenances[index]] as const),
+			);
 			const { crawlByUrl, summaryByUrl } = filterUrl
 				? { crawlByUrl: loadedCrawlByUrl, summaryByUrl: loadedSummaryByUrl }
 				: await resolveListedOnView(req, {
@@ -152,6 +162,7 @@ export function initReadlistListingRoutes(deps: Pick<
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						pinnedReadlists: context.pinnedReadlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						surfacePlatform: nativeSurfaceOf(req),
@@ -160,6 +171,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						crawlByUrl,
 						enclosureByUrl: ownedEnclosuresByUrl({ viewer: viewerFor(userId), articles: filtered.articles }),
 						summaryByUrl,
+						readerProvenanceByUrl,
 						totalLabel: readlistTotalLabel,
 						sort: { options: READLIST_SORT_OPTIONS, current: order },
 					},
@@ -217,7 +229,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
 		const urlState = context.state;
-		const store = storeFor(urlState.readlist);
+		const store = storeFor(urlState.readlist, urlState.reviewOlder, urlState.managedSource, urlState.sender);
 		const tab = tabQuery(urlState.tab);
 		const tabTotal = await store.countArticlesByUser({
 			userId,

@@ -56,6 +56,49 @@
   border-bottom: 1px solid var(--border);
 }
 
+.inbox-emails__list-header:has(.inbox-emails__sender-menu) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inbox-emails__listing:has(.inbox-emails__sender-menu[open]) {
+  overflow: visible;
+}
+
+.inbox-emails__sender-menu {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.inbox-emails__sender-choice {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-emails__sender-menu .menu__panel {
+  max-width: min(28rem, calc(100vw - 2 * var(--page-gutter) - 42px));
+  max-height: min(20rem, 50vh);
+  overflow-y: auto;
+}
+
+.inbox-emails__sender-menu:not(.menu--floating) .menu__panel {
+  right: auto;
+  left: 0;
+}
+
+.inbox-emails__sender-menu .menu__item {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.inbox-emails__sender-menu .menu__item[aria-current] {
+  font-weight: 700;
+}
+
 .inbox-emails__count {
   font-family: var(--font-sans);
   font-size: var(--text-sm);

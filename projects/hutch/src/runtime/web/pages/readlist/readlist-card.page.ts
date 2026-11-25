@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE, personalHomeEnabled } from "./built-in-readlists";
 import { generatedContentOf } from "../../generated-content-of";
 import { toArticleSubEntity } from "../../api/article-siren";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
@@ -8,7 +9,7 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import type { UserId } from "@packages/domain/user";
-import { ArticleStatusSchema } from "@packages/domain/article";
+import { ArticleStatusSchema, newSaveAttemptId } from "@packages/domain/article";
 import { classifyDeviceClass, hashIp, } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS, } from "../../../observability/events";
@@ -97,7 +98,7 @@ const ArticleMoveBodySchema = z.union([
 export function initReadlistCardRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"appOrigin" | "findArticleById" | "findArticleCrawlStatus" | "findGeneratedSummary" | "resolveReaderProvenance" | "getOnboardingSignals" | "now" | "recordMarkReadAcrossQueuesAcknowledged" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "recordAnalyticsEvent" | "salt" | "recordDeleteArticleAcknowledged" | "addArticleToReadlist" | "listReadlistDefinitions" | "listUserSavesForUrls" | "upsertReadlist" | "findArticleUrlById" | "listUserSavesForUrl" | "publishRemoveMyContent"
+		"changePersonalPick" | "appOrigin" | "findArticleById" | "findArticleCrawlStatus" | "findGeneratedSummary" | "resolveReaderProvenance" | "getOnboardingSignals" | "now" | "recordMarkReadAcrossQueuesAcknowledged" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "recordAnalyticsEvent" | "salt" | "recordDeleteArticleAcknowledged" | "addArticleToReadlist" | "listReadlistDefinitions" | "listUserSavesForUrls" | "upsertReadlist" | "findArticleUrlById" | "listUserSavesForUrl" | "publishRemoveMyContent"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -142,7 +143,7 @@ export function initReadlistCardRoutes(
 		},
 	): Promise<void> => {
 		const urlState = context.state;
-		const store = storeFor(urlState.readlist);
+		const store = storeFor(urlState.readlist, urlState.reviewOlder, urlState.managedSource, urlState.sender);
 		const tab = tabQuery(urlState.tab);
 		const order = urlState.order ?? tab.defaultOrder;
 		const pageSize = readlistPageSizeForClient(req.oauthClientId);
@@ -204,8 +205,9 @@ export function initReadlistCardRoutes(
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const { readlist: addressed, reviewOlder } = requestReadlistContext(req).state;
 		const article = parsedId.success
-			? await deps.findArticleById(parsedId.data, userId)
+			? await storeFor(addressed === HAND_PICKED_SCOPE ? addressed : DEFAULT_READLIST_SLUG, reviewOlder).findArticleById(parsedId.data, userId)
 			: null;
 
 		if (!article) {
@@ -218,10 +220,11 @@ export function initReadlistCardRoutes(
 		}
 
 		if (wantsSiren(req)) {
-			const [crawl, summary, context] = await Promise.all([
+			const [crawl, summary, context, readerProvenance] = await Promise.all([
 				deps.findArticleCrawlStatus(article.url),
 				deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent: generatedContentOf(req) }),
 				resolveReadlistContext(req, userId),
+				deps.resolveReaderProvenance(article.provenance),
 			]);
 			const { state } = context;
 			const { rel: _rel, ...entity } = toArticleSubEntity(article, {
@@ -236,6 +239,7 @@ export function initReadlistCardRoutes(
 				},
 				now: deps.now(),
 				pollCount: parsePollParam(req.query.poll, MAX_POLLS) + 1,
+				readerProvenance,
 			});
 			res.set("Cache-Control", "private, no-cache");
 			res.vary("Accept, Authorization");
@@ -306,6 +310,30 @@ export function initReadlistCardRoutes(
 		res.status(200).type("html").send(html);
 	});
 
+	router.post("/:id/hand-picked", requireNotLocked, async (req: Request<{ id: string }>, res: Response) => {
+		if (!personalHomeEnabled()) {
+			res.sendStatus(404);
+			return;
+		}
+		assert(req.userId, "membership requires an authenticated reader");
+		const request = { requestedAt: deps.now().toISOString(), attemptId: newSaveAttemptId() };
+		const intent = z.enum(["add", "remove"]).safeParse(req.body?.membership);
+		if (!intent.success) {
+			res.sendStatus(400);
+			return;
+		}
+		const id = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = id.success ? await deps.findArticleById(id.data, req.userId) : null;
+		if (!article || await deps.changePersonalPick({
+			userId: req.userId, url: article.url, picked: intent.data === "add", request,
+		}) === "missing") {
+			if (wantsSiren(req)) refuseOverSiren(res, UNKNOWN_ARTICLE_REFUSAL);
+			else res.sendStatus(404);
+			return;
+		}
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
+	});
+
 	router.post("/:id/status", async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -323,7 +351,7 @@ export function initReadlistCardRoutes(
 			const updated = await deps.updateArticleStatusAcrossReadlists({
 				id: parsedId.data,
 				userId,
-				addressed: context.state.readlist,
+				addressed: context.state.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : context.state.readlist,
 				status: parsedStatus.data,
 			});
 			if (updated) {
@@ -383,7 +411,11 @@ export function initReadlistCardRoutes(
 		}
 
 		const context = requestReadlistContext(req);
-		if (parsedId.success) {
+		if (parsedId.success && context.state.readlist === HAND_PICKED_SCOPE) {
+			const request = { requestedAt: deps.now().toISOString(), attemptId: newSaveAttemptId() };
+			const article = await deps.findArticleById(parsedId.data, userId);
+			if (article) await deps.changePersonalPick({ userId, url: article.url, picked: false, request });
+		} else if (parsedId.success) {
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 

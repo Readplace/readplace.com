@@ -10,8 +10,7 @@
  * diagnostic feed — the operator wants the full list of customer URLs that
  * the pipeline gave up on, so they can re-save and debug each one. A green
  * (zero-row) run is the normal steady state; a non-empty run is a debug
- * worklist, not a CI failure. The script therefore always exits 0; the
- * workflow opens a tracking issue when the report is non-empty.
+ * worklist. The workflow opens a tracking issue when the report is non-empty.
  */
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
@@ -31,6 +30,8 @@ import { initFailureHistoryLogs, initFailureHistoryQuery } from "./failure-histo
 import { initFailureHistoryMemberships } from "./failure-history-memberships";
 import { initLoadPublicViewEvidence } from "./failure-history-public";
 import { formatFailedArticlesIssue, toCanaryReportRow } from "./failed-articles-issue";
+import { parseIgnoredKeyHashes } from "./ignored-key-hashes";
+import { parseReviewedAccess } from "./reviewed-access";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 function parseLookbackDays(): number {
@@ -45,6 +46,8 @@ function parseLookbackDays(): number {
 }
 
 test("Failed articles canary", async () => {
+	const ignoredKeyHashes = parseIgnoredKeyHashes(getEnv("FAILED_ARTICLES_IGNORED_KEY_HASHES"));
+	const reviewedAccess = parseReviewedAccess(getEnv("FAILED_ARTICLES_REVIEWED_ACCESS"));
 	const region = requireEnv("AWS_REGION");
 	const tableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
 	const origin = requireEnv("READPLACE_ORIGIN");
@@ -69,6 +72,7 @@ test("Failed articles canary", async () => {
 		now: () => new Date(),
 		lookbackDays,
 		excludePatterns: EXCLUDE_PATTERNS,
+		ignoredKeyHashes,
 	});
 	process.stderr.write(`[info] failed rows: ${failed.length}\n`);
 	if (failed.length === 0) return;
@@ -89,6 +93,7 @@ test("Failed articles canary", async () => {
 		memberships: memberships?.get(row.articleKey),
 		publicOpenRecorded: publicViews.opened.has(row.articleKey),
 		publicOpensCovered: publicViews.covered.has(row.articleKey),
+		reviewedAccess,
 	}));
 	assert(first, "A nonempty canary report has a classified first row");
 	const createdAt = cutoff.toISOString();

@@ -38,7 +38,7 @@ struct ReaderSheet: View {
 				ReaderSkeletonView()
 			}
 		}
-		.tint(.brandAmber)
+		.tint(.brandAppTint)
 		.background(Color.brandSurface.ignoresSafeArea())
 		.task {
 			guard case .loading = bootstrap else { return }
@@ -57,7 +57,12 @@ struct ReaderSheet: View {
 		let overlay = ReaderLoad.overlay(for: loadPhase)
 		VStack(spacing: 0) {
 			if bootstrap.showsOfflineBanner(fellBackToCache: fellBackToCache) {
-				ReaderOfflineBanner()
+				ReaderOfflineBanner(text: OfflineReading.bannerText)
+			}
+			if let contentBannerText = bootstrap.contentBannerText(
+				fellBackToCache: fellBackToCache, contentState: presentation.contentState
+			) {
+				ReaderOfflineBanner(text: contentBannerText)
 			}
 			ZStack(alignment: .top) {
 				ReaderWebView(
@@ -123,9 +128,11 @@ private struct ReaderLoadingBar: View {
 }
 
 private struct ReaderOfflineBanner: View {
+	let text: String
+
 	var body: some View {
 		HStack {
-			Text(OfflineReading.bannerText).font(.footnote).foregroundStyle(BannerTone.offline.ink)
+			Text(text).font(.footnote).foregroundStyle(BannerTone.offline.ink)
 			Spacer()
 		}
 		.padding(12)

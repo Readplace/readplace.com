@@ -60,10 +60,11 @@ struct ArticleRow: View {
 				if presentation.showsOfflineBadge {
 					HStack(spacing: 4) {
 						Text(ArticleRowPresentation.offlineBadgeLabel)
+							.foregroundStyle(Color.brandTextPrimary)
 						Image(systemName: "checkmark")
+							.foregroundStyle(Color.brandSuccessText)
 					}
 					.font(.caption2.weight(.semibold))
-					.foregroundStyle(Color.brandSuccessText)
 					.padding(.horizontal, 8)
 					.padding(.vertical, 2)
 					.background(Color.brandSuccess.opacity(0.12), in: Capsule())

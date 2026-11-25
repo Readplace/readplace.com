@@ -77,6 +77,29 @@ final class ReaderBootstrapTests: XCTestCase {
 		XCTAssertEqual(ReaderBootstrap.ready([]).showsOfflineBanner(fellBackToCache: false), false)
 	}
 
+	func testTheContentBannerShowsOnlyOnAnOfflineOpenOfAnArticleStoredWithoutContent() {
+		XCTAssertEqual(
+			ReaderBootstrap.ready([]).contentBannerText(fellBackToCache: false, contentState: .unavailable) != nil, false,
+			"an online open is resolved by the live page"
+		)
+		XCTAssertEqual(
+			ReaderBootstrap.offline.contentBannerText(fellBackToCache: false, contentState: .unavailable) != nil, true
+		)
+		XCTAssertEqual(
+			ReaderBootstrap.ready([]).contentBannerText(fellBackToCache: true, contentState: .processing),
+			"This article wasn't downloaded with its content. Open it when you're back online to read it."
+		)
+		XCTAssertEqual(
+			ReaderBootstrap.offline.contentBannerText(fellBackToCache: false, contentState: .unavailable),
+			"Readplace couldn't get this article's content, so it can't be read offline."
+		)
+		XCTAssertEqual(
+			[ContentState.available, nil].map { ReaderBootstrap.offline.contentBannerText(fellBackToCache: true, contentState: $0) },
+			[nil, nil],
+			"an available copy, and one stored before states were recorded, show no content banner"
+		)
+	}
+
 	func testTheReaderURLIsTheReadHrefResolvedWithThePlatformParam() {
 		XCTAssertEqual(
 			ReaderRequest.url(readHref: "/queue/a1/view", baseURL: "https://readplace.com")?.absoluteString,

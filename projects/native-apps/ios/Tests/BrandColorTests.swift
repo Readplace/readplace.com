@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import UIKit
 @testable import Readplace
 
@@ -22,10 +23,6 @@ final class BrandColorTests: XCTestCase {
 
 	func testSuccessMirrorsSuccessToken() {
 		assertHex(BrandColor.success, light: "#3D8B6E", dark: "#4A9F7F")
-	}
-
-	func testWarningMirrorsWarningToken() {
-		assertHex(BrandColor.warning, light: "#C8923C", dark: "#D4A04A")
 	}
 
 	func testErrorMirrorsErrorToken() {
@@ -74,6 +71,26 @@ final class BrandColorTests: XCTestCase {
 
 	func testSuccessTextMirrorsSuccessTextToken() {
 		assertHex(BrandColor.successText, light: "#367C63", dark: "#4A9F7F")
+	}
+
+	func testErrorTextMirrorsErrorTextToken() {
+		assertHex(BrandColor.errorText, light: "#AF4646", dark: "#D08A8A")
+	}
+
+	func testPrimaryTextOnTintMirrorsPrimaryTextOnTintToken() {
+		assertHex(BrandColor.primaryTextOnTint, light: "#7E481B", dark: "#EAA162")
+	}
+
+	func testWarningTextMirrorsWarningTextToken() {
+		assertHex(BrandColor.warningText, light: "#9F732D", dark: "#D4A04A")
+	}
+
+	func testErrorFillMirrorsThePinnedErrorFillToken() {
+		assertHex(BrandColor.errorFill, light: "#B95050", dark: "#B95050")
+	}
+
+	func testTheAppTintIsThePrimaryTextInk() {
+		XCTAssertEqual(Color.brandAppTint, .brandPrimaryText)
 	}
 
 	private func assertHex(

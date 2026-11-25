@@ -26,15 +26,18 @@ export function initReadabilityParser(deps: {
 			excerpt: contentSavedFromHostExcerpt(hostname),
 		};
 
+		const html = deps.readabilityAdditions.normalizeMalformedTitleEndTag(params.html);
 		const extracted = tryExtractFromSiteRules({
 			siteRules: deps.siteRules,
-			html: params.html,
+			html,
 			url: params.url,
+			documentUrl: params.documentUrl,
+			fetchedDocument: params.fetchedDocument,
 			logError: deps.logError,
 		});
 
 		const { document } = parseHTML(
-			extracted ? buildSyntheticHtml(extracted) : params.html,
+			extracted ? buildSyntheticHtml(extracted) : html,
 		);
 		if (!document.documentElement) {
 			return { ok: false, reason: "no <html> element in response body" };
@@ -44,10 +47,13 @@ export function initReadabilityParser(deps: {
 		// the caller can mark the crawl failed immediately — otherwise
 		// it escapes the whole pipeline and the reader slot is stuck on
 		// "pending" until the dead-letter path ticks over.
+		let restoreTitleHeading = (html: string) => html;
 		let parsed: ReturnType<Readability["parse"]>;
 		let phase: "Article normalization" | "Readability parse" = "Article normalization";
 		try {
 			deps.readabilityAdditions.normalizeImplicitBody(document);
+			if (!extracted && html !== params.html) restoreTitleHeading = deps.readabilityAdditions.preserveQualifiedTitleHeading(document);
+			deps.readabilityAdditions.preserveSubstackImagePreview({ document, savedUrl: params.url, documentUrl: params.documentUrl });
 			deps.readabilityAdditions.unwrapArticleBodyTemplates(document);
 			deps.readabilityAdditions.replaceVideosWithPlaceholder({
 				document,
@@ -62,6 +68,7 @@ export function initReadabilityParser(deps: {
 				siteRules: deps.siteRules,
 				document,
 				url: params.url,
+				documentUrl: params.documentUrl,
 				logError: deps.logError,
 			});
 			deps.readabilityAdditions.demoteBodyHeadings(document);
@@ -110,7 +117,7 @@ export function initReadabilityParser(deps: {
 				siteName: parsed.siteName || fallback.siteName,
 				excerpt: clipMetadataExcerpt(parsed.excerpt || fallback.excerpt),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
+				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(restoreTitleHeading(parsed.content)), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
 				publishedOn: deps.readabilityAdditions.publishedOnFrom(parsed.publishedTime),
 			},
@@ -132,6 +139,7 @@ export function initReadabilityParser(deps: {
 		return parseHtml({
 			url,
 			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
+			fetchedDocument: result.finalUrl === undefined ? undefined : true,
 			html: result.html,
 			thumbnailUrl: result.thumbnailUrl ?? null,
 		});
@@ -144,12 +152,15 @@ function tryExtractFromSiteRules(params: {
 	siteRules: readonly SiteRules[];
 	html: string;
 	url: string;
+	documentUrl: string;
+	fetchedDocument?: true;
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
 	for (const site of params.siteRules) {
 		try {
-			if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
-			const extracted = site.extract({ html: params.html });
+			const url = site.matchFetchedDocument ? params.fetchedDocument && params.documentUrl : params.url;
+			if (url === undefined || matchingSiteRuleUrl({ site, url }) === undefined) continue;
+			const extracted = site.extract({ html: params.html }, { savedUrl: params.url, documentUrl: params.documentUrl });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
@@ -169,12 +180,13 @@ function applyTransforms(params: {
 	siteRules: readonly SiteRules[];
 	document: Document;
 	url: string;
+	documentUrl: string;
 	logError: (message: string, error?: Error) => void;
 }): void {
 	for (const site of params.siteRules) {
 		if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
 		try {
-			site.transform({ document: params.document });
+			site.transform({ document: params.document }, { savedUrl: params.url, documentUrl: params.documentUrl });
 		} catch (error) {
 			params.logError(
 				`[ReadabilityParser] Site transform threw for ${params.url}`,
@@ -199,7 +211,8 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const titleTag = extracted.title ? `<title>${escapedTitle}</title>` : "";
 	const h1 = extracted.title ? `<h1>${escapedTitle}</h1>` : "";
 	const descriptionTag = extracted.excerpt ? `<meta name="description" content="${escapeHtmlText(extracted.excerpt)}">` : "";
-	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
+	const siteNameTag = extracted.siteName ? `<meta property="og:site_name" content="${escapeHtmlText(extracted.siteName)}">` : "";
+	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}${siteNameTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
 }
 
 function escapeHtmlText(text: string): string {

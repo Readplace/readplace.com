@@ -14,12 +14,32 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 
 	private static let secondPageLink = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
 
+	@MainActor
+	private final class WaitClock {
+		private(set) var current = Date()
+		private(set) var pauses: [TimeInterval] = []
+		var onPause: (Int) -> Void = { _ in }
+		var holdPause: () async -> Void = {}
+
+		func pause(_ seconds: TimeInterval) async throws {
+			pauses.append(seconds)
+			onPause(pauses.count)
+			await holdPause()
+			try Task.checkCancellation()
+			current += seconds
+		}
+
+		func now() -> Date { current }
+	}
+
 	private var container = AppGroupContainer(url: TestSupport.temporaryContainer())
 
 	private func makeDownload(
 		prefetchers: [ReaderPrefetching],
-		manifest: OfflineDownloadManifest? = nil
+		manifest: OfflineDownloadManifest? = nil,
+		clock: WaitClock? = nil
 	) -> DownloadUnreadOffline {
+		let clock = clock ?? WaitClock()
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
 			store: TestSupport.loggedInStore(),
@@ -31,7 +51,9 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 			prefetchers: prefetchers,
 			sessionAction: nil,
 			manifest: manifest ?? OfflineDownloadManifest(container: container),
-			snapshot: OfflineReadlistSnapshot(container: container)
+			snapshot: OfflineReadlistSnapshot(container: container),
+			pause: clock.pause,
+			now: clock.now
 		)
 	}
 
@@ -62,6 +84,55 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 			default:
 				return .json(404, "{}")
 			}
+		}
+	}
+
+	private static let firstPage = "status=unread"
+	private static let secondPage = "status=unread&page=2"
+	private static let thirdPage = "status=unread&page=3"
+
+	private func serve(_ answers: [String: [StubURLProtocol.Stub]]) {
+		var attempts: [String: Int] = [:]
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/queue":
+				let query = request.url?.query ?? ""
+				guard let stubs = answers[query] else { return .json(404, "{}") }
+				let attempt = attempts[query, default: 0]
+				attempts[query] = attempt + 1
+				return stubs[min(attempt, stubs.count - 1)]
+			case "/auth/session":
+				return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-offline; Path=/; HttpOnly"])
+			case "/oauth/token":
+				return .json(400, "{\"error\":\"invalid_grant\"}")
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	private static func page(_ entities: [String], next: String? = nil, marked: Bool = false, number: Int = 1) -> StubURLProtocol.Stub {
+		let mark = marked ? ", \"class\": [\"offline-prefetch\"]" : ""
+		let link = next.map { ",{ \"rel\": [\"next\"], \"href\": \"/queue?\($0)\"\(mark) }" } ?? ""
+		return .json(200, Fixtures.collection(entitiesJSON: entities, extraLinks: link, page: number))
+	}
+
+	private static func pending(_ id: String, after seconds: Int = 3, version: String? = nil) -> String {
+		Fixtures.article(
+			id: id,
+			contentVersion: version,
+			contentState: "processing",
+			processingJSON: Fixtures.processing(href: "/queue/\(id)/card?poll=1", afterSeconds: seconds)
+		)
+	}
+
+	private static func ready(_ id: String, version: String? = nil, state: String = "available") -> String {
+		Fixtures.article(id: id, contentVersion: version, contentState: state)
+	}
+
+	private func listingRequests() -> [String] {
+		StubURLProtocol.records(path: "/queue").map {
+			"\($0.request.url?.query ?? "") \($0.request.value(forHTTPHeaderField: "Sec-Purpose") ?? "none")"
 		}
 	}
 
@@ -310,8 +381,8 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 			secondPage: [Fixtures.article(id: "a3", contentVersion: "v3")]
 		)
 		let manifest = OfflineDownloadManifest(container: container)
-		manifest.recordDownloaded(articleId: "a1", contentVersion: "v1")
-		manifest.recordDownloaded(articleId: "a2", contentVersion: "v2-old")
+		manifest.recordDownloaded(articleId: "a1", contentVersion: "v1", contentState: nil)
+		manifest.recordDownloaded(articleId: "a2", contentVersion: "v2-old", contentState: nil)
 		manifest.record(run: OfflineDownloadRun(total: 3, completed: 1))
 		let prefetcher = FakeReaderPrefetcher()
 		var reported: [OfflineDownloadProgress] = []
@@ -353,6 +424,312 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 		let snapshot = OfflineReadlistSnapshot(container: container)
 		XCTAssertEqual(snapshot.page(href: "/queue?status=unread", now: Date())?.articles.map(\.id), ["a1"])
 		XCTAssertEqual(snapshot.page(href: "/queue?status=unread&page=2", now: Date())?.articles.map(\.id), ["a2"])
+	}
+
+	func testTheResolvingPagesAreLoadedFirstAndTheirProcessingRowsAreDownloadedOnceAReloadAnswersThemSettled() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.ready("a1"), Self.pending("p1", after: 3)], next: Self.secondPage),
+				Self.page([Self.ready("a1"), Self.ready("p1")], next: Self.secondPage),
+			],
+			Self.secondPage: [
+				Self.page([Self.ready("a2"), Self.pending("p2", after: 5)], next: Self.thirdPage, marked: true, number: 2),
+				Self.page([Self.ready("a2"), Self.pending("p2", after: 5)], next: Self.thirdPage, marked: true, number: 2),
+				Self.page([Self.ready("a2"), Self.ready("p2")], next: Self.thirdPage, marked: true, number: 2),
+			],
+			Self.thirdPage: [Self.page([Self.pending("p3")], number: 3)],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+		var atFirstPause: (listings: [String], prefetched: [String])?
+		clock.onPause = { count in
+			guard count == 1 else { return }
+			atFirstPause = (self.listingRequests(), prefetcher.prefetched.compactMap { $0.request.url?.path })
+		}
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(atFirstPause?.listings.prefix(2), ["status=unread none", "status=unread&page=2 none"])
+		let firstPause = try XCTUnwrap(atFirstPause)
+		XCTAssertTrue(
+			Set(firstPause.prefetched).isSubset(of: ["/queue/a1/view", "/queue/a2/view", "/queue/p3/view"]),
+			"only settled rows and the marked page's rows are downloaded while a processing row waits for its page to answer it settled"
+		)
+		XCTAssertEqual(clock.pauses, [3, 5], "each pause is the smallest refresh interval among the rows still processing")
+		XCTAssertEqual(
+			listingRequests().sorted(),
+			[
+				"status=unread none",
+				"status=unread prefetch",
+				"status=unread&page=2 none",
+				"status=unread&page=2 prefetch",
+				"status=unread&page=2 prefetch",
+				"status=unread&page=3 prefetch",
+			]
+		)
+		let prefetched = prefetcher.prefetched.compactMap { $0.request.url?.path }
+		XCTAssertEqual(prefetched.prefix(2), ["/queue/a1/view", "/queue/a2/view"], "settled rows go at once")
+		XCTAssertEqual(
+			prefetched.filter { $0 != "/queue/p3/view" },
+			["/queue/a1/view", "/queue/a2/view", "/queue/p1/view", "/queue/p2/view"],
+			"waited rows go once settled"
+		)
+		XCTAssertTrue(prefetched.contains("/queue/p3/view"), "the marked page's processing row goes without a wait")
+		let stored = OfflineReadlistSnapshot(container: container).page(href: "/queue?status=unread", now: Date())
+		XCTAssertEqual(stored?.articles.first { $0.id == "p1" }?.contentState, .available, "the stored listing is the reloaded page")
+		XCTAssertNil(stored?.articles.first { $0.id == "p1" }?.processing)
+	}
+
+	func testOnlyThePagesLoadedThroughAnUnmarkedLinkAreWaitedOn() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1")], next: Self.secondPage, marked: true),
+				Self.page([Self.ready("p1")], next: Self.secondPage, marked: true),
+			],
+			Self.secondPage: [Self.page([Self.pending("p2")], number: 2)],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+		let markedRowQueued = expectation(description: "the marked page's row is downloaded while the wait is paused")
+		prefetcher.onPrefetch = {
+			if prefetcher.prefetched.last?.request.url?.path == "/queue/p2/view" { markedRowQueued.fulfill() }
+		}
+		var beforeTheReload: [String] = []
+		clock.holdPause = {
+			await self.fulfillment(of: [markedRowQueued], timeout: 5)
+			beforeTheReload = self.listingRequests()
+		}
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [3])
+		XCTAssertEqual(
+			beforeTheReload,
+			["status=unread none", "status=unread&page=2 prefetch"],
+			"the marked page is read while the wait is still paused"
+		)
+		XCTAssertEqual(listingRequests(), ["status=unread none", "status=unread&page=2 prefetch", "status=unread prefetch"])
+		XCTAssertEqual(
+			Set(prefetcher.prefetched.compactMap { $0.request.url?.path }),
+			["/queue/p1/view", "/queue/p2/view"],
+			"the marked page's row is not held behind the wait, so the two copies arrive in either order"
+		)
+		XCTAssertEqual(prefetcher.prefetched.count, 2, "each copy is downloaded once")
+	}
+
+	func testARowStillProcessingWhenTheWaitCapElapsesIsDownloadedOnceAsLastSeen() async throws {
+		serve([Self.firstPage: [Self.page([Self.pending("p1", after: 300, version: "v1")])]])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+		let clock = WaitClock()
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], manifest: manifest, clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [300, 300, 300], "the wait ends once 15 minutes have passed since it began")
+		XCTAssertEqual(DownloadUnreadOffline.resolutionWaitCap, 900)
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view"])
+		XCTAssertEqual(manifest.contentState(articleId: "p1"), .processing, "the stored copy is the placeholder, which the banner covers")
+	}
+
+	func testAProcessingRowMissingFromEveryReloadedPageIsDownloadedAsLastSeenWithoutWaitingForTheCap() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.ready("a1"), Self.pending("p1")]),
+				Self.page([Self.ready("a1")]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+		var reported: [OfflineDownloadProgress] = []
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { reported.append($0) }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [3])
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/a1/view", "/queue/p1/view"])
+		XCTAssertEqual(reported.last, progress(2, of: 2, failed: 0))
+	}
+
+	func testAProcessingRowMissingFromTheReloadedPageRecordsNoContentStateForItsCopy() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1", version: "v1")]),
+				Self.page([]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+
+		_ = try await makeDownload(prefetchers: [prefetcher], manifest: manifest)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view"])
+		XCTAssertTrue(manifest.isCurrent(articleId: "p1", contentVersion: "v1"))
+		XCTAssertNil(
+			manifest.contentState(articleId: "p1"),
+			"its last sighting said processing, but its copy is fetched later and may already hold the content"
+		)
+	}
+
+	func testARowAlreadyRecordedWithoutContentKeepsItsStateWhenItIsDownloadedAgainAsLastSeen() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1", version: "v1")]),
+				Self.page([]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+		manifest.recordDownloaded(articleId: "p1", contentVersion: "v1", contentState: .unavailable)
+
+		_ = try await makeDownload(prefetchers: [prefetcher], manifest: manifest)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(prefetcher.prefetched.count, 0, "the stored copy is current")
+		XCTAssertEqual(
+			manifest.contentState(articleId: "p1"),
+			.unavailable,
+			"a row released without a settled sighting has no state to replace the recorded one with"
+		)
+	}
+
+	func testAHeldRowTheMarkedPagesAlreadyQueuedIsNotReloaded() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1")], next: Self.secondPage, marked: true),
+				Self.page([Self.ready("p1")], next: Self.secondPage, marked: true),
+			],
+			Self.secondPage: [Self.page([Self.ready("p1")], number: 2)],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+		let queuedByTheWalk = expectation(description: "the row that moved onto the marked page is downloaded")
+		prefetcher.onPrefetch = { queuedByTheWalk.fulfill() }
+		clock.holdPause = { await self.fulfillment(of: [queuedByTheWalk], timeout: 5) }
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [3])
+		XCTAssertEqual(listingRequests(), ["status=unread none", "status=unread&page=2 prefetch"], "page 1 is not reloaded")
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view"])
+	}
+
+	func testARowSeenOnSeveralReloadsIsDownloadedOnceAndTheTotalCountsDistinctRows() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.ready("a1"), Self.pending("p1"), Self.pending("p2")]),
+				Self.page([Self.ready("a1"), Self.ready("p1"), Self.pending("p2")]),
+				Self.page([Self.ready("a1"), Self.ready("p1"), Self.pending("p2")]),
+				Self.page([Self.ready("a1"), Self.ready("p1"), Self.ready("p2")]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+		let clock = WaitClock()
+		var reported: [OfflineDownloadProgress] = []
+		var duringTheWait: OfflineDownloadProgress?
+		clock.onPause = { count in if count == 1 { duringTheWait = reported.last } }
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], manifest: manifest, clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { reported.append($0) }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [3, 3, 3])
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/a1/view", "/queue/p1/view", "/queue/p2/view"])
+		XCTAssertEqual(duringTheWait?.total, 3, "the held rows are counted in the total from the first load")
+		XCTAssertLessThanOrEqual(duringTheWait?.completed ?? .max, 1, "and not in completed while they wait")
+		XCTAssertTrue(reported.allSatisfy { $0.completed <= $0.total })
+		XCTAssertEqual(reported.map(\.total).max(), 3, "three reloads of the page leave the total at its three distinct rows")
+		XCTAssertEqual(reported.last, progress(3, of: 3, failed: 0))
+	}
+
+	func testAReloadThatFailsIsFollowedByAnotherReload() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1")]),
+				.json(500, "{}"),
+				Self.page([Self.ready("p1")]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+
+		let outcome = try await makeDownload(prefetchers: [prefetcher], clock: clock)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(clock.pauses, [3, 3])
+		XCTAssertEqual(listingRequests(), ["status=unread none", "status=unread prefetch", "status=unread prefetch"])
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view"])
+	}
+
+	func testAReloadAnsweredUnauthorizedEndsTheDownloadAsAnExpiredSession() async {
+		serve([Self.firstPage: [Self.page([Self.pending("p1")]), .json(401, "{}")]])
+
+		do {
+			_ = try await makeDownload(prefetchers: [FakeReaderPrefetcher()])
+				.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+			XCTFail("a reload the server refuses as unauthorized must end the download")
+		} catch APIError.unauthorized {
+		} catch {
+			XCTFail("expected APIError.unauthorized, got \(error)")
+		}
+	}
+
+	func testCancellingDuringTheWaitWhileTheDownloadersAreIdleEndsCancelled() async throws {
+		serve([Self.firstPage: [Self.page([Self.pending("p1")])]])
+		let prefetcher = FakeReaderPrefetcher()
+		let clock = WaitClock()
+		let download = makeDownload(prefetchers: [prefetcher], clock: clock)
+		var task: Task<OfflineDownloadOutcome, Error>?
+		clock.onPause = { _ in task?.cancel() }
+		task = Task { try await download.run(from: "/queue?status=unread", expectedTotal: 0) { _ in } }
+
+		let outcome = try await XCTUnwrap(task).value
+
+		XCTAssertEqual(outcome, .cancelled)
+		XCTAssertEqual(prefetcher.events, [])
+	}
+
+	func testAWaitedRowRecordsTheContentStateItsLastReloadNamed() async throws {
+		serve([
+			Self.firstPage: [
+				Self.page([Self.pending("p1", version: "v1"), Self.pending("p2", version: "v1")]),
+				Self.page([Self.ready("p1", version: "v2"), Self.ready("p2", version: "v2", state: "unavailable")]),
+			],
+		])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+
+		_ = try await makeDownload(prefetchers: [prefetcher], manifest: manifest)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/p1/view", "/queue/p2/view"])
+		XCTAssertEqual(manifest.contentState(articleId: "p1"), .available)
+		XCTAssertEqual(manifest.contentState(articleId: "p2"), .unavailable, "a crawl that ended without content is stored and drives the banner")
+		XCTAssertTrue(manifest.isCurrent(articleId: "p2", contentVersion: "v2"))
+	}
+
+	func testARowSkippedAsCurrentStillHasItsContentStateRecorded() async throws {
+		serve([Self.firstPage: [Self.page([Self.ready("a1", version: "v1", state: "unavailable")])]])
+		let prefetcher = FakeReaderPrefetcher()
+		let manifest = OfflineDownloadManifest(container: container)
+		manifest.recordDownloaded(articleId: "a1", contentVersion: "v1", contentState: nil)
+
+		_ = try await makeDownload(prefetchers: [prefetcher], manifest: manifest)
+			.run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(prefetcher.events, [], "a copy already at its current version is not fetched again")
+		XCTAssertEqual(manifest.contentState(articleId: "a1"), .unavailable, "a copy stored before states were recorded gets its state")
 	}
 
 	func testTheProgressLabelCountsTheArticlesDownloadedSoFar() {

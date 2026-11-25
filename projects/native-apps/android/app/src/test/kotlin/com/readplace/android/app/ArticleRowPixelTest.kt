@@ -3,6 +3,8 @@ package com.readplace.android.app
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import com.readplace.android.core.Article
+import com.readplace.android.core.ArticleSender
+import com.readplace.android.core.ArticleVia
 import com.readplace.android.pixel.Appearance
 import com.readplace.android.pixel.PIXEL_DEVICE
 import com.readplace.android.pixel.PixelCheckpoint
@@ -45,25 +47,43 @@ class ArticleRowPixelTest {
 		contentVersion = null,
 	)
 
-	private fun assertUnreadRow(appearance: Appearance) {
+	private val fromNewsletter = unread.copy(
+		id = "a2",
+		siteName = "A publication with a long name",
+		originalUrl = "https://example.com/a2",
+		via = ArticleVia(label = "via The Weekly Newsletter", sender = ArticleSender(name = "The Weekly", address = "editor@weekly.example")),
+		suggestion = "Added by Readplace from Hacker News",
+	)
+
+	private fun assertRow(article: Article, name: String, appearance: Appearance) {
 		val capture = compose.captureLeaf(appearance = appearance) {
 			ArticleRow(
-				article = unread,
+				article = article,
 				clock = Clock.fixed(Instant.parse("2026-11-12T00:00:00Z"), ZoneOffset.UTC),
 				processingReceivedAt = null,
 				isAvailableOffline = false,
 				onOpen = {},
+				onOpenOriginal = {},
+				onRecover = {},
 			)
 		}
 		assertMatchesBaseline(
-			checkpoint = PixelCheckpoint(suite = "ArticleRowPixelTest", name = "article-row", appearance = appearance),
+			checkpoint = PixelCheckpoint(suite = "ArticleRowPixelTest", name = name, appearance = appearance),
 			capture = capture,
 		)
 	}
+
+	private fun assertUnreadRow(appearance: Appearance) = assertRow(unread, "article-row", appearance)
 
 	@Test
 	fun `an unread row looks right in light`() = assertUnreadRow(Appearance.Light)
 
 	@Test
 	fun `an unread row looks right in dark`() = assertUnreadRow(Appearance.Dark)
+
+	@Test
+	fun `a newsletter row with its source and sender looks right in light`() = assertRow(fromNewsletter, "article-row-source", Appearance.Light)
+
+	@Test
+	fun `a newsletter row with its source and sender looks right in dark`() = assertRow(fromNewsletter, "article-row-source", Appearance.Dark)
 }

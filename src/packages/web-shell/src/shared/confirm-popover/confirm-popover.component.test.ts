@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { DARK_ONLY_BODY_CLASS, LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
 import {
 	CONFIRM_POPOVER_STYLES,
 	renderConfirmPopover,
@@ -49,7 +48,7 @@ describe("renderConfirmPopover", () => {
 
 		assert(panel, "panel must be rendered");
 		expect(panel.getAttribute("popover")).toBe("auto");
-		expect(panel.className).toBe("confirm-popover");
+		expect(panel.className).toBe("confirm-popover popover--scrimmed");
 	});
 
 	it("renders a beside-passage panel as a manual popover, so a click in the article leaves it open", () => {
@@ -68,14 +67,9 @@ describe("renderConfirmPopover", () => {
 		expect(dismiss.getAttribute("popovertargetaction")).toBe("hide");
 	});
 
-	it("ships the beside-passage panel's styles with the shell: no scrim in any colour scheme, its own shadow, and bottom space while open", () => {
+	it("ships the beside-passage panel's styles with the shell: its own shadow and bottom space while open", () => {
 		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--beside-passage {");
 		expect(CONFIRM_POPOVER_STYLES).toContain("box-shadow: var(--shadow-menu);");
-		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--beside-passage::backdrop {");
-		expect(CONFIRM_POPOVER_STYLES).toContain(
-			`body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover--beside-passage::backdrop {`,
-		);
-		expect(CONFIRM_POPOVER_STYLES).toContain(`body.${DARK_ONLY_BODY_CLASS} .confirm-popover--beside-passage::backdrop {`);
 		expect(CONFIRM_POPOVER_STYLES).toContain(":root:has(.confirm-popover--beside-passage:popover-open) {");
 		expect(CONFIRM_POPOVER_STYLES).toContain("var(--confirm-popover-sheet-space, 50dvh)");
 	});
@@ -275,10 +269,9 @@ describe("renderConfirmPopover", () => {
 	});
 
 	it("ships a stylesheet that styles the block the shell actually renders", () => {
-		const panel = renderPanel().querySelector(".confirm-popover");
-
+		const panel = renderPanel().querySelector("[popover]");
 		assert(panel, "panel must be rendered");
-		expect(CONFIRM_POPOVER_STYLES).toContain(`.${panel.className} {`);
+		expect([...panel.classList].some((name) => CONFIRM_POPOVER_STYLES.includes(`.${name} {`))).toBe(true);
 	});
 
 	it("hands a caller the panel it opens and the control it closes with, which the shell owns", () => {

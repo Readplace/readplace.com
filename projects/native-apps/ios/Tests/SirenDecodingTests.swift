@@ -260,6 +260,24 @@ final class SirenDecodingTests: XCTestCase {
 
 	// The next two exercise the fallback derivation used only for an older server
 	// that doesn't emit the explicit read-state (the fixture omits `isRead`).
+	func testAnArticleCarriesTheContentStateTheServerNamed() throws {
+		let states = try ["available", "processing", "unavailable"].map {
+			try XCTUnwrap(Article(entity: decodeEntity(Fixtures.article(contentState: $0)))).contentState
+		}
+		XCTAssertEqual(states, [.available, .processing, .unavailable])
+	}
+
+	func testAnArticleWithoutAContentStateHasNone() throws {
+		let article = try XCTUnwrap(Article(entity: decodeEntity(Fixtures.article())))
+		XCTAssertNil(article.contentState, "an older server names no state, and an absent state is never read as missing content")
+	}
+
+	func testAnUnknownContentStateDecodesAsNoneWithoutFailingTheArticle() throws {
+		let article = try XCTUnwrap(Article(entity: decodeEntity(Fixtures.article(id: "a9", contentState: "archived"))))
+		XCTAssertEqual(article.id, "a9")
+		XCTAssertNil(article.contentState)
+	}
+
 	func testStatusReadMarksAsReadWhenServerOmitsIsRead() throws {
 		let entity = try decodeEntity(Fixtures.article(status: "read"))
 		let article = try XCTUnwrap(Article(entity: entity))
@@ -804,5 +822,60 @@ final class SirenDecodingTests: XCTestCase {
 		let polled = try XCTUnwrap(Article(entity: try decodeEntity(Fixtures.polledArticle(processingJSON: processing))))
 
 		XCTAssertEqual(polled, item)
+	}
+
+	private func cardArticle(properties: String, links: String = "[]") throws -> Article {
+		let json = """
+		{ "properties": { "id": "a1", "url": "https://example.com/post"\(properties) }, "links": \(links) }
+		"""
+		return try XCTUnwrap(Article(entity: try decodeEntity(json)))
+	}
+
+	func testACardsKindLabelSuggestionAndNewsletterSenderDecode() throws {
+		let via = #""via": { "label": "via TLDR", "sender": { "name": "TLDR", "address": "dan@tldr.tech" } }"#
+		let article = try cardArticle(properties: #", "kindLabel": "Book · 12 chapters", "suggestion": "Added by Readplace", "# + via)
+
+		XCTAssertEqual(article.kindLabel, "Book · 12 chapters")
+		XCTAssertEqual(article.suggestion, "Added by Readplace")
+		XCTAssertEqual(article.via, ArticleVia(label: "via TLDR", sender: ArticleSender(name: "TLDR", address: "dan@tldr.tech")))
+	}
+
+	func testAMalformedSenderDropsTheDisclosureAloneAndKeepsTheViaLabel() throws {
+		let article = try cardArticle(properties: #", "via": { "label": "via TLDR", "sender": { "name": 7 } }"#)
+
+		XCTAssertEqual(article.via, ArticleVia(label: "via TLDR", sender: nil))
+	}
+
+	func testAMalformedCardCueLeavesTheRestOfTheRowIntact() throws {
+		let article = try cardArticle(properties: #", "title": "Kept", "via": "nope", "kindLabel": 3, "suggestion": """#)
+
+		XCTAssertEqual(article.title, "Kept")
+		XCTAssertNil(article.via)
+		XCTAssertNil(article.kindLabel)
+		XCTAssertNil(article.suggestion)
+	}
+
+	func testALegacyEntityWithNoneOfTheCardFieldsStillDecodes() throws {
+		let article = try cardArticle(properties: "")
+
+		XCTAssertNil(article.via)
+		XCTAssertNil(article.originalURL)
+		XCTAssertNil(article.uploadAgainLink)
+	}
+
+	func testOnlyAWebOriginalIsKeptSoAnotherSchemeNeverReachesTheBrowser() throws {
+		func original(_ href: String) throws -> URL? {
+			try cardArticle(properties: "", links: #"[{ "rel": ["original"], "href": "\#(href)", "type": "text/html" }]"#).originalURL
+		}
+
+		XCTAssertEqual(try original("https://example.com/post")?.absoluteString, "https://example.com/post")
+		XCTAssertNil(try original("javascript:alert(1)"))
+		XCTAssertNil(try original("/queue/a1/view"))
+	}
+
+	func testTheUploadAgainLinkIsKeptForTheRecoveryControl() throws {
+		let article = try cardArticle(properties: "", links: #"[{ "rel": ["upload-again"], "href": "/upload", "type": "text/html" }]"#)
+
+		XCTAssertEqual(article.uploadAgainLink, SirenLink(rel: ["upload-again"], href: "/upload", title: nil))
 	}
 }

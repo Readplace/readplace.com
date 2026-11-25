@@ -138,6 +138,7 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 			isRead: false,
 			savedAt: nil,
 			contentVersion: "v1",
+			contentState: nil,
 			actions: [],
 			links: [],
 			readHref: "/queue/\(id)/view",
@@ -167,7 +168,7 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 				.fixedSize(horizontal: false, vertical: true)
 				.frame(width: Self.width)
 				.background(Color.brandSurface)
-				.tint(.brandAmber)
+				.tint(.brandAppTint)
 		)
 		let size = host.sizeThatFits(in: CGSize(width: Self.width, height: .greatestFiniteMagnitude))
 		let window = UIWindow(frame: CGRect(x: 0, y: 0, width: Self.width, height: 1200))

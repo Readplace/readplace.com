@@ -5,8 +5,30 @@ export const enUS = {
 		},
 	},
 	articleBody: {
+		provenance: {
+			hnSuggestion: "Added by Readplace from Hacker News",
+		},
 		highlightToolbar: {
 			beta: "Beta",
+		},
+		highlightStatus: {
+			saving: "Saving highlight",
+			stalled: "Still saving this highlight",
+			stopWaiting: "Stop waiting",
+			unsure: "Readplace may still have saved this passage:",
+			check: "Check highlight",
+			checking: "Checking highlight",
+			highlighted: "This passage is highlighted:",
+			absent: "This passage wasn't highlighted when Readplace checked:",
+			unconfirmed: "Readplace couldn't check this highlight. Try again when you're online.",
+			retry: "Try again",
+			dismiss: "Dismiss",
+			refused: {
+				passageChanged: "That passage changed; select it again",
+				tooLong: "Select a shorter passage",
+				notesTooLong: "Joined with the highlights it overlaps, the notes are over {max} characters.",
+				cancelled: "That highlight just changed; try again",
+			},
 		},
 		highlightNote: {
 			delete: "Delete note",

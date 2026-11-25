@@ -12,7 +12,14 @@ import {
 	initEventBridgePublisher,
 	initHandleByDetailType,
 } from "@packages/infra-components/runtime";
-import { AgeLockDeletionDueCommand, DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
+import { initBulkExecution } from "./bulk-articles/dynamo-execution";
+import { initScheduleHeldUpload } from "./media-release/schedule-held-upload";
+import { initExportBulkArticles, initDynamoBulkSelections } from "./bulk-articles/selection-store";
+import { initBulkPreparation } from "./bulk-articles/dynamo-preparation";
+import { initBulkWorker } from "./bulk-articles/job-worker";
+import { initCanonicalAliasStore } from "@packages/article-store";
+import { initResolveCanonicalIdentity } from "@packages/save-article";
+import { BulkArticlesProgressedEvent, RunBulkArticlesCommand, AgeLockDeletionDueCommand, DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
 import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
@@ -143,8 +150,9 @@ const stripeSubscriptions = initStripeSubscriptions({
 	fetch: globalThis.fetch,
 });
 
+const schedulerClient = new SchedulerClient({});
 const trialScheduler = initAwsTrialScheduler({
-	client: new SchedulerClient({}),
+	client: schedulerClient,
 	scheduleGroupName: env.TRIAL_SCHEDULER_GROUP_NAME,
 	schedulerRoleArn: env.TRIAL_SCHEDULER_ROLE_ARN,
 	eventBusArn: env.EVENT_BUS_ARN,
@@ -338,8 +346,25 @@ const disconnectGmail = initDisconnectGmail({
 	logger,
 });
 
+const bulkWorker = initBulkWorker({
+	store: initDynamoBulkSelections(dynamoClient, env.DYNAMODB_USER_ARTICLES_TABLE), publishEvent, logger, now,
+	work: {
+		prepare: initBulkPreparation({ client: dynamoClient, saves: env.DYNAMODB_USER_ARTICLES_TABLE, emails: env.DYNAMODB_INBOX_EMAILS_TABLE,
+			links: env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE, findArticleById: articleStore.findArticleById,
+			resolveCanonicalIdentity: initResolveCanonicalIdentity(initCanonicalAliasStore({ client: dynamoClient, tableName: env.DYNAMODB_ARTICLES_TABLE })),
+		}),
+		execute: initBulkExecution({ client: dynamoClient, userArticlesTable: env.DYNAMODB_USER_ARTICLES_TABLE, articlesTable: env.DYNAMODB_ARTICLES_TABLE,
+			usersTable: env.DYNAMODB_USERS_TABLE, findUserById: auth.findUserById, listUserSavesForUrl: articleStore.listUserSavesForUrl, publishEvent, now,
+			schedulePrivateRelease: initScheduleHeldUpload({ client: schedulerClient, group: env.TRIAL_SCHEDULER_GROUP_NAME,
+				roleArn: env.TRIAL_SCHEDULER_ROLE_ARN, eventBusArn: env.EVENT_BUS_ARN, now, publishEvent }),
+		}),
+	},
+});
+
 export const handler = initHandleByDetailType({
 	routes: {
+		[RunBulkArticlesCommand.detailType]: [bulkWorker],
+		[BulkArticlesProgressedEvent.detailType]: [bulkWorker],
 		[DeleteAccountCommand.detailType]: [
 			initDeleteAccountHandler({
 				findEmailByUserId: auth.findEmailByUserId,
@@ -409,6 +434,7 @@ export const handler = initHandleByDetailType({
 		],
 		[ExportUserDataCommand.detailType]: [
 			initExportUserDataHandler({
+				exportBulkArticles: initExportBulkArticles(dynamoClient, env.DYNAMODB_USER_ARTICLES_TABLE),
 				engagementState,
 				listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
 				findArticlesAcrossReadlists: articleStore.findArticlesAcrossReadlists,

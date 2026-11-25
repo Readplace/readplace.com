@@ -49,6 +49,7 @@ import {
 import {
 	readlistToFileInto,
 } from "./readlist-context";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -193,6 +194,8 @@ export function initReadlistSaveRoutes(
 		url: SaveableUrl;
 		readlists: Iterable<ReadlistSlug>;
 		saveTrigger: SaveTrigger;
+		requestedAt?: string;
+		personalPickAt?: string;
 		saveAttemptId: SaveAttemptId;
 		path: string;
 	}): Promise<void> => {
@@ -203,6 +206,8 @@ export function initReadlistSaveRoutes(
 				provenance: resolveSaveProvenance(params.req.oauthClientId),
 				readlist,
 				saveTrigger: params.saveTrigger,
+				personalPickAt: params.personalPickAt,
+				requestedAt: params.requestedAt,
 				saveAttemptId: params.saveAttemptId,
 			});
 		}
@@ -255,6 +260,7 @@ export function initReadlistSaveRoutes(
 
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		const personalPickAt = deps.now().toISOString();
 		const context = await resolveReadlistContext(req, userId);
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateNewSaveUrl(submittedUrl);
@@ -290,6 +296,7 @@ export function initReadlistSaveRoutes(
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						pinnedReadlists: context.pinnedReadlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						warning: { code: validation.error.code, message: validation.error.message },
@@ -333,7 +340,8 @@ export function initReadlistSaveRoutes(
 					userId,
 					url: validation.url,
 					readlists: new Set([DEFAULT_READLIST_SLUG, ...destinations.map((destination) => destination.slug)]),
-					saveTrigger: "manual",
+					personalPickAt,
+				saveTrigger: "manual",
 					saveAttemptId,
 					path: SAVE_INTENT_PATH.saveArticle,
 				});
@@ -344,6 +352,7 @@ export function initReadlistSaveRoutes(
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				personalPickAt,
 				saveTrigger: "manual",
 				saveAttemptId,
 			});
@@ -366,7 +375,7 @@ export function initReadlistSaveRoutes(
 					wroteUserArticle: filings.some((filing) => filing.wroteUserArticle),
 					resurfacedFromRead: filings.some((filing) => filing.resurfacedFromRead),
 					destination: {
-						filedInto: destinations.length > 0 ? destinations : [context.activeReadlist],
+						filedInto: destinations.length > 0 ? destinations : [context.state.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST : context.activeReadlist],
 						readlists: context.readlists,
 					},
 					readlistKey: readlistQueryKeyOf(req),
@@ -403,6 +412,7 @@ export function initReadlistSaveRoutes(
 		maxBytes: MAX_UPLOAD_REQUEST_BYTES,
 	});
 	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
+		const requestedAt = deps.now().toISOString();
 		if (!wantsSiren(req)) {
 			tagSaveRefusal(res, SAVE_REFUSAL_CODES.notSiren);
 			res.status(406).send("Not Acceptable");
@@ -511,6 +521,8 @@ export function initReadlistSaveRoutes(
 						userId,
 						provenance: resolveSaveProvenance(req.oauthClientId),
 						readlist: DEFAULT_READLIST_SLUG,
+						bulkSave: true,
+						requestedAt,
 						saveTrigger: "manual",
 						saveAttemptId,
 					});
@@ -539,6 +551,8 @@ export function initReadlistSaveRoutes(
 					url: job.url,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					bulkSave: true,
+					requestedAt,
 					saveTrigger: "manual",
 					savedAt,
 					saveAttemptId: page.saveAttemptId,
@@ -635,6 +649,7 @@ export function initReadlistSaveRoutes(
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
 
+			const requestedAt = deps.now().toISOString();
 			const buildFallbackAction = () => ({
 				name: "save-article",
 				title: "Save a link",
@@ -731,6 +746,8 @@ export function initReadlistSaveRoutes(
 					url: articleUrl,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					personalPickAt: captureTrigger.data === "manual" ? requestedAt : undefined,
+					requestedAt,
 					saveTrigger: captureTrigger.data,
 					savedAt: await deps.allocateSavedAt({ userId }),
 					saveAttemptId,
@@ -773,6 +790,8 @@ export function initReadlistSaveRoutes(
 							userId,
 							url: validation.url,
 							readlists: [DEFAULT_READLIST_SLUG],
+							personalPickAt: captureTrigger.data === "manual" ? requestedAt : undefined,
+							requestedAt,
 							saveTrigger: captureTrigger.data,
 							saveAttemptId,
 							path: SAVE_INTENT_PATH.saveContent,
@@ -879,6 +898,7 @@ export function initReadlistSaveRoutes(
 	router.post(SAVE_ROUTE.save, requireNotLocked, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		const personalPickAt = deps.now().toISOString();
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateNewSaveUrl(submittedUrl);
@@ -928,7 +948,7 @@ export function initReadlistSaveRoutes(
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
-				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
+				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, personalPickAt, saveTrigger: "manual", saveAttemptId });
 				await rememberReadlistFilter(req, NO_READLIST_FILTER);
 				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 				res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
@@ -940,6 +960,7 @@ export function initReadlistSaveRoutes(
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				personalPickAt,
 				saveTrigger: "manual",
 				saveAttemptId,
 			});

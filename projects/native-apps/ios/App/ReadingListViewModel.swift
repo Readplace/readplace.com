@@ -8,6 +8,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var hasMore = false
 	@Published var errorText: String?
 	@Published var warningText: String?
+	@Published var contentBannerText: String?
 	/// Server-authored messages surfaced to the UI (e.g. a locked-account refusal),
 	/// rendered generically — the client owns no per-feature knowledge of them.
 	@Published var messages: [ServerMessage] = []
@@ -39,6 +40,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var processingReceivedAt: [String: Date] = [:]
 
 	private var nextHref: String?
+	private var filingReadlists: [Readlist] = []
 	private var rootHref: String?
 	private var currentTabHref: String?
 	private var tabGeneration = 0
@@ -133,7 +135,7 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	func loadIfNeeded() async {
-		guard articles.isEmpty else { return }
+		guard !hasLoadedOnce, !isLoading else { return }
 		await openRememberedReadlist()
 	}
 
@@ -160,6 +162,7 @@ final class ReadingListViewModel: ObservableObject {
 	var shareTargetHrefs: Set<String> { shareTarget?.hrefs ?? [] }
 
 	func toggleSharedArticlesDrop(into readlist: Readlist) {
+		guard !hasLoadedOnce || filingReadlists.contains(where: { $0.href == readlist.href }) else { return }
 		objectWillChange.send()
 		if Href.matches(readlist.href, anyOf: Array(shareTargetHrefs), baseURL: api.baseURL) {
 			shareTarget?.remove(href: readlist.href)
@@ -169,6 +172,8 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	var offersReadlistSwitching: Bool { readlists.count > 1 }
+
+	var currentReadlistDescription: String? { readlists.first { isOnScreen($0) }?.description }
 
 	var currentReadlistLabel: String? {
 		readlists.first { isOnScreen($0) }?.label
@@ -180,7 +185,7 @@ final class ReadingListViewModel: ObservableObject {
 
 	var sharedArticlesDrop: SharedArticlesDrop? {
 		guard shareTarget != nil, offersReadlistSwitching, let landing = tabs.first?.href, landing == selectedTabHref,
-			let readlist = readlists.first(where: { isOnScreen($0) })
+			let readlist = filingReadlists.first(where: { isOnScreen($0) })
 		else { return nil }
 		return SharedArticlesDrop(
 			readlist: readlist, mainlineHref: rootHref, tickedHrefs: shareTargetHrefs, baseURL: api.baseURL
@@ -209,7 +214,7 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	private func openRememberedReadlist() async {
-		guard let href = lastViewed.href else { return await fetchFirstPage() }
+		guard let href = lastViewed.href else { return await fetchFirstPage(followHome: true) }
 		let landing = lastViewed.landingTabHref ?? href
 		selectedReadlistHref = href
 		restart(at: landing)
@@ -219,6 +224,7 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await loadList(path: landing, orStored: landing == href ? nil : href)
 			guard tabUnchanged(since: generation) else { return }
+			if let home = page.homeHref, home != href { return await select(readlistHref: home) }
 			replace(with: page, deeperPages: [], read: read)
 		} catch {
 			guard tabUnchanged(since: generation) else { return }
@@ -228,7 +234,7 @@ final class ReadingListViewModel: ObservableObject {
 			default:
 				currentTabHref = nil
 				selectedReadlistHref = nil
-				await fetchFirstPage()
+				await fetchFirstPage(followHome: true)
 			}
 		}
 	}
@@ -285,7 +291,7 @@ final class ReadingListViewModel: ObservableObject {
 		readsInFlight -= 1
 	}
 
-	private func fetchFirstPage() async {
+	private func fetchFirstPage(followHome: Bool = false) async {
 		let generation = tabGeneration
 		let read = beginRead()
 		defer { endRead() }
@@ -297,6 +303,7 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await loadList(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
+			if followHome, let home = page.homeHref, home != page.currentReadlistHref { return await select(readlistHref: home) }
 			replace(with: page, deeperPages: [], read: read)
 		} catch {
 			guard tabUnchanged(since: generation) else { return }
@@ -516,7 +523,11 @@ final class ReadingListViewModel: ObservableObject {
 	/// resolve or re-encode with the parameter is treated as absent (read-only row).
 	func openReader(for article: Article) {
 		guard let readerURL = ReaderRequest.url(readHref: article.readHref, baseURL: api.baseURL) else { return }
-		readerPresentation = ReaderPresentation(readerURL: readerURL, articleId: article.id)
+		readerPresentation = ReaderPresentation(
+			readerURL: readerURL,
+			articleId: article.id,
+			contentState: manifest.contentState(articleId: article.id) ?? article.contentState
+		)
 	}
 
 	/// Follows a navigable collection-level link (e.g. the `account` link) by opening
@@ -533,7 +544,7 @@ final class ReadingListViewModel: ObservableObject {
 			let url = Href.resolve(href, baseURL: api.baseURL),
 			let shellURL = Href.appending(AppConfig.appShellQueryItem, to: url)
 		else { return }
-		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil)
+		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil, contentState: nil)
 	}
 
 	@discardableResult
@@ -618,7 +629,13 @@ final class ReadingListViewModel: ObservableObject {
 		let expectedTotal = manifest.run?.total ?? 0
 		offlineDownload = OfflineDownloadProgress(completed: 0, total: expectedTotal, failed: 0)
 		let download = DownloadUnreadOffline(
-			api: api, prefetchers: prefetchers, sessionAction: sessionAction, manifest: manifest, snapshot: snapshot
+			api: api,
+			prefetchers: prefetchers,
+			sessionAction: sessionAction,
+			manifest: manifest,
+			snapshot: snapshot,
+			pause: pauseBeforeRefresh,
+			now: now
 		)
 		backgroundTime.begin()
 		let task = Task {
@@ -692,6 +709,7 @@ final class ReadingListViewModel: ObservableObject {
 			pagesHeld += 1
 		}
 		if page.isStoredCopy { errorText = OfflineReading.bannerText }
+		contentBannerText = page.isStoredCopy ? OfflineReading.listContentBannerText(states: shownContentStates()) : nil
 		if replacing { isOffline = page.isStoredCopy }
 		hasLoadedOnce = true
 		nextHref = page.nextHref
@@ -706,7 +724,8 @@ final class ReadingListViewModel: ObservableObject {
 			handoffAction = page.action(named: "create-browser-handoff")
 			rootHref = page.rootHref
 			tabs = page.tabs
-			readlists = page.readlists
+			readlists = page.browseReadlists
+			filingReadlists = page.readlists
 			appearance = page.appearance
 			if let current = page.currentTabHref {
 				currentTabHref = current
@@ -720,6 +739,10 @@ final class ReadingListViewModel: ObservableObject {
 		}
 		warningText = page.warning?.message
 		restartProcessingRefresh()
+	}
+
+	private func shownContentStates() -> Set<ContentState> {
+		Set(articles.flatMap { [manifest.contentState(articleId: $0.id), $0.contentState].compactMap { $0 } })
 	}
 
 	/// Derives the toolbar from a page's advertised affordances: a client-derived
@@ -763,6 +786,7 @@ final class ReadingListViewModel: ObservableObject {
 struct ReaderPresentation: Identifiable {
 	let readerURL: URL
 	let articleId: String?
+	let contentState: ContentState?
 	var id: String { articleId ?? readerURL.absoluteString }
 }
 

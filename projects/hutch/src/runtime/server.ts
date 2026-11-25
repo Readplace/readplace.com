@@ -1,3 +1,4 @@
+import { readerHomeHref } from "./web/pages/readlist/built-in-readlists";
 import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { initKeepOffer } from "./domain/engagement/keep-offer";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
@@ -123,6 +124,7 @@ import type {
 	AllocateSavedAtSequence,
 	FindSavedUrls,
 	CountArticlesByUser,
+	ChangePersonalPick,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -316,7 +318,7 @@ import type {
 	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -362,7 +364,7 @@ import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { initDualAuth } from "./web/dual-auth.middleware";
+import { initDualAuth, initPresentedSirenBearerAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
@@ -514,6 +516,7 @@ export interface AppDependencies {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
+	changePersonalPick: ChangePersonalPick;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
@@ -581,6 +584,9 @@ export interface AppDependencies {
 	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	listReceivedSenders: InboxEmailStore["listReceivedSenders"];
+	bulkArticles?: import("./web/pages/readlist/bulk-articles.page").BulkArticleOperations;
+	listSenderIssues: InboxEmailStore["listEmailsByUserId"];
 	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
 	findIssueLink: InboxEmailLinkStore["getLink"];
 	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];
@@ -719,6 +725,7 @@ export interface AppDependencies {
 	analytics: Logger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
 	signupLogger: Logger;
+	uploadLogger: Logger;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -1240,7 +1247,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	);
 	app.get("/", async (req: Request, res: Response) => {
 		if (req.userId) {
-			res.redirect(303, READLIST_PATH);
+			res.redirect(303, readerHomeHref());
 			return;
 		}
 
@@ -1703,6 +1710,14 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use(
 		"/upload",
+		initPresentedSirenBearerAuth({
+			validateAccessToken: deps.validateAccessToken,
+			baseUrl: deps.baseUrl,
+		}),
+		resolveVerificationStatus,
+	);
+	app.use(
+		"/upload",
 		initAnonymousUploadRoutes({
 			findMediaUploadByCapability: deps.findMediaUploadByCapability,
 			claimMediaUpload: deps.claimMediaUpload,
@@ -1752,6 +1767,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
+			logger: deps.uploadLogger,
 			buildBannerState,
 			appOrigin,
 		}),
@@ -1769,6 +1785,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			findPendingViewHighlights: deps.findPendingViewHighlights,
 			releasePendingViewHighlights: deps.releasePendingViewHighlights,
 			claimViewHighlights: initClaimViewHighlights({
+				now: deps.now,
 				validateNewSaveUrl,
 				claimDailySaves,
 				refreshArticleIfStale: deps.refreshArticleIfStale,

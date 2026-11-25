@@ -238,7 +238,7 @@ async function seedKeepOffer(page: Page, params: { userId: string; saves: number
 
 async function loginAs(page: Page, email: string): Promise<void> {
 	await page.addInitScript(disableLocalTimeTick);
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -354,7 +354,7 @@ async function cardMenuGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: `${FIRST_CARD} .menu__panel`,
 		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-		rows: 2,
+		rows: 3,
 	});
 }
 
@@ -363,7 +363,7 @@ async function cardMenuPhoneGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: `${FIRST_CARD} .menu__panel`,
 		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-		rows: 2,
+		rows: 3,
 	});
 	const viewport = page.viewportSize();
 	assert(viewport, "the phone menu needs a fixed viewport");
@@ -403,11 +403,11 @@ async function pageFromTopGeometry(page: Page): Promise<void> {
 async function columnTopsAlign(page: Page): Promise<void> {
 	await pageFromTopGeometry(page);
 	await addLinkSitsBesideTheTabs(page);
-	const bar = await measuredBox(page, TABS_BAR);
+	const heading = await measuredBox(page, ".readlist__browse");
 	const rail = await measuredBox(page, RAIL);
 	const side = await measuredBox(page, SIDE);
-	assert.ok(near({ actual: bar.y, expected: rail.y }), `the tabs and rail must start together, measured ${bar.y}px and ${rail.y}px`);
-	assert.ok(near({ actual: bar.y, expected: side.y }), `the tabs and side column must start together, measured ${bar.y}px and ${side.y}px`);
+	assert.ok(near({ actual: heading.y, expected: rail.y }), `the readlist heading and rail must start together, measured ${heading.y}px and ${rail.y}px`);
+	assert.ok(near({ actual: heading.y, expected: side.y }), `the readlist heading and side column must start together, measured ${heading.y}px and ${side.y}px`);
 }
 
 async function emptyColumnGeometry(page: Page): Promise<void> {
@@ -448,8 +448,8 @@ async function listTakesTheEmptySideTrack(page: Page): Promise<void> {
 async function alertLimitGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const alert = await measuredBox(page, ALERT);
-	const bar = await measuredBox(page, TABS_BAR);
-	assert.ok(near({ actual: bar.y - (alert.y + alert.height), expected: 32 }), "the tabs must sit 32px below the readlist alert");
+	const browse = await measuredBox(page, ".readlist__browse");
+	assert.ok(near({ actual: browse.y - (alert.y + alert.height), expected: 32 }), "the readlist heading must sit 32px below the readlist alert");
 }
 
 async function addLinkSitsBesideTheTabs(page: Page): Promise<void> {
@@ -1140,7 +1140,7 @@ async function openTwoReadlistsWithAFiledArticle(
 	await clickAndWaitForCounts(page, await nameNewReadlist(page, "Ideas & Inspiration"));
 	await input.openRail(page);
 	await clickAndWaitForCounts(page, await nameNewReadlist(page, "Finance"));
-	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(3);
+	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(4);
 	const [first, second] = await renameableSlugs(page);
 	await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
 	await gotoReadlistQueue(page, "");

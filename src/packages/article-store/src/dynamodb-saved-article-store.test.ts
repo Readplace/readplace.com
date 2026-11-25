@@ -1,3 +1,5 @@
+import { canonicalRemovalKey } from "./user-readlist-partition";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import {
@@ -25,6 +27,7 @@ const provenance: SaveProvenance = { kind: "client", clientName: "chrome" };
 interface CapturedCommand {
 	name: string;
 	input: {
+		TransactItems?: { Update?: CapturedCommand["input"]; ConditionCheck?: CapturedCommand["input"] }[];
 		ConditionExpression?: string;
 		ConsistentRead?: boolean;
 		ExclusiveStartKey?: Record<string, unknown>;
@@ -2077,8 +2080,11 @@ describe("initDynamoDbSavedArticleStore deleteArticle", () => {
 
 		const deleted = await initStore(client).deleteArticle(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
 
-		const del = commands.find((c) => c.name === "DeleteCommand");
-		expect(del?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		const transaction = commands.find(c => c.name === "TransactWriteCommand");
+		expect(transaction?.input.TransactItems).toMatchObject([
+			{ Delete: { ConditionExpression: "attribute_exists(savedAt)" } },
+			{ Update: { UpdateExpression: "SET removedAt = :at" } },
+		]);
 		expect(commands.some((c) => c.name === "GetCommand")).toBe(false);
 		expect(deleted).toBe(true);
 	});
@@ -2094,9 +2100,9 @@ describe("initDynamoDbSavedArticleStore deleteArticle", () => {
 	it("reports false when the user never saved the article", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			DeleteCommand: {
+			TransactWriteCommand: {
 				default: () => {
-					throw new ConditionalCheckFailedException({ $metadata: {}, message: "row deleted" });
+					throw new TransactionCanceledException({ $metadata: {}, message: "row deleted", CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }] });
 				},
 			},
 		});
@@ -2109,7 +2115,7 @@ describe("initDynamoDbSavedArticleStore deleteArticle", () => {
 	it("rethrows non-conditional errors", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			DeleteCommand: {
+			TransactWriteCommand: {
 				default: () => {
 					throw new Error("throttled");
 				},
@@ -2136,7 +2142,8 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		await initStore(client).deleteAllUserArticles(USER);
 
 		const queries = commands.filter((c) => c.name === "QueryCommand");
-		expect(queries).toHaveLength(5);
+		expect(queries).toHaveLength(7);
+		expect(queries[6]?.input.ExpressionAttributeValues?.[":prefix"]).toBe("readplace:bulk-articles/");
 		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
 		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
 		expect(queries[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(USER);
@@ -2144,7 +2151,8 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		expect(queries[2]?.input.KeyConditionExpression).toBe(
 			"userId = :userId AND begins_with(#url, :prefix)",
 		);
-		expect(queries[3]?.input.ExpressionAttributeValues?.[":prefix"]).toBe("readplace:queue-override/");
+		expect(queries[3]?.input.ExpressionAttributeValues?.[":prefix"]).toBe("readplace:removed-article/");
+		expect(queries[4]?.input.ExpressionAttributeValues?.[":prefix"]).toBe("readplace:queue-override/");
 
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
@@ -2162,6 +2170,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 				readlist: [
 					{ Items: [], Count: 0 },
 					{ Items: [], Count: 0 },
+					{ Items: [canonicalRemovalKey(USER, RESOURCE_ID)], Count: 1 },
 					{ Items: [{ userId: USER, url: overrideUrl }], Count: 1 },
 				],
 			},
@@ -2172,6 +2181,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			canonicalRemovalKey(USER, RESOURCE_ID),
 			{ userId: USER, url: overrideUrl },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
@@ -2191,20 +2201,23 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 
 	it("deletes the reader's held links and the saved-links job row, neither of which the index sweep owns", async () => {
 		const heldKey = "readplace:removed/job-1/abc";
+		const bulkKey = "readplace:bulk-articles/job-2/abc";
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
 				readlist: [
 					{ Items: [], Count: 0 },
 					{ Items: [], Count: 0 },
 					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
 					{ Items: [{ userId: `${USER}#removed`, url: heldKey, removedUrl: "example.com/held" }], Count: 1 },
+					{ Items: [{ userId: USER, url: bulkKey }], Count: 1 },
 				],
 			},
 		});
 
 		await initStore(client).deleteAllUserArticles(USER);
 
-		const heldQuery = queryCommands(commands).at(-1);
+		const heldQuery = queryCommands(commands).find(query => query.input.ExpressionAttributeValues?.[":userId"] === `${USER}#removed`);
 		expect(heldQuery?.input.IndexName).toBeUndefined();
 		expect(heldQuery?.input.ExpressionAttributeValues?.[":userId"]).toBe(`${USER}#removed`);
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
@@ -2212,6 +2225,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 			{ userId: `${USER}#removed`, url: heldKey },
+			{ userId: USER, url: bulkKey },
 		]);
 	});
 });
@@ -2267,6 +2281,14 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 		expect(batchGet?.input.RequestItems?.articles.Keys).toEqual([{ url: "example.com/held" }]);
 	});
 
+	it("includes a canonical article held by a bulk removal when erasing its owner’s content", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { readlist: [{ Items: [] }, { Items: [] }, { Items: [] }, { Items: [{ recovery: { url: "example.com/bulk-held" } }] }] },
+			BatchGetCommand: { default: { Responses: { articles: [{ originalUrl: "https://example.com/bulk-held" }] } } },
+		});
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual(["https://example.com/bulk-held"]);
+	});
+
 	it("returns an empty list (and issues no batch get) when the user has no saved rows", async () => {
 		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [], Count: 0 } } });
 
@@ -2301,9 +2323,9 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe(
-			"SET #status = :status, readAt = if_not_exists(readAt, :readAt)",
+			"SET #status = :status, readAt = if_not_exists(readAt, :readAt) ADD statusRevision :one",
 		);
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt) AND attribute_not_exists(personalScope)");
 		expect(update?.input.ReturnValues).toBe("ALL_NEW");
 		expect(commands.some((c) => c.name === "GetCommand")).toBe(false);
 		expect(updated).toMatchObject({ status: "read", readAt: new Date("2026-05-30T12:00:00.000Z") });
@@ -2322,7 +2344,7 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 		);
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET #status = :status REMOVE readAt");
+		expect(update?.input.UpdateExpression).toBe("SET #status = :status REMOVE readAt ADD statusRevision :one");
 		expect(updated).toMatchObject({ status: "unread" });
 		expect(updated?.readAt).toBeUndefined();
 	});
@@ -2677,6 +2699,49 @@ const WORK = ReadlistSlugSchema.parse("work");
 const WORK_PARTITION = `${USER}#queue/work`;
 const LATER = ReadlistSlugSchema.parse("later");
 const LATER_PARTITION = `${USER}#queue/later`;
+
+describe("bulk private-upload retention", () => {
+	const key = `uploads.readplace.invalid/${"1".repeat(32)}`;
+	const url = `https://${key}`;
+	const source = userArticleItem({ url: key, userId: WORK_PARTITION });
+	const changed = () => { throw new TransactionCanceledException({ message: "release claimed", $metadata: {},
+		CancellationReasons: [{ Code: "ConditionalCheckFailed" }] }); };
+
+	it.each([STORE_NOW, undefined])("a release claim refuses a canonical save even when its request timestamp is %s", async requestedAt => {
+		const { client, commands } = createFakeClient({ TransactWriteCommand: { default: changed } });
+		await expect(initStore(client).saveArticle({ userId: USER, url, requestedAt, savedAt: STORE_NOW, saveTrigger: "manual",
+			metadata: { title: "Private", siteName: "", excerpt: "", wordCount: 1 }, estimatedReadTime: TWO_MINUTES, provenance })).rejects.toBeInstanceOf(ArticlePurgedAfterRequest);
+		const condition = commands.find(command => command.name === "TransactWriteCommand")?.input.TransactItems?.[0]?.ConditionCheck;
+		expect(condition?.Key).toEqual(canonicalRemovalKey(USER, key));
+		expect(condition?.ConditionExpression).toContain("attribute_not_exists(privateReleaseClaim)");
+	});
+	it("checks the source and release claim atomically when filing a private upload", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: { default: { Item: source } } });
+		const store = initStore(client);
+		const params = { userId: USER, from: WORK, url, savedAt: STORE_NOW };
+		expect(await store.assignSavedArticleToReadlist({ ...params, readlist: WORK })).toEqual({ assigned: false });
+		expect(await store.assignSavedArticleToReadlist({ ...params, readlist: LATER })).toEqual({ assigned: true });
+		const items = commands.find(command => command.name === "TransactWriteCommand")?.input.TransactItems;
+		expect(items?.[0]?.ConditionCheck?.Key).toEqual(canonicalRemovalKey(USER, key));
+		expect(items?.[1]?.ConditionCheck?.Key).toEqual({ userId: WORK_PARTITION, url: key });
+	});
+	it.each(["source", "destination", "neither"])("a move racing release preserves the private row remaining at %s", async remaining => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [source] } },
+			GetCommand: { default: input => input.Key?.userId === (remaining === "source" ? WORK_PARTITION : remaining === "destination" ? LATER_PARTITION : "") ? { Item: source } : {} },
+			TransactWriteCommand: { default: changed },
+		});
+		const move = initStore(client).moveReadlistArticles({ userId: USER, from: WORK, to: LATER });
+		if (remaining === "source") await expect(move).rejects.toThrow("Retry the readlist move");
+		else expect(await move).toEqual({ moved: 0 });
+		expect(commands.some(command => command.name === "DeleteCommand")).toBe(remaining === "destination");
+	});
+	it("keeps the original URL available to account erasure after its recovery and global article rows disappear", async () => {
+		const { client } = createFakeClient({ QueryCommand: { default: input =>
+			input.FilterExpression === "attribute_exists(privateReleaseUrl)" ? { Items: [{ privateReleaseUrl: url }] } : { Items: [] } } });
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual([url]);
+	});
+});
 
 function queueDefinitionItem(
 	slug = "work",
@@ -3741,13 +3806,13 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 		requestedAt: REQUESTED_AT,
 	};
 	const userArticlesUpdates = (commands: CapturedCommand[]) =>
-		commands.filter((c) => c.name === "UpdateCommand" && c.input.TableName === "user-articles");
+		commands.flatMap(c => c.name === "UpdateCommand" && c.input.TableName === "user-articles" ? [{ input: c.input }] : (c.input.TransactItems ?? []).flatMap(item => item.Update ? [{ input: item.Update }] : []));
 	const articlesUpdates = (commands: CapturedCommand[]) =>
 		commands.filter((c) => c.name === "UpdateCommand" && c.input.TableName === "articles");
 
 	it("binds requestedAt with milliseconds", async () => {
 		const { client, commands } = createFakeClient({
-			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+			GetCommand: { readlist: [{}, { Item: articleItem() }, { Item: userArticleItem() }] },
 		});
 
 		await initStore(client).saveArticleAsRequested(saveParams);
@@ -3757,6 +3822,24 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 		expect(upsert?.input.ConditionExpression).toContain("purgedAt < :requestedAt");
 		const [userRow] = userArticlesUpdates(commands);
 		expect(userRow?.input.ExpressionAttributeValues?.[":requestedAt"]).toBe("2026-11-03T10:00:00.000Z");
+	});
+
+	it.each(["bulk", "picked", "capture"] as const)("checks an immediate %s save against its originating time", async source => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { readlist: [{}, ...(source === "picked" ? [{}] : []), { Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+		const { requestedAt, ...params } = saveParams;
+		const store = initStore(client);
+		const save = source === "capture" ? store.saveArticleKeepingPosition : store.saveArticle;
+		await save({
+			...params,
+			...(source === "picked" ? { personalPick: { requestedAt: requestedAt.toISOString(), attemptId: SaveAttemptIdSchema.parse("intent") } }
+				: { requestedAt, ...(source === "bulk" ? { bulkSave: true as const } : {}) }),
+		});
+		const [write] = userArticlesUpdates(commands);
+		expect(write?.input.ConditionExpression).toContain(source === "capture" ? "attribute_not_exists(savedAt)" : "readAt < :requestedAt");
+		const marker = commands.find(command => command.name === "TransactWriteCommand")?.input.TransactItems?.[0]?.ConditionCheck;
+		expect(marker?.ExpressionAttributeValues?.[":origin"]).toBe(requestedAt.toISOString());
 	});
 
 	it("does not write the user row when the purge condition fails", async () => {
@@ -3775,7 +3858,7 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 	it("bumps a live article and writes the user row", async () => {
 		const { client, commands } = createFakeClient({
 			UpdateCommand: { readlist: [conditionFailed, {}, {}] },
-			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+			GetCommand: { readlist: [{}, { Item: articleItem() }, { Item: userArticleItem() }] },
 		});
 
 		const result = await initStore(client).saveArticleAsRequested(saveParams);
@@ -3794,8 +3877,8 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 
 	it("reports a lost user-row condition", async () => {
 		const { client } = createFakeClient({
-			UpdateCommand: { readlist: [{}, conditionFailed] },
-			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+			TransactWriteCommand: { default: () => { throw new TransactionCanceledException({ $metadata: {}, message: "stale", CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed", Item: { savedAt: { S: OPERATION_SAVED_AT.toISOString() } } }] }); } },
+			GetCommand: { readlist: [{ Item: userArticleItem() }, { Item: articleItem() }, { Item: userArticleItem() }] },
 		});
 
 		const result = await initStore(client).saveArticleAsRequested(saveParams);
@@ -4064,6 +4147,17 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 		expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
 	});
 
+	it("reports a missing article and a concurrently removed filing during purge", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { readlist: [{ Items: [] }, { Items: [articleItem()] }] },
+			DeleteCommand: { default: () => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" }); } },
+		});
+		const store = initStore(client);
+		const filing = { id: ReaderArticleHashId.from(URL), userId: USER, readlist: WORK };
+		expect(await store.purgeReadlistArticle(filing)).toBe(false);
+		expect(await store.purgeReadlistArticle(filing)).toBe(false);
+	});
+
 	it("purges a readlist row with no removal marker", async () => {
 		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [articleItem()] } } });
 
@@ -4077,7 +4171,7 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 
 describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 	const PROTECTED =
-		"(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:keptKind0, :keptKind1, :keptKind2, :keptKind3, :keptKind4)))";
+		"(attribute_exists(savedAt) AND (attribute_exists(personalPickedAt) OR attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:keptKind0, :keptKind1, :keptKind2, :keptKind3, :keptKind4)))";
 	const emailProvenance: SaveProvenance = { kind: "email", senderEmail: "news@example.com" };
 	const saveWith = (saveTrigger: "manual" | "automatic") => ({
 		userId: USER,
@@ -4101,6 +4195,22 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		}
 		return input.TableName === "user-articles" ? { Attributes: userArticleItem() } : {};
 	};
+
+	it("records bulk origin without adding personal membership", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem({ bulkSave: true }) }] } });
+		const { saved } = await initStore(client).saveArticle({ ...saveWith("manual"), bulkSave: true });
+		expect(saved.bulkSave).toBe(true);
+		expect(saved.personalPickedAt).toBeUndefined();
+		expect(userRowUpdates(commands)[0]?.input.ExpressionAttributeValues?.[":bulk"]).toBe(true);
+	});
+
+	it("records the originating personal choice on an individual canonical save", async () => {
+		const personalPick = { requestedAt: STORE_NOW.toISOString(), attemptId: SaveAttemptIdSchema.parse("request") };
+		const { client, commands } = createFakeClient({ GetCommand: { readlist: [{}, { Item: userArticleItem() }, { Item: articleItem() }, { Item: userArticleItem({ personalPickedAt: personalPick.requestedAt }) }] } });
+		const { saved } = await initStore(client).saveArticle({ ...saveWith("manual"), personalPick });
+		expect(saved.personalPickedAt).toEqual(STORE_NOW);
+		expect(commands.filter(command => command.name === "TransactWriteCommand")).toHaveLength(2);
+	});
 
 	it("stamps handPickedAt once on a manual save, in a single write that sets provenance", async () => {
 		const { client, commands } = createFakeClient({ GetCommand: readBack });
@@ -4202,21 +4312,23 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		expect(userRowUpdates(commands)).toHaveLength(2);
 	});
 
-	it("carries the requested-at condition into both automatic attempts", async () => {
+	it("checks removal and freshness again when an automatic save preserves protected provenance", async () => {
 		const { client, commands } = createFakeClient({
-			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true, protectedRow) },
-			GetCommand: readBack,
+			TransactWriteCommand: { readlist: [() => {
+				throw new TransactionCanceledException({ $metadata: {}, message: "protected", CancellationReasons: [
+					{ Code: "None" }, { Code: "ConditionalCheckFailed", Item: protectedRow },
+				] });
+			}] },
+			GetCommand: { readlist: [{ Item: userArticleItem() }, { Item: userArticleItem() }, ...readBack.readlist] },
 		});
-
 		await initStore(client).saveArticleAsRequested({ ...saveWith("automatic"), requestedAt: OPERATION_SAVED_AT });
-
-		const conditions = userRowUpdates(commands).map((c) => c.input.ConditionExpression);
-		const requested =
-			"(attribute_not_exists(savedAt) OR savedAt < :requestedAt) AND (attribute_not_exists(readAt) OR readAt < :requestedAt)";
-		expect(conditions).toEqual([
-			`(${requested}) AND NOT ${PROTECTED}`,
-			`(${requested}) AND attribute_exists(savedAt) AND ${PROTECTED}`,
-		]);
+		const transactions = commands.filter(command => command.name === "TransactWriteCommand");
+		expect(transactions).toHaveLength(2);
+		for (const { input } of transactions) {
+			expect(input.TransactItems?.[0]?.ConditionCheck?.ExpressionAttributeValues?.[":origin"]).toBe(OPERATION_SAVED_AT.toISOString());
+			expect(input.TransactItems?.[1]?.Update?.ConditionExpression).toContain("readAt < :requestedAt");
+		}
+		expect(transactions[1]?.input.TransactItems?.[1]?.Update?.UpdateExpression).toBe("SET savedAt = :savedAt, #status = if_not_exists(#status, :unread)");
 	});
 
 	it("leaves a readlist row's save as a single write that sets provenance and never marks it", async () => {
@@ -4282,5 +4394,210 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		await initStore(client).saveArticleKeepingPosition(saveWith("manual"));
 
 		expect(userRowUpdates(commands)).toHaveLength(1);
+	});
+});
+
+
+describe("personal readlist pagination", () => {
+	it.each(["bulk", "unknown"] as const)("applies the %s source to counts and to the current tab before taking a page", async managedOrigin => {
+		const { client, commands } = createFakeClient();
+		const store = initStore(client);
+		await store.countArticlesByUser({ userId: USER, managedOrigin });
+		await store.findArticlesByUser({ userId: USER, managedOrigin, status: "read", sort: "readAt", pageSize: 10 });
+		const originFilter = managedOrigin === "bulk" ? "(bulkSave = :flag OR provenance.#kind = :import)" : "(unknownOrigin = :flag OR attribute_not_exists(provenance))";
+		expect(commands[0].input.FilterExpression).toBe(originFilter);
+		expect(commands[0].input.ExpressionAttributeNames).toEqual(managedOrigin === "bulk" ? { "#kind": "kind" } : undefined);
+		expect(commands[1].input).toMatchObject({ IndexName: "userId-readAt-index", FilterExpression: `${originFilter} AND #status = :status`,
+			ExpressionAttributeValues: { ":userId": USER, ":flag": true, ":status": "read" } });
+	});
+
+	it("stops the older-saves existence check at the first matching row", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Count: 1, LastEvaluatedKey: { url: RESOURCE_ID } } } });
+		expect(await initStore(client).countArticlesByUser({ userId: USER, personalScope: "uncertain", status: "unread", countLimit: 1 })).toBe(1);
+		expect(commands).toHaveLength(1);
+		expect(commands[0].input).toMatchObject({ Limit: 1, Select: "COUNT" });
+	});
+
+	it("uses the sparse account and status key for both counts and pages", async () => {
+		const { client, commands } = createFakeClient();
+		const store = initStore(client);
+		const query = { userId: USER, personalScope: "picked", status: "unread" } as const;
+		await store.findArticlesByUser({ ...query, includeTotal: true, pageSize: 10 });
+		await store.countArticlesByUser(query);
+		expect(commands).toHaveLength(3);
+		for (const command of commands) {
+			expect(command.input).toMatchObject({
+				IndexName: "personalScope-personalOrder-index",
+				KeyConditionExpression: "personalScope = :scope",
+				ExpressionAttributeValues: { ":scope": "abc123#picked#unread" },
+			});
+			expect(command.input.FilterExpression).toBeUndefined();
+		}
+	});
+});
+
+describe("canonical personal membership", () => {
+	const request = { requestedAt: STORE_NOW.toISOString(), attemptId: SaveAttemptIdSchema.parse("attempt") };
+	const input = { userId: USER, url: URL, picked: true, request };
+	it.each([
+		{ scope: "picked", from: "unread" as const, to: "read" as const, pickedAt: "2026-04-08T00:00:00.000Z" },
+		{ scope: "picked", from: "read" as const, to: "unread" as const, pickedAt: "2026-04-08T00:00:00.000Z" },
+		{ scope: "uncertain", from: "read" as const, to: "unread" as const, pickedAt: undefined },
+	])("moves a $scope row from $from to $to in the same write as its status", async ({ scope, from, to, pickedAt }) => {
+		const source = userArticleItem({
+			status: from, personalScope: `${USER}#${scope}#${from}`, personalPickedAt: pickedAt,
+			personalDecision: pickedAt ? request.requestedAt : undefined,
+		});
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()] } },
+			GetCommand: { default: { Item: source } },
+			UpdateCommand: { readlist: [() => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "classified" });
+			}, { Attributes: { ...source, status: to, personalScope: `${USER}#${scope}#${to}` } }] },
+		});
+		const id = ReaderArticleHashId.fromHash(ROUTE_ID);
+		const updated = await initStore(client).updateArticleStatus(id, USER, to);
+		expect(updated?.status).toBe(to);
+		expect(updated?.personalReviewPending).toBe(scope === "uncertain" ? true : undefined);
+		const write = commands.at(-1)?.input;
+		const at = to === "read" ? STORE_NOW.toISOString() : pickedAt ?? source.savedAt;
+		expect(write?.ExpressionAttributeValues).toMatchObject({ ":scope": `${USER}#${scope}#${to}`, ":order": `${at}#${ROUTE_ID}` });
+		expect(write?.ConditionExpression).toContain("personalScope = :previous");
+	});
+
+	it("refuses a delayed queued save when its removal record wins the transaction", async () => {
+		const { client } = createFakeClient({
+			TransactWriteCommand: { default: () => { throw new TransactionCanceledException({
+				$metadata: {}, message: "removed", CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }],
+			}); } },
+		});
+		await expect(initStore(client).saveArticleAsRequested({
+			userId: USER, url: URL, requestedAt: STORE_NOW, savedAt: STORE_NOW,
+			estimatedReadTime: TWO_MINUTES, metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+			provenance, saveTrigger: "automatic",
+		})).rejects.toBeInstanceOf(ArticlePurgedAfterRequest);
+	});
+
+	it("preserves the existing time when a read article has no recorded read time", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: { default: { Item: userArticleItem({ status: "read" }) } } });
+		await initStore(client).changePersonalPick(input);
+		expect(commands.at(-1)?.input.TransactItems?.[1]?.Update?.ExpressionAttributeValues?.[":order"]).toBe(`${userArticleItem().savedAt}#${ROUTE_ID}`);
+	});
+
+	it.each([
+		new Error("network down"),
+		new TransactionCanceledException({ $metadata: {}, message: "throttled" }),
+		new TransactionCanceledException({ $metadata: {}, message: "throttled", CancellationReasons: [{ Code: "None" }, { Code: "ThrottlingError" }] }),
+	])("propagates a storage failure without acknowledging membership or the queued save", async failure => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem() } },
+			TransactWriteCommand: { default: () => { throw failure; } },
+		});
+		const store = initStore(client);
+		await expect(store.changePersonalPick(input)).rejects.toBe(failure);
+		await expect(store.saveArticleAsRequested({
+			userId: USER, url: URL, requestedAt: STORE_NOW, savedAt: STORE_NOW, estimatedReadTime: TWO_MINUTES,
+			metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 }, provenance, saveTrigger: "automatic",
+		})).rejects.toBe(failure);
+	});
+
+	it("bounds retries when the active row changes on every write", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem() } },
+			TransactWriteCommand: { default: () => { throw new TransactionCanceledException({
+				$metadata: {}, message: "changed", CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }],
+			}); } },
+		});
+		const store = initStore(client);
+		await expect(store.changePersonalPick(input)).rejects.toThrow("kept changing");
+		await expect(store.saveArticleAsRequested({
+			userId: USER, url: URL, requestedAt: STORE_NOW, savedAt: STORE_NOW, estimatedReadTime: TWO_MINUTES,
+			metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 }, provenance, saveTrigger: "automatic",
+		})).rejects.toThrow("changed during each attempt");
+	});
+
+	it.each([undefined, `${USER}#picked#unread`])("bounds status retries when a concurrent change invalidates every write (%s)", async personalScope => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()] } },
+			UpdateCommand: { default: () => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "changed" }); } },
+			GetCommand: { default: { Item: userArticleItem({ personalScope, personalPickedAt: personalScope ? STORE_NOW.toISOString() : undefined }) } },
+		});
+		await expect(initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read")).rejects.toThrow("kept changing");
+	});
+
+	it("preserves read time on a repeated mark-as-read in Hand Picked", async () => {
+		const readAt = "2025-01-01T00:00:00.000Z";
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()] } },
+			UpdateCommand: { default: () => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "classified" }); } },
+			GetCommand: { default: { Item: userArticleItem({ status: "read", readAt, personalScope: `${USER}#picked#read` }) } },
+		});
+		expect((await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read"))?.readAt).toEqual(new Date(readAt));
+		expect(commands.filter(command => command.name === "UpdateCommand")).toHaveLength(1);
+	});
+
+	it.each([undefined, 3])("keeps a later reader change when a resurface observes revision %s", async statusRevision => {
+		const readAt = "2026-01-02T00:00:00.000Z";
+		const savedAt = "2026-01-01T00:00:00.000Z";
+		const { client, commands } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()] } },
+			UpdateCommand: { default: () => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "changed" }); } },
+			GetCommand: { default: { Item: userArticleItem({ status: "read", savedAt, readAt, statusRevision: 4 }) } },
+		});
+		const result = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "unread", {
+			savedAt: new Date(savedAt), readAt: statusRevision === undefined ? undefined : new Date(readAt), statusRevision,
+		});
+		expect(result?.readAt).toEqual(new Date(readAt));
+		const writes = commands.filter(command => command.name === "UpdateCommand");
+		expect(writes).toHaveLength(1);
+		expect(writes[0]?.input.ConditionExpression).toContain("savedAt = :expectedSaved");
+		expect(writes[0]?.input.ConditionExpression).toContain(statusRevision === undefined ? "attribute_not_exists(statusRevision)" : "statusRevision = :expectedRevision");
+	});
+
+	it("requires an active save and ignores a superseded request", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { readlist: [{}, { Item: userArticleItem({ personalDecision: "2099" }) }] },
+		});
+		const store = initStore(client);
+		expect(await store.changePersonalPick(input)).toBe("missing");
+		expect(await store.changePersonalPick(input)).toBe("superseded");
+		expect(commands.every(command => command.name === "GetCommand")).toBe(true);
+	});
+	it.each(["read", "unread"] as const)("indexes an existing %s article without changing its status", async status => {
+		const readAt = "2026-04-01T00:00:00.000Z";
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem({ status, ...(status === "read" ? { readAt } : {}) }) } },
+		});
+		const store = initStore(client);
+		expect(await store.changePersonalPick(input)).toBe("updated");
+		const items = commands.at(-1)?.input.TransactItems;
+		expect(items?.[0]?.ConditionCheck?.Key).toEqual(canonicalRemovalKey(USER, RESOURCE_ID));
+		expect(items?.[1]?.Update?.ExpressionAttributeValues).toMatchObject({
+			":scope": `${USER}#picked#${status}`,
+			":order": `${status === "read" ? readAt : request.requestedAt}#${ReaderArticleHashId.from(URL).value}`,
+			":picked": request.requestedAt,
+		});
+		expect(items?.[1]?.Update?.UpdateExpression).not.toContain("#status");
+	});
+	it("rechecks a concurrent change before clearing personal membership", async () => {
+		const row = userArticleItem({ personalPickedAt: STORE_NOW.toISOString(), personalDecision: "2020" });
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: row } },
+			TransactWriteCommand: { readlist: [() => { throw new TransactionCanceledException({
+				$metadata: {}, message: "changed", CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }],
+			}); }] },
+		});
+		expect(await initStore(client).changePersonalPick({ ...input, picked: false })).toBe("updated");
+		expect(commands.filter(command => command.name === "GetCommand")).toHaveLength(2);
+		expect(commands.at(-1)?.input.TransactItems?.[1]?.Update?.UpdateExpression).toContain("REMOVE personalPickedAt, personalScope, personalOrder");
+	});
+	it("treats a later removal as superseding the pick after a row has been re-created", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem() } },
+			TransactWriteCommand: { default: () => { throw new TransactionCanceledException({
+				$metadata: {}, message: "removed", CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }],
+			}); } },
+		});
+		expect(await initStore(client).changePersonalPick(input)).toBe("superseded");
 	});
 });

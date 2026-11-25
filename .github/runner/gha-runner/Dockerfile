@@ -11,6 +11,10 @@
 ARG BROWSER_IMAGE
 FROM ${BROWSER_IMAGE} AS browsers
 
+FROM amazon/dynamodb-local:2.5.4@sha256:cf8cebd061f988628c02daff10fdb950a54478feff9c52f6ddf84710fe3c3906 AS dynamodb
+COPY LoopbackDynamoDB.java /tmp/LoopbackDynamoDB.java
+RUN javac -cp 'DynamoDBLocal.jar:DynamoDBLocal_lib/*' -d /tmp /tmp/LoopbackDynamoDB.java
+
 FROM myoung34/github-runner:ubuntu-noble
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -122,6 +126,15 @@ COPY entrypoint-secure.sh /usr/local/bin/entrypoint-secure.sh
 RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
  && mkdir -p /opt/hostedtoolcache \
  && chown -R runner:runner /opt/hostedtoolcache
+
+# Hutch's bulk recovery test runs an isolated, in-memory DynamoDB without a
+# Docker daemon or downloads in the job. Use the native library for this image's architecture.
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless \
+ && rm -rf /var/lib/apt/lists/*
+ENV DYNAMODB_LOCAL_HOME=/opt/dynamodb-local
+COPY --from=dynamodb /home/dynamodblocal/DynamoDBLocal.jar /home/dynamodblocal/*LICENSE*.txt /opt/dynamodb-local/
+COPY --from=dynamodb /home/dynamodblocal/DynamoDBLocal_lib /opt/dynamodb-local/DynamoDBLocal_lib
+COPY --from=dynamodb /tmp/LoopbackDynamoDB.class /opt/dynamodb-local/
 
 # Pin the machine-id so the nx cache survives an image rebuild. nx names its
 # DbCache metadata db "<machine-id>-v2.db" under NX_WORKSPACE_DATA_DIRECTORY (the

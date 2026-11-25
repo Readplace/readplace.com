@@ -1,7 +1,1 @@
-When your free trial ends, Readplace now moves you to a free plan instead of making your account read-only. You keep every article you saved and can save up to 28 new ones a day. When you reach the day's limit, sharing to Readplace says so plainly, and uploads waiting in the app try again later instead of failing. A subscription adds the Inbox, Next read, Past reads, readlist purpose filtering and Gmail.
-
-Highlights are easier to work with in the reader. Tap a highlight to manage it where it sits, see its note beside it, and delete a note with its own button. On a phone, the Highlight bar sits at the bottom of the screen, and a long selection is never refused. When an article changes, your highlights follow the edited passage, and any we can't find again are kept and marked "Not found in this version".
-
-You can also add an article to several readlists at once and keep up to 15 readlists. You can share the original link from the reader, and report an article that looks wrong. Images keep their space while they load, so the text no longer jumps. Download unread now asks the server how many pages to fetch, so it no longer starts work on every article in a long readlist.
-
-On iOS 26.2 and later, Readplace asks your device for your age range once each launch. You can decline to share it. Readplace is for people 13 and over, so a younger reader sees that instead of the sign-in screen.
+When Hand Picked is available on your account, Readplace opens it at launch. Find articles you save individually there. Open All to see every save, including newsletter links and imports.

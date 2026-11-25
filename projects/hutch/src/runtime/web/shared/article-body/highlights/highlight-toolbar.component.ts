@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { HIGHLIGHT_NOTE_MAX_LENGTH } from "@packages/domain/article";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { render } from "@packages/web-shell";
 import { highlightActionUrl } from "../../../pages/readlist/highlight-surface";
 import { READLIST_PATH } from "../../../pages/readlist/readlist.url";
@@ -35,12 +38,44 @@ function highlightCopiedUrl(scope: HighlightFormScope): string {
 	});
 }
 
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
+
+export type HighlightRefusal = "passage-changed" | "too-long" | "notes-too-long" | "cancelled";
+
+function refusalMessage(refusal: HighlightRefusal): string {
+	switch (refusal) {
+		case "passage-changed":
+			return t("articleBody.highlightStatus.refused.passageChanged");
+		case "too-long":
+			return t("articleBody.highlightStatus.refused.tooLong");
+		case "notes-too-long":
+			return t("articleBody.highlightStatus.refused.notesTooLong", {
+				max: HIGHLIGHT_NOTE_MAX_LENGTH.toLocaleString(DEFAULT_LOCALE),
+			});
+		case "cancelled":
+			return t("articleBody.highlightStatus.refused.cancelled");
+	}
+}
+
+function readerCheckUrl(input: { scope: HighlightFormScope; section: number | undefined }): string {
+	return highlightActionUrl({
+		path: `${READLIST_PATH}/${input.scope.articleId}/view`,
+		readlist: input.scope.readlist,
+		surface: input.section === undefined ? input.scope.surface : [...input.scope.surface, ["section", String(input.section)]],
+	});
+}
+
 export function renderHighlightToolbar(input: {
 	scope: HighlightFormScope;
 	rowNoteOpen: boolean;
+	section: number | undefined;
+	refusal: HighlightRefusal | undefined;
 }): string {
 	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
 		local: false,
+		readerKey: `${input.scope.articleId}:${input.section ?? ""}`,
+		checkUrl: readerCheckUrl({ scope: input.scope, section: input.section }),
+		refusal: input.refusal === undefined ? undefined : { code: input.refusal, message: refusalMessage(input.refusal) },
 		createUrl: highlightFormUrl({
 			scope: input.scope,
 			path: "/highlights",

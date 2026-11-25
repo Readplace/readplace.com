@@ -81,6 +81,8 @@ function createSqsEvent(
 		rawHtml?: string;
 		provenance?: unknown;
 		saveTrigger?: string;
+		requestedAt?: string;
+		personalPickAt?: string;
 		readlist?: string;
 		emailOutput?: { receivedAtMessageId: string; outputKey: string };
 	}>,
@@ -175,7 +177,7 @@ function createHandler(overrides: Partial<HandlerDeps> & Partial<SubmitSourceIde
 		assignSavedArticleToReadlist: jest.fn().mockResolvedValue(undefined),
 		resolveSubmitterStanding: async () => "may-save",
 		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
-		updateArticleStatus: jest.fn().mockResolvedValue(true),
+		updateArticleStatus: jest.fn().mockResolvedValue(makeSaved({ status: "unread" })),
 		markCrawlPending: jest.fn().mockResolvedValue({ kind: "marked" }),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
@@ -611,7 +613,7 @@ describe("initSubmitLinkCommandHandler", () => {
 	});
 
 	it("resurfaces a previously-read article back to unread, exactly like the queue save button", async () => {
-		const updateArticleStatus = jest.fn().mockResolvedValue(true);
+		const updateArticleStatus = jest.fn().mockResolvedValue(makeSaved({ status: "unread" }));
 		const handler = createHandler({
 			saveArticleAsRequested: jest
 				.fn()
@@ -623,7 +625,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(updateArticleStatus).toHaveBeenCalledWith(articleId, userId, "unread");
+		expect(updateArticleStatus).toHaveBeenCalledWith(articleId, userId, "unread", expect.objectContaining({ readAt: new Date("2026-06-10T00:00:00.000Z") }));
 	});
 
 	it("completes the queue write and resurface before the tier-1 crawl starts", async () => {
@@ -635,7 +637,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			}),
 			updateArticleStatus: jest.fn().mockImplementation(async () => {
 				order.push("resurface");
-				return true;
+				return makeSaved({ status: "unread" });
 			}),
 			crawlAndFinalizeArticle: (async () => {
 				order.push("crawl");
@@ -1479,6 +1481,36 @@ describe("a redelivered save against the stored rows", () => {
 		expect(after?.status).toBe("read");
 		expect(after?.readAt).toEqual(read?.readAt);
 		expect(after?.savedAt).toEqual(beforeRequest);
+	});
+
+	it("keeps a reader's later read when a pick reaches EventBridge after the read", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		await store.updateArticleStatus(id, userId, "read");
+		const read = await allRow(store);
+		assert(read?.readAt);
+		const pick = new Date(read.readAt.getTime() - 1_000);
+		const published = new Date(read.readAt.getTime() + 1_000);
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId, personalPickAt: pick.toISOString() }], published.toISOString()));
+
+		const after = await allRow(store);
+		expect(after?.personalPickedAt).toEqual(pick);
+		expect(after?.status).toBe("read");
+		expect(after?.readAt).toEqual(read.readAt);
+		expect(after?.savedAt).toEqual(beforeRequest);
+	});
+
+	it("refuses an earlier bulk request published after a reader deleted the save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		await store.deleteArticle(id, userId);
+		const { publishEvent, published } = initRecordingPublishEvent();
+		await run(storeHandler(store, { publishEvent }), createSqsEvent([{
+			url: exampleUrl, userId, provenance: { kind: "import" }, saveTrigger: "automatic", requestedAt: beforeRequest.toISOString(),
+		}], "2099-01-01T00:00:00Z"));
+		expect(await allRow(store)).toBeNull();
+		expect(publishedDetailTypes(published)).toEqual(["LinkQueueFailed"]);
 	});
 
 	it("resurfaces an article read before the request", async () => {

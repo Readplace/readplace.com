@@ -4,6 +4,8 @@ import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
 	ArticleStatus,
+	PersonalPickRequest,
+	PersonalReadlist,
 	SaveProvenance,
 	SaveTrigger,
 	SuggestionAttribution,
@@ -38,7 +40,17 @@ import type {
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
 
+export type ChangePersonalPick = (input: {
+	userId: UserId;
+	url: string;
+	picked: boolean;
+	request: PersonalPickRequest;
+}) => Promise<"updated" | "superseded" | "missing">;
+
 export interface SaveArticleParams {
+	requestedAt?: Date;
+	personalPick?: PersonalPickRequest;
+	bulkSave?: true;
 	suggestionAttribution?: SuggestionAttribution;
 	userId: UserId;
 	url: string;
@@ -53,6 +65,8 @@ export type SortField = "savedAt" | "readAt";
 export type SortOrder = "asc" | "desc";
 
 export interface FindArticlesQuery {
+	personalScope?: PersonalReadlist;
+	managedOrigin?: "bulk" | "unknown";
 	userId: UserId;
 	status?: ArticleStatus;
 	sort?: SortField;
@@ -66,6 +80,8 @@ export interface FindArticlesQuery {
 }
 
 export interface CountArticlesQuery {
+	personalScope?: PersonalReadlist;
+	managedOrigin?: "bulk" | "unknown";
 	userId: UserId;
 	status?: ArticleStatus;
 	countLimit?: number;
@@ -187,6 +203,7 @@ export type UpdateArticleStatus = (
 	id: ReaderArticleHashId,
 	userId: UserId,
 	status: ArticleStatus,
+	expected?: Pick<SavedArticle, "savedAt" | "readAt" | "statusRevision">,
 ) => Promise<SavedArticle | null>;
 
 export interface ArticleFreshnessData {

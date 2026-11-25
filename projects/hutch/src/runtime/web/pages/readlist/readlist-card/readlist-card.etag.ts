@@ -26,5 +26,5 @@ function viaSegmentOf(readerProvenance: ReaderProvenance | undefined): string[] 
 export function computeReadlistCardEtag(input: ReadlistCardEtagInput): string {
 	const { article, crawl, summary, readerProvenance } = input;
 	const contentVersion = computeArticleContentVersion({ article, crawl, summary });
-	return `W/"${[article.id.value, article.status, contentVersion, ...viaSegmentOf(readerProvenance)].join(":")}"`;
+	return `W/"${[article.id.value, article.status, contentVersion, ...(article.personalPickedAt ? ["picked"] : []), ...viaSegmentOf(readerProvenance)].join(":")}"`;
 }

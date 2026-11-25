@@ -75,6 +75,22 @@ describe("initFinalizeArticle — a crawl that landed somewhere else", () => {
 		});
 	});
 
+	it("passes fetched document provenance from the pipeline to the parser", async () => {
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml });
+		const html = "<p>Body</p>";
+
+		await finalize({ url: WRAPPER_URL, documentUrl: DESTINATION_URL, fetchedDocument: true, html });
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: WRAPPER_URL,
+			documentUrl: DESTINATION_URL,
+			fetchedDocument: true,
+			html,
+			thumbnailUrl: null,
+		});
+	});
+
 	it("cites the document url as the thumbnail referer, which same-origin hotlink protection requires", async () => {
 		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
 		const finalize = createFinalize({ fetchThumbnailImage });

@@ -69,6 +69,7 @@ function accountVm(
 		plan: undefined,
 		hasCustomer: false,
 		payment: { kind: "no-customer" },
+		dailySaveLimit: 28,
 		...input,
 	});
 }
@@ -192,6 +193,10 @@ describe("toAccountViewModel — plan summary", () => {
 		assert.deepEqual(vm.chips, [{ label: "Cancelled", className: "chip chip--status chip--error" }]);
 		assert.equal(vm.price.state, "hidden");
 		assert.equal(vm.statusLine, "Your subscription ends on ");
+		assert.equal(
+			vm.statusNote,
+			"You keep full access until then. After that, your account moves to the free plan: you keep every article you saved and can save up to 28 new links a day.",
+		);
 	});
 
 	it("titles a scheduled cancellation 'Subscription' when the row names no plan", () => {
@@ -206,14 +211,30 @@ describe("toAccountViewModel — plan summary", () => {
 		assert.deepEqual(vm.chips, []);
 		assert.equal(vm.price.state, "hidden");
 		assert.equal(vm.statusLine, "Your free trial ends on ");
+		assert.equal(
+			vm.statusNote,
+			"When it ends, your account moves to the free plan: you keep every article you saved and can save up to 28 new links a day.",
+		);
 	});
 
-	it.each([...PLANS.map(([plan]) => plan), undefined])("calls a free-plan reader's subscription 'Subscription' with the Free plan chip and no sentence (%s)", (plan) => {
+	it.each([...PLANS.map(([plan]) => plan), undefined])("calls a free-plan reader's subscription 'Subscription' with the Free plan chip and says what the free plan keeps (%s)", (plan) => {
 		const vm = accountVm({ access: FREE, plan });
 		assert.equal(vm.title, "Subscription");
 		assert.deepEqual(vm.chips, [{ label: "Free plan", className: "chip chip--status chip--error" }]);
 		assert.equal(vm.price.state, "hidden");
 		assert.equal(vm.statusLine, "");
+		assert.equal(vm.statusNote, "You keep every article you saved and can save up to 28 new links a day.");
+	});
+
+	it("names the daily save limit it is given, not a fixed number", () => {
+		assert.equal(
+			accountVm({ access: FREE, dailySaveLimit: 5 }).statusNote,
+			"You keep every article you saved and can save up to 5 new links a day.",
+		);
+	});
+
+	it.each(PLANS)("adds no free-plan note to an active %s subscription", (plan) => {
+		assert.equal(accountVm({ access: ACTIVE, plan }).statusNote, "");
 	});
 
 	it("names a founding member's membership and says it is free for life", () => {
@@ -222,6 +243,7 @@ describe("toAccountViewModel — plan summary", () => {
 		assert.deepEqual(vm.chips, []);
 		assert.equal(vm.price.state, "hidden");
 		assert.equal(vm.statusLine, "Free for life.");
+		assert.equal(vm.statusNote, "");
 	});
 
 	it.each(PLANS)("keeps the %s plan's title in the payment-method error state, with no chip, price or sentence", (plan, title) => {

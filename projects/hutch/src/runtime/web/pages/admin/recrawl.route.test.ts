@@ -1240,6 +1240,38 @@ describe("Admin recrawl of a private item", () => {
 	});
 });
 
+describe("Admin recrawl of a saved email issue", () => {
+	const issue = "email://inbox/owner/message";
+	const encoded = encodeURIComponent(issue);
+	const schemeLessKey = encodeURIComponent("https://inbox/owner/message");
+
+	it("refuses the issue and its equivalent storage key before reading or publishing", async () => {
+		const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		await harness.articleStore.saveArticleGlobally({
+			url: issue,
+			metadata: { title: "Private newsletter subject", siteName: "Inbox", excerpt: "", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			savedAt: new Date(),
+		});
+		await harness.articleStore.writeContent({ url: issue, content: "<p>Private newsletter body</p>" });
+		await harness.articleCrawl.markCrawlReady({ url: issue });
+		const agent = await harness.signInAsAdmin();
+		for (const url of [encoded, schemeLessKey]) {
+			for (const path of [`/admin/recrawl?url=${url}`, `/admin/recrawl/${url}`]) {
+				expect((await agent.get(path)).status).toBe(404);
+				expect((await agent.post(path)).status).toBe(404);
+			}
+			for (const slot of ["reader", "summary"]) {
+				const response = await agent.get(`/admin/recrawl/${slot}?url=${url}`);
+				expect(response.status).toBe(400);
+				expect(response.text).toBe("");
+			}
+		}
+		expect(harness.recrawlPublishedCalls).toEqual([]);
+	});
+});
+
 describe("Admin recrawl of a long body", () => {
 	it("pages the body with the section pager", async () => {
 		const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });

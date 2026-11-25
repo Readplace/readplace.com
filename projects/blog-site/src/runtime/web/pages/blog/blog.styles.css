@@ -713,7 +713,7 @@
   height: 12px;
   border-radius: 50%;
   background: var(--muted);
-  border: 2px solid var(--border);
+  border: 2px solid var(--foreground);
   transition: background-color 150ms ease, border-color 150ms ease;
 }
 

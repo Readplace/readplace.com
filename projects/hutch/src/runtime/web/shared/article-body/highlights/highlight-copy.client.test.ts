@@ -55,6 +55,8 @@ function readerMain(toolbarHtml: string): string {
 const APP_TOOLBAR = renderHighlightToolbar({
 	scope: { articleId: "abc", readlist: [], surface: [["platform", "ios"]] },
 	rowNoteOpen: false,
+	section: undefined,
+	refusal: undefined,
 });
 
 function page(input: { fake: FakeClipboard | undefined; toolbarHtml?: string }) {

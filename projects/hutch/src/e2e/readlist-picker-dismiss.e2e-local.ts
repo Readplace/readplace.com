@@ -39,7 +39,7 @@ async function openOwnerReaderWithPicker(page: Page, stamp: string, readlists: r
 	assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
 	const { articleId } = SeededArticle.parse(await seeded.json());
 
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(OWNER_PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -51,7 +51,7 @@ async function openOwnerReaderWithPicker(page: Page, stamp: string, readlists: r
 		await openReadlistSwitcher(page);
 		await clickAndWaitForPageReload(page, await nameNewReadlist(page, label));
 	}
-	await expect(page.locator("[data-test-readlist]")).toHaveCount(readlists.length + 1);
+	await expect(page.locator("[data-test-readlist]")).toHaveCount(readlists.length + 2);
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-reader");

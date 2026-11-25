@@ -20,7 +20,7 @@ const HIGHLIGHT_BUTTON = '[data-test-action="highlight"]';
 const CREATE_FORM = "[data-test-highlight-create-form]";
 const MARK = `${CONTENT} mark.article-highlight`;
 const RAIL_ROW = "[data-test-highlight-row]";
-const TOAST_MESSAGE = "#status-toast [data-test-toast-message]";
+const HIGHLIGHT_STATUS = "[data-test-highlight-status]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
 const CARD_TITLE = "[data-test-article-title]";
 const PENDING_CARD = '[data-card-status="pending"]';
@@ -80,7 +80,7 @@ async function seedAndLogin(page: Page, stamp: string): Promise<string> {
 		"the seed endpoint must create the crawled article",
 	);
 	const { articleId } = SeededArticle.parse(await seeded.json());
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -262,15 +262,12 @@ test.describe("Highlighting a passage in the reader", () => {
 		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
 	});
 
-	test("a passage the server no longer finds at its offsets answers with a toast", async ({
+	test("a passage the server no longer finds at its offsets answers in the highlight status", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(
 			page,
 			`refused-${testInfo.workerIndex}-${Date.now()}`,
-		);
-		await page.route("**/client-dist/toast.client.js", (route) =>
-			route.abort(),
 		);
 		await page.route(
 			(url) => url.pathname.endsWith("/highlights"),
@@ -285,7 +282,7 @@ test.describe("Highlighting a passage in the reader", () => {
 
 		await highlight(page, FIRST_PASSAGE);
 
-		await expect(page.locator(TOAST_MESSAGE)).toHaveText(
+		await expect(page.locator(HIGHLIGHT_STATUS)).toHaveText(
 			"That passage changed; select it again",
 			{
 				timeout: SETTLE_MS,

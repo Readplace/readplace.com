@@ -1,3 +1,4 @@
+import { readerHomeHref } from "../pages/readlist/built-in-readlists";
 import { z } from "zod";
 
 const ReturnQuerySchema = z.looseObject({ return: z.string().optional() });
@@ -20,7 +21,7 @@ function validatedReturnUrl(query: unknown): string | undefined {
 }
 
 export function parseReturnUrl(query: unknown): string {
-	return validatedReturnUrl(query) ?? "/queue";
+	return validatedReturnUrl(query) ?? readerHomeHref();
 }
 
 export function extractReturnUrl(query: unknown): string | undefined {

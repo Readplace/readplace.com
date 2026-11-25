@@ -26,12 +26,17 @@ export type ParseArticle = (url: string) => Promise<ParseArticleResult>;
 export type ParseHtml = (params: {
 	url: string;
 	documentUrl: string;
+	/** Set by the crawler, whose document URL comes from its fetch rather than a submitted capture. */
+	fetchedDocument?: true;
 	html: string;
 	thumbnailUrl: string | null;
 }) => ParseArticleResult;
 
 export type ReadabilityAdditions = {
+	normalizeMalformedTitleEndTag: (html: string) => string;
+	preserveQualifiedTitleHeading: (document: Document) => (html: string) => string;
 	normalizeImplicitBody: (document: Document) => void;
+	preserveSubstackImagePreview: (params: { document: Document; savedUrl: string; documentUrl: string }) => void;
 	unwrapArticleBodyTemplates: (document: Document) => void;
 	replaceVideosWithPlaceholder: (params: {
 		document: Document;

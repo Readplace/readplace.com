@@ -286,16 +286,28 @@ async function openImportReview(page: Page, urls: readonly string[]): Promise<vo
 	await page.waitForSelector("[data-test-import-list]");
 }
 
-async function auditFocusRing(page: Page, field: AuditedField): Promise<void> {
+interface FieldEdgeState {
+	auditId: string;
+	pseudo: string[];
+	blur: boolean;
+}
+
+const FOCUSED_EDGE: FieldEdgeState = { auditId: "focused-field", pseudo: FOCUSED, blur: false };
+const RESTING_EDGE: FieldEdgeState = { auditId: "resting-field", pseudo: [], blur: true };
+
+async function auditFieldEdge(page: Page, field: AuditedField, state: FieldEdgeState): Promise<void> {
 	for (const theme of THEMES) {
 		await page.emulateMedia({ colorScheme: theme });
 		await revealField(page, field);
+		if (state.blur) {
+			await page.locator(field.selector).blur();
+		}
 		const client = await auditContext(page);
-		await stamp(page, { selector: field.selector, auditId: "focused-field" });
+		await stamp(page, { selector: field.selector, auditId: state.auditId });
 
-		const ink = await measure(page, client, "focused-field", FOCUSED);
+		const ink = await measure(page, client, state.auditId, state.pseudo);
 		const edges = ringEdges(ink);
-		assert.ok(edges.length > 0, `${theme}/${field.view}: ${ink.name} draws no border to carry its focus ring`);
+		assert.ok(edges.length > 0, `${theme}/${field.view}/${state.auditId}: ${ink.name} draws no border`);
 		const neighbours: Neighbour[] = [
 			{ name: "field fill", colour: ink.fill },
 			{ name: "surrounding surface", colour: ink.surface },
@@ -305,7 +317,7 @@ async function auditFocusRing(page: Page, field: AuditedField): Promise<void> {
 				for (const against of neighbours) {
 					assert.ok(
 						edgeContrast({ edge, against, lens }) >= NON_TEXT_MINIMUM,
-						edgeShortfall({ edge, against, lens, view: `${theme}/${field.view}/${lensName}` }),
+						edgeShortfall({ edge, against, lens, view: `${theme}/${field.view}/${state.auditId}/${lensName}` }),
 					);
 				}
 			}
@@ -466,13 +478,23 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 	test.use({ viewport: VIEWPORT });
 
 	test("every text field shows focus with a ring edge that clears 3:1", async ({ page }, testInfo) => {
-		await auditFocusRing(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" });
+		await auditFieldEdge(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" }, FOCUSED_EDGE);
 		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
 		const userId = await signInAsNewReader(page, `form-ring-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
-		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
-		await auditFocusRing(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
+		await auditFieldEdge(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] }, FOCUSED_EDGE);
+		await auditFieldEdge(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" }, FOCUSED_EDGE);
+	});
+
+	test("every text field's resting edge clears 3:1 against its fill and the surface behind it", async ({ page }, testInfo) => {
+		await auditFieldEdge(page, { path: "/login", selector: LOGIN_EMAIL_FIELD, view: "login/email" }, RESTING_EDGE);
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `form-edge-${stampId}@example.com`);
+		await seedQueuedArticle(page, { userId, stampId });
+		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+		await auditFieldEdge(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] }, RESTING_EDGE);
+		await auditFieldEdge(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" }, RESTING_EDGE);
 	});
 
 	test("the placeholder clears 4.5:1", async ({ page }, testInfo) => {
@@ -1126,5 +1148,85 @@ test.describe("Move dialog interaction states hold their WCAG contrast in both t
 				assert.ok(labelContrast(hover, lens) >= textMinimum(hover), labelShortfall(hover, lens, view));
 			}
 		}
+	});
+});
+
+const GUEST_NAV_KEYS = ["install", "import", "features", "login"] as const;
+const HERO_START: Neighbour = { name: "hero start", colour: { red: 0x2b, green: 0x3a, blue: 0x55 } };
+const HERO_END: Neighbour = { name: "hero end", colour: { red: 0x1e, green: 0x2a, blue: 0x40 } };
+const DEVELOPERS_COPY = '.developers__sample > button[type="button"]';
+
+function assertOutlineClears(input: { ink: InteractionInk; against: readonly Neighbour[]; view: string }): void {
+	const { ink, against, view } = input;
+	assert.notEqual(ink.outline.style, "none", `${view}: ${ink.name} draws no focus outline`);
+	assert.ok(ink.outline.width > 0, `${view}: ${ink.name} draws a zero-width focus outline`);
+	for (const [lensName, lens] of Object.entries(LENSES)) {
+		for (const neighbour of against) {
+			assert.ok(
+				edgeContrast({ edge: ink.outline.colour, against: neighbour, lens }) >= NON_TEXT_MINIMUM,
+				edgeShortfall({ edge: ink.outline.colour, against: neighbour, lens, view: `${view}/${lensName}` }),
+			);
+		}
+	}
+}
+
+test.describe("Focus rings on navy hold 3:1 in both lenses", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("the transparent header's brand link and nav links ring at 3:1 against both hero stops", async ({ page }) => {
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		const client = await auditContext(page);
+		const targets = [
+			{ selector: ".header--transparent .header__brand", auditId: "lp-brand" },
+			...GUEST_NAV_KEYS.map((key) => ({
+				selector: `.header--transparent button[data-test-nav-item="${key}"]`,
+				auditId: `lp-nav-${key}`,
+			})),
+		];
+		for (const target of targets) {
+			await expect(page.locator(target.selector).first()).toBeVisible();
+			await stamp(page, target);
+		}
+
+		for (const target of targets) {
+			const ink = await measure(page, client, target.auditId, FOCUSED);
+			assertOutlineClears({ ink, against: [HERO_START, HERO_END], view: `light/pocket-alternative/${target.auditId}` });
+		}
+	});
+
+	test("the developers copy button rings at 3:1 on its navy panel in both themes", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `developers-copy-ring-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		await page.goto(`${BASE_URL}/developers`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(DEVELOPERS_COPY).first()).toBeVisible();
+		const client = await auditContext(page);
+		await stamp(page, { selector: DEVELOPERS_COPY, auditId: "developers-copy" });
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			const focused = await measure(page, client, "developers-copy", FOCUSED);
+			assertOutlineClears({
+				ink: focused,
+				against: [{ name: "panel", colour: focused.surface }],
+				view: `${theme}/developers/copy`,
+			});
+		}
+	});
+
+	test("the transparent header's account dropdown keeps the page ring", async ({ page }, testInfo) => {
+		await signInAsNewReader(page, `landing-dropdown-ring-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		await page.locator("details[data-test-nav-user] > summary").click();
+		const row = ".header--transparent .nav__user-menu button[data-test-nav-item]";
+		await expect(page.locator(row).first()).toBeVisible();
+		const client = await auditContext(page);
+		await stamp(page, { selector: row, auditId: "lp-dropdown-row" });
+
+		const focused = await measure(page, client, "lp-dropdown-row", FOCUSED);
+		assertOutlineClears({
+			ink: focused,
+			against: [{ name: "menu panel", colour: focused.surface }],
+			view: "light/pocket-alternative/dropdown",
+		});
 	});
 });
