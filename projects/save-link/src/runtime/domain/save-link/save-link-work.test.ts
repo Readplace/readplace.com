@@ -1,5 +1,6 @@
 import { UserIdSchema } from "@packages/domain/user";
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { type ArticleCoverage, SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/logger";
 import { markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
@@ -644,6 +645,43 @@ describe("initSaveLinkWork — a queued twitter.com identity", () => {
 });
 
 describe("initSaveLinkWork — the tier-1 commit tail", () => {
+	it.each([
+		{ name: "a leg that retained the source body", evaluationHtml: "<html><body><h2>One</h2><p>body</p></body></html>", digestBoundToContentHash: "sourceDigest" as const },
+		{ name: "a leg that kept only the reader html", evaluationHtml: undefined, digestBoundToContentHash: "outputDigest" as const },
+	])("carries the finalized coverage into the manifest of an initial save on $name, its $digestBoundToContentHash matching the content hash", async ({ evaluationHtml, digestBoundToContentHash }) => {
+		const sha256 = (html: string) => createHash("sha256").update(html).digest("hex");
+		const sourceHtml = "<html><body><h2>One</h2><p>body</p></body></html>";
+		const coverage: ArticleCoverage = {
+			schemaVersion: 1,
+			sourceDigest: sha256(sourceHtml),
+			outputDigest: sha256("<p>body</p>"),
+			assessments: [{ ruleId: "section-coverage", ruleVersion: 1, mode: "shadow", repair: "would-apply", outcome: "known-partial", scope: { kind: "article", units: 2 }, covered: 1, unresolved: 1, reasons: ["missing-section"] }],
+		};
+		const article = { html: "<p>body</p>", metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 321, estimatedReadTime: 2, coverage } };
+		const putTierSource = jest.fn().mockResolvedValue(undefined);
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: async () => ({ status: "fetched", article, finalUrl: "https://site.com/page", bodyHash: "b".repeat(64), httpStatus: 200, evaluationHtml }),
+			putTierSource,
+		});
+
+		const result = await saveLinkWork("https://site.com/page", { saveAttemptId });
+
+		const metadata = candidateProvenance({
+			metadata: article.metadata,
+			html: article.html,
+			evaluationHtml: evaluationHtml ?? article.html,
+			attemptId: saveAttemptId,
+			originalUrl: "https://site.com/page",
+			sourceUrl: "https://site.com/page",
+			kind: "live",
+			fetchedAt: "2026-04-18T12:00:00.000Z",
+			httpStatus: 200,
+		});
+		expect(putTierSource).toHaveBeenCalledWith({ url: "https://site.com/page", tier: "tier-1", html: article.html, metadata, evaluationHtml });
+		expect(metadata.coverage).toEqual(coverage);
+		expect(metadata.contentHash).toBe(coverage[digestBoundToContentHash]);
+		expect(result).toEqual({ candidate: { id: metadata.id, tier: "tier-1" } });
+	});
 	it.each<{ name: string; fetched: { httpStatus: number; evaluationHtml?: string; etag?: string }; status: "success" | "failed" }>([
 		{ name: "a readable 200", fetched: { httpStatus: 200, etag: "\"v1\"" }, status: "success" },
 		{ name: "a retained 403 with its evaluation bytes", fetched: { httpStatus: 403, evaluationHtml: "<html><body>Denied</body></html>" }, status: "failed" },

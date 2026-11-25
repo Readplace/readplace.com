@@ -38,6 +38,7 @@ async function saveAndOpen(appOrigin: string, outcome: CrawlOutcome) {
 			: { status: "failed" as const, decision: undefined };
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,

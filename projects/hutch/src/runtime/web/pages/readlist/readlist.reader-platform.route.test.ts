@@ -41,7 +41,7 @@ function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useA
 		summary: "Key points distilled into a brief summary.",
 	} });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+	const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

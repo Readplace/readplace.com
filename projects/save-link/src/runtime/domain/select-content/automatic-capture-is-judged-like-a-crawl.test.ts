@@ -1,4 +1,5 @@
-import { type CaptureTrigger, type SaveAttemptId, SaveAttemptIdSchema } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { type CaptureTrigger, type CoverageAssessment, type CoverageRuleModes, type SaveAttemptId, SaveAttemptIdSchema, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
@@ -64,11 +65,12 @@ function reply(decision: object): CreateDeepseekChatCompletion {
 	return async () => ({ choices: [{ message: { content: JSON.stringify(decision) } }] });
 }
 
-async function selectContent(params: { article: Article; capture: VerifiedTierSource; others: readonly VerifiedTierSource[]; createChatCompletion: CreateDeepseekChatCompletion; legsDeferred: boolean }) {
+async function selectContent(params: { article: Article; capture: VerifiedTierSource; others: readonly VerifiedTierSource[]; createChatCompletion: CreateDeepseekChatCompletion; legsDeferred: boolean; coverageRuleModes?: CoverageRuleModes }) {
 	const persisted: { transition: unknown; input: unknown }[] = [];
 	const transitionAndPersist: TransitionAndPersist = async (transition, { input }) => { persisted.push({ transition, input }); };
 	const info = jest.fn();
 	const handler = initSelectMostCompleteContentHandler({
+		coverageRuleModes: params.coverageRuleModes ?? ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => [params.capture, ...params.others],
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: params.createChatCompletion }).selectMostCompleteContent,
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => params.legsDeferred, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),
@@ -154,5 +156,28 @@ it("an automatic capture alone, with 100 words or more and no content, takes the
 		result: { batchItemFailures: [] },
 		persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-0", metadata: expect.objectContaining({ id: capture.metadata.id }) }) }],
 		comparisons: [{ selectionRule: "lone-body", ownCaptureFailed: false, captureTrigger: "automatic" }],
+	});
+});
+
+const ENFORCE_SECTIONS: CoverageRuleModes = { "section-coverage": "enforce" };
+const LOST_SECTIONS: CoverageAssessment = { ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "known-partial", scope: { kind: "article", units: 14 }, covered: 1, unresolved: 13, reasons: ["missing-section"] };
+const EVERY_SECTION: CoverageAssessment = { ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "verified-for-scope", scope: { kind: "article", units: 14 }, covered: 14 };
+const withSections = (source: VerifiedTierSource, assessment: CoverageAssessment): VerifiedTierSource => ({
+	...source,
+	metadata: { ...source.metadata, coverage: { schemaVersion: 1, sourceDigest: source.metadata.contentHash, outputDigest: createHash("sha256").update(source.html).digest("hex"), assessments: [assessment] } },
+});
+
+it("an automatic capture that lost sections a committed canonical holds is excluded like a crawl copy, without the judge, and the canonical is kept", async () => {
+	const canonical = withSections(committedCanonical(), EVERY_SECTION);
+	const capture = withSections(automaticCapture(), LOST_SECTIONS);
+	const createChatCompletion = jest.fn<ReturnType<CreateDeepseekChatCompletion>, Parameters<CreateDeepseekChatCompletion>>();
+
+	const selection = await selectContent({ article: articleHolding(canonical), capture, others: [canonical], createChatCompletion, legsDeferred: false, coverageRuleModes: ENFORCE_SECTIONS });
+
+	expect(createChatCompletion).not.toHaveBeenCalled();
+	expect(selection).toEqual({
+		result: { batchItemFailures: [] },
+		persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-1", metadata: expect.objectContaining({ id: canonical.metadata.id }) }) }],
+		comparisons: [{ selectionRule: "coverage-loss-retained", ownCaptureFailed: false, captureTrigger: "automatic" }],
 	});
 });

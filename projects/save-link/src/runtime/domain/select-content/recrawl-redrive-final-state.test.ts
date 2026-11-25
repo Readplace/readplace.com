@@ -1,4 +1,4 @@
-import { CandidateIdSchema, SaveAttemptIdSchema, type CandidateId } from "@packages/domain/article";
+import { CandidateIdSchema, SaveAttemptIdSchema, type CandidateId, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { type Article, type DispatchEffect, initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
@@ -94,6 +94,7 @@ function setup(params: { seed: Article; loadable: readonly VerifiedTierSource[];
 	};
 	const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
 	const handler = initRecrawlContentExtractedHandler({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		...initListAvailableTierSources({ readTierSource }), selectMostCompleteContent: judge,
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent, recordCrawlVersion, loadArticle: store.load, readCanonicalContent: async () => undefined, transitionAndPersist,

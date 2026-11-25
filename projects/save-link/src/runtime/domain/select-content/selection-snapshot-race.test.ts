@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { CandidateIdSchema, SaveAttemptIdSchema, type CandidateId, type SaveAttemptId } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { CandidateIdSchema, SaveAttemptIdSchema, type CandidateId, type SaveAttemptId, type CoverageAssessment, type CoverageRuleModes, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { type Article, type Effect, SelectionSnapshotChangedError, initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
@@ -62,10 +63,12 @@ function setup(params: {
 	beforeJudge?: (judged: readonly string[]) => Promise<void>;
 	onClaimRefused?: () => void;
 	holderWait?: { delayMs: number; maxWaits: number; sleep: () => Promise<void> };
+	coverageRuleModes?: CoverageRuleModes;
+	sources?: readonly VerifiedTierSource[];
 }) {
 	const store = initInMemoryArticleStore();
 	store.seed(params.seed);
-	const entries = new Map<string, TierSource>([C1, C2].map((source) => [`${source.tier}:${source.metadata.id}`, source]));
+	const entries = new Map<string, TierSource>((params.sources ?? [C1, C2]).map((source) => [`${source.tier}:${source.metadata.id}`, source]));
 	const readTierSource: ReadTierSource = async ({ tier, candidateId }) => candidateId === undefined ? undefined : entries.get(`${tier}:${candidateId}`);
 	const judged: string[][] = [];
 	const newestReadsBest: SelectMostCompleteContent = async ({ candidates }) => {
@@ -95,6 +98,7 @@ function setup(params: {
 	});
 	const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
 	const work = initSelectContentWorkUnderLease({
+		coverageRuleModes: params.coverageRuleModes ?? ALL_COVERAGE_RULES_OFF,
 		...initListAvailableTierSources({ readTierSource }), selectMostCompleteContent: newestReadsBest,
 		runMeteredLeg: initRunMeteredLeg({
 			...ledger,
@@ -256,6 +260,33 @@ describe("a selection whose snapshot changed before its commit", () => {
 		expect(harness.judged).toEqual([["c1"]]);
 		expect((await harness.row())?.contentSelection).toEqual(expect.objectContaining({ revision: 1, candidateId: C1.metadata.id }));
 		expect(harness.recovered()).toEqual([]);
+	});
+});
+
+describe("a coverage-enforced selection whose snapshot changed before its commit", () => {
+	const withSections = (source: VerifiedTierSource, assessment: CoverageAssessment): VerifiedTierSource => ({
+		...source,
+		metadata: { ...source.metadata, coverage: { schemaVersion: 1, sourceDigest: source.metadata.contentHash, outputDigest: createHash("sha256").update(source.html).digest("hex"), assessments: [assessment] } },
+	});
+	const LOSSY = withSections(candidate({ id: "lossy", attemptId: A1, fetchedAt: T1 }), { ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "known-partial", scope: { kind: "article", units: 14 }, covered: 1, unresolved: 13, reasons: ["missing-section"] });
+	const VERIFIED = withSections(candidate({ id: "verified", attemptId: A2, fetchedAt: T2 }), { ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "verified-for-scope", scope: { kind: "article", units: 14 }, covered: 14 });
+
+	it("excludes the lossy canonical another delivery committed when the retry reloads the row", async () => {
+		const harness = setup({
+			seed: pendingFirstSave(),
+			coverageRuleModes: { "section-coverage": "enforce" },
+			sources: [LOSSY, VERIFIED],
+			beforeCanonicalWrite: ({ call, store }) => {
+				if (call === 1) store.seed(pendingFirstSave({ contentSelection: { revision: 4, candidateId: LOSSY.metadata.id, tier: "tier-1", contentLocation: locationOf(LOSSY.metadata.id) } }));
+			},
+		});
+
+		await harness.save({ source: VERIFIED, claimId: "message-1" });
+
+		expect(harness.judged.flat()).not.toContain("lossy");
+		expect(harness.canonicalWrites).toEqual([VERIFIED.metadata.id, VERIFIED.metadata.id]);
+		expect((await harness.row())?.contentSelection).toEqual(expect.objectContaining({ revision: 5, candidateId: VERIFIED.metadata.id }));
+		expect(harness.recovered()).toEqual([{ url: URL, saveAttemptId: A2, conflicts: ["selection-changed"], attempts: 2 }]);
 	});
 });
 

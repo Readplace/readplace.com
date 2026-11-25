@@ -1,4 +1,4 @@
-import { CandidateIdSchema, SaveAttemptIdSchema, type SaveAttemptId } from "@packages/domain/article";
+import { CandidateIdSchema, SaveAttemptIdSchema, type SaveAttemptId, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import type { Article } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
@@ -52,6 +52,7 @@ function setup(params: { sources: VerifiedTierSource[]; article: Article; pick: 
 			};
 		});
 	const prepare = initPrepareContentSelection({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		loadArticle: async () => params.article, readCanonicalContent: async () => undefined,
 		listAvailableTierSources: async () => params.sources,
 		judge: initJudgeUnderLedger({ selectMostCompleteContent: judge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" }),

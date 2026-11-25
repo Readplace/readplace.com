@@ -361,6 +361,7 @@ describe("saveArticleFromUrl", () => {
 						wordCount: 100,
 						content: "<p>hi</p>",
 					},
+					coverage: [],
 				},
 			},
 		});
@@ -391,6 +392,7 @@ describe("saveArticleFromUrl", () => {
 						wordCount: 0,
 						content: "",
 					},
+					coverage: [],
 				},
 			},
 		});

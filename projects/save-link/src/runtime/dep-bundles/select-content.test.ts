@@ -1,3 +1,4 @@
+import { ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { S3Client } from "@aws-sdk/client-s3";
 import { noopLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
@@ -6,6 +7,7 @@ import { initSelectContentDepBundle } from "./select-content";
 describe("initSelectContentDepBundle", () => {
 	it("returns a bundle with readTierSource, listAvailableTierSources, selectMostCompleteContent, writeCanonicalContent, and recordCrawlVersion fields", () => {
 		const bundle = initSelectContentDepBundle({
+			coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 			s3Client: new S3Client({ region: "us-east-1" }),
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
 			contentBucketName: "content-bucket",

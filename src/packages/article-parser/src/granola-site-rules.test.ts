@@ -77,6 +77,7 @@ describe("granolaSiteRules.transform", () => {
 describe("granolaSiteRules end-to-end through parseHtml", () => {
 	const parser = (siteRules: Parameters<typeof initReadabilityParser>[0]["siteRules"]) =>
 		initReadabilityParser({
+			coverageRules: { inspect: () => [] },
 			crawlArticle: async () => ({ status: "fetched" as const, html: "", bodyHash: "a".repeat(64) }),
 			siteRules,
 			readabilityAdditions,

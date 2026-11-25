@@ -47,6 +47,7 @@ async function buildHarness() {
 	};
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,

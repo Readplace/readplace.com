@@ -25,7 +25,7 @@ const ENCODED = encodeURIComponent(ARTICLE_URL);
 
 function buildParseResult(): ParseArticleResult {
 	return {
-		ok: true,
+		ok: true, coverage: [],
 		article: {
 			title: "Hello World",
 			siteName: "example.com",

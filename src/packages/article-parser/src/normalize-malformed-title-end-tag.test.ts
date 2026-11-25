@@ -18,6 +18,7 @@ function source(endTag: string): string {
 }
 
 const { parseHtml } = initReadabilityParser({
+	coverageRules: { inspect: () => [] },
 	crawlArticle: async () => { throw new Error("Already fetched"); },
 	siteRules: [],
 	readabilityAdditions,
