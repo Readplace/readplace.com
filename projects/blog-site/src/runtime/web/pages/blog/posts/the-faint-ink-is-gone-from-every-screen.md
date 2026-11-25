@@ -1,12 +1,12 @@
 ---
 title: "The Faint Ink Is Gone From Every Screen"
-description: "The wordmark's amber tail read at 3.62:1 on white, Android's error words at 3.86:1, and an empty field's edge at 1.17:1. A contrast pass across the web app, the iPhone app and the Android app moved each pair of ink and background over its WCAG floor, in colour and in greyscale, and 292 re-recorded screenshots hold the new values in place."
+description: "The wordmark's amber tail read at 3.62:1 on white, Android's error words at 3.86:1, and an empty field's edge at 1.17:1. A contrast pass across the web app, the iPhone app and the Android app moved each pair of ink and background over its WCAG floor, in colour and in greyscale, and 302 re-recorded screenshots hold the new values in place."
 excerpt: "The logo's own amber tail measured 3.62:1 on white, under the floor article text is held to."
-tldr: "Words and marks across the web app, the iPhone app and the Android app sat under their contrast floors: a login error at 4.17:1, menu words at 3.86:1, an empty field's only edge at 1.17:1, and the amber tail of the logo itself at 3.62:1. Readplace moved each one onto darker ink, measured in colour and again in greyscale for e-ink panels and colour-blind readers, in light and dark themes, and each platform's test suite now re-checks the numbers so a later change can't walk them back."
+tldr: "Words and marks across the web app, the iPhone app and the Android app sat under their contrast floors: a login error at 4.17:1, menu words at 3.86:1, an empty field's only edge at 1.17:1, and the amber tail of the logo itself at 3.62:1. Readplace moved each one onto darker ink, measured in colour and again in greyscale for e-ink panels, in light and dark themes, and each platform's test suite now re-checks the numbers so a later change can't walk them back."
 slug: "the-faint-ink-is-gone-from-every-screen"
 date: "2026-11-24"
 author: "Fayner Brack"
-keywords: "high contrast reading app, readable in sunlight, wcag aa reading app, colour blind friendly reader, dark mode contrast, e-ink contrast, accessible read it later app, faint text fix, contrast ratio 4.5:1, low vision reading app"
+keywords: "high contrast reading app, readable in sunlight, wcag aa reading app, dark mode contrast, e-ink contrast, accessible read it later app, faint text fix, contrast ratio 4.5:1, low vision reading app"
 ---
 
 On white, the amber tail at the end of the Readplace wordmark measured 3.62:1.
@@ -25,9 +25,9 @@ The "large text" line is out of the brand guidelines, and the pass that caught t
 
 Each pair of ink and background was read 4 ways: light theme, dark theme, and each of those again with the hue removed.
 
-The grey reading exists for screens that drop colour and for eyes that do.
+The grey reading exists for screens that drop colour.
 
-An e-ink panel shows 16 greys and nothing else, and a reader whose eyes don't separate red from green sits closer to that reading than to the colour one. Plain sRGB greyscale also disagrees with WCAG's luminance maths by up to 0.7:1, so a pair that scrapes past on a laptop can sink on a Kobo.
+An e-ink panel shows 16 greys and nothing else, and a pair that keeps its contrast without hue doesn't depend on telling red from green either. Plain sRGB greyscale also disagrees with WCAG's luminance maths by up to 0.7:1, so a pair that scrapes past on a laptop can sink on a Kobo.
 
 ## The phones held the faintest words
 
@@ -49,13 +49,13 @@ An empty form field on the web drew its one boundary, a 1px edge, at 1.17:1 agai
 
 The edge took a token of its own and now reads 3.55:1 on white, over the 3:1 floor for marks that aren't words. 2 more web stragglers went with it: the "Saved offline" badge's green, which sat at 4.35:1 in light, and one amber price tag in the home page's plan table, which moved onto the darker amber ink.
 
-## 292 screenshots were re-recorded
+## 302 screenshots were re-recorded
 
 None of it stays put on good intentions.
 
 The web's contrast sweep measures each listed pair in both themes and in greyscale, and the home page's bands joined it. On Android, banner fill and ink go through a named greyscale check in both themes. The iPhone app re-recorded the 5 snapshot baselines the darker values moved.
 
-The web change alone re-recorded 279 screenshots, with 8 more in the Chrome extension. A colour that falls under its floor now fails the build instead of waiting for the next audit.
+The web change alone re-recorded 297 screenshots: 279 in the web app, 8 in each of the Chrome and Firefox extensions, and 2 in the inbox. A colour that falls under its floor now fails the build instead of waiting for the next audit.
 
 ## Daylight is the test
 
