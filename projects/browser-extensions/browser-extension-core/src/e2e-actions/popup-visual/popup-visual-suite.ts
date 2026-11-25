@@ -470,6 +470,32 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 	}
 
 	test.describe("popup list state", () => {
+		test("keeps the article title and source readable alongside both Hand Picked actions", async ({ page }) => {
+			await open(page, {
+				url: popupListUrl(input.packagedPopup),
+				stub: popupRuntimeStub({ rowActions: [
+					{ name: "update-status", title: "Mark as read" },
+					{ name: "remove-from-hand-picked", title: "Remove from Hand Picked" },
+				] }),
+				wait: LIST_VIEW,
+			});
+			await waitForBrandFonts(page, ["Inter"]);
+			const row = page.locator(".list-view__row").filter({ hasText: "Reflections on Trusting Trust" });
+			for (const width of [320, 350, 400]) {
+				await page.setViewportSize({ width, height: VIEWPORT.height });
+				const text = row.locator(".list-view__item-title, .list-view__fact-text");
+				expect(await text.evaluateAll((labels) => labels.map((label) => label.scrollWidth <= label.clientWidth))).toEqual([true, true, true]);
+				const item = await row.locator(".list-view__item").boundingBox();
+				assert.ok(item);
+				for (const label of ["Mark as read", "Remove from Hand Picked"]) {
+					const button = await row.getByRole("button", { name: label, exact: true }).boundingBox();
+					assert.ok(button);
+					expect(button.y).toBeGreaterThanOrEqual(item.y + item.height);
+				}
+				await noOverflow(page);
+			}
+		});
+
 		test("renders the saved list, its widest pager and the header controls", async ({ page }) => {
 			await openList(page);
 			await captureCheckpoint(page, {

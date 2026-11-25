@@ -42,7 +42,7 @@ const SORT = [
 	{ label: "Oldest first", rel: "sort", order: "asc" },
 ];
 
-function items(rowCount: number): unknown[] {
+function items(rowCount: number, actions: { name: string; title: string }[] = [MARK_AS_READ]): unknown[] {
 	return Array.from({ length: rowCount }, (_row, index) => {
 		const row = ROWS[index % ROWS.length];
 		return {
@@ -50,7 +50,7 @@ function items(rowCount: number): unknown[] {
 			url: `https://${row.host}/article-${index}`,
 			title: row.title,
 			savedAt: new Date(FIXED_NOW - row.agoMs).toISOString(),
-			actions: [MARK_AS_READ],
+			actions,
 			links: [{ rel: "read", title: "Read", href: `https://${row.host}/article-${index}` }],
 			needsBrowserCapture: false,
 		};
@@ -166,6 +166,7 @@ export function popupRuntimeStub(options?: {
 	listReply?: ListReply;
 	pendingBulkSave?: boolean;
 	rowCount?: number;
+	rowActions?: { name: string; title: string }[];
 	saveAllStart?: SaveAllStart;
 	saveAllFollows?: SaveAllFollow[];
 	seededRuns?: SeededRun[];
@@ -176,7 +177,7 @@ export function popupRuntimeStub(options?: {
 	const rowCount = options?.rowCount ?? DEFAULT_ROW_COUNT;
 	const itemsReply = listReplyScript(
 		options?.listReply ?? "items",
-		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, sort: SORT } }),
+		JSON.stringify({ ok: true, value: { items: items(rowCount, options?.rowActions), pages: pages(), total: TOTAL, sort: SORT } }),
 	);
 	const pendingBulkSave = options?.pendingBulkSave === true;
 	const saveAllStart = JSON.stringify(options?.saveAllStart ?? "acknowledge");
