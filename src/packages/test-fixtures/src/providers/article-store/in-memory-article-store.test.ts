@@ -43,6 +43,33 @@ function makeArticleParams(
 }
 
 describe("initInMemoryArticleStore", () => {
+	it("counts shared Smart Readlist articles once and caps progress at ten", async () => {
+		const store = initInMemoryArticleStore();
+		const count = () => store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK, LATER] });
+		for (const slug of [WORK, LATER]) {
+			await store.createReadlistDefinition({ userId: USER_A, slug, label: slug, createdAt: new Date() });
+			await store.setReadlistDefinitionPurpose({ userId: USER_A, slug, purpose: "Things to study" });
+			for (let i = 0; i < 5; i++) {
+				const index = i + (slug === WORK ? 0 : 4);
+				await store.saveReadlistArticle({ ...makeArticleParams({ url: URL + index }), readlist: slug });
+			}
+		}
+		expect(await count()).toBe(9);
+		await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: LATER });
+		expect(await count()).toBe(5);
+		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: LATER, purpose: "Review" });
+		await store.setReadlistArticleStatus({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK, status: "read" });
+		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK });
+		expect(await count()).toBe(9);
+		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: LATER });
+		expect(await count()).toBe(8);
+		await store.saveReadlistArticle({ ...makeArticleParams({ userId: USER_B }), readlist: WORK });
+		expect(await count()).toBe(8);
+		for (const i of [9, 10, 11]) {
+			await store.saveReadlistArticle({ ...makeArticleParams({ url: URL + i, saveTrigger: "automatic" }), readlist: WORK });
+		}
+		expect(await count()).toBe(10);
+	});
 	describe("canonical aliases and the pinned content source", () => {
 		const NOW = new Date("2026-07-15T10:00:00.000Z");
 
@@ -2803,6 +2830,13 @@ describe("initInMemoryArticleStore readlist filing", () => {
 		expect(await store.findReadlistFiling({ userId: USER_A, readlist: WORK, url: URL })).toEqual(
 			expect.objectContaining({ status: "unread" }),
 		);
+	});
+
+	it("counts an automatic filing already marked read once its purpose is set", async () => {
+		const store = await liveStore();
+		await store.fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt: new Date() } }));
+		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Read at work" });
+		expect(await store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK] })).toBe(1);
 	});
 
 	it("answers readlist-gone without a definition, and not-in-all without an All row", async () => {

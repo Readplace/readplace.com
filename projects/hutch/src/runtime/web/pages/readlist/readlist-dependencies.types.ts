@@ -48,6 +48,7 @@ import type {
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
@@ -126,6 +127,7 @@ import type {
 	RecordGmailStepDismissed,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordOnboardingOutstandingVersion,
@@ -162,6 +164,7 @@ export interface ReadlistDependencies {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
@@ -250,6 +253,7 @@ export interface ReadlistDependencies {
 	/** Stamps the account the first time its save count reaches the Next Read
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;

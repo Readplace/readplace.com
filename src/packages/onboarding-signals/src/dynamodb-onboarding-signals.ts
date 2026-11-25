@@ -18,6 +18,7 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -34,6 +35,7 @@ const OnboardingRow = z.object({
 	androidAppSavedAt: dynamoField(z.string()),
 	/* ISO instant the account's save count first reached the Next Read
 	 * minimum; absent until then. */
+	smartReadlistMinimumReachedAt: dynamoField(z.string()),
 	nextReadMinimumReachedAt: dynamoField(z.string()),
 	firstInboxArticleQueuedAt: dynamoField(z.string()),
 	emailStepMarkedDoneAt: dynamoField(z.string()),
@@ -65,6 +67,7 @@ export function initOnboardingSignals(deps: {
 }): {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
@@ -100,6 +103,17 @@ export function initOnboardingSignals(deps: {
 				"#activated": ATTRIBUTES_BY_PLATFORM[platform].activated,
 				"#saved": ATTRIBUTES_BY_PLATFORM[platform].saved,
 			},
+			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+		});
+	};
+
+	const recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached = async ({
+		userId,
+	}) => {
+		await onboarding.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET smartReadlistMinimumReachedAt = if_not_exists(smartReadlistMinimumReachedAt, :now)",
 			ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 		});
 	};
@@ -188,7 +202,7 @@ export function initOnboardingSignals(deps: {
 	};
 
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {
-		const row = await onboarding.get({ userId });
+		const row = await onboarding.get({ userId }, { consistentRead: true });
 		const reachedAt = row?.nextReadMinimumReachedAt;
 		const queuedAt = row?.firstInboxArticleQueuedAt;
 		const markedDoneAt = row?.emailStepMarkedDoneAt;
@@ -203,6 +217,7 @@ export function initOnboardingSignals(deps: {
 					savedArticle: !!row?.androidAppSavedAt,
 				},
 			},
+			smartReadlistMinimumReachedAt: row?.smartReadlistMinimumReachedAt ? new Date(row.smartReadlistMinimumReachedAt) : undefined,
 			nextReadMinimumReachedAt: reachedAt ? new Date(reachedAt) : undefined,
 			firstInboxArticleQueuedAt: queuedAt ? new Date(queuedAt) : undefined,
 			emailStepMarkedDoneAt: markedDoneAt ? new Date(markedDoneAt) : undefined,
@@ -220,6 +235,7 @@ export function initOnboardingSignals(deps: {
 	return {
 		recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle,
+		recordSmartReadlistMinimumReached,
 		recordNextReadMinimumReached,
 		recordInboxArticleQueued,
 		recordEmailStepMarkedDone,

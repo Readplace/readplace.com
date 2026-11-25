@@ -15,6 +15,7 @@ import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 export { readerReadlists };
 
 export interface ReadlistContext {
+	definitions: Awaited<ReturnType<ListReadlistDefinitions>>;
 	state: ReadlistUrlState;
 	activeReadlist: Readlist;
 	readlists: readonly Readlist[];
@@ -31,6 +32,7 @@ export function readlistToFileInto(context: ReadlistContext): ReadlistSlug | und
 
 export function mainlineReadlistContext(query: Record<string, unknown>): ReadlistContext {
 	return {
+		definitions: [],
 		state: { ...parseReadlistUrl(query), readlist: DEFAULT_READLIST_SLUG },
 		activeReadlist: DEFAULT_READLIST,
 		readlists: MAINLINE_READLISTS,
@@ -73,6 +75,7 @@ export function initResolveReadlistContext(deps: {
 		const requested = withRememberedFilter(parseReadlistUrl(req.query), remembered);
 		const activeReadlist = readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
+			definitions,
 			state: { ...requested, readlist: activeReadlist.slug },
 			activeReadlist,
 			readlists,

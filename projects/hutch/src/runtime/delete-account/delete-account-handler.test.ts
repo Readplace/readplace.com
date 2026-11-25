@@ -463,6 +463,7 @@ async function seedAccount(
 	assert(claim.claimed, "expected the reader-ready slot to seed as claimed");
 
 	await s.onboarding.recordNativeAppSavedArticle({ userId, platform: "ios" });
+	await s.onboarding.recordSmartReadlistMinimumReached({ userId });
 	await s.onboarding.recordNextReadMinimumReached({ userId });
 	await s.onboarding.recordInboxArticleQueued({ userId });
 	await s.onboarding.recordEmailStepMarkedDone({ userId });
@@ -664,6 +665,7 @@ describe("delete-account handler", () => {
 				ios: { installed: false, savedArticle: false },
 				android: { installed: false, savedArticle: false },
 			},
+			smartReadlistMinimumReachedAt: undefined,
 			nextReadMinimumReachedAt: undefined,
 			firstInboxArticleQueuedAt: undefined,
 			emailStepMarkedDoneAt: undefined,
@@ -753,6 +755,7 @@ describe("delete-account handler", () => {
 				ios: { installed: true, savedArticle: true },
 				android: { installed: false, savedArticle: false },
 			},
+			smartReadlistMinimumReachedAt: SEED_NOW,
 			nextReadMinimumReachedAt: SEED_NOW,
 			firstInboxArticleQueuedAt: SEED_NOW,
 			emailStepMarkedDoneAt: SEED_NOW,

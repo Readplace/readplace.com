@@ -201,6 +201,7 @@ import type {
 	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -298,6 +299,7 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
@@ -568,6 +570,7 @@ export interface ArticleStoreBundle {
 	findReadlistRemoval: FindReadlistRemoval;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -779,6 +782,7 @@ export interface WrapperTargetBundle {
 export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;

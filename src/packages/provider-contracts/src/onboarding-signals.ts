@@ -32,6 +32,8 @@ export type RecordNextReadMinimumReached = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+export type RecordSmartReadlistMinimumReached = (params: { userId: UserId }) => Promise<void>;
+
 export type RecordInboxArticleQueued = (params: {
 	userId: UserId;
 }) => Promise<void>;
@@ -76,6 +78,7 @@ export type GetOnboardingSignals = (params: {
 	userId: UserId;
 }) => Promise<{
 	nativeApp: Record<NativeAppPlatform, { installed: boolean; savedArticle: boolean }>;
+	smartReadlistMinimumReachedAt: Date | undefined;
 	nextReadMinimumReachedAt: Date | undefined;
 	firstInboxArticleQueuedAt: Date | undefined;
 	emailStepMarkedDoneAt: Date | undefined;

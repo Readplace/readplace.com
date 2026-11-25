@@ -11,6 +11,7 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -18,6 +19,7 @@ import type {
 export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
@@ -37,6 +39,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		ios: new Set(),
 		android: new Set(),
 	};
+	const smartReadlistMinimumReached = new Map<UserId, Date>();
 	const nextReadMinimumReached = new Map<UserId, Date>();
 	const firstInboxArticleQueued = new Map<UserId, Date>();
 	const emailStepMarkedDone = new Map<UserId, Date>();
@@ -53,6 +56,13 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	const recordNativeAppSavedArticle: RecordNativeAppSavedArticle = async ({ userId, platform }) => {
 		activated[platform].add(userId);
 		saved[platform].add(userId);
+	};
+
+	const recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached = async ({
+		userId,
+	}) => {
+		if (smartReadlistMinimumReached.has(userId)) return;
+		smartReadlistMinimumReached.set(userId, deps.now());
 	};
 
 	const recordNextReadMinimumReached: RecordNextReadMinimumReached = async ({
@@ -113,6 +123,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 				savedArticle: saved.android.has(userId),
 			},
 		},
+		smartReadlistMinimumReachedAt: smartReadlistMinimumReached.get(userId),
 		nextReadMinimumReachedAt: nextReadMinimumReached.get(userId),
 		firstInboxArticleQueuedAt: firstInboxArticleQueued.get(userId),
 		emailStepMarkedDoneAt: emailStepMarkedDone.get(userId),
@@ -127,6 +138,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 		activated.android.delete(userId);
 		saved.ios.delete(userId);
 		saved.android.delete(userId);
+		smartReadlistMinimumReached.delete(userId);
 		nextReadMinimumReached.delete(userId);
 		firstInboxArticleQueued.delete(userId);
 		emailStepMarkedDone.delete(userId);
@@ -140,6 +152,7 @@ export function initInMemoryOnboardingSignals(deps: { now: () => Date }): {
 	return {
 		recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle,
+		recordSmartReadlistMinimumReached,
 		recordNextReadMinimumReached,
 		recordInboxArticleQueued,
 		recordEmailStepMarkedDone,

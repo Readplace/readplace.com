@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { createHash } from "node:crypto";
 import {
 	NEXT_READ_MINIMUM_SAVES,
@@ -10,8 +12,10 @@ import type {
 	OnboardingAction,
 	OnboardingStep,
 } from "./onboarding.types";
-import { READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH } from "../pages/readlist/readlist.url";
+import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 interface StepCopy {
 	title: string;
@@ -193,6 +197,24 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		],
 	},
 	{
+		id: "create-smart-readlist",
+		isApplicable: (ctx) => ctx.smartReadlist !== undefined,
+		isComplete: (ctx) => ctx.smartReadlist?.count === 10,
+		isHidden: (ctx) => ctx.smartReadlist?.count === 10,
+		title: () => t("smartReadlist.title"),
+		description: ({ smartReadlist: smart }) => smart?.configured ? t("smartReadlist.file")
+			: smart?.target ? t("smartReadlist.configure") : t("smartReadlist.start"),
+		chip: (ctx) => ctx.smartReadlist?.count === undefined ? t("smartReadlist.unavailable")
+			: t("smartReadlist.progress", { count: ctx.smartReadlist.count }),
+		partialProgress: (ctx) => (ctx.smartReadlist?.count ?? 0) / 10,
+		actions: ({ smartReadlist: smart }) => {
+			if (!smart?.target) return [{ key: "create-readlist", method: "POST", href: READLIST_CREATE_PATH, label: t("smartReadlist.create"), variant: "primary" }];
+			if (!smart.configured) return [{ key: "set-preferences", method: "GET", href: `${readlistPreferencesPath(smart.target)}?setup=1`, label: t("smartReadlist.preferences"), variant: "primary" }];
+			if (smart.viewingTarget) return [{ key: "open-all", method: "GET", href: READLIST_PATH, label: t("smartReadlist.all"), variant: "primary" }];
+			return [{ key: "open-smart-readlist", method: "GET", href: buildReadlistUrl({ readlist: smart.target }), label: t("smartReadlist.open"), variant: "primary" }];
+		},
+	},
+	{
 		id: "save-enough-for-next-read",
 		isApplicable: (ctx) => ctx.hasInstallableClient && ctx.paidFeatures,
 		title: () => NEXT_READ_TITLE,
@@ -212,8 +234,8 @@ function versionFor(steps: readonly OnboardingStep[]): string {
 }
 
 /** Preserve existing dismissal cookies for accounts that cannot connect Gmail. */
-export const ONBOARDING_VERSION = versionFor(ONBOARDING_STEPS.filter((step) => step.id !== "connect-gmail"));
-export const GMAIL_ONBOARDING_VERSION = versionFor(ONBOARDING_STEPS);
+export const ONBOARDING_VERSION = "fd8f9d8a";
+export const GMAIL_ONBOARDING_VERSION = "0e5d4ccc";
 
 export function applicableOnboardingSteps(ctx: OnboardingContext): readonly OnboardingStep[] {
 	return ONBOARDING_STEPS.filter((step) => step.isApplicable(ctx));

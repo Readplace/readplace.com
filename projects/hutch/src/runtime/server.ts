@@ -115,6 +115,7 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -144,6 +145,7 @@ import type {
 	SaveReadlistArticle,
 	MoveReadlistArticles,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
@@ -525,6 +527,7 @@ export interface AppDependencies {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
@@ -621,6 +624,7 @@ export interface AppDependencies {
 	getOnboardingSignals: GetOnboardingSignals;
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;

@@ -214,6 +214,7 @@ describe("initOnboardingSignals", () => {
 					ios: { installed: false, savedArticle: false },
 					android: { installed: false, savedArticle: false },
 				},
+				smartReadlistMinimumReachedAt: undefined,
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
@@ -236,6 +237,7 @@ describe("initOnboardingSignals", () => {
 					ios: { installed: true, savedArticle: false },
 					android: { installed: false, savedArticle: false },
 				},
+				smartReadlistMinimumReachedAt: undefined,
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
@@ -262,6 +264,7 @@ describe("initOnboardingSignals", () => {
 					ios: { installed: true, savedArticle: true },
 					android: { installed: false, savedArticle: false },
 				},
+				smartReadlistMinimumReachedAt: undefined,
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
@@ -336,6 +339,7 @@ describe("initOnboardingSignals", () => {
 					ios: { installed: false, savedArticle: false },
 					android: { installed: false, savedArticle: false },
 				},
+				smartReadlistMinimumReachedAt: undefined,
 				nextReadMinimumReachedAt: undefined,
 				firstInboxArticleQueuedAt: undefined,
 				emailStepMarkedDoneAt: undefined,
@@ -442,4 +446,18 @@ describe("initOnboardingSignals", () => {
 			expect(del?.input.Key).toEqual({ userId: "user-1" });
 		});
 	});
+});
+
+it("stamps the first confirmed Smart Readlist minimum and reads it consistently on another device", async () => {
+	const { client, commands } = createFakeClient({ row: { userId: USER, smartReadlistMinimumReachedAt: NOW.toISOString() } });
+	const signals = initSignal(client);
+	await Promise.all([signals.recordSmartReadlistMinimumReached({ userId: USER }), signals.recordSmartReadlistMinimumReached({ userId: USER })]);
+	for (const command of commands) {
+		expect(command.input).toMatchObject({
+			Key: { userId: USER },
+			UpdateExpression: "SET smartReadlistMinimumReachedAt = if_not_exists(smartReadlistMinimumReachedAt, :now)",
+		});
+	}
+	expect((await signals.getOnboardingSignals({ userId: USER })).smartReadlistMinimumReachedAt).toEqual(NOW);
+	expect(commands.at(-1)?.input).toMatchObject({ ConsistentRead: true, Key: { userId: USER } });
 });

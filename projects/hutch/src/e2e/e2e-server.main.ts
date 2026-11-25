@@ -765,6 +765,12 @@ server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
 	res.status(201).json({ ok: true })
 })
 
+server.post('/e2e/seed-smart-readlist-milestone', async (req, res) => {
+	const { userId } = z.object({ userId: UserIdSchema }).parse(req.body)
+	await fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId })
+	res.status(201).json({ ok: true })
+})
+
 const SeedInboxAddressesBody = z.object({
 	userId: UserIdSchema,
 	inboxes: z.array(z.object({ name: AliasNameSchema, readlist: ReadlistSlugSchema.optional() })).min(1),

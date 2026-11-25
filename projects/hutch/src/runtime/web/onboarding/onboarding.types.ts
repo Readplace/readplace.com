@@ -1,3 +1,4 @@
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { AdvertisedClientNameInCategory, ClientNameInCategory } from "@packages/supported-clients";
 
 /** A device's installable first-party client, or `other`. These are exactly the
@@ -8,12 +9,18 @@ export type Platform = ClientNameInCategory<"contentCapture"> | "other";
 /** Onboarding for a device that has an installable first-party client (a
  * browser extension, or one of the phone apps): the completion-gated step
  * checklist, with the per-step signals it reads. */
-interface GmailOnboardingContext {
+interface AccountOnboardingContext {
+	smartReadlist?: {
+		count: number | undefined;
+		target?: ReadlistSlug;
+		configured: boolean;
+		viewingTarget: boolean;
+	};
 	/** Present only when Gmail is configured and this unlocked account can connect. */
 	gmail?: { connected: boolean; dismissed: boolean };
 }
 
-export interface InstallableClientOnboarding extends GmailOnboardingContext {
+export interface InstallableClientOnboarding extends AccountOnboardingContext {
 	hasInstallableClient: true;
 	installed: boolean;
 	savedArticle: boolean;
@@ -35,7 +42,7 @@ export interface InstallableClientOnboarding extends GmailOnboardingContext {
 /** Onboarding for a device with no installable first-party client (desktop
  * Safari, iPad, unrecognised UAs): the no-client notice and, when eligible, Gmail.
  * There are no device install/save signals because those tasks do not apply. */
-interface NoInstallableClientOnboarding extends GmailOnboardingContext {
+interface NoInstallableClientOnboarding extends AccountOnboardingContext {
 	hasInstallableClient: false;
 }
 
@@ -46,6 +53,10 @@ export type OnboardingContext =
 export type OnboardingActionMethod = "GET" | "POST";
 export type OnboardingActionVariant = "primary" | "primary-full-width" | "text";
 export type OnboardingActionKey =
+	| "create-readlist"
+	| "set-preferences"
+	| "open-smart-readlist"
+	| "open-all"
 	| "install"
 	| "save-article"
 	| "view-readlist"

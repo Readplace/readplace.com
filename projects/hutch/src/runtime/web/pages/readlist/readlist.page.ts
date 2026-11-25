@@ -162,8 +162,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			requirePaidFeatures: deps.requirePaidFeatures,
 			findNonEmptyReadlists,
 			now: deps.now,
-			resolveOnboarding: async (req, userId, access) =>
-				(await resolveOnboardingSignals(req, userId, access)).onboarding,
+			resolveOnboarding: async (req, userId, access, definitions, active) =>
+				(await resolveOnboardingSignals(req, userId, access, definitions, active)).onboarding,
 			loadGmailSenders: readlistGmail?.load,
 		}),
 	);

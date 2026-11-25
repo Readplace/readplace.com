@@ -4284,3 +4284,59 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		expect(userRowUpdates(commands)).toHaveLength(1);
 	});
 });
+
+describe("countSmartReadlistArticles", () => {
+	const work = ReadlistSlugSchema.parse("work");
+	const later = ReadlistSlugSchema.parse("later");
+	const urls = Array.from({ length: 12 }, (_, i) => ({ url: `example.com/${i}` }));
+	const cursor = { userId: "abc123#queue/work", url: "cursor" };
+	it("follows filtered and duplicate pages, projecting stored keys from live memberships", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { readlist: [
+			{ Items: [], LastEvaluatedKey: cursor }, { Items: urls.slice(0, 5) },
+			{ Items: urls.slice(0, 5), LastEvaluatedKey: cursor }, { Items: urls.slice(5, 9) },
+		] } });
+		expect(await initStore(client).countSmartReadlistArticles({ userId: USER, readlists: [work, later] })).toBe(9);
+		expect(commands).toHaveLength(4);
+		for (const [index, { input }] of commands.entries()) {
+			expect(input).toMatchObject({
+				ConsistentRead: true, Limit: 10, ProjectionExpression: "#url",
+				FilterExpression: "attribute_exists(savedAt)", ExclusiveStartKey: index % 2 === 1 ? cursor : undefined,
+				ExpressionAttributeValues: { ":partition": `${USER}#queue/${index < 2 ? work : later}` },
+			});
+			expect(input.IndexName).toBeUndefined();
+		}
+	});
+
+	it.each(["stable", "purpose removed", "membership removed"] as const)(
+		"checks the contributing purposes and ten memberships together when %s", async (scenario) => {
+			let firstPurpose: string | undefined = "Team practices";
+			const { client, commands } = createFakeClient({
+				QueryCommand: { readlist: [
+					{ Items: urls.slice(0, 5) },
+					() => {
+						if (scenario === "purpose removed") firstPurpose = undefined;
+						return { Items: urls.slice(5), LastEvaluatedKey: cursor };
+					},
+				] },
+				TransactGetCommand: { default: () => ({ Responses: [
+					...urls.slice(0, 10).map((_, i) => ({
+						Item: i === 0 && scenario === "membership removed" ? undefined : { savedAt: STORE_NOW.toISOString() },
+					})),
+					{ Item: { queuePurpose: firstPurpose } }, { Item: { queuePurpose: "Later reading" } },
+				] }) },
+			});
+			const count = initStore(client).countSmartReadlistArticles({ userId: USER, readlists: [work, later, ReadlistSlugSchema.parse("unused")] });
+			if (scenario === "stable") expect(await count).toBe(10);
+			else await expect(count).rejects.toThrow("changed during counting");
+			expect(commands.map(({ name }) => name)).toEqual(["QueryCommand", "QueryCommand", "TransactGetCommand"]);
+			expect(commands[2].input).toEqual({ TransactItems: [
+				...urls.slice(0, 10).map(({ url }, i) => ({ Get: {
+					TableName: "user-articles", Key: { userId: `${USER}#queue/${i < 5 ? work : later}`, url }, ProjectionExpression: "savedAt",
+				} })),
+				...[work, later].map((slug) => ({ Get: {
+					TableName: "user-articles", Key: { userId: USER, url: `readplace:queue-def/${slug}` }, ProjectionExpression: "queuePurpose",
+				} })),
+			] });
+		},
+	);
+});
