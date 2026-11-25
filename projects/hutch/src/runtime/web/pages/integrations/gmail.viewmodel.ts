@@ -23,7 +23,7 @@ import {
 import type { UserId } from "@packages/domain/user";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
-import { GMAIL_MODIFY_RECONNECT_MESSAGE, GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
+import { GMAIL_MODIFY_RECONNECT, GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
@@ -571,8 +571,8 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		}),
 		modifyReconnect: gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
-			message: GMAIL_MODIFY_RECONNECT_MESSAGE,
-			content: "grant-modify-access", label: "Reconnect Gmail", variant: commitVariant, fields: [{ name: "intent", value: "modify" }],
+			message: GMAIL_MODIFY_RECONNECT.message,
+			content: "grant-modify-access", label: GMAIL_MODIFY_RECONNECT.label, variant: commitVariant, fields: [{ name: "intent", value: "modify" }],
 			lock: { offer: input.offer, controlClass: `btn btn--${commitVariant}` },
 		}),
 		upgrade: gmailConnectionPrompt({

@@ -22,7 +22,7 @@ import type { UserId } from "@packages/domain/user";
 import { withInternalTracking } from "@packages/web-shell";
 import type { GmailConnectDisclaimerAction } from "../integrations/gmail-connect-disclaimer.component";
 import { GMAIL_CONNECT_PATH } from "../integrations/gmail-connect.url";
-import { GMAIL_MODIFY_RECONNECT_MESSAGE } from "../integrations/gmail-connection-access";
+import { GMAIL_MODIFY_RECONNECT } from "../integrations/gmail-connection-access";
 import { buildLockableGmailConnectionPrompt, type GmailConnectionPrompt } from "../integrations/gmail-connection-prompt";
 import type { FormField } from "../integrations/gmail-form-fields";
 import {
@@ -451,8 +451,8 @@ export function toReadlistGmailSenders(input: ReadlistGmailSendersInput): Readli
 		&& (state === "picker" || state === "awaiting" || state === "filter-failed");
 	const prompt = showModifyReconnect ? buildLockableGmailConnectionPrompt({
 		canConnectGmail: true,
-		message: GMAIL_MODIFY_RECONNECT_MESSAGE,
-		content: "grant-modify-access", label: "Reconnect Gmail", variant: "primary", fields: [{ name: "intent", value: "modify" }], track, lock: promptLock(input),
+		message: GMAIL_MODIFY_RECONNECT.message,
+		content: "grant-modify-access", label: GMAIL_MODIFY_RECONNECT.label, variant: "primary", fields: [{ name: "intent", value: "modify" }], track, lock: promptLock(input),
 	}) : view.prompt;
 	const picker = readlistGmailPickerVisible(state) ? toPicker(input) : undefined;
 	const selection: ReadlistGmailSelection = picker === undefined
