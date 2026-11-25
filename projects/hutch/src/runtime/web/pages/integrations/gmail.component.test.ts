@@ -45,7 +45,6 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		discovery: { state: "complete", mode: "history", checkedMessageCount: 1 },
 		detection: { status: "available", recognized: new Map() },
 		imports: [],
-		backfills: [],
 		state: {},
 		command: { pick: undefined, select: undefined, dismiss: undefined },
 		listed: undefined,
@@ -339,54 +338,7 @@ describe("GMail Newsletters popup markup", () => {
 		assert.equal(empty.querySelector("[data-test-gmail-sender-picker]")?.hasAttribute("open"), true);
 	});
 
-	it("submits each newsletter's mark checkbox through its own boosted form, tying it to its hint by newsletter", () => {
-		const marked = { ...TLDR_MAPPING, markImportedAt: "2026-08-28T00:00:00.000Z" };
-		const doc = pageDocument(input({ modifyScopeGranted: false, senders: [marked, { ...marked, senderEmail: BREW }] }));
-		for (const sender of [TLDR, BREW]) {
-			const mappingRow = doc.querySelector(`[data-test-gmail-mapping-row="${sender}"]`);
-			assert(mappingRow);
-			const cardBox = mappingRow.querySelector('[data-test-gmail-mark-checkbox="card"]');
-			const hint = mappingRow.querySelector("[data-test-gmail-mark-hint]");
-			assert(cardBox && hint);
-			assert.deepEqual([cardBox.id, cardBox.getAttribute("aria-describedby"), hint.id], [
-				`gmail-mark-${sender}`,
-				`gmail-mark-hint-${sender}`,
-				`gmail-mark-hint-${sender}`,
-			]);
-		}
-		const boxes = Array.from(doc.querySelectorAll('[data-test-gmail-mark-checkbox="card"]'));
-		const [box] = boxes;
-		assert(box);
-		assert.deepEqual(["class", "type", "name", "value", "onclick"].map((name) => box.getAttribute(name)), ["form-choice", "checkbox", "option", "on", "this.form.requestSubmit()"]);
-		assert.deepEqual([box.hasAttribute("checked"), box.hasAttribute("disabled")], [true, false]);
-		const form = box.closest("form");
-		assert(form);
-		assert.deepEqual(["method", "hx-boost", "hx-target", "hx-select", "hx-swap", "hx-post", "hx-trigger"].map((name) => form.getAttribute(name)), ["POST", "true", "main", "main", "outerHTML show:none", null, null]);
-		assert.equal(form.querySelector("noscript")?.innerHTML.includes("data-test-gmail-mark-submit"), true);
-	});
 
-	it("sends an unticked dialog box as mark=0 and disables it for a reader without access", () => {
-		const fallbackThenBox = (doc: Document) =>
-			Array.from(doc.querySelectorAll('#gmail-readlist-selection input[name="mark"]'), (field) => [field.getAttribute("type"), field.getAttribute("value"), field.getAttribute("data-test-gmail-mark-checkbox"), field.hasAttribute("checked"), field.hasAttribute("disabled")]);
-		assert.deepEqual(fallbackThenBox(pageDocument(input({ state: { add: "1", sender: [TLDR] } }))), [
-			["hidden", "0", null, false, false],
-			["checkbox", "1", "dialog", true, false],
-		]);
-		assert.deepEqual(fallbackThenBox(pageDocument(input({ modifyScopeGranted: false, canConnectGmail: false, state: { add: "1", sender: [TLDR] } }))), [
-			["hidden", "0", null, false, false],
-			["checkbox", "1", "dialog", false, true],
-		]);
-	});
-
-	it("includes the dialog's mark answer in the sender search alongside the ticks", () => {
-		const search = pageDocument(input({ state: { add: "1" } })).querySelector("#gmail-sender-search-form");
-		assert.equal(search?.getAttribute("hx-include"), "#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added'], #gmail-readlist-selection input[name='mark']");
-	});
-
-	it("keeps a popup refresh free of autofocus", () => {
-		const doc = pageDocument(input({ senders: [TLDR_MAPPING], state: { edit: "1", sender: [TLDR] }, focusOnOpen: false }));
-		assert.deepEqual([doc.querySelectorAll("#gmail-dialog").length, doc.querySelectorAll("[autofocus]").length], [1, 0]);
-	});
 });
 
 describe("GMail Newsletters Load senders", () => {

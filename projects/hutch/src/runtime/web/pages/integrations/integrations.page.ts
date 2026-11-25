@@ -48,7 +48,6 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			appOrigin: deps.appOrigin,
 			secureCookies: deps.secureCookies,
 			now: deps.now,
-			getEffectiveAccess: deps.getEffectiveAccess,
 		});
 		const context: GmailConnectContext = {
 			logError: deps.logError,
@@ -67,7 +66,6 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			requirePaidFeatures: deps.requirePaidFeatures,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			now: deps.now,
-			consent,
 		});
 	}
 

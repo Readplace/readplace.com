@@ -90,7 +90,7 @@ function mainHtml(
 		appOrigin: APP_ORIGIN,
 		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash", scope: undefined } } : {}),
 	}).html;
-	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
+	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal: undefined })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
 
 interface Harness {
@@ -118,6 +118,11 @@ interface Harness {
 	order: string[];
 	initAgain(): void;
 	listenerCounts(): { viewport: number; scroll: number };
+	paintSupported: boolean;
+	pendingPaint: Range[];
+	pendingCleared: number;
+	fetched: string[];
+	readerAnswer: () => Promise<{ ok: boolean; html: string }>;
 }
 
 function harness(bodyHtml: string = mainHtml()): Harness {
@@ -168,6 +173,11 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 			for (const entry of scrollListeners) if (entry.passive) entry.listener();
 		},
 		initAgain: () => initHighlightToolbar(deps),
+		paintSupported: true,
+		pendingPaint: [],
+		pendingCleared: 0,
+		fetched: [],
+		readerAnswer: async () => ({ ok: false, html: "" }),
 		listenerCounts: () => ({ viewport: viewportListeners.length, scroll: scrollListeners.length }),
 	};
 	const deps: Parameters<typeof initHighlightToolbar>[0] = {
@@ -220,6 +230,18 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isAutoPopoverOpen: () => false,
 		paintDraft: () => h.order.push("paint"),
 		clearDraft: () => h.order.push("clear"),
+		paintPending: (range) => {
+			if (h.paintSupported) h.pendingPaint.push(range);
+			return h.paintSupported;
+		},
+		clearPending: () => {
+			h.pendingCleared += 1;
+		},
+		fetchReader: (url) => {
+			h.fetched.push(url);
+			return h.readerAnswer();
+		},
+		parseHtml: (html) => new JSDOM(html).window.document,
 		chromeBottom: () => 0,
 	};
 	initHighlightToolbar(deps);
@@ -507,7 +529,7 @@ describe("initHighlightToolbar", () => {
 	});
 
 	it("hides the bar when the page holds no reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}<p id="outside">Outside</p></main>`);
+		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal: undefined })}<p id="outside">Outside</p></main>`);
 		const outside = h.doc.getElementById("outside");
 		assert(outside);
 
@@ -706,7 +728,7 @@ describe("initHighlightToolbar", () => {
 	});
 
 	it("ignores a selection event on a page without reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}<p id="outside">Outside</p></main>`);
+		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal: undefined })}<p id="outside">Outside</p></main>`);
 		const outside = h.doc.getElementById("outside");
 		assert(outside);
 		selectWords(h, { from: "Outside", root: outside });
@@ -1248,3 +1270,40 @@ describe("initHighlightToolbar", () => {
 		});
 	});
 });
+
+describe("a highlight saving in the background", () => {
+	it("paints the pressed passage and sends no second write while it saves", () => {
+		const h = harness();
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		click(h, buttonOf(h));
+		assert.deepEqual(h.pendingPaint.map((range) => range.toString()), ["beta"]);
+		assert.equal(h.submitted.length, 1);
+		const form = h.submitted[0];
+		h.window.document.dispatchEvent(new h.window.CustomEvent("htmx:beforeRequest", { detail: { elt: form, xhr: {} } }));
+
+		selectWords(h, { from: "zeta" });
+		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail: { origin: "mouse" } }));
+
+		assert.equal(h.submitted.length, 1);
+		assert.equal(formFields(form).exact, "beta");
+	});
+
+	it("resends a recoverable refusal through the current create form", () => {
+		const h = harness();
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		click(h, buttonOf(h));
+		const xhr = {};
+		h.doc.dispatchEvent(new h.window.CustomEvent("htmx:beforeRequest", { detail: { elt: h.submitted[0], xhr } }));
+		swapMain(h, mainHtml().replace("data-highlight-status ", 'data-highlight-status data-highlight-refusal="cancelled" '));
+		h.doc.dispatchEvent(new h.window.CustomEvent("htmx:afterSwap", { detail: { xhr } }));
+		const retry = h.doc.querySelector('[data-highlight-status-action="retry"]');
+		assert(retry);
+		click(h, retry);
+
+		assert.equal(h.submitted.length, 2);
+		assert.equal(formFields(h.submitted[1]).exact, "beta");
+	});
+});
+

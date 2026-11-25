@@ -35,7 +35,6 @@ type GmailOAuthHandlerStage =
 	| "record-account-email"
 	| "reconnect"
 	| "import-intent"
-	| "mark-intent"
 	| "done";
 
 type GmailOAuthStage = "received" | GmailOAuthGuardStage | GmailOAuthHandlerStage;
@@ -60,7 +59,7 @@ type GmailOAuthCallbackInspectedFields = WithoutCorrelation<
 
 interface GmailOAuthStatePayload {
 	createdAt: number;
-	intent: { kind: "connect" | "import" | "mark" };
+	intent: { kind: "connect" | "import" | "modify" };
 }
 
 type GmailOAuthStateReading =
@@ -68,7 +67,7 @@ type GmailOAuthStateReading =
 	| { kind: "invalid-signature"; fingerprint: string }
 	| { kind: "malformed-json"; fingerprint: string }
 	| { kind: "schema-rejected"; fingerprint: string }
-	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "mark" };
+	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "modify" };
 
 type ReadGmailOAuthState = (input: { value: unknown; checkedAtMs: number }) => GmailOAuthStateReading;
 

@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_gmail_update" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_gmail_update" name="gmail-update" isExecutable="false">
+    <bpmn:sendTask id="n_MARK" name="MarkGmailEmailImported">
+      <bpmn:incoming>f_20</bpmn:incoming>
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:businessRuleTask id="n_BUS" name="EventBridge subscription">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_18</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:intermediateCatchEvent id="n_QUEUE" name="Gmail message updates queue and Lambda">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+      <bpmn:outgoing>f_19</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="n_MAPPED" name="Sender actively mapped to a destination?">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_SKIP" name="Discard pending update and acknowledge">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_CLAIM" name="Lease pending update by origin, with job and message for explicit imports">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_ACK" name="Acknowledge without polling Gmail">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_GRANT" name="Connected account and modify grant verified?">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:endEvent id="n_DEFER" name="GmailEmailUpdateDeferred, retain pending">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_LOCATE" name="Locate by Gmail ID or verified forwarded Message-ID and sender">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_FAIL" name="GmailEmailUpdateFailed">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="n_STATUS" name="Read current labels from the original">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="n_SETTLE" name="Settle without writing to Gmail">
+      <bpmn:incoming>f_11</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_WRITE" name="Find or create label, then add it and remove UNREAD in one modify call">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_EVENT" name="GmailEmailMarkedImported">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="n_DLQ" name="Shared Gmail import DLQ settles pending failures">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:outgoing>f_21</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sendTask id="n_CONNECT" name="Connect or reconnect Gmail from settings">
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_GOOGLE" name="Google OAuth requests gmail.modify">
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="n_RESUME" name="GmailModifyPermissionGranted">
+      <bpmn:incoming>f_16</bpmn:incoming>
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:task id="n_LIMITED" name="Imports can continue with read access">
+      <bpmn:incoming>f_17</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_PENDING" name="Publish commands for pending updates on this account">
+      <bpmn:incoming>f_19</bpmn:incoming>
+      <bpmn:outgoing>f_20</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_OLD" name="Retired historical marking worker, queue, rules and dedicated permissions">
+      <bpmn:incoming>f_21</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_MARK" targetRef="n_BUS" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_BUS" targetRef="n_QUEUE" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_QUEUE" targetRef="n_MAPPED" />
+    <bpmn:sequenceFlow id="f_3" name="No" sourceRef="n_MAPPED" targetRef="n_SKIP" />
+    <bpmn:sequenceFlow id="f_4" name="Yes" sourceRef="n_MAPPED" targetRef="n_CLAIM" />
+    <bpmn:sequenceFlow id="f_5" name="Already settled" sourceRef="n_CLAIM" targetRef="n_ACK" />
+    <bpmn:sequenceFlow id="f_6" name="Pending" sourceRef="n_CLAIM" targetRef="n_GRANT" />
+    <bpmn:sequenceFlow id="f_7" name="No" sourceRef="n_GRANT" targetRef="n_DEFER" />
+    <bpmn:sequenceFlow id="f_8" name="Yes" sourceRef="n_GRANT" targetRef="n_LOCATE" />
+    <bpmn:sequenceFlow id="f_9" name="Missing or ambiguous" sourceRef="n_LOCATE" targetRef="n_FAIL" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_LOCATE" targetRef="n_STATUS" />
+    <bpmn:sequenceFlow id="f_11" name="Already read" sourceRef="n_STATUS" targetRef="n_SETTLE" />
+    <bpmn:sequenceFlow id="f_12" name="Unread" sourceRef="n_STATUS" targetRef="n_WRITE" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_WRITE" targetRef="n_EVENT" />
+    <bpmn:sequenceFlow id="f_14" name="Repeated failures" sourceRef="n_QUEUE" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_CONNECT" targetRef="n_GOOGLE" />
+    <bpmn:sequenceFlow id="f_16" name="Granted and account matches" sourceRef="n_GOOGLE" targetRef="n_RESUME" />
+    <bpmn:sequenceFlow id="f_17" name="Narrower grant" sourceRef="n_GOOGLE" targetRef="n_LIMITED" />
+    <bpmn:sequenceFlow id="f_18" name="" sourceRef="n_RESUME" targetRef="n_BUS" />
+    <bpmn:sequenceFlow id="f_19" name="Permission grant event" sourceRef="n_QUEUE" targetRef="n_PENDING" />
+    <bpmn:sequenceFlow id="f_20" name="" sourceRef="n_PENDING" targetRef="n_MARK" />
+    <bpmn:sequenceFlow id="f_21" name="Already dead-lettered historical work" sourceRef="n_DLQ" targetRef="n_OLD" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_gmail_update">
+    <bpmndi:BPMNPlane id="Plane_gmail_update" bpmnElement="Process_gmail_update">
+      <bpmndi:BPMNShape id="n_MARK_di" bpmnElement="n_MARK">
+        <dc:Bounds x="371.13" y="30" width="191.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_BUS_di" bpmnElement="n_BUS">
+        <dc:Bounds x="255" y="378" width="186" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QUEUE_di" bpmnElement="n_QUEUE">
+        <dc:Bounds x="328" y="484" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MAPPED_di" bpmnElement="n_MAPPED">
+        <dc:Bounds x="111.54" y="614" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SKIP_di" bpmnElement="n_SKIP">
+        <dc:Bounds x="28" y="806" width="195.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CLAIM_di" bpmnElement="n_CLAIM">
+        <dc:Bounds x="259.75" y="790" width="177.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ACK_di" bpmnElement="n_ACK">
+        <dc:Bounds x="164" y="932" width="161.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GRANT_di" bpmnElement="n_GRANT">
+        <dc:Bounds x="361.25" y="932" width="170.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DEFER_di" bpmnElement="n_DEFER">
+        <dc:Bounds x="222.5" y="1042" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LOCATE_di" bpmnElement="n_LOCATE">
+        <dc:Bounds x="351.1" y="1044" width="175" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FAIL_di" bpmnElement="n_FAIL">
+        <dc:Bounds x="236.28" y="1201.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_STATUS_di" bpmnElement="n_STATUS">
+        <dc:Bounds x="390.1" y="1172" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SETTLE_di" bpmnElement="n_SETTLE">
+        <dc:Bounds x="137" y="1356" width="192.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_WRITE_di" bpmnElement="n_WRITE">
+        <dc:Bounds x="365.25" y="1348" width="193.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_EVENT_di" bpmnElement="n_EVENT">
+        <dc:Bounds x="328" y="1474" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="309.91" y="637" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CONNECT_di" bpmnElement="n_CONNECT">
+        <dc:Bounds x="133.38" y="28" width="201.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GOOGLE_di" bpmnElement="n_GOOGLE">
+        <dc:Bounds x="263.38" y="138" width="169.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RESUME_di" bpmnElement="n_RESUME">
+        <dc:Bounds x="211.13" y="248" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LIMITED_di" bpmnElement="n_LIMITED">
+        <dc:Bounds x="339.84" y="258" width="197.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PENDING_di" bpmnElement="n_PENDING">
+        <dc:Bounds x="436.75" y="639" width="173.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_OLD_di" bpmnElement="n_OLD">
+        <dc:Bounds x="473.25" y="798" width="194.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="466.88" y="78" />
+        <di:waypoint x="466.88" y="228" />
+        <di:waypoint x="348" y="228" />
+        <di:waypoint x="348" y="378" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="348" y="426" />
+        <di:waypoint x="348" y="484" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="348" y="524" />
+        <di:waypoint x="348" y="569" />
+        <di:waypoint x="154.54" y="569" />
+        <di:waypoint x="154.54" y="614" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="154.54" y="700" />
+        <di:waypoint x="154.54" y="753" />
+        <di:waypoint x="125.88" y="753" />
+        <di:waypoint x="125.88" y="806" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="154.54" y="700" />
+        <di:waypoint x="154.54" y="745" />
+        <di:waypoint x="348.5" y="745" />
+        <di:waypoint x="348.5" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="348.5" y="874" />
+        <di:waypoint x="348.5" y="903" />
+        <di:waypoint x="244.63" y="903" />
+        <di:waypoint x="244.63" y="932" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="348.5" y="874" />
+        <di:waypoint x="348.5" y="903" />
+        <di:waypoint x="446.63" y="903" />
+        <di:waypoint x="446.63" y="932" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="446.63" y="984" />
+        <di:waypoint x="446.63" y="1013" />
+        <di:waypoint x="242.5" y="1013" />
+        <di:waypoint x="242.5" y="1042" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="446.63" y="984" />
+        <di:waypoint x="446.63" y="1014" />
+        <di:waypoint x="438.6" y="1014" />
+        <di:waypoint x="438.6" y="1044" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="438.6" y="1112" />
+        <di:waypoint x="438.6" y="1156.88" />
+        <di:waypoint x="256.28" y="1156.88" />
+        <di:waypoint x="256.28" y="1201.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="438.6" y="1112" />
+        <di:waypoint x="438.6" y="1142" />
+        <di:waypoint x="433.1" y="1142" />
+        <di:waypoint x="433.1" y="1172" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="433.1" y="1258" />
+        <di:waypoint x="433.1" y="1307" />
+        <di:waypoint x="233.13" y="1307" />
+        <di:waypoint x="233.13" y="1356" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="433.1" y="1258" />
+        <di:waypoint x="433.1" y="1303" />
+        <di:waypoint x="462.13" y="1303" />
+        <di:waypoint x="462.13" y="1348" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="462.13" y="1416" />
+        <di:waypoint x="462.13" y="1445" />
+        <di:waypoint x="348" y="1445" />
+        <di:waypoint x="348" y="1474" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="348" y="524" />
+        <di:waypoint x="348" y="580.5" />
+        <di:waypoint x="329.92" y="580.5" />
+        <di:waypoint x="329.92" y="637" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="234.25" y="80" />
+        <di:waypoint x="234.25" y="109" />
+        <di:waypoint x="348" y="109" />
+        <di:waypoint x="348" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="348" y="190" />
+        <di:waypoint x="348" y="219" />
+        <di:waypoint x="231.13" y="219" />
+        <di:waypoint x="231.13" y="248" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="348" y="190" />
+        <di:waypoint x="348" y="224" />
+        <di:waypoint x="438.71" y="224" />
+        <di:waypoint x="438.71" y="258" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="231.13" y="288" />
+        <di:waypoint x="231.13" y="333" />
+        <di:waypoint x="348" y="333" />
+        <di:waypoint x="348" y="378" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_19_di" bpmnElement="f_19">
+        <di:waypoint x="348" y="524" />
+        <di:waypoint x="348" y="581.5" />
+        <di:waypoint x="523.38" y="581.5" />
+        <di:waypoint x="523.38" y="639" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_20_di" bpmnElement="f_20">
+        <di:waypoint x="520.28" y="639" />
+        <di:waypoint x="469.07" y="78" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_21_di" bpmnElement="f_21">
+        <di:waypoint x="329.92" y="677" />
+        <di:waypoint x="329.92" y="737.5" />
+        <di:waypoint x="570.63" y="737.5" />
+        <di:waypoint x="570.63" y="798" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

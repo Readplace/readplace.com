@@ -258,12 +258,6 @@ export {
 	type GmailEmailUpdateFailedDetail,
 	GmailModifyPermissionGrantedEvent,
 	type GmailModifyPermissionGrantedDetail,
-	StartGmailMarkBackfillCommand,
-	type StartGmailMarkBackfillDetail,
-	ProcessGmailMarkBackfillPageCommand,
-	type ProcessGmailMarkBackfillPageDetail,
-	GmailMarkBackfillPageProcessedEvent,
-	type GmailMarkBackfillPageProcessedDetail,
 } from "./events";
 
 export {

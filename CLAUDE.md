@@ -84,7 +84,7 @@ The privacy page's "Connected Gmail accounts" section states how long each kind 
 | Data | Rule | Where to find it |
 |---|---|---|
 | Raw copies of imported mail under `gmail-import/` in the raw-email bucket | A 29-day S3 lifecycle rule, published as "within 31 days": S3 expires an object at the first midnight UTC after the rule's age and removes it some time later, so the page states the rule's days plus two | The inbox stack's raw bucket, the rule whose id starts `raw-expiry` |
-| Import and mark-as-read records (`hutch-gmail-history-imports`) | A disconnect deletes the reader's whole partition. Both kinds share it, so pending marks and backfill progress go with the import records on purpose | The disconnect step that runs after the stored credentials are deleted, in the domain function that cancels imports with reason `disconnected` |
+| Import and mark-as-read records (`hutch-gmail-history-imports`) | A disconnect deletes the reader's whole partition. Both kinds share it, so pending marks and any remaining historical marking rows go with the import records on purpose | The disconnect step that runs after the stored credentials are deleted, in the domain function that cancels imports with reason `disconnected` |
 | Forwarding mappings | Kept after a disconnect on purpose, so reconnecting the same mailbox brings them back; deleted with the account | The route test about a mapping kept across disconnect and reconnect |
 | Held mail (`hutch-inbox-gmail-held-mail` rows and their raw `inbound/` objects) | Kept after a disconnect on purpose; deleted with the account | The account-deletion handler's test |
 

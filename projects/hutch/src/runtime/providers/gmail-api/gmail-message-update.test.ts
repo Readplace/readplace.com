@@ -139,18 +139,25 @@ describe("initOpenGmailMailboxForUpdate", () => {
 		assert.deepEqual(await h.open(), { ok: false, reason: "unavailable", status: 200 });
 	});
 
-	it("finds a history message by its Gmail id", async () => {
-		const h = harness({ routes: [on("GET", /\/messages\/18c2f0a1b2c3d4e5$/, () => json({ id: MESSAGE }))] });
+	it("reads current labels for a Gmail message id", async () => {
+		const h = harness({ routes: [on("GET", /\/messages\/18c2f0a1b2c3d4e5$/, () => json({ labelIds: ["INBOX", "UNREAD"] }))] });
 		const mailbox = await opened(h);
 
-		assert.deepEqual(await mailbox.findMessage({ messageId: MESSAGE }), { ok: true, value: { found: true } });
+		assert.deepEqual(await mailbox.findMessage({ messageId: MESSAGE }), { ok: true, value: { found: true, labelIds: ["INBOX", "UNREAD"] } });
 		assert.equal(h.sent.at(-1)?.url.searchParams.get("format"), "minimal");
+		assert.equal(h.sent.at(-1)?.url.searchParams.get("fields"), "labelIds");
 	});
 
 	it("reports a deleted history message as not found", async () => {
 		const mailbox = await opened(harness({ routes: [on("GET", /\/messages\/18c2f0a1b2c3d4e5$/, () => json({}, 404))] }));
 
 		assert.deepEqual(await mailbox.findMessage({ messageId: MESSAGE }), { ok: true, value: { found: false } });
+	});
+
+	it("reports a refused label read without treating it as a read message", async () => {
+		const mailbox = await opened(harness({ routes: [on("GET", /\/messages\/18c2f0a1b2c3d4e5$/, () => json({ error: { message: "Forbidden" } }, 403))] }));
+
+		assert.deepEqual(await mailbox.findMessage({ messageId: MESSAGE }), { ok: false, reason: "rejected", status: 403, message: "Forbidden" });
 	});
 
 	it("searches by RFC Message-ID and sender, then reads each candidate's identifying headers", async () => {
@@ -254,7 +261,7 @@ describe("initOpenGmailMailboxForUpdate", () => {
 	});
 
 	it("modifies one message's labels in a single request", async () => {
-		const h = harness({ routes: [on("POST", /\/messages\/18c2f0a1b2c3d4e5\/modify$/, () => json({ id: MESSAGE }))] });
+		const h = harness({ routes: [on("POST", /\/messages\/18c2f0a1b2c3d4e5\/modify$/, () => json({ labelIds: ["INBOX", "UNREAD"] }))] });
 		const mailbox = await opened(h);
 
 		assert.deepEqual(await mailbox.modifyMessage({ messageId: MESSAGE, addLabelIds: ["Label_42"], removeLabelIds: ["UNREAD"] }), { ok: true, value: undefined });
