@@ -48,7 +48,7 @@ describe("GlobalNav component", () => {
 			assert(trigger, "the lock's trigger must render");
 			expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
 			expect(trigger.classList.contains("nav__link")).toBe(true);
-			expect(trigger.querySelector(".needs-upgrade__label")?.textContent).toBe("Inbox");
+			expect(trigger.querySelector(".needs-upgrade__label")?.textContent).toBe("Newsletters");
 		});
 
 		it("carries the click surface on the lock's fallback link", () => {
@@ -221,7 +221,7 @@ describe("GlobalNav component", () => {
 		const drawn = [
 			["queue", iconSvg("book", { variant: "solid" })],
 			["install", iconSvg("download")],
-			["inbox", iconSvg("inbox")],
+			["inbox", iconSvg("news")],
 		] as const;
 		for (const [key, svg] of drawn) {
 			expect(shapesOf(doc.querySelector(`[data-test-nav-item="${key}"] .nav__icon svg`))).toEqual(
@@ -392,7 +392,7 @@ describe("GlobalNav component", () => {
 			const drawn = [
 				["queue", iconSvg("book")],
 				["install", iconSvg("download")],
-				["inbox", iconSvg("inbox", { variant: "solid" })],
+				["inbox", iconSvg("news", { variant: "solid" })],
 				["integrations", iconSvg("plug")],
 			] as const;
 			for (const [key, svg] of drawn) {

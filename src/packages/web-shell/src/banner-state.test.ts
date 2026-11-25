@@ -134,7 +134,7 @@ describe("buildNavGroups", () => {
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
-		expect(inbox.iconName).toBe("inbox");
+		expect(inbox.iconName).toBe("news");
 		expect(inbox.lock).toBeUndefined();
 	});
 
