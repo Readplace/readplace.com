@@ -63,6 +63,17 @@ export const SEARCH_FIELDS = [
 
 export type SearchFieldName = (typeof SEARCH_FIELDS)[number]["name"];
 
+function setHomeAction(input: { target: HomeReadlistPreference; label: string; returnTo: string }) {
+	const homePath = new URL(setHomeReadlistPath(input.target), "https://readlist.invalid");
+	homePath.searchParams.set("returnTo", input.returnTo);
+	return {
+		name: "set-home-readlist",
+		title: t("homeReadlist.setAction", { label: input.label }),
+		href: homePath.pathname + homePath.search,
+		method: "POST",
+	};
+}
+
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
@@ -77,8 +88,7 @@ export function toArticleCollectionEntity(
 		showSaveInProgressNotice?: boolean;
 		appearance?: AppearancePreference;
 		homeHref?: string;
-		setHome?: HomeReadlistPreference;
-		homeLabel?: string;
+		setHome?: { target: HomeReadlistPreference; label: string };
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
@@ -172,9 +182,7 @@ export function toArticleCollectionEntity(
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
-	const setHome = options.setHome;
-	const homePath = setHome && new URL(setHomeReadlistPath(setHome), "https://readlist.invalid");
-	if (homePath) homePath.searchParams.set("returnTo", `/queue${buildQueryString(queryParams)}`);
+	const setHomeActions = options.setHome ? [setHomeAction({ ...options.setHome, returnTo: `/queue${buildQueryString(queryParams)}` })] : [];
 	const namedReadlist = queryParams.readlist === DEFAULT_READLIST_SLUG ? undefined : queryParams.readlist;
 	return {
 		class: ["collection", "articles"],
@@ -192,12 +200,7 @@ export function toArticleCollectionEntity(
 		),
 		links,
 		actions: [
-			...(homePath ? [{
-				name: "set-home-readlist",
-				title: `Set ${options.homeLabel} as home`,
-				href: homePath.pathname + homePath.search,
-				method: "POST",
-			}] : []),
+			...setHomeActions,
 			{
 				name: "save-article",
 				title: "Save a link",

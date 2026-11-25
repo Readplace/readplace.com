@@ -5,7 +5,7 @@
     {{#if homeAction}}
     <form method="POST" action="{{homeAction}}" hx-boost="false">
       <input type="hidden" name="returnTo" value="{{returnTo}}">
-      <button class="menu__item" type="submit" data-test-action="readlist-set-home">{{icon "book"}}<span>Set as home readlist</span></button>
+      <button class="menu__item" type="submit" data-test-action="readlist-set-home">{{icon "book"}}<span>{{t "readlistNav.home.set"}}</span></button>
     </form>
     {{/if}}
     {{#if isDeletable}}

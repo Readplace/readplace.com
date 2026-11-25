@@ -1,10 +1,14 @@
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import type { ReadlistContext } from "./readlist-context";
 import type { Readlist } from "./readlist.nav";
 import { READLIST_ERROR_LIMIT } from "./readlist.error";
 import { HOME_READLIST_SAVED } from "./readlist-home";
 import { READLIST_PATH, READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export interface ReadlistRailViewModel {
 	readlists: readonly Readlist[];
@@ -36,7 +40,7 @@ export function buildReadlistRail(input: {
 	}
 	const label = saved === home?.slug ? input.context.readlists.find(({ slug }) => slug === saved)?.label : undefined;
 	return {
-		home: home && { ...home, returnTo: landing.pathname + landing.search, status: label && `${label} is now your home readlist.` },
+		home: home && { ...home, returnTo: landing.pathname + landing.search, status: label && t("readlistNav.home.saved", { label }) },
 		readlists: input.context.readlists,
 		activeReadlist: input.context.activeReadlist,
 		newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(input.context.state)}`,

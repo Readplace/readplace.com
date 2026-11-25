@@ -159,6 +159,7 @@ export function initReadlistListingRoutes(deps: Pick<
 					});
 
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
+			const setHomeTarget = homeSupported ? context.home?.targets.get(urlState.readlist) : undefined;
 			setSirenCollectionCaching(req, res);
 			if (req.query[HOME_READLIST_SAVED] !== undefined) res.set("Cache-Control", "private, no-cache");
 			res.type(SIREN_MEDIA_TYPE).json(
@@ -170,8 +171,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						readlists: context.readlists,
 						pinnedReadlists: context.pinnedReadlists,
 						homeHref: readlistHref({ readlist: homeSupported ? context.home?.slug ?? DEFAULT_READLIST_SLUG : DEFAULT_READLIST_SLUG, readlistKey }),
-						setHome: homeSupported ? context.home?.targets.get(urlState.readlist) : undefined,
-						homeLabel: context.activeReadlist.label,
+						setHome: setHomeTarget && { target: setHomeTarget, label: context.activeReadlist.label },
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						surfacePlatform: nativeSurfaceOf(req),
