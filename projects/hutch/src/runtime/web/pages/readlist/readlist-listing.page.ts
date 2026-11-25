@@ -74,7 +74,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"now" | "recordNativeAppAnyActivity" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
+		"now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -129,10 +129,14 @@ export function initReadlistListingRoutes(deps: Pick<
 			const filtered = filterUrl
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
 				: result;
-			const [loadedCrawlByUrl, loadedSummaryByUrl] = await Promise.all([
+			const [loadedCrawlByUrl, loadedSummaryByUrl, readerProvenances] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, filtered.articles, deps.logError),
 				loadSummaries({ findGeneratedSummaries: deps.findGeneratedSummaries, articles: filtered.articles, viewer: viewerFor(userId), generatedContent: generatedContentOf(req), logError: deps.logError }),
+				deps.resolveReaderProvenances(filtered.articles.map((article) => article.provenance)),
 			]);
+			const readerProvenanceByUrl = new Map(
+				filtered.articles.map((article, index) => [article.url, readerProvenances[index]] as const),
+			);
 			const { crawlByUrl, summaryByUrl } = filterUrl
 				? { crawlByUrl: loadedCrawlByUrl, summaryByUrl: loadedSummaryByUrl }
 				: await resolveListedOnView(req, {
@@ -152,6 +156,7 @@ export function initReadlistListingRoutes(deps: Pick<
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						pinnedReadlists: context.pinnedReadlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
 						surfacePlatform: nativeSurfaceOf(req),
@@ -160,6 +165,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						crawlByUrl,
 						enclosureByUrl: ownedEnclosuresByUrl({ viewer: viewerFor(userId), articles: filtered.articles }),
 						summaryByUrl,
+						readerProvenanceByUrl,
 						totalLabel: readlistTotalLabel,
 						sort: { options: READLIST_SORT_OPTIONS, current: order },
 					},

@@ -26,7 +26,7 @@ import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAG
 import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";
 import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-rename.component";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
-import { UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
+import { PIN_LIMIT_REFUSAL, UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
 import {
 	readlistQueryKeyOf,
 } from "../../onboarding/native-client";
@@ -223,6 +223,23 @@ export function initReadlistQueueRoutes(
 
 	const readlistGone = buildReadlistUrl({}, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]);
 
+	const refuseUnknownReadlist = (req: Request, res: Response): void => {
+		if (wantsSiren(req)) {
+			refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+			return;
+		}
+		res.redirect(303, readlistGone);
+	};
+
+	const landAfterPinToggle = (req: Request, res: Response, landing: { toggled: ReadlistSlug; viewed: ReadlistSlug }): void => {
+		res.redirect(
+			303,
+			wantsSiren(req)
+				? readlistHref({ readlist: landing.toggled, readlistKey: readlistQueryKeyOf(req) })
+				: buildReadlistUrl({ readlist: landing.viewed }),
+		);
+	};
+
 	router.post(
 		"/queues/:slug/pin",
 		requireNotLocked,
@@ -232,7 +249,7 @@ export function initReadlistQueueRoutes(
 			const context = await resolveReadlistContext(req, userId);
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			if (!requested.success) {
-				res.redirect(303, readlistGone);
+				refuseUnknownReadlist(req, res);
 				return;
 			}
 			const decision = decideReadlistPin({
@@ -241,15 +258,23 @@ export function initReadlistQueueRoutes(
 				pinned: context.pinnedReadlists,
 			});
 			if (!decision.ok && decision.reason === "limit-reached") {
+				if (wantsSiren(req)) {
+					refuseOverSiren(res, PIN_LIMIT_REFUSAL);
+					return;
+				}
 				res.redirect(303, buildReadlistUrl({ readlist: context.activeReadlist.slug }, [["queue_error", READLIST_ERROR_PIN_LIMIT]]));
 				return;
 			}
 			if (!decision.ok) {
-				res.redirect(303, readlistGone);
+				refuseUnknownReadlist(req, res);
 				return;
 			}
 			const { pinned } = await deps.pinReadlistDefinition({ userId, slug: decision.slug, pinnedAt: deps.now() });
-			res.redirect(303, pinned ? buildReadlistUrl({ readlist: context.activeReadlist.slug }) : readlistGone);
+			if (!pinned) {
+				refuseUnknownReadlist(req, res);
+				return;
+			}
+			landAfterPinToggle(req, res, { toggled: decision.slug, viewed: context.activeReadlist.slug });
 		},
 	);
 
@@ -262,11 +287,15 @@ export function initReadlistQueueRoutes(
 			const context = await resolveReadlistContext(req, userId);
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			if (!requested.success || requested.data === DEFAULT_READLIST_SLUG) {
-				res.redirect(303, readlistGone);
+				refuseUnknownReadlist(req, res);
 				return;
 			}
 			const { unpinned } = await deps.unpinReadlistDefinition({ userId, slug: requested.data });
-			res.redirect(303, unpinned ? buildReadlistUrl({ readlist: context.activeReadlist.slug }) : readlistGone);
+			if (!unpinned) {
+				refuseUnknownReadlist(req, res);
+				return;
+			}
+			landAfterPinToggle(req, res, { toggled: requested.data, viewed: context.activeReadlist.slug });
 		},
 	);
 

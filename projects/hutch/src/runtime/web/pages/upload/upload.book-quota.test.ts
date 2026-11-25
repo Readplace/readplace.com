@@ -47,6 +47,15 @@ describe("book-quota upload outcome", () => {
 				code: "book-quota",
 				message:
 					"You've reached today's limit for book uploads. You can upload another book after Nov 14, 2026, 00:00 UTC.",
+				messages: [
+					{
+						type: "error",
+						content: {
+							type: "text/html",
+							body: "You've reached today's limit for book uploads. You can upload another book after Nov 14, 2026, 00:00 UTC.",
+						},
+					},
+				],
 				retryAt: "2026-11-14T00:00:00.000Z",
 			},
 		});

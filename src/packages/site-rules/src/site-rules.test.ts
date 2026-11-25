@@ -18,7 +18,8 @@ describe("site-rules shared opt-out hooks", () => {
 	it("noTransform makes no change to the document", () => {
 		const { document } = parseHTML("<article><p>body</p></article>");
 		const before = document.body.innerHTML;
-		expect(noTransform({ document })).toBeUndefined();
+		const url = "https://example.com/post";
+		expect(noTransform({ document }, { savedUrl: url, documentUrl: url })).toBeUndefined();
 		expect(document.body.innerHTML).toBe(before);
 	});
 });

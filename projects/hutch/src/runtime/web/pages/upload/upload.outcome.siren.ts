@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import type { UploadId } from "@packages/media-contracts";
-import { SIREN_MEDIA_TYPE, type SirenEntity, sirenError } from "../../api/siren";
+import { SIREN_MEDIA_TYPE, type SirenEntity, type SirenMessage, sirenError } from "../../api/siren";
 import { UPLOAD_ERROR_STATUS, UPLOAD_FAILED_MESSAGE, type UploadErrorCode, uploadErrorMessageOf } from "./upload.error";
 import type { UploadOutcomeWriters, UploadWriteContext } from "./upload.outcome";
 import { type TranscriptRefusalReason, bookQuotaMessageOf, uploadRefusalCopyOf } from "./upload.refusal";
@@ -11,6 +11,12 @@ import { transcriptAllowanceOf } from "./upload.viewmodel";
 
 function sendSiren(res: Response, status: number, entity: SirenEntity): void {
 	res.status(status).type(SIREN_MEDIA_TYPE).json(entity);
+}
+
+function uploadError(error: { code: string; message: string }): SirenEntity {
+	const entity = sirenError(error);
+	const messages: SirenMessage[] = [{ type: "error", content: { type: "text/html", body: error.message } }];
+	return { ...entity, properties: { ...entity.properties, messages } };
 }
 
 function confirmReceivedAction(uploadId: UploadId) {
@@ -60,7 +66,7 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 		sendSiren(
 			res,
 			UPLOAD_ERROR_STATUS[code],
-			sirenError({ code, message: uploadErrorMessageOf({ code, kinds: context.kinds }) }),
+			uploadError({ code, message: uploadErrorMessageOf({ code, kinds: context.kinds }) }),
 		);
 	};
 }
@@ -72,7 +78,7 @@ function refusalWriter(
 		sendSiren(
 			res,
 			422,
-			sirenError({ code: reason, message: uploadRefusalCopyOf(context.transcriptAllowanceSeconds)[reason] }),
+			uploadError({ code: reason, message: uploadRefusalCopyOf(context.transcriptAllowanceSeconds)[reason] }),
 		);
 	};
 }
@@ -111,7 +117,7 @@ const UPLOAD_OUTCOME_SIREN: UploadOutcomeWriters = {
 		});
 	},
 	failed: (res) => {
-		sendSiren(res, 422, sirenError({ code: "upload_failed", message: UPLOAD_FAILED_MESSAGE }));
+		sendSiren(res, 422, uploadError({ code: "upload_failed", message: UPLOAD_FAILED_MESSAGE }));
 	},
 	upload_unsupported_type: errorWriter("upload_unsupported_type"),
 	upload_too_large: errorWriter("upload_too_large"),
@@ -122,7 +128,7 @@ const UPLOAD_OUTCOME_SIREN: UploadOutcomeWriters = {
 	"unreadable-audio": refusalWriter("unreadable-audio"),
 	"no-audio-track": refusalWriter("no-audio-track"),
 	"book-quota": (res, outcome) => {
-		const error = sirenError({ code: "book-quota", message: bookQuotaMessageOf(outcome.retryAt) });
+		const error = uploadError({ code: "book-quota", message: bookQuotaMessageOf(outcome.retryAt) });
 		sendSiren(res, 422, { ...error, properties: { ...error.properties, retryAt: outcome.retryAt.toISOString() } });
 	},
 };

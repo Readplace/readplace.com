@@ -38,7 +38,7 @@ struct ReaderSheet: View {
 				ReaderSkeletonView()
 			}
 		}
-		.tint(.brandAmber)
+		.tint(.brandAppTint)
 		.background(Color.brandSurface.ignoresSafeArea())
 		.task {
 			guard case .loading = bootstrap else { return }

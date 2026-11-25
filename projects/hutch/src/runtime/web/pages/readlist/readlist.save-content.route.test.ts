@@ -528,6 +528,7 @@ describe("Collection-Siren advertises save-content action", () => {
 			"save-article",
 			"save-articles",
 			"save-content",
+			"stage-upload",
 			"search",
 			"create-session",
 			"create-browser-handoff",

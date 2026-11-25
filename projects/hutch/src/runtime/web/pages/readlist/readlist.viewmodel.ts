@@ -51,6 +51,7 @@ import { cardProcessingOf } from "./readlist-card/card-processing";
 import type { ContentState } from "./readlist-card/content-state";
 import { type CardKind, cardKindLabel, cardKindOf } from "./readlist-card/card-kind-label";
 import { readlistCardVia } from "./readlist-card/readlist-card-via";
+import { cardSuggestionLabel } from "./readlist-card/card-suggestion";
 import type {
 	ProvenanceLabel,
 	ReaderProvenance,
@@ -352,10 +353,7 @@ export function toReadlistArticleViewModel(params: {
 		excerptSource: excerpt.source,
 		url: article.destinationUrl,
 		status: article.status,
-		suggestionLabel:
-			article.provenance?.kind === "hn-suggestion"
-				? "Added by Readplace from Hacker News"
-				: undefined,
+		suggestionLabel: cardSuggestionLabel(article),
 		readTime,
 		via: readlistCardVia(params.readerProvenance),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),

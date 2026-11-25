@@ -1,5 +1,4 @@
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
-import { READLIST_PINNED_MAX } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { AlertContent } from "@packages/web-shell";
@@ -12,6 +11,7 @@ import {
 	READLIST_ERROR_UNKNOWN_READLIST,
 	READLIST_LIMIT_MESSAGE,
 	READLIST_NOTICE_SAVE_QUEUED,
+	READLIST_PIN_LIMIT_MESSAGE,
 	READLIST_RENAME_REJECTIONS,
 } from "./readlist.error";
 
@@ -40,7 +40,7 @@ const ALERTS: Record<string, AlertContent> = {
 	}),
 	[READLIST_ERROR_PIN_LIMIT]: errorAlert({
 		title: t("readlistNav.pin.alerts.limit.title"),
-		body: t("readlistNav.pin.alerts.limit.body", { max: READLIST_PINNED_MAX }),
+		body: READLIST_PIN_LIMIT_MESSAGE,
 	}),
 	[READLIST_NOTICE_SAVE_QUEUED]: { variant: "info", message: { text: SAVE_QUEUED_NOTICE } },
 	...Object.fromEntries(
