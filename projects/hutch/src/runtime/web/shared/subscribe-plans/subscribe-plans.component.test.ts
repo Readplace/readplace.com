@@ -175,11 +175,11 @@ describe("renderSubscribePlansPopover", () => {
 		expect(testActions(panelFor(), ".btn--primary")).toEqual(["subscribe-plans-submit"]);
 	});
 
-	it("closes from Cancel without JavaScript, and offers no other close control", () => {
+	it("offers Cancel as its only keyboard-accessible dismiss button", () => {
 		const doc = panelFor();
 		const dismiss = doc.querySelector("[data-test-action='subscribe-plans-dismiss']");
 
-		expect(testActions(doc, "[popovertargetaction='hide']")).toEqual(["subscribe-plans-dismiss"]);
+		expect(testActions(doc, "[popovertargetaction='hide']:not([tabindex='-1'])")).toEqual(["subscribe-plans-dismiss"]);
 		assert(dismiss, "the panel must carry its Cancel control");
 		expect(dismiss.textContent).toBe("Cancel");
 		expect(dismiss.getAttribute("class")).toBe("btn btn--neutral");

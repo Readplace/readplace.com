@@ -1,3 +1,4 @@
+import { HAND_PICKED, HAND_PICKED_SCOPE, isBuiltInReadlist } from "./built-in-readlists";
 import {
 	DEFAULT_READLIST_SLUG,
 	pinnedReadlistSlugs,
@@ -26,7 +27,7 @@ const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
 
 export function readlistToFileInto(context: ReadlistContext): ReadlistSlug | undefined {
 	const { slug } = context.activeReadlist;
-	return slug === DEFAULT_READLIST_SLUG ? undefined : slug;
+	return isBuiltInReadlist(slug) ? undefined : slug;
 }
 
 export function mainlineReadlistContext(query: Record<string, unknown>): ReadlistContext {
@@ -57,6 +58,7 @@ function withRememberedFilter(state: ReadlistUrlState, remembered: ReadlistFilte
 }
 
 export function initResolveReadlistContext(deps: {
+	bulkEnabled?: boolean;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 }): (req: ReadlistRequest, userId: UserId) => Promise<ReadlistContext> {
@@ -70,8 +72,9 @@ export function initResolveReadlistContext(deps: {
 			rememberedFilterOf(req),
 		]);
 		const readlists = readerReadlists(definitions);
-		const requested = withRememberedFilter(parseReadlistUrl(req.query), remembered);
-		const activeReadlist = readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
+		const { source: _source, sender: _sender, ...plainQuery } = req.query;
+		const requested = withRememberedFilter(parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query), remembered);
+		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			state: { ...requested, readlist: activeReadlist.slug },
 			activeReadlist,

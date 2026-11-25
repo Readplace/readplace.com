@@ -9,7 +9,7 @@ import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type {
 	CreateRoutedInboxAddress,
 	InboxAddressStore,
-	InboxEmailLinkStore,
+	InboxEmailStore, InboxEmailLinkStore,
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type {
@@ -27,6 +27,7 @@ import type {
 	PurgeReadlistFitOverrides,
 	ListReadlistFitOverrides,
 	DeleteReadlistFitOverride,
+	ChangePersonalPick,
 	DeleteArticle,
 	DeleteReadlistArticle,
 	PurgeReadlistArticle,
@@ -151,6 +152,7 @@ export interface ReadlistDependencies {
 	saveArticle: SaveArticle;
 	saveArticleWithoutActivity: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	changePersonalPick: ChangePersonalPick;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
@@ -200,6 +202,10 @@ export interface ReadlistDependencies {
 	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	listReceivedSenders: InboxEmailStore["listReceivedSenders"];
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	bulkArticles?: import("./bulk-articles.page").BulkArticleOperations;
+	listSenderIssues: InboxEmailStore["listEmailsByUserId"];
 	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
 	findIssueLink: InboxEmailLinkStore["getLink"];
 	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];

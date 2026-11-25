@@ -441,6 +441,35 @@ describe("Inbox emails list route", () => {
 			);
 		}
 
+		it("filters received issues before pagination and keeps the sender in both directions", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 36).map((entry, index) => ({
+				...entry,
+				senderEmail: index === 0 ? "archive@news.test" : index % 3 === 1 ? "weekly@news.test" : "daily@news.test",
+				status: index === 34 ? "rejected" : "received",
+			})));
+
+			const first = new JSDOM((await agent.get("/inbox?sender=weekly%40news.test")).text).window.document;
+			const menu = first.querySelector("details.menu[data-test-sender-filter]");
+			assert(menu);
+			expect(menu.querySelector("select")).toBeNull();
+			expect(menu.querySelector("form.menu__panel")?.getAttribute("method")).toBe("get");
+			expect(Array.from(menu.querySelectorAll("button[name=sender]"), option => option.textContent)).toEqual([
+				"All senders", "archive@news.test", "daily@news.test", "weekly@news.test",
+			]);
+			expect(first.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
+			expect(menu.querySelector('button[aria-current="true"]')?.textContent).toBe("weekly@news.test");
+			const older = first.querySelector('[data-test-pagination-link="older"]')?.getAttribute("href");
+			assert(older);
+			const last = new JSDOM((await agent.get(older)).text).window.document;
+			expect(Array.from(last.querySelectorAll("[data-test-inbox-email-sender]"), el => el.textContent)).toEqual(["weekly@news.test"]);
+			const newer = last.querySelector('[data-test-pagination-link="newer"]')?.getAttribute("href");
+			assert(newer);
+			expect(new URL(newer, TEST_APP_ORIGIN).searchParams.get("sender")).toBe("weekly@news.test");
+		});
+
 		it("renders the newest page with a boosted nav and only an older link", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);

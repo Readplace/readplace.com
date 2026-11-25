@@ -15,6 +15,7 @@ import {
 	DeleteAccountCommand,
 	ExportUserDataCommand,
 	AgeLockDeletionDueCommand,
+	RunBulkArticlesCommand, BulkArticlesProgressedEvent,
 	RunSavedLinksJobCommand,
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
@@ -48,6 +49,7 @@ import {
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 	LinkDequeuedEvent,
+	ReleaseHeldUploadCommand,
 	MediaInspectedEvent,
 	MediaProcessingFailedEvent,
 	MediaRejectedEvent,
@@ -384,8 +386,14 @@ const oauthConditions = new DynamoDBAccess("hutch-oauth-conditions", {
 	actions: ["dynamodb:ConditionCheckItem"],
 });
 
+const webUserArticleConditions = new DynamoDBAccess("hutch-web-user-article-conditions", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:ConditionCheckItem"],
+});
+
 const webIssueLinksRead = new DynamoDBAccess("hutch-web-issue-links-read", {
 	tables: [
+		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
 	],
@@ -491,6 +499,13 @@ const userDataJobsSchedulerManagePolicy = {
 	name: "hutch-user-data-jobs-scheduler-manage",
 	policy: trialSchedulerManagePolicyDoc,
 };
+const heldUploadScheduleReadPolicy = {
+	name: "user-data-jobs-read-held-upload-schedules",
+	policy: trialSchedulerGroup.arn.apply(groupArn => JSON.stringify({
+		Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "scheduler:GetSchedule",
+			Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}/held-upload-*` }],
+	})),
+};
 
 const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	priorLogGroupLogicalName: "hutch-log-analytics",
@@ -524,6 +539,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 			pendingViewHighlights: storage.pendingViewHighlightsTable.name,
 			media: mediaTableName,
 			inboxAddresses: tableNames.inboxAddresses,
+			inboxEmails: tableNames.inboxEmails,
 			inboxEmailLinks: tableNames.inboxEmailLinks,
 			inboxSavedLinks: tableNames.inboxSavedLinks,
 			subscriptionProviders: storage.subscriptionProvidersTable.name,
@@ -543,6 +559,8 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMITS: formatEnvMap(rateLimitRules),
+		HAND_PICKED_HOME_ENABLED: String(config.getBoolean("handPickedHomeEnabled") ?? false),
+		BULK_ARTICLES_ENABLED: String(config.getBoolean("bulkArticlesEnabled") ?? false),
 		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: pulumi.secret(requireEnv("GOOGLE_LOGIN_CLIENT_SECRET")),
@@ -578,6 +596,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	policies: [
 		...dynamodb.policies,
 		...oauthConditions.policies,
+		...webUserArticleConditions.policies,
 		...oauthOutcomesWrite.policies,
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
@@ -909,6 +928,16 @@ const userDataJobsGmailHistoryDynamodb = new DynamoDBAccess("user-data-jobs-gmai
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
+const bulkArticleExecutionConditions = new DynamoDBAccess("user-data-bulk-article-conditions", {
+	tables: [{ arn: storage.usersTable.arn, includeIndexes: false }, { arn: storage.articlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:ConditionCheckItem"],
+});
+
+const bulkArticleRouteLookup = new DynamoDBAccess("user-data-bulk-article-route-lookup", {
+	tables: [{ arn: pulumi.interpolate`${storage.articlesTable.arn}/index/routeId-index`, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
+});
+
 const userDataJobsUserArticlesDynamodb = new DynamoDBAccess("user-data-jobs-user-articles-dynamodb", {
 	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
@@ -931,6 +960,7 @@ const userDataJobsQueue = new Sqs("user-data-jobs", {
 });
 
 const userDataJobsLambda = new Lambda("user-data-jobs", {
+	recursiveLoop: "Allow",
 	entryPoint: "./src/runtime/user-data-jobs.main.ts",
 	outputDir: ".lib/user-data-jobs",
 	assetDir: "./src/runtime",
@@ -987,11 +1017,14 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		...userDataJobsMediaHoldingsDynamodb.policies,
 		...userDataJobsEmailIdentitiesDynamodb.policies,
 		...userDataJobsUserArticlesDynamodb.policies,
+		...bulkArticleExecutionConditions.policies,
+		...bulkArticleRouteLookup.policies,
 		userDataJobsS3Policy,
 		userDataJobsMediaPendingDeletePolicy,
 		...userExportBucket.readPolicies("user-data-jobs-bucket-read"),
 		...userExportBucket.writePolicies("user-data-jobs-bucket-write"),
 		userDataJobsSchedulerManagePolicy,
+		heldUploadScheduleReadPolicy,
 	],
 });
 
@@ -1005,7 +1038,7 @@ const userDataJobsWithSQS = new SqsBackedLambda("user-data-jobs", {
 });
 
 eventBus.subscribeAll(
-	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, AgeLockDeletionDueCommand],
+	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, RunBulkArticlesCommand, BulkArticlesProgressedEvent, AgeLockDeletionDueCommand],
 	userDataJobsWithSQS,
 	{ name: "user-data-jobs" },
 );
@@ -1510,6 +1543,11 @@ const mediaReleaseMediaHoldingsDynamodb = new DynamoDBAccess("media-release-medi
 	actions: mediaHoldingsActions,
 });
 
+const mediaReleaseRetentionDynamodb = new DynamoDBAccess("media-release-bulk-holds", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem", "dynamodb:UpdateItem"],
+});
+
 const mediaReleaseS3Policy = {
 	name: "media-release-s3-delete",
 	policy: JSON.stringify({
@@ -1553,7 +1591,7 @@ const mediaReleaseLambda = new Lambda("media-release", {
 		MEDIA_BUCKET_NAME: mediaBucketName,
 		MEDIA_TABLE_NAME: mediaTableName,
 	},
-	policies: [...mediaReleaseDynamodb.policies, ...mediaReleaseMediaHoldingsDynamodb.policies, mediaReleaseS3Policy],
+	policies: [...mediaReleaseDynamodb.policies, ...mediaReleaseMediaHoldingsDynamodb.policies, ...mediaReleaseRetentionDynamodb.policies, mediaReleaseS3Policy],
 });
 
 const mediaReleaseWithSQS = new SqsBackedLambda("media-release", {
@@ -1567,6 +1605,7 @@ eventBus.subscribe(LinkDequeuedEvent, mediaReleaseWithSQS, {
 	name: "hutch-media-release",
 	detail: { url: [{ prefix: `https://${PRIVATE_ITEM_HOST}/` }] },
 });
+eventBus.subscribe(ReleaseHeldUploadCommand, mediaReleaseWithSQS);
 
 const settleMediaFailureDynamodb = new DynamoDBAccess("settle-media-failure-dynamodb", {
 	tables: [

@@ -114,8 +114,10 @@ function eventBody(
 		origin: EmailReceivedDetail["origin"];
 		routing: EmailReceivedDetail["routing"];
 	}> = {},
+	time?: string,
 ): string {
 	return JSON.stringify({
+		time,
 		detail: {
 			userId: over.userId ?? USER,
 			receivedAtMessageId: over.receivedAtMessageId ?? RAM,
@@ -155,6 +157,7 @@ function makeHarness(opts?: {
 	const linkStore = initInMemoryInboxEmailLink();
 	const subscriptionReads: UserId[] = [];
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
+	const submitRequestTimes: string[] = [];
 	const submitted: { userId: UserId; url: string; readlist: ReadlistSlug }[] =
 		[];
 	const triaged: Parameters<
@@ -228,8 +231,9 @@ function makeHarness(opts?: {
 			publishOrder.push("preview");
 			published.push({ ordinal, url });
 		},
-		publishSubmitLink: async ({ saveAttemptId: _saveAttemptId, emailOutput, ...input }) => {
+		publishSubmitLink: async ({ saveAttemptId: _saveAttemptId, emailOutput, requestedAt, ...input }) => {
 			publishOrder.push("submit");
+			submitRequestTimes.push(requestedAt);
 			submitted.push(input);
 			correlations.push({ kind: "submit", outputKey: emailOutput.outputKey, url: input.url });
 		},
@@ -320,6 +324,7 @@ function makeHarness(opts?: {
 		selectionWrites,
 		outputsSelected,
 		correlations,
+		submitRequestTimes,
 		completionReads,
 		definitionReads,
 		run,
@@ -336,6 +341,7 @@ describe("initExtractEmailLinksHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
+		expect(harness.submitRequestTimes).toEqual([RECEIVED_AT, RECEIVED_AT]);
 		expect(harness.submitted).toEqual([
 			{
 				userId: USER,
@@ -1531,11 +1537,12 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 			inboxAddress: makeInboxAddress({ readlist: WORK }),
 		});
 
-		const result = await harness.run(eventBody({ routing: issueRouting("issue") }));
+		const result = await harness.run(eventBody({ routing: issueRouting("issue") }, NOW));
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(harness.issues).toEqual([
 			{
+				requestedAt: NOW,
 				userId: USER,
 				saveAttemptId: expect.any(String),
 				receivedAtMessageId: RAM,

@@ -12,6 +12,14 @@ const READLIST_PARTITION_INFIX = "#queue/";
 
 export const READLIST_DEFINITION_KEY_PREFIX = "readplace:queue-def/";
 
+export const BULK_ARTICLE_JOB_PREFIX = "readplace:bulk-articles/";
+
+export const CANONICAL_REMOVAL_PREFIX = "readplace:removed-article/";
+
+export function canonicalRemovalKey(userId: string, url: string) {
+	return { userId, url: CANONICAL_REMOVAL_PREFIX + createHash("sha256").update(url).digest("hex") };
+}
+
 export const HIGHLIGHT_KEY_PREFIX = "readplace:highlight/";
 
 export const READLIST_FIT_OVERRIDE_KEY_PREFIX = "readplace:queue-override/";

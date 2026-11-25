@@ -24,7 +24,7 @@ describe("renderPopupTemplate", () => {
 
 	it("tags the readlist link with the Firefox extension as its source", () => {
 		expect(renderPopupTemplate({ template, utmSource: "firefox-extension" })).toContain(
-			'<a href="https://readplace.com/queue?utm_source=firefox-extension&amp;utm_medium=extension&amp;utm_content=open-readlist" class="list-view__brand" target="_blank" rel="noopener">',
+			'<a href="https://readplace.com/?utm_source=firefox-extension&amp;utm_medium=extension&amp;utm_content=open-readlist" class="list-view__brand" target="_blank" rel="noopener">',
 		);
 	});
 

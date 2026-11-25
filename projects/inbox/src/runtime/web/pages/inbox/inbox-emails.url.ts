@@ -11,28 +11,29 @@ const CursorValueSchema = z
 	.catch(undefined);
 
 const InboxEmailsQuerySchema = z.looseObject({
+	sender: CursorValueSchema,
 	older: CursorValueSchema,
 	newer: CursorValueSchema,
 });
 
 export function parseInboxEmailsUrl(query: Record<string, unknown>): {
 	cursor: InboxEmailsCursor | undefined;
+	sender?: string;
 } {
 	const parsed = InboxEmailsQuerySchema.parse(query);
 	if (parsed.older !== undefined) {
-		return { cursor: { direction: "older", receivedAtMessageId: parsed.older } };
+		return { sender: parsed.sender, cursor: { direction: "older", receivedAtMessageId: parsed.older } };
 	}
 	if (parsed.newer !== undefined) {
-		return { cursor: { direction: "newer", receivedAtMessageId: parsed.newer } };
+		return { sender: parsed.sender, cursor: { direction: "newer", receivedAtMessageId: parsed.newer } };
 	}
-	return { cursor: undefined };
+	return { sender: parsed.sender, cursor: undefined };
 }
 
-export function buildInboxEmailsUrl(state: { cursor?: InboxEmailsCursor }): string {
-	if (state.cursor === undefined) {
-		return INBOX_PATH;
-	}
+export function buildInboxEmailsUrl(state: { cursor?: InboxEmailsCursor; sender?: string }): string {
 	const params = new URLSearchParams();
-	params.set(state.cursor.direction, state.cursor.receivedAtMessageId);
+	if (state.sender !== undefined) params.set("sender", state.sender);
+	if (state.cursor !== undefined) params.set(state.cursor.direction, state.cursor.receivedAtMessageId);
+	if (params.size === 0) return INBOX_PATH;
 	return `${INBOX_PATH}?${params.toString()}`;
 }

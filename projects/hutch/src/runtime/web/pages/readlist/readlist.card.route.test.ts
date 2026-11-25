@@ -31,6 +31,18 @@ describe("Readlist routes", () => {
 			return id;
 		}
 
+		it("removing an article from Hand Picked leaves its canonical card available", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/individual" });
+			const id = await getFirstArticleId(agent);
+			const card = `/queue/${id}/card`;
+			expect((await agent.get(`${card}?scope=hand-picked`)).status).toBe(200);
+			await agent.post(`/queue/${id}/delete?scope=hand-picked`).expect(303);
+			expect((await agent.get(`${card}?scope=hand-picked`)).status).toBe(404);
+			expect((await agent.get(card)).status).toBe(200);
+		});
+
 		function createTerminalPipelineFixture() {
 			const articleHtml = `<html><head><title>Terminal Post</title></head><body><article><h1>Terminal Post</h1><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
@@ -443,7 +455,7 @@ describe("GET /queue/:id/card — the move item", () => {
 
 		const polled = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
 
-		expect(menuControls(polled)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["remove-from-hand-picked", "move-fallback", "move", "delete-fallback", "delete"]);
 	});
 
 	it("builds the move item from the memberships the article holds now", async () => {
@@ -460,6 +472,6 @@ describe("GET /queue/:id/card — the move item", () => {
 			`readlist-move-${articleId}`,
 			`readlist-create-move-${articleId}`,
 		]);
-		expect(menuControls(polled)).toEqual(["move", "delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["remove-from-hand-picked", "move", "delete-fallback", "delete"]);
 	});
 });

@@ -19,7 +19,8 @@ function trackedHref(input: { path: string; utmSource: PopupUtmSource; utmConten
 export function renderPopupTemplate(input: { template: string; utmSource: PopupUtmSource }): string {
 	const values: Record<string, string> = {
 		brandHomeHref: trackedHref({ path: "/", utmSource: input.utmSource, utmContent: "brand-home" }),
-		openReadlistHref: trackedHref({ path: "/queue", utmSource: input.utmSource, utmContent: "open-readlist" }),
+		allReadlistHref: trackedHref({ path: "/queue", utmSource: input.utmSource, utmContent: "save-all-result" }),
+		openReadlistHref: trackedHref({ path: "/", utmSource: input.utmSource, utmContent: "open-readlist" }),
 		checkIcon: iconSvg("check"),
 		errorIcon: iconSvg("x-circle"),
 		warningIcon: iconSvg("alert-triangle"),

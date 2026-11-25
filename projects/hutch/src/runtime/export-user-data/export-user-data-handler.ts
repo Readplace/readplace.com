@@ -43,6 +43,7 @@ const EMAIL_REPLY_TO = "fayner@readplace.com";
 const PAGE_SIZE = 500;
 
 export interface ExportUserDataDependencies {
+	exportBulkArticles?: ReturnType<typeof import("../bulk-articles/selection-store").initExportBulkArticles>;
 	engagementState: Pick<EngagementStarterState, "findEngagement" | "findStarterPack">;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
@@ -144,6 +145,7 @@ async function processCommand(
 		articleCount: articles.length,
 		articles,
 		removedArticles,
+		...(deps.exportBulkArticles ? { bulkArticles: await deps.exportBulkArticles(userId, deps.now()) } : {}),
 	};
 	const body = JSON.stringify(envelope, null, 2);
 

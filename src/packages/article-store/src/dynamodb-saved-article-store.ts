@@ -8,16 +8,20 @@ import {
 	forEachQueryPage,
 	TransactionCanceledException,
 	TransactWriteCommand,
+	transactIfConditions,
 	writeIfCondition,
 } from "@packages/storage-client";
 import { toEventInstant } from "@packages/domain/event-envelope";
 import { initFindReadlistRemoval, initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
-import { EnclosureSchema } from "@packages/media-contracts";
+import { EnclosureSchema, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ServedBodyFields, servedBodyOf } from "./served-body";
 import type { ArticleDiscoveryQuery, ArticleStatus, SaveTrigger, SavedArticle } from "@packages/domain/article";
 import {
+	personalDecisionKey,
+	personalReadlistPartition,
+	personalReadlistOrder,
 	MinutesSchema,
 	ArticleStatusSchema,
 	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE,
@@ -47,6 +51,8 @@ import type {
 	MoveReadlistArticles,
 	BumpArticleSavedAt,
 	FindSavedUrls,
+	ChangePersonalPick,
+	CountArticlesQuery,
 	CountArticlesByUser,
 	CountReadlistArticles,
 	DeleteAllUserArticles,
@@ -95,6 +101,8 @@ import {
 	type SaveReadlistArticleAsRequested,
 } from "@packages/provider-contracts/article-store";
 import {
+	BULK_ARTICLE_JOB_PREFIX, CANONICAL_REMOVAL_PREFIX,
+	canonicalRemovalKey,
 	READLIST_DEFINITION_KEY_PREFIX,
 	READLIST_FIT_OVERRIDE_KEY_PREFIX,
 	decodeUserArticlePartition,
@@ -165,6 +173,12 @@ const SavedUrlRow = z.looseObject({ url: z.string() });
 const DigestPageKey = z.record(z.string(), z.unknown());
 
 const UserArticleRow = z.object({
+	statusRevision: dynamoField(z.number().int()),
+	restoredAt: dynamoField(z.string()),
+	bulkSave: dynamoField(z.literal(true)),
+	personalPickedAt: dynamoField(z.string()),
+	personalScope: dynamoField(z.string()),
+	personalDecision: dynamoField(z.string()),
 	userId: UserIdSchema,
 	url: z.string(),
 	status: ArticleStatusSchema,
@@ -199,16 +213,17 @@ const PROTECTED_USER_ROW_VALUES: Record<string, string> = Object.fromEntries(
 	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE.map((kind, index) => [`:keptKind${index}`, kind]),
 );
 
-const PROTECTED_USER_ROW = `(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (${Object.keys(PROTECTED_USER_ROW_VALUES).join(", ")})))`;
+const PROTECTED_USER_ROW = `(attribute_exists(savedAt) AND (attribute_exists(personalPickedAt) OR attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (${Object.keys(PROTECTED_USER_ROW_VALUES).join(", ")})))`;
 
 const ExistingUserRow = z.object({
+	personalPickedAt: z.object({ S: z.string() }).optional(),
 	handPickedAt: z.object({ S: z.string() }).optional(),
 	provenance: z.object({ M: z.object({ kind: z.object({ S: z.string() }).optional() }) }).optional(),
 });
 
 function isProtectedAgainstAutomaticSave(oldItem: Record<string, unknown>): boolean {
-	const { handPickedAt, provenance } = ExistingUserRow.parse(oldItem);
-	if (handPickedAt !== undefined || provenance === undefined) return true;
+	const { personalPickedAt, handPickedAt, provenance } = ExistingUserRow.parse(oldItem);
+	if (personalPickedAt !== undefined || handPickedAt !== undefined || provenance === undefined) return true;
 	return PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE.some((kind) => kind === provenance.M.kind?.S);
 }
 
@@ -242,6 +257,14 @@ function toSavedArticle(
 		estimatedReadTime: article.estimatedReadTime,
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
+		...(userArticle.bulkSave ? { bulkSave: true as const } : {}),
+		lastSummaryOpenedAt: toOptionalDate(userArticle.lastSummaryOpenedAt),
+		lastSummaryClosedAt: toOptionalDate(userArticle.lastSummaryClosedAt),
+		restoredAt: toOptionalDate(userArticle.restoredAt),
+		statusRevision: userArticle.statusRevision,
+		personalDecision: userArticle.personalDecision,
+		personalPickedAt: toOptionalDate(userArticle.personalPickedAt),
+		...(userArticle.personalScope === personalReadlistPartition(userArticle.userId, "uncertain", userArticle.status) ? { personalReviewPending: true as const } : {}),
 		readAt: toOptionalDate(userArticle.readAt),
 		viewedAt: toOptionalDate(userArticle.viewedAt),
 		contentFetchedAt: toOptionalDate(article.contentFetchedAt),
@@ -264,6 +287,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	logger: Logger;
 	now: () => Date;
 }): {
+	changePersonalPick: ChangePersonalPick;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
@@ -322,6 +346,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		tableName: userArticlesTableName,
 		schema: UserArticleRow,
 	});
+	const removalRows = defineDynamoTable({ client, tableName: userArticlesTableName, schema: z.object({ userId: z.string(), url: z.string() }) });
 	const saveCursors = defineDynamoTable({
 		client,
 		tableName: userArticlesTableName,
@@ -508,6 +533,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const sets = [
 			"savedAt = :savedAt",
+			...(params.bulkSave ? ["bulkSave = :bulk"] : []),
 			...(provenance === "set" ? ["provenance = :provenance"] : []),
 			"#status = if_not_exists(#status, :unread)",
 			...(params.suggestionAttribution === undefined
@@ -515,25 +541,62 @@ export function initDynamoDbSavedArticleStore(deps: {
 				: ["suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)"]),
 			...(stampHandPicked ? ["handPickedAt = if_not_exists(handPickedAt, :savedAt)"] : []),
 		];
-		const outcome = await writeIfCondition(() =>
-			userArticles.update({
-				Key: { userId: partition, url: articleResourceUniqueId.value },
-				UpdateExpression: `SET ${sets.join(", ")}`,
-				ConditionExpression: condition,
-				ExpressionAttributeNames: { "#status": "status", ...conditionNames },
-				ExpressionAttributeValues: {
-					":savedAt": params.savedAt.toISOString(),
-					...(provenance === "set" ? { ":provenance": params.provenance } : {}),
-					":unread": "unread",
-					...(params.suggestionAttribution === undefined
-						? {}
-						: { ":attribution": params.suggestionAttribution }),
-					...conditionValues,
-				},
-				ReturnValues: "ALL_OLD",
-				ReturnValuesOnConditionCheckFailure: "ALL_OLD",
-			}),
-		);
+		const update = {
+			Key: { userId: partition, url: articleResourceUniqueId.value },
+			UpdateExpression: `SET ${sets.join(", ")}`,
+			ConditionExpression: condition,
+			ExpressionAttributeNames: { "#status": "status", ...conditionNames },
+			ExpressionAttributeValues: {
+				":savedAt": params.savedAt.toISOString(),
+				...(params.bulkSave ? { ":bulk": true } : {}),
+				...(provenance === "set" ? { ":provenance": params.provenance } : {}),
+				":unread": "unread",
+				...(params.suggestionAttribution === undefined
+					? {}
+					: { ":attribution": params.suggestionAttribution }),
+				...conditionValues,
+			},
+		};
+		const requestedAt = params.personalPick ? new Date(params.personalPick.requestedAt).toISOString() : params.requestedAt?.toISOString();
+		const privateUpload = articleResourceUniqueId.value.startsWith(`${PRIVATE_ITEM_HOST}/`);
+		const canonicalOrigin = partition === params.userId ? requestedAt : undefined;
+		if (canonicalOrigin || privateUpload) {
+			const newerThanRemoval = "attribute_not_exists(removedAt) OR removedAt < :origin";
+			const releaseUnclaimed = "attribute_not_exists(privateReleaseClaim)";
+			const canSave = canonicalOrigin && privateUpload ? `(${newerThanRemoval}) AND ${releaseUnclaimed}` :
+				canonicalOrigin ? newerThanRemoval : releaseUnclaimed;
+			for (let attempt = 0; attempt < 8; attempt++) {
+				const prior = await userArticles.get(update.Key, { consistentRead: true });
+				try {
+					await client.send(new TransactWriteCommand({ TransactItems: [
+						{ ConditionCheck: {
+							TableName: userArticlesTableName,
+							Key: canonicalRemovalKey(params.userId, articleResourceUniqueId.value),
+							ConditionExpression: canSave,
+							...(canonicalOrigin ? { ExpressionAttributeValues: { ":origin": canonicalOrigin } } : {}),
+						} },
+						{ Update: {
+							TableName: userArticlesTableName, ...update,
+							ConditionExpression: `(${condition}) AND attribute_${prior ? "exists" : "not_exists"}(savedAt)`,
+							ReturnValuesOnConditionCheckFailure: "ALL_OLD",
+						} },
+					] }));
+					return { createdUserArticle: !prior, wroteUserArticle: true };
+				} catch (error) {
+					if (!(error instanceof TransactionCanceledException)) throw error;
+					const reasons = error.CancellationReasons;
+					if (reasons?.[0]?.Code === "ConditionalCheckFailed") throw new ArticlePurgedAfterRequest(params.url);
+					if (reasons?.[1]?.Code !== "ConditionalCheckFailed") throw error;
+					const oldItem = reasons[1].Item;
+					if (Boolean(oldItem) !== Boolean(prior)) continue;
+					return { createdUserArticle: false, wroteUserArticle: false, oldItem };
+				}
+			}
+			throw new Error("The canonical save changed during each attempt");
+		}
+		const outcome = await writeIfCondition(() => userArticles.update({
+			...update, ReturnValues: "ALL_OLD", ReturnValuesOnConditionCheckFailure: "ALL_OLD",
+		}));
 		if (outcome.kind === "condition-failed") {
 			return { createdUserArticle: false, wroteUserArticle: false, oldItem: outcome.oldItem };
 		}
@@ -596,6 +659,60 @@ export function initDynamoDbSavedArticleStore(deps: {
 			? updateUserRow({ ...write, provenance: "set", stampHandPicked: false })
 			: writeUserRowBySaveTrigger[saveTrigger](write);
 
+	const changePersonalPick: ChangePersonalPick = async ({ userId, url, picked, request }) => {
+		const key = { userId, url: ArticleResourceUniqueId.parse(url).value };
+		const decision = personalDecisionKey(request);
+		const requestedAt = new Date(request.requestedAt).toISOString();
+		for (let attempt = 0; attempt < 8; attempt++) {
+			const row = await userArticles.get(key, { consistentRead: true });
+			if (row === undefined) return "missing";
+			if (row.personalDecision !== undefined && row.personalDecision >= decision) return "superseded";
+			const pickedAt = row.personalPickedAt ?? requestedAt;
+			const orderAt = row.status === "read" ? row.readAt ?? row.savedAt : pickedAt;
+			const update = {
+				Key: key,
+				ConditionExpression: [
+					"savedAt = :saved AND #status = :status",
+					row.personalDecision === undefined ? "attribute_not_exists(personalDecision)" : "personalDecision = :previous",
+					row.readAt === undefined ? "attribute_not_exists(readAt)" : "readAt = :read",
+				].join(" AND "),
+				UpdateExpression: picked
+					? "SET personalDecision = :decision, personalPickedAt = :picked, personalScope = :scope, personalOrder = :order"
+					: "SET personalDecision = :decision REMOVE personalPickedAt, personalScope, personalOrder",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: {
+					":decision": decision,
+					":saved": row.savedAt,
+					":status": row.status,
+					...(row.personalDecision === undefined ? {} : { ":previous": row.personalDecision }),
+					...(row.readAt === undefined ? {} : { ":read": row.readAt }),
+					...(picked ? {
+						":picked": pickedAt,
+						":scope": personalReadlistPartition(userId, "picked", row.status),
+						":order": personalReadlistOrder(orderAt, ReaderArticleHashId.fromResourceUniqueId(key.url)),
+					} : {}),
+				},
+			};
+			try {
+				await client.send(new TransactWriteCommand({ TransactItems: [
+					{ ConditionCheck: {
+						TableName: userArticlesTableName,
+						Key: canonicalRemovalKey(userId, key.url),
+						ConditionExpression: "attribute_not_exists(removedAt) OR removedAt < :origin",
+						ExpressionAttributeValues: { ":origin": requestedAt },
+					} },
+					{ Update: { TableName: userArticlesTableName, ...update } },
+				] }));
+				return "updated";
+			} catch (error) {
+				if (!(error instanceof TransactionCanceledException)) throw error;
+				if (error.CancellationReasons?.[0]?.Code === "ConditionalCheckFailed") return "superseded";
+				if (error.CancellationReasons?.[1]?.Code !== "ConditionalCheckFailed") throw error;
+			}
+		}
+		throw new Error("The saved article kept changing during the membership update");
+	};
+
 	const readBackSave = async ({
 		partition,
 		params,
@@ -605,6 +722,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		params: UserRowSaveParams;
 		written: UserRowWritten;
 	}): ReturnType<SaveArticle> => {
+		if (params.personalPick && partition === params.userId) {
+			await changePersonalPick({ userId: params.userId, url: params.url, picked: true, request: params.personalPick });
+		}
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		// Strongly-consistent read-your-writes: a default eventually-consistent read
 		// can miss the row we just wrote and trip the asserts below on an otherwise
@@ -660,6 +780,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		partition: string,
 		{ requestedAt, ...params }: UserRowSaveParams & { requestedAt: Date },
 		saveTrigger: SaveTrigger | undefined,
+		keepPosition = false,
 	): ReturnType<SaveArticle> => {
 		const requested = { ":requestedAt": requestedAt.toISOString() };
 		const globallySavedAt = now();
@@ -687,10 +808,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 		}
 		const written = await writeUserArticleUnlessConditionLost({
 			partition,
-			params,
-			condition:
-				"(attribute_not_exists(savedAt) OR savedAt < :requestedAt) AND (attribute_not_exists(readAt) OR readAt < :requestedAt)",
-			conditionValues: requested,
+			params: { ...params, requestedAt },
+			condition: keepPosition ? "attribute_not_exists(savedAt)"
+				: "(attribute_not_exists(savedAt) OR savedAt < :requestedAt) AND (attribute_not_exists(readAt) OR readAt < :requestedAt)",
+			conditionValues: keepPosition ? {} : requested,
 			conditionNames: {},
 			saveTrigger,
 		});
@@ -700,9 +821,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const writeSave = initSaveWrite("attribute_not_exists(savedAt) OR savedAt < :savedAt");
 	const writeSaveKeepingPosition = initSaveWrite("attribute_not_exists(savedAt)");
 
-	const saveArticle: SaveArticle = ({ saveTrigger, ...params }) => writeSave(params.userId, params, saveTrigger);
-	const saveArticleKeepingPosition: SaveArticle = ({ saveTrigger, ...params }) =>
-		writeSaveKeepingPosition(params.userId, params, saveTrigger);
+	const saveCanonical = ({ saveTrigger, ...params }: SaveArticleParams, keepPosition: boolean) => {
+		const requestedAt = params.requestedAt ?? (params.personalPick && new Date(params.personalPick.requestedAt));
+		if (requestedAt) return writeSaveAsRequested(params.userId, { ...params, requestedAt }, saveTrigger, keepPosition);
+		const write = keepPosition ? writeSaveKeepingPosition : writeSave;
+		return write(params.userId, params, saveTrigger);
+	};
+	const saveArticle: SaveArticle = params => saveCanonical(params, false);
+	const saveArticleKeepingPosition: SaveArticle = params => saveCanonical(params, true);
 	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) =>
 		writeSave(readlistPartitionValue({ userId: params.userId, readlist }), params, undefined);
 	const saveArticleAsRequested: SaveArticleAsRequested = ({ saveTrigger, ...params }) =>
@@ -731,6 +857,42 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const findReadlistArticleById: FindReadlistArticleById = ({ id, userId, readlist }) =>
 		findInPartition(readlistPartitionValue({ userId, readlist }), userId, id);
 
+	function listingIndex(partition: string, query: CountArticlesQuery & { sort?: SortField }) {
+		if (query.managedOrigin) {
+			const source: { expression: string; names: Record<string, string>; values: Record<string, string> } = query.managedOrigin === "bulk" ? {
+				expression: "bulkSave = :flag OR provenance.#kind = :import",
+				names: { "#kind": "kind" }, values: { ":import": "import" },
+			} : {
+				expression: "unknownOrigin = :flag OR attribute_not_exists(provenance)", names: {}, values: {},
+			};
+			const statusFilter = query.status ? " AND #status = :status" : "";
+			return {
+				IndexName: query.sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index",
+				KeyConditionExpression: "userId = :userId",
+				FilterExpression: `(${source.expression})${statusFilter}`,
+				...(query.status || query.managedOrigin === "bulk" ? { ExpressionAttributeNames: { ...source.names, ...(query.status ? { "#status": "status" } : {}) } } : {}),
+				ExpressionAttributeValues: { ":userId": partition, ":flag": true, ...source.values, ...(query.status ? { ":status": query.status } : {}) },
+			};
+		}
+		if (query.personalScope) {
+			assert(query.status && partition === query.userId, "personal readlists require a canonical account and status");
+			return {
+				IndexName: "personalScope-personalOrder-index",
+				KeyConditionExpression: "personalScope = :scope",
+				ExpressionAttributeValues: { ":scope": personalReadlistPartition(query.userId, query.personalScope, query.status) },
+			};
+		}
+		return {
+			IndexName: query.sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index",
+			KeyConditionExpression: "userId = :userId",
+			...(query.status ? {
+				FilterExpression: "#status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":userId": partition, ":status": query.status },
+			} : { ExpressionAttributeValues: { ":userId": partition } }),
+		};
+	}
+
 	const discoveredRowsInPartition = async (
 		partition: string,
 		query: {
@@ -742,21 +904,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 		},
 	): Promise<SavedArticle[]> => {
 		const startedAt = now();
-		const statusFilter = query.status
-			? {
-					FilterExpression: "#status = :status",
-					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: { ":userId": partition, ":status": query.status },
-				}
-			: { ExpressionAttributeValues: { ":userId": partition } };
 		const userArticleRows: z.infer<typeof UserArticleRow>[] = [];
 		await forEachQueryPage(
 			userArticles,
 			{
-				IndexName: query.sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index",
-				KeyConditionExpression: "userId = :userId",
+				...listingIndex(partition, query),
 				ScanIndexForward: query.order === "asc",
-				...statusFilter,
 			},
 			async (rows) => {
 				userArticleRows.push(...rows);
@@ -811,20 +964,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			};
 		}
 		const order = query.order ?? "desc";
-		const sort = query.sort ?? "savedAt";
-		const indexName = sort === "readAt" ? "userId-readAt-index" : "userId-savedAt-index";
-
-		const expressionValues: Record<string, unknown> = {
-			":userId": partition,
-		};
-		let filterExpression: string | undefined;
-		let expressionAttributeNames: Record<string, string> | undefined;
-
-		if (query.status) {
-			filterExpression = "#status = :status";
-			expressionValues[":status"] = query.status;
-			expressionAttributeNames = { "#status": "status" };
-		}
+		const index = listingIndex(partition, query);
 
 		let total: number | undefined;
 		if (query.includeTotal) {
@@ -832,11 +972,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			let countStartKey: Record<string, unknown> | undefined;
 			do {
 				const { count, lastEvaluatedKey } = await userArticles.query({
-					IndexName: indexName,
-					KeyConditionExpression: "userId = :userId",
-					FilterExpression: filterExpression,
-					ExpressionAttributeValues: expressionValues,
-					ExpressionAttributeNames: expressionAttributeNames,
+					...index,
 					Select: "COUNT",
 					ExclusiveStartKey: countStartKey,
 				});
@@ -854,11 +990,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 		do {
 			const { items, lastEvaluatedKey } = await userArticles.query({
-				IndexName: indexName,
-				KeyConditionExpression: "userId = :userId",
-				FilterExpression: filterExpression,
-				ExpressionAttributeValues: expressionValues,
-				ExpressionAttributeNames: expressionAttributeNames,
+				...index,
 				ScanIndexForward: order === "asc",
 				Limit: fetchTarget,
 				ExclusiveStartKey: exclusiveStartKey,
@@ -1129,31 +1261,20 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const countArticlesInPartition = async (
 		partition: string,
-		query: { userId: UserId; status?: ArticleStatus; countLimit?: number; discovery?: ArticleDiscoveryQuery },
+		query: CountArticlesQuery,
 	): Promise<number> => {
 		if (query.discovery) {
 			const matched = await discoveredRowsInPartition(partition, { ...query, discovery: query.discovery });
 			return Math.min(matched.length, query.countLimit ?? matched.length);
 		}
-		const expressionValues: Record<string, unknown> = { ":userId": partition };
-		let filterExpression: string | undefined;
-		let expressionAttributeNames: Record<string, string> | undefined;
-		if (query.status) {
-			filterExpression = "#status = :status";
-			expressionValues[":status"] = query.status;
-			expressionAttributeNames = { "#status": "status" };
-		}
-
+		const index = listingIndex(partition, query);
 		let total = 0;
 		let startKey: Record<string, unknown> | undefined;
 		do {
 			const { count, lastEvaluatedKey } = await userArticles.query({
-				IndexName: "userId-savedAt-index",
-				KeyConditionExpression: "userId = :userId",
-				FilterExpression: filterExpression,
-				ExpressionAttributeValues: expressionValues,
-				ExpressionAttributeNames: expressionAttributeNames,
+				...index,
 				Select: "COUNT",
+				...(query.personalScope && query.countLimit ? { Limit: Math.max(1, query.countLimit - total) } : {}),
 				ExclusiveStartKey: startKey,
 			});
 			total += count;
@@ -1188,7 +1309,31 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return deleteRowInPartition({ partition, url: article.url });
 	};
 
-	const deleteArticle: DeleteArticle = (routeId, userId) => deleteInPartition(userId, routeId);
+	const deleteArticle: DeleteArticle = async (routeId, userId) => {
+		const article = await findArticleByRouteId(routeId);
+		if (!article) return false;
+		const removedAt = now().toISOString();
+		try {
+			await client.send(new TransactWriteCommand({ TransactItems: [
+				{ Delete: {
+					TableName: userArticlesTableName,
+					Key: { userId, url: article.url },
+					ConditionExpression: "attribute_exists(savedAt)",
+				} },
+				{ Update: {
+					TableName: userArticlesTableName,
+					Key: canonicalRemovalKey(userId, article.url),
+					UpdateExpression: "SET removedAt = :at",
+					ConditionExpression: "attribute_not_exists(removedAt) OR removedAt <= :at",
+					ExpressionAttributeValues: { ":at": removedAt },
+				} },
+			] }));
+			return true;
+		} catch (error) {
+			if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === "ConditionalCheckFailed")) return false;
+			throw error;
+		}
+	};
 
 	const recordReadlistRemoval = initRecordReadlistRemoval({ client, userArticlesTableName, now });
 
@@ -1308,6 +1453,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await forEachQueryPage(
 			readlistSlugRows,
 			{
+				ConsistentRead: true,
 				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: {
@@ -1340,6 +1486,13 @@ export function initDynamoDbSavedArticleStore(deps: {
 		// sweep above can never see it; without this delete a userId-bearing row
 		// would survive account deletion.
 		await saveCursors.delete({ Key: { userId, url: saveCursorUrl(userId) } });
+		await forEachQueryPage(removalRows, {
+			KeyConditionExpression: "userId = :user AND begins_with(#url, :prefix)",
+			ExpressionAttributeNames: { "#url": "url" },
+			ExpressionAttributeValues: { ":user": userId, ":prefix": CANONICAL_REMOVAL_PREFIX },
+		}, async rows => {
+			await Promise.all(rows.map(key => removalRows.delete({ Key: key })));
+		});
 		await forEachQueryPage(
 			readlistFitOverrideRows,
 			{
@@ -1360,6 +1513,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await forEachHeldLinkRowPage(userId, async (rows) => {
 			await Promise.all(rows.map((row) => heldLinkRows.delete({ Key: { userId: row.userId, url: row.url } })));
 		});
+		await forEachQueryPage(removalRows, {
+			KeyConditionExpression: "userId = :user AND begins_with(#url, :prefix)",
+			ExpressionAttributeNames: { "#url": "url" },
+			ExpressionAttributeValues: { ":user": userId, ":prefix": BULK_ARTICLE_JOB_PREFIX },
+			ConsistentRead: true,
+		}, async rows => {
+			await Promise.all(rows.map(({ userId, url }) => removalRows.delete({ Key: { userId, url } })));
+		});
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
@@ -1374,8 +1535,23 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await forEachHeldLinkRowPage(userId, async (rows) => {
 			for (const row of rows) seen.add(row.removedUrl);
 		});
+		const bulkHolds = defineDynamoTable({ client, tableName: userArticlesTableName, schema: z.object({ recovery: z.object({ url: z.string() }) }) });
+		await forEachQueryPage(bulkHolds, {
+			KeyConditionExpression: "userId = :user AND begins_with(#url, :prefix)",
+			FilterExpression: "attribute_exists(recovery)", ProjectionExpression: "recovery.#url",
+			ExpressionAttributeNames: { "#url": "url" }, ExpressionAttributeValues: { ":user": userId, ":prefix": BULK_ARTICLE_JOB_PREFIX },
+			ConsistentRead: true,
+		}, async rows => { for (const row of rows) seen.add(row.recovery.url); });
+		// An expired recovery row can be gone while the media worker is retrying blob deletion.
+		const privateReleaseUrls = new Set<string>();
+		const privateHolds = defineDynamoTable({ client, tableName: userArticlesTableName, schema: z.object({ privateReleaseUrl: z.string() }) });
+		await forEachQueryPage(privateHolds, {
+			KeyConditionExpression: "userId = :user AND begins_with(#url, :prefix)", FilterExpression: "attribute_exists(privateReleaseUrl)",
+			ExpressionAttributeNames: { "#url": "url" }, ExpressionAttributeValues: { ":user": userId, ":prefix": CANONICAL_REMOVAL_PREFIX },
+			ConsistentRead: true,
+		}, async rows => { for (const row of rows) privateReleaseUrls.add(row.privateReleaseUrl); });
 		const normalizedUrls = [...seen];
-		if (normalizedUrls.length === 0) return [];
+		if (normalizedUrls.length === 0) return [...privateReleaseUrls];
 		// The user-articles row keys the article by its normalized value, which
 		// cannot be re-parsed as an absolute URL — resolve each to its stored
 		// original via the global row so downstream content ops get a real URL.
@@ -1386,9 +1562,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 			keys: normalizedUrls.map((url) => ({ url })),
 			projection: ["originalUrl"],
 		});
-		return globals
+		const activeUrls = globals
 			.map((row) => row.originalUrl)
 			.filter((url): url is string => url !== undefined);
+		return [...new Set([...activeUrls, ...privateReleaseUrls])];
 	};
 
 	const updateStatusInPartition = async (
@@ -1396,37 +1573,81 @@ export function initDynamoDbSavedArticleStore(deps: {
 		userId: UserId,
 		routeId: ReaderArticleHashId,
 		status: ArticleStatus,
+		attempt = 0,
+		expected?: Parameters<UpdateArticleStatus>[3],
 	): Promise<SavedArticle | null> => {
+		if (attempt >= 8) throw new Error("The saved article kept changing during the status update");
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return null;
 
+		// Save again can finish crawling after a reader has changed the same save.
+		const expectedCondition = expected ? " AND savedAt = :expectedSaved AND " +
+			(expected.readAt ? "readAt = :expectedRead" : "(attribute_not_exists(readAt) OR attribute_type(readAt, :nullType))") + " AND " +
+			(expected.statusRevision === undefined ? "(attribute_not_exists(statusRevision) OR attribute_type(statusRevision, :nullType))" : "statusRevision = :expectedRevision") : "";
+		const expectedValues = expected ? {
+			":expectedSaved": expected.savedAt.toISOString(),
+			...(expected.readAt && expected.statusRevision !== undefined ? {} : { ":nullType": "NULL" }),
+			...(expected.readAt ? { ":expectedRead": expected.readAt.toISOString() } : {}),
+			...(expected.statusRevision === undefined ? {} : { ":expectedRevision": expected.statusRevision }),
+		} : {};
 		const expression =
 			status === "read"
 				? {
-						UpdateExpression: "SET #status = :status, readAt = if_not_exists(readAt, :readAt)",
-						ExpressionAttributeValues: { ":status": status, ":readAt": new Date().toISOString() },
+						UpdateExpression: "SET #status = :status, readAt = if_not_exists(readAt, :readAt) ADD statusRevision :one",
+						ExpressionAttributeValues: { ":one": 1, ":status": status, ":readAt": now().toISOString() },
 					}
 				: {
-						UpdateExpression: "SET #status = :status REMOVE readAt",
-						ExpressionAttributeValues: { ":status": status },
+						UpdateExpression: "SET #status = :status REMOVE readAt ADD statusRevision :one",
+						ExpressionAttributeValues: { ":one": 1, ":status": status },
 					};
 
 		const outcome = await writeIfCondition(() =>
 			userArticles.update({
 				Key: { userId: partition, url: article.url },
-				ConditionExpression: "attribute_exists(savedAt)",
+				ConditionExpression: `attribute_exists(savedAt) AND attribute_not_exists(personalScope)${expectedCondition}`,
 				ExpressionAttributeNames: { "#status": "status" },
 				ReturnValues: "ALL_NEW",
 				...expression,
+				ExpressionAttributeValues: { ...expression.ExpressionAttributeValues, ...expectedValues },
 			}),
 		);
-		if (outcome.kind === "condition-failed") return null;
+		if (outcome.kind === "condition-failed") {
+			const key = { userId: partition, url: article.url };
+			const row = await userArticles.get(key, { consistentRead: true });
+			if (!row) return null;
+			if (expected && (row.savedAt !== expected.savedAt.toISOString() || row.readAt !== expected.readAt?.toISOString()
+				|| row.statusRevision !== expected.statusRevision)) return toSavedArticle(article, { ...row, userId });
+			if (!row.personalScope) return updateStatusInPartition(partition, userId, routeId, status, attempt + 1, expected);
+			if (row.status === status) return toSavedArticle(article, { ...row, userId });
+			const at = status === "read" ? now().toISOString() : row.personalPickedAt ?? row.savedAt;
+			const scope = row.personalPickedAt ? "picked" : "uncertain";
+			const changed = await writeIfCondition(() => userArticles.update({
+				Key: key,
+				UpdateExpression: status === "read"
+					? "SET #status = :status, personalScope = :scope, personalOrder = :order, readAt = :at ADD statusRevision :one"
+					: "SET #status = :status, personalScope = :scope, personalOrder = :order REMOVE readAt ADD statusRevision :one",
+				ConditionExpression: "personalScope = :previous AND savedAt = :saved AND " +
+					(row.personalDecision === undefined ? "attribute_not_exists(personalDecision)" : "personalDecision = :decision") + expectedCondition,
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: {
+					...expectedValues,
+					":one": 1, ":status": status, ":scope": personalReadlistPartition(userId, scope, status),
+					":order": personalReadlistOrder(at, routeId), ":saved": row.savedAt, ":previous": row.personalScope,
+					...(status === "read" ? { ":at": at } : {}),
+					...(row.personalDecision === undefined ? {} : { ":decision": row.personalDecision }),
+				},
+				ReturnValues: "ALL_NEW",
+			}));
+			if (changed.kind === "condition-failed") return updateStatusInPartition(partition, userId, routeId, status, attempt + 1, expected);
+			assertItem(changed.result.Attributes, "the updated classified row must be returned");
+			return toSavedArticle(article, { ...changed.result.Attributes, userId });
+		}
 		assertItem(outcome.result.Attributes, "ReturnValues ALL_NEW must return the updated user-article row");
 		return toSavedArticle(article, { ...outcome.result.Attributes, userId });
 	};
 
-	const updateArticleStatus: UpdateArticleStatus = (routeId, userId, status) =>
-		updateStatusInPartition(userId, userId, routeId, status);
+	const updateArticleStatus: UpdateArticleStatus = (routeId, userId, status, expected) =>
+		updateStatusInPartition(userId, userId, routeId, status, 0, expected);
 
 	const updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists = async ({
 		id,
@@ -1587,6 +1808,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 				})),
 			],
 			projection: ["userId"],
+			consistentRead: true,
 		});
 		return rows.map((row) => {
 			const { readlist } = decodeUserArticlePartition(row.userId);
@@ -1625,6 +1847,18 @@ export function initDynamoDbSavedArticleStore(deps: {
 		);
 	};
 
+	const writeReadlistCopy = async (owner: UserId, source: string, item: Record<string, unknown> & { userId: string; url: string }) => {
+		const put = { Item: item, ConditionExpression: "attribute_not_exists(#url)", ExpressionAttributeNames: { "#url": "url" } };
+		if (!item.url.startsWith(`${PRIVATE_ITEM_HOST}/`)) return (await writeIfCondition(() => userArticles.put(put))).kind === "written";
+		if (source === item.userId) return false;
+		const result = await transactIfConditions(() => client.send(new TransactWriteCommand({ TransactItems: [
+			{ ConditionCheck: { TableName: userArticlesTableName, Key: canonicalRemovalKey(owner, item.url), ConditionExpression: "attribute_not_exists(privateReleaseClaim)" } },
+			{ ConditionCheck: { TableName: userArticlesTableName, Key: { userId: source, url: item.url }, ConditionExpression: "attribute_exists(savedAt)" } },
+			{ Put: { TableName: userArticlesTableName, ...put } },
+		] })));
+		return result.kind === "written";
+	};
+
 	const assignSavedArticleToReadlist: AssignSavedArticleToReadlist = async ({
 		userId,
 		readlist,
@@ -1638,43 +1872,25 @@ export function initDynamoDbSavedArticleStore(deps: {
 			articleResourceUniqueId.value,
 		);
 		if (!source) return { assigned: false };
-		const outcome = await writeIfCondition(() =>
-			userArticles.put({
-				Item: {
-					userId: partitionFor({ userId, readlist }),
-					url: articleResourceUniqueId.value,
-					status: source.status,
-					savedAt: savedAt.toISOString(),
-					...(source.readAt === undefined ? {} : { readAt: source.readAt }),
-					...(source.provenance === undefined ? {} : { provenance: source.provenance }),
-					...(source.suggestionAttribution === undefined
-						? {}
-						: { suggestionAttribution: source.suggestionAttribution }),
-				},
-				ConditionExpression: "attribute_not_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url" },
-			}),
-		);
-		if (outcome.kind === "condition-failed") return { assigned: false };
-		return { assigned: true };
+		const assigned = await writeReadlistCopy(userId, partitionFor({ userId, readlist: from }), {
+			userId: partitionFor({ userId, readlist }), url: articleResourceUniqueId.value, status: source.status,
+			savedAt: savedAt.toISOString(),
+			...(source.readAt === undefined ? {} : { readAt: source.readAt }),
+			...(source.provenance === undefined ? {} : { provenance: source.provenance }),
+			...(source.suggestionAttribution === undefined ? {} : { suggestionAttribution: source.suggestionAttribution }),
+		});
+		return { assigned };
 	};
 
 	const copyRowInto = async (
+		userId: UserId,
 		partition: string,
 		row: z.infer<typeof UserArticleRow>,
 	): Promise<boolean> => {
 		const attributes = Object.fromEntries(
 			Object.entries(row).filter(([, value]) => value !== undefined),
 		);
-		const outcome = await writeIfCondition(() =>
-			userArticles.put({
-				Item: { ...attributes, userId: partition },
-				ConditionExpression: "attribute_not_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url" },
-			}),
-		);
-		if (outcome.kind === "condition-failed") return false;
-		return true;
+		return writeReadlistCopy(userId, row.userId, { ...attributes, userId: partition, url: row.url });
 	};
 
 	const moveReadlistArticles: MoveReadlistArticles = async ({ userId, from, to }) => {
@@ -1684,7 +1900,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await forEachPartitionRow(source, async (rows) => {
 			const copied = await Promise.all(
 				rows.map(async (row) => {
-					const landed = await copyRowInto(destination, row);
+					const landed = await copyRowInto(userId, destination, row);
+					if (!landed && row.url.startsWith(`${PRIVATE_ITEM_HOST}/`) &&
+						!await userArticles.get({ userId: destination, url: row.url }, { consistentRead: true })) {
+						if (await userArticles.get({ userId: source, url: row.url }, { consistentRead: true })) {
+							throw new Error("Private upload release is in progress. Retry the readlist move.");
+						}
+						return false;
+					}
 					await userArticles.delete({ Key: { userId: source, url: row.url } });
 					return landed;
 				}),
@@ -1787,6 +2010,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	};
 
 	return {
+		changePersonalPick,
 		saveArticle,
 		saveArticleKeepingPosition,
 		allocateSavedAt,

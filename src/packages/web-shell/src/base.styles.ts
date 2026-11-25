@@ -323,6 +323,34 @@ export const BASE_RESET_STYLES = `
 		flex-direction: column;
 		padding-top: var(--banner-area-height, 52px);
 	}
+	.popover__backdrop-dismiss {
+		display: none;
+	}
+	@supports selector(:popover-open) {
+		.popover--scrimmed:popover-open > .popover__backdrop-dismiss {
+			display: block;
+			position: fixed;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			z-index: -1;
+			border: 0;
+			padding: 0;
+			background: transparent;
+		}
+		.popover--scrimmed::backdrop {
+			background: ${SCRIM_LIGHT};
+			backdrop-filter: blur(${SCRIM_BLUR});
+		}
+		@media (prefers-color-scheme: dark) {
+			body:not(.${LIGHT_ONLY_BODY_CLASS}) .popover--scrimmed::backdrop {
+				background: ${SCRIM_DARK};
+			}
+		}
+		body.${DARK_ONLY_BODY_CLASS} .popover--scrimmed::backdrop {
+			background: ${SCRIM_DARK};
+		}
+	}
 	body > main {
 		width: 100%;
 	}

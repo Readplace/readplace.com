@@ -105,6 +105,14 @@ describe("toArticleSubEntity", () => {
 					fields: [{ name: "status", type: "hidden", value: "read" }],
 				},
 				{
+					name: "add-to-hand-picked",
+					title: "Add to Hand Picked",
+					href: `/queue/${ARTICLE_ID}/hand-picked`,
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+					fields: [{ name: "membership", type: "hidden", value: "add" }],
+				},
+				{
 					name: "add-to-readlist",
 					href: `/queue/${ARTICLE_ID}/assign`,
 					method: "POST",
@@ -329,17 +337,17 @@ describe("toArticleSubEntity", () => {
 			{
 				where: "outside any collection",
 				options: { addToReadlist: "advertised", now: NOW },
-				names: ["update-status", "add-to-readlist"],
+				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
 			},
 			{
 				where: "in a collection that names no readlist",
 				options: { addToReadlist: "advertised", now: NOW, collectionQuery: { readlistKey: "readlist", status: "unread" } },
-				names: ["update-status", "add-to-readlist"],
+				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
 			},
 			{
 				where: "in the default readlist",
 				options: { addToReadlist: "advertised", now: NOW, collectionQuery: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
-				names: ["update-status", "add-to-readlist"],
+				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
 			},
 			{
 				where: "in one of the reader's own readlists",
@@ -349,17 +357,17 @@ describe("toArticleSubEntity", () => {
 			{
 				where: "outside any collection when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW },
-				names: ["update-status"],
+				names: ["update-status", "add-to-hand-picked"],
 			},
 			{
 				where: "in a collection that names no readlist when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW, collectionQuery: { readlistKey: "readlist", status: "unread" } },
-				names: ["update-status"],
+				names: ["update-status", "add-to-hand-picked"],
 			},
 			{
 				where: "in the default readlist when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW, collectionQuery: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
-				names: ["update-status"],
+				names: ["update-status", "add-to-hand-picked"],
 			},
 			{
 				where: "in one of the reader's own readlists when add-to-readlist is withheld",
@@ -808,6 +816,7 @@ describe("toSavedArticleEntity", () => {
 
 		expect(entity.actions?.map(({ name, href }) => ({ name, href }))).toEqual([
 			{ name: "update-status", href: `/queue/${ARTICLE_ID}/status` },
+			{ name: "add-to-hand-picked", href: `/queue/${ARTICLE_ID}/hand-picked` },
 			{ name: "add-to-readlist", href: `/queue/${ARTICLE_ID}/assign` },
 		]);
 	});
