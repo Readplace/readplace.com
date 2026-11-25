@@ -23,7 +23,7 @@ The "large text" line is out of the brand guidelines, and the pass that caught t
 
 ## Measured twice, the second time in grey
 
-Each pair of ink and background was read 4 ways: light theme, dark theme, and each of those again with the hue removed.
+Each pair of ink and background on the web and on Android was read 4 ways: light theme, dark theme, and each of those again with the hue removed.
 
 The grey reading exists for screens that drop colour.
 
@@ -37,7 +37,7 @@ They moved to a dedicated error ink. The same menu words now measure 4.68:1 to 5
 
 The fills moved with the words.
 
-Android's error banner and the delete side of its swipe tray now share the pinned red the web's destructive buttons already carry, white on #B95050 at 4.85:1, and the iPhone app's error banner mirrors the same value, so the 3 platforms can't drift apart one hex code at a time.
+Android's error banner and the delete side of its swipe tray now share the pinned red a destructive web button fills with on hover and press, white on #B95050 at 4.85:1. The iPhone app's error banner copies it, so all 3 platforms now use the same red.
 
 The tray's mark-as-read side holds its white at 4.98:1. The share sheet's warning glyph and the offline badge took pinned inks of their own, each over its floor in both themes and both readings.
 
@@ -45,7 +45,7 @@ The tray's mark-as-read side holds its white at 4.98:1. The share sheet's warnin
 
 The worst number of the pass wasn't text.
 
-An empty form field on the web drew its one boundary, a 1px edge, at 1.17:1 against the page behind it. A box meant to be typed into arrived close to invisible.
+An empty form field on the web drew its one boundary, a 1px edge, at as little as 1.17:1 against the page behind it. A box meant to be typed into arrived close to invisible.
 
 The edge took a token of its own and now reads 3.55:1 on white, over the 3:1 floor for marks that aren't words. 2 more web stragglers went with it: the "Saved offline" badge's green, which sat at 4.35:1 in light, and one amber price tag in the home page's plan table, which moved onto the darker amber ink.
 
@@ -55,7 +55,7 @@ None of it stays put on good intentions.
 
 The web's contrast sweep measures each listed pair in both themes and in greyscale, and the home page's bands joined it. On Android, banner fill and ink go through a named greyscale check in both themes. The iPhone app re-recorded the 5 snapshot baselines the darker values moved.
 
-The web change alone re-recorded 297 screenshots: 279 in the web app, 8 in each of the Chrome and Firefox extensions, and 2 in the inbox. A colour that falls under its floor now fails the build instead of waiting for the next audit.
+The web change alone re-recorded 297 screenshots: 279 in the web app, 8 in each of the Chrome and Firefox extensions, and 2 in the inbox. A listed pair that falls under its floor now fails the build instead of waiting for the next audit.
 
 ## Daylight is the test
 
