@@ -913,6 +913,84 @@ describe("Highlights (POST /queue/:id/highlights/opened)", () => {
 	});
 });
 
+describe("Highlights (POST /queue/:id/highlights/copied)", () => {
+	const copiedPath = (articleId: string, query = "") =>
+		`/queue/${articleId}/highlights/copied${query}`;
+
+	it.each([
+		["web", ""],
+		["ios", "?platform=ios"],
+		["android", "?platform=android"],
+	] as const)("records exactly a %s highlight_copied with no text and answers 204", async (surface, query) => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			`https://example.com/highlight-copied-${surface}`,
+		);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user);
+
+		const response = await agent.post(copiedPath(articleId, query));
+
+		expect(response.status).toBe(204);
+		const events = harness.analytics.events.filter((event) => event.event === "highlight_copied");
+		expect(events).toEqual([
+			{
+				stream: "analytics",
+				event: "highlight_copied",
+				timestamp: expect.any(String),
+				user_id: user.userId,
+				visitor_hash: expect.any(String),
+				origin: "rail",
+				surface,
+			},
+		]);
+	});
+
+	it("records the copy for a locked owner", async () => {
+		const fixture = parsedFixture();
+		let offsetMs = 0;
+		fixture.shared.now = () => new Date(Date.now() + offsetMs);
+		const harness = useApp(fixture);
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-copied-locked",
+		);
+		offsetMs = 8 * 24 * 60 * 60 * 1000;
+
+		const response = await agent.post(copiedPath(articleId, "?platform=ios"));
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toHaveLength(1);
+	});
+
+	it("answers 404 and records nothing for another owner's article", async () => {
+		const harness = useApp(parsedFixture());
+		const { articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-copied-foreign",
+		);
+		await harness.auth.createUser({
+			email: "other@example.com",
+			password: "password123",
+		});
+		const other = request.agent(harness.server);
+		await other
+			.post("/login")
+			.type("form")
+			.send({ email: "other@example.com", password: "password123" });
+
+		const response = await other.post(copiedPath(articleId));
+
+		expect(response.status).toBe(404);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toEqual([]);
+	});
+});
+
 describe("Highlights in the reader (GET /queue/:id/view)", () => {
 	it("lists a stored highlight and posts new ones to the plain create path with no query", async () => {
 		const harness = useApp(parsedFixture());

@@ -5,12 +5,13 @@ import type { CanSaveContent } from "../../middleware/can-save-content";
 import { isNativeSurface, nativeSurfaceQuery } from "../../onboarding/native-client";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import { requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
-import { type LinkParams, parseReadlistUrl, readlistReturnQuery } from "./readlist.url";
+import { type LinkParams, parseReadlistUrl, READLIST_PATH, readlistReturnQuery } from "./readlist.url";
 
 export interface ReaderHighlightOptions {
 	rows: readonly Highlight[];
 	canonicalContentHash: string | undefined;
 	scope: HighlightFormScope | undefined;
+	copiedUrl: string;
 }
 
 export type ReaderHighlightOptionsFor = (
@@ -31,6 +32,11 @@ export function highlightFormScopeFor(req: Request, articleId: string): Highligh
 	};
 }
 
+export function highlightCopiedUrlFor(req: Request, articleId: string): string {
+	const query = nativeSurfaceQuery(req);
+	return `${READLIST_PATH}/${articleId}/highlights/copied${query === "" ? "" : `?${query}`}`;
+}
+
 export function initReaderHighlightOptions(deps: {
 	canSaveContent: CanSaveContent;
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
@@ -41,6 +47,7 @@ export function initReaderHighlightOptions(deps: {
 			rows,
 			canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,
 			scope: writable ? highlightFormScopeFor(req, article.id.value) : undefined,
+			copiedUrl: highlightCopiedUrlFor(req, article.id.value),
 		};
 	};
 }

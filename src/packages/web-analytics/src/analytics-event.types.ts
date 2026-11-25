@@ -209,11 +209,21 @@ export interface HighlightOpenedEvent {
 	highlight_id: HighlightId;
 }
 
+export interface HighlightCopiedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightCopied;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+	origin: "rail";
+	surface: "web" | "ios" | "android";
+}
+
 export interface ViewHighlightEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewHighlight;
 	timestamp: string;
-	action: "kept" | "limit_reached" | "opened";
+	action: "kept" | "limit_reached" | "opened" | "copied";
 	visitor_hash: string | null;
 	visitor_id: string | null;
 }
@@ -550,6 +560,7 @@ export type AnalyticsEvent =
 	| HighlightDeletedEvent
 	| HighlightNoteSavedEvent
 	| HighlightOpenedEvent
+	| HighlightCopiedEvent
 	| ViewHighlightEvent
 	| ViewHighlightsHandedOverEvent
 	| ViewHighlightsClaimedEvent;

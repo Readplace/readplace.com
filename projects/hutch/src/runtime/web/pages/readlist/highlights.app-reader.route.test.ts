@@ -18,7 +18,7 @@ import {
 	createNoopLogError,
 	TEST_APP_ORIGIN,
 } from "@packages/test-fixtures";
-import type { HighlightCreatedEvent } from "@packages/web-analytics";
+import type { HighlightCopiedEvent, HighlightCreatedEvent } from "@packages/web-analytics";
 import { JSDOM } from "jsdom";
 import { loginAgent, useTestServer } from "../../../test-app";
 
@@ -333,13 +333,14 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		}
 	});
 
-	it("loads the highlight script for a locked account's noted highlight, and not for highlights without a note", async () => {
+	it("loads the highlight script for a locked account with or without highlights and notes", async () => {
 		const { fixture: lockable, lock } = lockedFixture();
 		const harness = useApp(lockable);
 		const noted = await saveArticle(harness, `https://example.com/app-${platform}-read-only-script`);
 		await createHighlight(noted.agent, { articleId: noted.articleId, exact: "readability parser", note: "Script note" });
 		const bare = await saveArticle(harness, `https://example.com/app-${platform}-read-only-bare`);
 		await createHighlight(bare.agent, { articleId: bare.articleId, exact: "readability parser" });
+		const empty = await saveArticle(harness, `https://example.com/app-${platform}-read-only-empty`);
 		lock();
 
 		const scriptsOf = async (input: { agent: Agent; articleId: string }) =>
@@ -347,11 +348,36 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 				doc((await input.agent.get(`/queue/${input.articleId}/view?platform=${platform}`)).text).querySelectorAll("script[src]"),
 				(script) => script.getAttribute("src"),
 			);
-		const notedScripts = await scriptsOf(noted);
-		const bareScripts = await scriptsOf(bare);
 
-		expect(notedScripts).toContain("/client-dist/highlight-toolbar.client.js");
-		expect(bareScripts).toEqual(notedScripts.filter((src) => src !== "/client-dist/highlight-toolbar.client.js"));
+		for (const reader of [noted, bare, empty]) {
+			expect(await scriptsOf(reader)).toContain("/client-dist/highlight-toolbar.client.js");
+		}
+	});
+
+	it("offers a locked account Copy on each rail row and counts the copy against the app surface", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-copy`);
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+		lock();
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+
+		expect(page.querySelectorAll('[data-test-highlights-rail] [data-test-action="highlight-copy"]')).toHaveLength(1);
+		const status = page.querySelector("[data-test-highlight-copy-status]");
+		assert(status, "the reader renders the copy status region");
+		expect(status.parentElement?.tagName).toBe("MAIN");
+		const copiedUrl = status.getAttribute("data-copied-url");
+		assert(copiedUrl, "the status region names the copied beacon");
+
+		const response = await agent.post(copiedUrl);
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events
+				.filter((event): event is HighlightCopiedEvent => event.event === "highlight_copied")
+				.map((event) => event.surface),
+		).toEqual([platform]);
 	});
 
 	it("keeps the marks and the surface on the reader poll's rail", async () => {

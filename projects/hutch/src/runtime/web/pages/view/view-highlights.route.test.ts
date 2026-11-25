@@ -201,6 +201,7 @@ describe("POST /view/highlights/event", () => {
 	it.each([
 		["action=kept", "kept"],
 		["action=limit-reached", "limit_reached"],
+		["action=copied", "copied"],
 		["highlight=local-1&origin=mark", "opened"],
 	])("records %s for a logged-out visitor, with no quote text", async (query, action) => {
 		const harness = await harnessWithArticle();

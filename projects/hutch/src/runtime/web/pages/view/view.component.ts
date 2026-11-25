@@ -358,6 +358,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		shareDialogHtml: share === undefined ? "" : renderShareDialog(share),
 		downloadGuideHtml: input.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(input.epubDownloadGuide),
 		localHighlightsDialogHtml: localHighlights?.dialogHtml ?? "",
+		highlightCopyStatusHtml: localHighlights?.copyStatusHtml ?? "",
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;

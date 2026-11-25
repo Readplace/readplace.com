@@ -6,6 +6,7 @@ import { generateCspNonce } from "@packages/web-shell";
 import { type DOMWindow, JSDOM } from "jsdom";
 import { Base } from "../../base.component";
 import { HIGHLIGHTS_RENDERED_EVENT } from "../../shared/article-body/highlights/highlights-rendered-event";
+import type { HighlightClipboard } from "../../shared/article-body/highlights/highlight-copy.client";
 import { initHighlightToolbar, type ToolbarRect } from "../../shared/article-body/highlights/highlight-toolbar.client";
 import type { LocalHighlightStorage } from "../../shared/article-body/highlights/local-highlights";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
@@ -88,6 +89,7 @@ function harness(input: {
 	withToolbarScript?: boolean;
 	rectsOf?: () => readonly ToolbarRect[];
 	pageHtml?: string;
+	clipboard?: HighlightClipboard;
 }): Harness {
 	const dom = new JSDOM(input.pageHtml ?? PAGE_HTML, { url: PAGE_URL });
 	const h: Harness = {
@@ -139,6 +141,7 @@ function harness(input: {
 			isOpen: () => false,
 			isFocusVisible: () => false,
 			sendBeacon: (url) => h.beacons.push(url),
+			clipboard: input.clipboard,
 			isAutoPopoverOpen: () => false,
 			paintDraft: () => undefined,
 			clearDraft: () => undefined,
@@ -590,6 +593,28 @@ describe("initViewHighlights", () => {
 
 		assert.equal(h.doc.querySelectorAll("[data-highlight-toolbar]").length, 0);
 		assert.equal(cardOf(h).hidden, true);
+	});
+
+	it("copies a kept row's quote filled from local storage and reports it to the public event route", async () => {
+		const copied: string[] = [];
+		const h = harness({
+			storage: mapStorage(),
+			withToolbarScript: true,
+			rectsOf: () => [{ top: 100, bottom: 120, left: 100, width: 200 }],
+			clipboard: { writeText: async (text) => void copied.push(text) },
+		});
+		highlight({ h, quote: "A second sentence" });
+		h.beacons.length = 0;
+		const copy = cardOf(h).querySelector<HTMLElement>("[data-test-view-highlight-row] [data-test-action='highlight-copy']");
+		assert(copy, "each kept row renders a Copy button");
+
+		copy.click();
+		await Promise.resolve();
+
+		assert.deepEqual(copied, ["A second sentence"]);
+		assert.equal(h.doc.documentElement.classList.contains("has-clipboard"), true);
+		assert.equal(h.doc.querySelector("[data-test-highlight-copy-status]")?.textContent, "Highlight copied");
+		assert.deepEqual(h.beacons, ["/view/highlights/event?action=copied"]);
 	});
 
 	it("sends the opened beacon of a click on a kept mark to the public event route", () => {
