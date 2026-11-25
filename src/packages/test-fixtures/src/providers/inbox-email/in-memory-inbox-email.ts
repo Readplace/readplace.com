@@ -16,7 +16,10 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 			rows.set(key, email);
 			return "stored";
 		},
-		listEmailsByUserId: async ({ userId, cursor, pageSize }) => {
+		listReceivedSenders: async (userId) => [...new Set([...rows.values()]
+			.filter((row) => row.userId === userId && row.status === "received" && row.senderEmail !== "")
+			.map((row) => row.senderEmail))].sort(),
+		listEmailsByUserId: async ({ userId, cursor, pageSize, sender }) => {
 			assert(Number.isInteger(pageSize), "pageSize must be an integer");
 			assert(pageSize >= 1, "pageSize must be >= 1");
 			assert(
@@ -24,7 +27,7 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 				"cursor must name a boundary row",
 			);
 			const newestFirst = [...rows.values()]
-				.filter((row) => row.userId === userId)
+				.filter((row) => row.userId === userId && (sender === undefined || (row.status === "received" && row.senderEmail === sender)))
 				.sort((a, b) =>
 					a.receivedAtMessageId < b.receivedAtMessageId ? 1 : -1,
 				);

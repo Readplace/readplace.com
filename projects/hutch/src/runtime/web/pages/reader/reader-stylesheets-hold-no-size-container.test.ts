@@ -7,7 +7,7 @@ const SKELETON_STYLES = readFileSync(
 	"utf-8",
 );
 
-const OUT_OF_FLOW_SELECTORS = [".confirm-popover"];
+const OUT_OF_FLOW_SELECTORS = [".confirm-popover__surface"];
 
 const SIZE_CONTAINER = /(?:container-type\s*:\s*(?:inline-size|size)\b|container\s*:[^;}]*\/\s*(?:inline-size|size)\b)/;
 
@@ -29,6 +29,6 @@ describe("the reader's stylesheets", () => {
 	});
 
 	it("still recognise the out-of-flow popover as a size container, so the exemption is not dead", () => {
-		expect(sizeContainerRules(READER_STYLES)).toContain(".confirm-popover");
+		expect(sizeContainerRules(READER_STYLES)).toContain(".confirm-popover__surface");
 	});
 });

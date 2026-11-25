@@ -44,6 +44,7 @@ function freeAccountAllowance(limit: number): ClaimDailySaves {
 function claimWith(input: { unresolved: boolean }) {
 	const refreshed: string[] = [];
 	const claim = initClaimViewHighlights({
+		now: () => new Date("2026-11-18T00:00:00.000Z"),
 		validateNewSaveUrl: withPrivateItemRefusal(validateSaveableUrl),
 		claimDailySaves: grantAll,
 		refreshArticleIfStale: async ({ url }) => {
@@ -94,6 +95,7 @@ function claimAnswering(
 		savedAt: new Date("2026-11-18T00:00:00.000Z"),
 	};
 	return initClaimViewHighlights({
+		now: () => new Date("2026-11-18T00:00:00.000Z"),
 		validateNewSaveUrl: withPrivateItemRefusal(validateSaveableUrl),
 		claimDailySaves: allowance.claimDailySaves,
 		refreshArticleIfStale: async () => ({

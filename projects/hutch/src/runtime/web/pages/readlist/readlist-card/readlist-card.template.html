@@ -4,6 +4,18 @@
     <details class="menu readlist-article__menu" data-test-article-menu>
       <summary class="menu__toggle" data-test-action="article-menu">{{icon "ellipsis"}}<span class="sr-only">More options for {{title}}</span></summary>
       <div class="menu__panel">
+        {{#if reviewOlder}}
+        <form method="post" action="{{personalPick.href}}">
+          <input type="hidden" name="membership" value="remove">
+          <button class="menu__item" type="submit">{{t "handPicked.keepAll"}}</button>
+        </form>
+        {{/if}}
+        {{#if personalPick}}
+        <form method="post" action="{{track personalPick.href source='queue-card' content=personalPick.name}}">
+          {{#each personalPick.fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+          <button class="menu__item" type="submit" data-test-action="{{personalPick.name}}">{{icon "book"}}<span>{{personalPick.title}}</span></button>
+        </form>
+        {{/if}}
         {{{moveMenuHtml}}}
         {{{deleteMenuHtml}}}
       </div>

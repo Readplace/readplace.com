@@ -33,7 +33,7 @@ export function initSaveEmailIssueCommandHandler(deps: {
 		malformed: { policy: "retry" },
 		handle: async (detail, record) => {
 			const { userId, receivedAtMessageId } = detail;
-			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
+			const requestedAt = new Date(detail.requestedAt ?? EventEnvelope.parse(JSON.parse(record.body)).time);
 			const url = emailIssueArticleUrl({ userId, receivedAtMessageId });
 			const body = await deps.readEmailBody(ArticleResourceUniqueId.parse(url));
 			if (body === undefined) {

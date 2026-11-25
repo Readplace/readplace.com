@@ -133,6 +133,7 @@ import type {
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
+	ChangePersonalPick,
 	CountArticlesByUser,
 	CountEarlyIntentionalSave,
 	MarkActivationThresholdReached,
@@ -498,6 +499,8 @@ export interface SubscriptionBillingBundle {
 }
 
 export interface ArticleStoreBundle {
+	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+	changePersonalPick: ChangePersonalPick;
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;
 	deleteAllUserArticles: DeleteAllUserArticles;
@@ -512,6 +515,7 @@ export interface ArticleStoreBundle {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	seedUncertainSave: (params: { userId: UserId; url: string }) => void;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;

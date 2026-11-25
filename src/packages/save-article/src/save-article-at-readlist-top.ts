@@ -16,6 +16,9 @@ export type SaveArticleAtReadlistTop = (params: {
 	freshness: ResolvedFreshnessResult;
 	provenance: SaveProvenance;
 	saveTrigger: SaveTrigger;
+	requestedAt?: string;
+	personalPickAt?: string;
+	bulkSave?: true;
 	saveAttemptId: SaveAttemptId;
 }) => Promise<{
 	saved: SavedArticle;

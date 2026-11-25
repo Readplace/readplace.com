@@ -954,10 +954,6 @@ export function initPopup(deps: {
 		await saveOrShowList(active.target);
 	}
 
-	elementById("save-all-view-readlist").addEventListener("click", async () => {
-		await showListView().catch(showListLoadFailure);
-	});
-
 	elementById("login-button").addEventListener("click", async () => {
 		const loginError = elementById("login-error");
 		loginError.hidden = true;

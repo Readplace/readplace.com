@@ -29,6 +29,29 @@ async function seedEmailWithPendingLink(page: Page): Promise<string> {
 	return body.emailId;
 }
 
+for (const javaScriptEnabled of [true, false]) {
+	test.describe(`Inbox sender dropdown with JavaScript ${javaScriptEnabled ? "enabled" : "disabled"}`, () => {
+		test.use({ javaScriptEnabled });
+
+		test("filters and resets the timeline from the keyboard", async ({ page }) => {
+			await seedEmailWithPendingLink(page);
+			await page.request.post("/e2e/seed-email", { data: {
+				messageId: "<another@e2e>", receivedAt: RECEIVED_AT, senderEmail: "other@example.com", subject: "Another newsletter", links: [],
+			} });
+			await page.goto("/inbox");
+			const menu = page.locator("details[data-test-sender-filter]");
+			await menu.locator("summary").press("Enter");
+			await expect(menu.getByRole("button", { name: "other@example.com" })).toBeVisible();
+			await menu.getByRole("button", { name: "other@example.com" }).press("Enter");
+			await expect(page.locator("[data-test-inbox-emails-row]")).toHaveCount(1);
+			await expect(menu.locator("summary")).toContainText("other@example.com");
+			await menu.locator("summary").press("Space");
+			await menu.getByRole("button", { name: "All senders" }).press("Enter");
+			await expect(page.locator("[data-test-inbox-emails-row]")).toHaveCount(2);
+		});
+	});
+}
+
 test.describe("Inbox article cards", () => {
 	test("resolves a pending card through its own poll without moving keyboard focus", async ({
 		page,

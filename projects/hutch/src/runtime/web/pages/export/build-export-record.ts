@@ -58,6 +58,7 @@ export function toExportRemovedArticle(params: { link: HeldLink; originalUrl: st
 }
 
 export interface ExportEnvelope {
+	bulkArticles?: Record<string, unknown>[];
 	engagement: EngagementState;
 	starterPack?: StarterPack;
 	readlists: ReadlistDefinitionData[];

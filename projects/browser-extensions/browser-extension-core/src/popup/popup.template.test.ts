@@ -98,7 +98,7 @@ describe("save all tabs progress", () => {
 		expect(template).toContain(
 			[
 				'    <button id="save-all-continue" class="btn btn--neutral save-all-view__pending" type="button" data-test-save-all-continue>Continue in background</button>',
-				'    <button id="save-all-view-readlist" class="btn btn--neutral" type="button" hidden>View readlist</button>',
+				'    <a id="save-all-view-readlist" class="btn btn--neutral" href="{{allReadlistHref}}" target="_blank" rel="noopener" hidden>View All</a>',
 			].join("\n"),
 		);
 	});
@@ -168,7 +168,7 @@ describe("shortcut hints", () => {
 	it("closes the bulk-save view with the save-all shortcut, hidden until the server advertises bulk save", () => {
 		expect(template).toContain(
 			[
-				'    <button id="save-all-view-readlist" class="btn btn--neutral" type="button" hidden>View readlist</button>',
+				'    <a id="save-all-view-readlist" class="btn btn--neutral" href="{{allReadlistHref}}" target="_blank" rel="noopener" hidden>View All</a>',
 				'    <p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Save all tabs with <kbd class="shortcut-hint__key">Ctrl</kbd>+<kbd class="shortcut-hint__key">Shift</kbd>+<kbd class="shortcut-hint__key">D</kbd>.</p>',
 				"  </div>",
 			].join("\n"),

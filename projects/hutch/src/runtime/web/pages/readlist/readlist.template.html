@@ -11,6 +11,51 @@
             {{{addLinkPendingHtml}}}
           </div>
           <div class="readlist__browse">
+            {{#if builtInCaption}}
+            <header class="readlist__heading"><h1>{{builtInTitle}}</h1><p>{{builtInCaption}}</p></header>
+            {{/if}}
+            {{#if reviewOlderHref}}<p><a href="{{reviewOlderHref}}">{{t "handPicked.review"}}</a></p>{{/if}}
+            {{#if reviewingOlder}}<p>{{t "handPicked.reviewInstructions"}}</p>{{/if}}
+            {{#if manageArticles}}
+            <details class="readlist__manage" {{#if manageArticles.open}}open{{/if}}>
+              <summary>{{t "manage.title"}}</summary>
+              <details class="menu readlist__source-menu">
+                <summary class="menu__toggle btn btn--neutral">{{t "manage.source"}} {{#each manageArticles.options}}{{#if selected}}{{label}}{{/if}}{{/each}} {{icon "chevron-down"}}</summary>
+                <div class="menu__panel" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML">
+                  {{#each manageArticles.options}}
+                  <a class="menu__item" href="{{href}}" {{#if selected}}aria-current="true"{{/if}}>{{label}}</a>
+                  {{/each}}
+                </div>
+              </details>
+              {{#if manageArticles.senderLabel}}
+              <details class="menu readlist__source-menu">
+                <summary class="menu__toggle btn btn--neutral">{{manageArticles.senderLabel}} {{icon "chevron-down"}}</summary>
+                <div class="menu__panel" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML">
+                  {{#each manageArticles.senders}}
+                  <a class="menu__item" href="{{href}}" {{#if selected}}aria-current="true"{{/if}}>{{address}}</a>
+                  {{else}}<span class="menu__item">{{t "manage.noSenders"}}</span>{{/each}}
+                </div>
+              </details>
+              {{/if}}
+              {{#with manageArticles.bulkForm}}
+              <form method="post" action="{{href}}">
+                {{#each visible}}<input type="hidden" name="visible" value="{{this}}">{{/each}}
+                <fieldset><legend>{{t "manage.selection"}}</legend>
+                  <label><input type="radio" name="extent" value="page" checked> {{t "manage.extent.page"}}</label>
+                  <label><input type="radio" name="extent" value="all"> {{t "manage.extent.all"}}</label>
+                </fieldset>
+                <details class="menu readlist__source-menu">
+                  <summary class="menu__toggle btn btn--neutral">{{t "manage.preview"}} {{icon "chevron-down"}}</summary>
+                  <div class="menu__panel">
+                    {{#each destinations}}<button class="menu__item" name="action" value="file/{{slug}}">{{t "manage.action.file"}} {{label}}</button>{{/each}}
+                    {{#if unread}}<button class="menu__item" name="action" value="read">{{t "manage.action.read"}}</button>{{/if}}
+                    <button class="menu__item" name="action" value="remove">{{t "manage.action.remove"}}</button>
+                  </div>
+                </details>
+              </form>
+              {{/with}}
+            </details>
+            {{/if}}
             {{{purposeCardHtml}}}
             <div class="readlist__tabs-bar">
               {{{tabsHtml}}}

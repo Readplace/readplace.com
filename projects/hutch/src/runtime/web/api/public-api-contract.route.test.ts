@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../../test-app";
-import { createAccessToken } from "../test-helpers/oauth-token";
+import { UserIdSchema } from "@packages/domain/user";
+import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { SIREN_MEDIA_TYPE } from "./siren";
 import { EXTENSION_READLIST_PAGE_SIZE } from "../pages/readlist/readlist-page-size";
 
@@ -172,9 +173,44 @@ describe("the public API's documented contract", () => {
 
 		expect(relsOf(unfiltered.body)).toContain("next");
 		expect(urlsOf(filtered.body)).toEqual(["https://example.com/filtered-20"]);
+		const lookup = actionNamed(unfiltered.body, "lookup-article");
+		const older = "https://example.com/filtered-0";
+		const legacyPage = await sirenGet(harness, { path: `/queue?url=${encodeURIComponent(older)}`, token });
+		expect(urlsOf(legacyPage.body)).toEqual([]);
+		expect(urlsOf((await sirenGet(harness, { path: `${lookup.href}&url=${encodeURIComponent(older)}`, token })).body)).toEqual([older]);
 		expect(filtered.body.properties.total).toEqual({ label: "1 Saved Article" });
 		expect(filtered.body.properties.pages.map((entry: { label: string }) => entry.label)).toEqual(["1"]);
 		expect(relsOf(filtered.body)).not.toContain("next");
+	});
+
+	it("finds a read save by its alias while respecting the requested tab, page and owner", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const token = await createAccessToken(harness);
+		const url = "https://x.com/reader/status/99";
+		const alias = "https://example.com/read-alias";
+		await save(harness, { token, url });
+		await markRead(harness, { token, url });
+		await fixture.articleStore.claimAlias({ aliasUrl: alias, targetOriginalUrl: url, now: new Date() });
+		const root = await sirenGet(harness, { path: "/", token });
+		const lookup = actionNamed(root.body, "lookup-article");
+		const path = `${lookup.href}&url=${encodeURIComponent(alias)}`;
+
+		const found = await sirenGet(harness, { path, token });
+
+		expect(urlsOf(found.body)).toEqual([url]);
+		const equivalent = await sirenGet(harness, { path: `${lookup.href}&url=${encodeURIComponent("https://twitter.com/reader/status/99")}`, token });
+		expect(urlsOf(equivalent.body)).toEqual([url]);
+		expect(found.body.entities[0].properties.status).toBe("read");
+		const self = found.body.links.find((link: { rel: string[] }) => link.rel.includes("self"));
+		expect(urlsOf((await sirenGet(harness, { path: self.href, token })).body)).toEqual([url]);
+		expect(urlsOf((await sirenGet(harness, { path: `${path}&status=read`, token })).body)).toEqual([url]);
+		expect(urlsOf((await sirenGet(harness, { path: `${path}&status=unread`, token })).body)).toEqual([]);
+		expect(urlsOf((await sirenGet(harness, { path: `${path}&page=2`, token })).body)).toEqual([]);
+		const other = await saveAccessTokenForUser(harness, UserIdSchema.parse("other-url-lookup-reader"));
+		expect(urlsOf((await sirenGet(harness, { path, token: other })).body)).toEqual([]);
+		expect(urlsOf((await sirenGet(harness, { path: `${lookup.href}&url=invalid`, token })).body)).toEqual([]);
+		expect(urlsOf((await sirenGet(harness, { path: lookup.href, token })).body)).toEqual([]);
 	});
 
 	it("marks only the next link that leads past the pages an offline download resolves with the offline-prefetch class", async () => {

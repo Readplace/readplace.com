@@ -1,3 +1,5 @@
+import { HAND_PICKED_SCOPE, personalHomeEnabled } from "../pages/readlist/built-in-readlists";
+import { personalPickAction } from "../pages/readlist/personal-pick-action";
 import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
@@ -184,7 +186,7 @@ export function toArticleSubEntity(
 	const enclosure = options.enclosure ?? ABSENT_ENCLOSURE;
 	const readTime = displayableTime({ article, enclosure });
 	const hrefQuery = options.collectionQuery ? buildQueryString(options.collectionQuery) : "";
-	const ownReadlist = options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG ? undefined : options.collectionQuery?.readlist;
+	const ownReadlist = (options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG || options.collectionQuery?.readlist === HAND_PICKED_SCOPE) ? undefined : options.collectionQuery?.readlist;
 	const { label, phase, contentState } = cardProcessingOf({
 		article,
 		crawl: options.crawl,
@@ -252,6 +254,7 @@ export function toArticleSubEntity(
 				type: "application/x-www-form-urlencoded",
 				fields: [{ name: "status", type: "hidden", value: targetStatus }],
 			},
+			...(personalHomeEnabled() && ownReadlist === undefined ? [personalPickAction(article, hrefQuery)] : []),
 			...(options.addToReadlist === "withheld"
 				? []
 				: [

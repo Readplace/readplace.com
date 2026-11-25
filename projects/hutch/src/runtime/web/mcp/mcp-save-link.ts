@@ -10,7 +10,7 @@ import type { initResolveReadlistMembership } from "./readlist-membership";
 import type { initResolveSaveAccess } from "./save-access";
 
 export function initMcpSaveLink(
-	deps: Pick<AppDependencies, "refreshArticleIfStale" | "publishSubmitLink" | "logError" | "baseUrl"> & {
+	deps: Pick<AppDependencies, "refreshArticleIfStale" | "publishSubmitLink" | "logError" | "baseUrl" | "now"> & {
 		resolveSaveAccess: ReturnType<typeof initResolveSaveAccess>;
 		claimDailySaves: ClaimDailySaves;
 		validateNewSaveUrl: ReturnType<typeof withNewSavePreparation>;
@@ -30,6 +30,7 @@ export function initMcpSaveLink(
 		resolveReadlistMembership,
 	} = deps;
 	return async ({ userId, url, readlists, oauthClientId }) => {
+		const personalPickAt = deps.now().toISOString();
 		const access = await resolveSaveAccess(userId);
 		if (!access.allowed) {
 			return { ok: false, message: access.message };
@@ -48,7 +49,7 @@ export function initMcpSaveLink(
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
 				for (const readlist of new Set([DEFAULT_READLIST_SLUG, ...readlists])) {
-					await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, saveTrigger: "manual", saveAttemptId });
+					await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, personalPickAt, saveTrigger: "manual", saveAttemptId });
 				}
 				return { ok: true, pending: true };
 			}
@@ -58,6 +59,7 @@ export function initMcpSaveLink(
 				url: validation.url,
 				freshness,
 				provenance,
+				personalPickAt,
 				saveTrigger: "manual",
 			});
 			for (const readlist of readlists) {

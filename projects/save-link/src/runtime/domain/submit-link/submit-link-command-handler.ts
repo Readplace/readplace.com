@@ -180,7 +180,7 @@ export function initSubmitLinkCommandHandler(deps: {
 			);
 			assert("userId" in detail, `${logPrefix} anonymous submissions have no handler yet`);
 			const { userId } = detail;
-			const requestedAt = new Date(detail.requestedAt ?? EventEnvelope.parse(JSON.parse(record.body)).time);
+			const requestedAt = new Date(detail.requestedAt ?? detail.personalPickAt ?? EventEnvelope.parse(JSON.parse(record.body)).time);
 			const identity = deps.sourceIdentityFor(initResolveWrapperTargetOnce(deps.resolveWrapperTarget));
 			const { crawlCapture, crawlTier1 } = initRecordCrawls(identity);
 			const provenance = SaveProvenanceSchema.parse(detail.provenance);
@@ -256,6 +256,8 @@ export function initSubmitLinkCommandHandler(deps: {
 					freshness,
 					provenance,
 					saveTrigger: detail.saveTrigger,
+					personalPickAt: detail.personalPickAt,
+					bulkSave: detail.bulkSave,
 					saveAttemptId,
 				});
 				logger.info(`${logPrefix} saved`, {

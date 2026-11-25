@@ -99,6 +99,7 @@ jobs:
         if: steps.existing-issue.outputs.skip != 'true'
         env:
           FAILED_ARTICLES_IGNORED_KEY_HASHES: ${{ secrets.FAILED_ARTICLES_IGNORED_KEY_HASHES }}
+          FAILED_ARTICLES_REVIEWED_ACCESS: ${{ secrets.FAILED_ARTICLES_REVIEWED_ACCESS }}
         run: pnpm nx run @packages/check-failed-articles:check-failed-articles
 
       - name: Open tracking issue if report has failed rows

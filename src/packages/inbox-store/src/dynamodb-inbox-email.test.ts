@@ -223,6 +223,41 @@ describe("initDynamoDbInboxEmail", () => {
 		});
 	});
 
+	it("lists distinct received senders across the owner's whole partition", async () => {
+		const key = { userId: USER, receivedAtMessageId: "boundary" };
+		const { client, commands } = createPaginatedClient([
+			{ rows: [{ senderEmail: "z@example.com" }], lastEvaluatedKey: key },
+			{ rows: [{ senderEmail: "" }, { senderEmail: "a@example.com" }, { senderEmail: "z@example.com" }] },
+		]);
+		const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+		expect(await store.listReceivedSenders(USER)).toEqual(["a@example.com", "z@example.com"]);
+		expect(commands[1].input).toMatchObject({
+			KeyConditionExpression: "userId = :uid",
+			FilterExpression: "#status = :received",
+			ExpressionAttributeValues: { ":uid": USER, ":received": "received" },
+			ProjectionExpression: "senderEmail",
+			ExclusiveStartKey: key,
+		});
+	});
+
+	it("continues past an empty filtered query page to find the sender's next issue", async () => {
+		const key = { userId: USER, receivedAtMessageId: "boundary" };
+		const { client, commands } = createPaginatedClient([
+			{ rows: [], lastEvaluatedKey: key },
+			{ rows: [emailRow()] },
+		]);
+		const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+		const result = await store.listEmailsByUserId({ userId: USER, cursor: undefined, sender: "news@example.com", pageSize: 1 });
+		expect(result.emails.map(email => email.subject)).toEqual(["Weekly digest"]);
+		expect(result.hasOlder).toBe(false);
+		expect(commands[1].input).toMatchObject({
+			KeyConditionExpression: "userId = :uid",
+			FilterExpression: "senderEmail = :sender AND #status = :received",
+			ExpressionAttributeValues: { ":uid": USER, ":sender": "news@example.com", ":received": "received" },
+			ExclusiveStartKey: key,
+		});
+	});
+
 	describe("listEmailsByUserId", () => {
 		it("fetches the newest page in one descending probe query, normalizing a missing body pointer", async () => {
 			const { client, captured } = createOrderedClient([

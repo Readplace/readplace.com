@@ -107,11 +107,11 @@ export function initExtractEmailLinksHandler(deps: {
 		url: string;
 	}) => Promise<void>;
 	publishSubmitLink: (input: {
+		requestedAt: string;
 		userId: UserId;
 		url: string;
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
-		requestedAt?: string;
 		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
 		emailOutput: EmailOutputCorrelation;
@@ -127,6 +127,7 @@ export function initExtractEmailLinksHandler(deps: {
 		links: { ordinal: EmailLinkOrdinal; url: string; anchorText: string }[];
 	}) => Promise<void>;
 	publishSaveEmailIssue: (input: {
+		requestedAt: string;
 		userId: UserId;
 		saveAttemptId: SaveAttemptId;
 		receivedAtMessageId: string;
@@ -414,8 +415,10 @@ export function initExtractEmailLinksHandler(deps: {
 				let held = 0;
 				let noticePublished = false;
 				let firstInboxNoticePublished = false;
+				const requestedAt = new Date(envelope.time ?? email.receivedAt).toISOString();
 				const saveIssue = (emailOutput: EmailOutputCorrelation) =>
 					publishSaveEmailIssue({
+						requestedAt,
 						userId,
 						saveAttemptId: newSaveAttemptId(),
 						receivedAtMessageId,
@@ -428,11 +431,11 @@ export function initExtractEmailLinksHandler(deps: {
 					});
 				const submitToAll = (input: { url: string; emailOutput: EmailOutputCorrelation }) =>
 					publishSubmitLink({
+						requestedAt: start > 0 ? email.receivedAt : requestedAt,
 						userId,
 						url: input.url,
 						provenance: { kind: "email", senderEmail: email.senderEmail },
 						readlist: DEFAULT_READLIST_SLUG,
-						...(start > 0 && { requestedAt: email.receivedAt }),
 						saveTrigger: "automatic",
 						saveAttemptId: newSaveAttemptId(),
 						emailOutput: input.emailOutput,

@@ -1,0 +1,21 @@
+<main class="bulk-status" {{#if active}}hx-get="{{href}}" hx-trigger="every 5s" hx-select="main.bulk-status" hx-swap="outerHTML"{{/if}}>
+  <h1>{{title}}</h1>
+  <p>{{action}} {{destination}}</p>
+  <p>{{extent}} · {{source}} · {{tab}}</p>
+  <p role="status">{{state}}</p>
+  <dl>
+    {{#each counts}}
+    <dt>{{label}}</dt><dd>{{count}}</dd>
+    {{/each}}
+  </dl>
+  {{#if deadline}}
+  <p>{{deadline}} <time datetime="{{expiresAt.iso}}" data-local-time="{{expiresAt.mode}}">{{expiresAt.label}}</time></p>
+  {{/if}}
+  {{#if operation}}
+  <form method="post" action="{{operationHref}}">
+    <button class="btn btn--primary">{{button}}</button>
+  </form>
+  {{/if}}
+  {{#if active}}<a href="{{refreshHref}}">{{refresh}}</a>{{/if}}
+  <a href="{{backHref}}">{{back}}</a>
+</main>

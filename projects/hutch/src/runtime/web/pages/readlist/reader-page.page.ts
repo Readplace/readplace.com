@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 
 import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
@@ -299,6 +300,7 @@ export function initReaderPageRoutes(deps: Pick<
 			articleId: input.articleId,
 			query: query === "" ? "" : `?${query}`,
 			acknowledged: input.acknowledged,
+			removePick: requestReadlistContext(req).state.readlist === HAND_PICKED_SCOPE,
 		});
 	};
 
@@ -388,7 +390,7 @@ export function initReaderPageRoutes(deps: Pick<
 		}
 
 		const [related, storedPreviouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
-			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, generatedContentOf(req), deps.logError),
+			readerReadlist === HAND_PICKED_SCOPE ? { status: "skipped" as const } : loadRelatedArticles(deps.findRelatedArticles, ownedArticle, generatedContentOf(req), deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, generatedContentOf(req), deps.logError),
 			readerStateOnOpen(req, ownedArticle),
 			readerOwnerControlsFor({
@@ -400,7 +402,7 @@ export function initReaderPageRoutes(deps: Pick<
 			deps.resolveReaderProvenance(ownedArticle.provenance),
 		]);
 		const relatedPollUrl =
-			ownedArticle.relatedDismissedAt === undefined
+			readerReadlist !== HAND_PICKED_SCOPE && ownedArticle.relatedDismissedAt === undefined
 				? relatedPollUrlFor({
 						articleId: ownedArticle.id.value,
 						pollCount: 1,
@@ -418,6 +420,7 @@ export function initReaderPageRoutes(deps: Pick<
 			: pastReadsPollUrlFor({
 					articleId: ownedArticle.id.value,
 					pollCount: 1,
+					readlist: readerReadlist,
 					surfaceQuery: nativeSurfaceQuery(req),
 				});
 		const contentVersion = computeArticleContentVersion({
@@ -566,7 +569,7 @@ export function initReaderPageRoutes(deps: Pick<
 				: withStatusCode(component, options.statusCode);
 		const access = await deps.getEffectiveAccess(ownedArticle.userId);
 		const paidFeaturesLocked = !hasPaidFeatures(access);
-		const nextReadLocks = paidFeaturesLocked ? nextReadLocksFor({ req, access }) : undefined;
+		const nextReadLocks = paidFeaturesLocked && requestReadlistContext(req).state.readlist !== HAND_PICKED_SCOPE ? nextReadLocksFor({ req, access }) : undefined;
 		const pastReadsOptions = {
 			previouslyRead: paidFeaturesLocked ? NO_PAST_READS : previouslyRead,
 			previouslyReadPollUrl: paidFeaturesLocked ? undefined : previouslyReadPollUrl,
