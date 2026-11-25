@@ -10,7 +10,7 @@ export interface GmailMessageCandidate {
 }
 
 export interface OpenedGmailMailbox {
-	findMessage: (input: { messageId: GmailMessageId }) => Promise<GmailApiResult<{ found: true } | { found: false }>>;
+	findMessage: (input: { messageId: GmailMessageId }) => Promise<GmailApiResult<{ found: true; labelIds: string[] } | { found: false }>>;
 	searchByRfcMessageId: (input: {
 		rfcMessageId: NormalizedMessageId;
 		senderEmail: ForwardableSender;

@@ -32,6 +32,24 @@ describe("initInMemoryGmailMessageUpdate", () => {
 		assert.equal(updates.all().length, 2);
 	});
 
+	it("leases pending work until release or expiry", async () => {
+		const updates = initInMemoryGmailMessageUpdate();
+		const input = { userId, origin, now };
+		assert.equal(await updates.claimPending(input), undefined);
+		await updates.recordPending({ ...input, receivedAtMessageId: "r" });
+		const first = await updates.claimPending(input);
+		assert(first);
+		assert.equal(await updates.claimPending(input), undefined);
+
+		const later = { ...input, now: new Date(first) };
+		const second = await updates.claimPending(later);
+		assert(second);
+		await updates.releaseClaim({ ...input, claimUntil: first });
+		assert.equal(await updates.claimPending(later), undefined);
+		await updates.releaseClaim({ ...input, claimUntil: second });
+		assert.equal(await updates.claimPending(later), second);
+	});
+
 	it("discards only a pending record", async () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now });

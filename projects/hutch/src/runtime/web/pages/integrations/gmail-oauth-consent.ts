@@ -2,16 +2,12 @@ import { randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import { sendComponent } from "@packages/web-shell";
 import { baseCookieOptions } from "@packages/web-analytics";
-import type { ForwardableSender } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
-import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { initRecordGmailDiagnostic } from "../../../observability/gmail-diagnostics";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { signState, verifyState } from "../../auth/oauth-state";
 import { GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
-import { canConnectGmail } from "./gmail-connection-access";
-import type { GmailPickerState } from "./gmail.url";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import {
 	fingerprintGmailOAuthState,
@@ -24,29 +20,19 @@ import { type ConnectIntent, type StatePayload, StatePayloadSchema } from "./gma
 
 export const GMAIL_OAUTH_STATE_COOKIE = "hutch_gmail_state";
 export const GMAIL_OAUTH_STATE_TTL_MS = 5 * 60 * 1000;
-export const GMAIL_OAUTH_STATE_COOKIE_BUDGET = 3_800;
 
 const REQUESTED_SCOPES: Record<ConnectIntent["kind"], string> = {
-	connect: GMAIL_SCOPES,
+	connect: `${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`,
+	modify: `${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`,
 	import: GMAIL_READONLY_SCOPE,
-	mark: GMAIL_MODIFY_SCOPE,
 };
 
-export type GmailMarkConsentOutcome = "redirected" | "no-access" | "state-too-large";
 
 export interface GmailOAuthConsent {
 	trace: GmailOAuthTrace;
 	readState: ReturnType<typeof initReadGmailOAuthState>;
 	verifiedPayload: (stateCookie: unknown) => StatePayload | undefined;
 	begin: (input: { req: Request; res: Response; userId: UserId; intent: ConnectIntent }) => Promise<void>;
-	beginMarkConsent: (input: {
-		req: Request;
-		res: Response;
-		route: "save" | "mark";
-		userId: UserId;
-		senders: readonly ForwardableSender[];
-		state: GmailPickerState;
-	}) => Promise<GmailMarkConsentOutcome>;
 }
 
 export function initGmailOAuthConsent(deps: {
@@ -54,7 +40,6 @@ export function initGmailOAuthConsent(deps: {
 	appOrigin: string;
 	secureCookies: boolean;
 	now: () => Date;
-	getEffectiveAccess: GetEffectiveAccess;
 }): GmailOAuthConsent {
 	const { gmail } = deps;
 	const redirectUri = `${deps.appOrigin}${GMAIL_CALLBACK_PATH}`;
@@ -117,9 +102,9 @@ export function initGmailOAuthConsent(deps: {
 			prompt: "consent",
 			state: signedState,
 		});
-		if (intent.kind !== "connect") params.set("include_granted_scopes", "true");
 		trace.enter(req, "find-connection");
 		const existing = await gmail.gmailConnectionStore.findConnectionByUserId(input.userId);
+		if (existing !== undefined) params.set("include_granted_scopes", "true");
 		if (existing?.accountEmail !== undefined) params.set("login_hint", existing.accountEmail);
 
 		trace.enter(req, "done");
@@ -136,13 +121,5 @@ export function initGmailOAuthConsent(deps: {
 		readState,
 		verifiedPayload,
 		begin: ({ req, res, userId, intent }) => send({ req, res, userId, signed: sign(req, intent) }),
-		beginMarkConsent: async ({ req, res, route, userId, senders, state }) => {
-			if (!canConnectGmail(await deps.getEffectiveAccess(userId))) return "no-access";
-			trace.open({ route, req, res });
-			const signed = sign(req, { kind: "mark", senders, state });
-			if (encodeURIComponent(signed.signedState).length > GMAIL_OAUTH_STATE_COOKIE_BUDGET) return "state-too-large";
-			await send({ req, res, userId, signed });
-			return "redirected";
-		},
 	};
 }

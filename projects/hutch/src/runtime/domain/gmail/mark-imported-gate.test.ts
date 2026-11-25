@@ -1,30 +1,32 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
+import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
-import { initFindMarkImportedSince } from "./mark-imported-gate";
+import { initIsGmailSenderMapped } from "./mark-imported-gate";
 
-const USER = UserIdSchema.parse("00000000000000000000000000000001");
-const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
-const SENDER = ForwardableSenderSchema.parse("dan@news.test");
-const NOW = new Date("2026-10-27T00:00:00.000Z");
+const ref = {
+	userId: UserIdSchema.parse("00000000000000000000000000000001"),
+	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+	senderEmail: ForwardableSenderSchema.parse("dan@news.test"),
+};
 
-describe("initFindMarkImportedSince", () => {
-	it("reads when the sender's marking was turned on", async () => {
-		const mappings = initInMemoryGmailMapping({ now: () => NOW });
-		await mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
-		await mappings.setMarkImported({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
+describe("initIsGmailSenderMapped", () => {
+	it.each([false, true])("allows a configured sender regardless of its old checkbox state (%s)", async (oldCheckbox) => {
+		const mappings = initInMemoryGmailMapping({ now: () => new Date("2026-10-27T00:00:00.000Z") });
+		await mappings.addSenderToFilter(ref);
+		await mappings.mapSenderToAddress({ ...ref, mappedAddresses: [InboxAddressSchema.parse("reader-abc123@read.place")], deliveryMode: "issue" });
+		if (oldCheckbox) await mappings.setMarkImported(ref);
 
-		const since = await initFindMarkImportedSince({ findMapping: mappings.findMapping })({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
-
-		assert.equal(since, NOW.toISOString());
+		assert.equal(await initIsGmailSenderMapped({ findMapping: mappings.findMapping })(ref), true);
 	});
 
-	it("answers nothing for a sender that is no longer mapped", async () => {
-		const mappings = initInMemoryGmailMapping({ now: () => NOW });
+	it("requires both a forwarding sender and a selected destination", async () => {
+		const mappings = initInMemoryGmailMapping({ now: () => new Date() });
+		const isMapped = initIsGmailSenderMapped({ findMapping: mappings.findMapping });
 
-		const since = await initFindMarkImportedSince({ findMapping: mappings.findMapping })({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
-
-		assert.equal(since, undefined);
+		assert.equal(await isMapped(ref), false);
+		await mappings.addSenderToFilter(ref);
+		assert.equal(await isMapped(ref), false);
 	});
 });

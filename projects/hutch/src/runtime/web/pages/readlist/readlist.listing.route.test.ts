@@ -323,7 +323,7 @@ describe("Readlist routes", () => {
 
 			expect(actionForms.length).toBe(2);
 			expect(doc.querySelector("[data-test-action='mark-read']")?.textContent).toBe("Mark as read");
-			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete");
+			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete from this readlist");
 		});
 
 		it("boosts the mark-read action form and scopes its swap to the card", async () => {

@@ -11,7 +11,7 @@ import {
 import { readEnv } from "@packages/require-env";
 import { initGmailMessageUpdateHandler } from "./domain/gmail/gmail-message-update-handler";
 import { initMarkGmailEmailImported } from "./domain/gmail/mark-gmail-email-imported";
-import { initFindMarkImportedSince } from "./domain/gmail/mark-imported-gate";
+import { initIsGmailSenderMapped } from "./domain/gmail/mark-imported-gate";
 import { initOpenGmailMailboxForUpdate } from "./providers/gmail-api/gmail-message-update";
 import { GMAIL_MESSAGE_UPDATE_ENV } from "./gmail-message-update.env";
 
@@ -25,7 +25,7 @@ const updates = initDynamoDbGmailMessageUpdate({ client, tableName: env.DYNAMODB
 export const handler = initGmailMessageUpdateHandler({
 	markImported: initMarkGmailEmailImported({
 		updates,
-		findMarkImportedSince: initFindMarkImportedSince({
+		isSenderMapped: initIsGmailSenderMapped({
 			findMapping: initDynamoDbGmailMapping({ client, tableName: env.DYNAMODB_GMAIL_MAPPINGS_TABLE, now }).findMapping,
 		}),
 		connections: initDynamoDbGmailConnection({ client, tableName: env.DYNAMODB_GMAIL_CONNECTIONS_TABLE, now }),

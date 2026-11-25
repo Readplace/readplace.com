@@ -24,7 +24,6 @@ const PANEL_TITLE = `${PANEL} .confirm-popover__title`;
 const PANEL_BODY = `${PANEL} .confirm-popover__body`;
 const PANEL_ITEMS = `${PANEL} .confirm-popover__items`;
 const PANEL_CONFIRM = `${PANEL} [data-test-action="mark-status-confirm"]`;
-const PANEL_NEVER = `${PANEL} [data-test-action="mark-status-confirm-never"]`;
 const MARK_READ_TRIGGER = 'main.readlist [data-test-action="mark-read"]';
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -87,7 +86,7 @@ async function panelOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function titleLeadsTheReadlistListThenBothChoices(
+async function noticeGeometry(
 	page: Page,
 	mode: "desktop" | "phone",
 ): Promise<void> {
@@ -100,7 +99,6 @@ async function titleLeadsTheReadlistListThenBothChoices(
 		["introduction", body],
 		["readlist list", items],
 		["confirm choice", await measuredBox(page, PANEL_CONFIRM)],
-		["silence choice", await measuredBox(page, PANEL_NEVER)],
 	] as const;
 	const titleBodyGap = body.y - (title.y + title.height);
 	assert.ok(Math.abs(titleBodyGap - 4) <= 1, `title-to-body gap is ${titleBodyGap}px`);
@@ -116,16 +114,12 @@ async function titleLeadsTheReadlistListThenBothChoices(
 		);
 	}
 	const confirm = await measuredBox(page, PANEL_CONFIRM);
-	const never = await measuredBox(page, PANEL_NEVER);
-	assert.equal(Math.round(never.y - (confirm.y + confirm.height)), 8);
 	const contentInset = mode === "desktop" ? 33 : 25;
 	const contentRight = panel.x + panel.width - contentInset;
 	assert.ok(Math.abs(confirm.x + confirm.width - contentRight) <= 1);
-	assert.ok(Math.abs(never.x + never.width - contentRight) <= 1);
 	if (mode === "phone") {
 		const contentLeft = panel.x + contentInset;
 		assert.ok(Math.abs(confirm.x - contentLeft) <= 1);
-		assert.ok(Math.abs(never.x - contentLeft) <= 1);
 	}
 
 	for (const [name, part] of stacked) {
@@ -144,7 +138,7 @@ function checkpoint(name: string, mode: "desktop" | "phone"): VisualCheckpoint {
 	return {
 		name,
 		settled: panelOpen,
-		geometry: (page) => titleLeadsTheReadlistListThenBothChoices(page, mode),
+		geometry: (page) => noticeGeometry(page, mode),
 		target: PANEL,
 		capture: "element",
 		pinnedText: [],
@@ -158,30 +152,33 @@ const MARK_STATUS_CONFIRM_PHONE = checkpoint("mark-status-confirm-phone", "phone
 test.describe("Mark-as-read confirmation panel", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("names every readlist the change reaches, then both answers (light)", async ({
+	test("names every readlist the change reaches, then the acknowledgment (light)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openMarkReadConfirm(page, { stamp: `light-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
 		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["All", "New Readlist"]);
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_LIGHT);
+		await page.getByRole("button", { name: "Got it", exact: true }).click();
+		await expect(page.locator(MARK_READ_TRIGGER)).toHaveCount(0);
+		await page.goto(`${BASE_URL}/queue?tab=done`);
+		await expect(page.locator('[data-test-action="mark-unread"]')).toBeVisible();
+		await expect(page.locator(PANEL)).toHaveCount(0);
 	});
 
-	test("names every readlist the change reaches, then both answers (dark)", async ({
+	test("names every readlist the change reaches, then the acknowledgment (dark)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openMarkReadConfirm(page, { stamp: `dark-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_DARK);
-		await page.locator(PANEL_NEVER).hover();
-		await expect(page.locator(PANEL_NEVER)).toHaveCSS("background-color", "rgb(42, 42, 42)");
 	});
 });
 
 test.describe("Mark-as-read confirmation panel on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 844 } });
 
-	test("stacks both full-width answers under the readlists", async ({ page }, testInfo) => {
+	test("shows the full-width acknowledgment under the readlists", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openMarkReadConfirm(page, { stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, openRail: openReadlistSwitcher });
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_PHONE);

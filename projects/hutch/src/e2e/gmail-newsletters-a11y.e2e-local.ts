@@ -64,12 +64,6 @@ interface GmailSeed {
 		failureReason?: "gmail-rejected" | "permission-revoked" | "dead-lettered";
 		cancelReason?: "user-cancelled";
 	}[];
-	backfills?: {
-		sender: string;
-		state: "running" | "complete" | "failed";
-		counts?: Partial<Record<"marked" | "alreadyMarked" | "notFound" | "unlocatable" | "notSaved" | "failed", number>>;
-		failureReason?: "permission-revoked" | "gmail-rejected" | "dead-lettered";
-	}[];
 }
 
 function uniqueStamp(label: string, workerIndex: number): string {
@@ -178,7 +172,7 @@ function mappingRow(page: Page, sender: string): Locator {
 	return page.locator(`[data-test-gmail-mapping-row="${sender}"]`);
 }
 
-function markedSeed(grantedScopes: GmailSeed["grantedScopes"]): GmailSeed {
+function mappedSeed(grantedScopes: GmailSeed["grantedScopes"]): GmailSeed {
 	return {
 		grantedScopes,
 		readlists: ["Tech"],
@@ -309,80 +303,7 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 		await expect(tickable.nth(1)).toBeFocused();
 	});
 
-	test("ticks and unticks the mark-as-read option on a card and keeps focus on it", async ({ page }, testInfo) => {
-		await signInGmailReader(page, {
-			stamp: uniqueStamp("keyboard-mark", testInfo.workerIndex),
-			catalog: [approved({ from: TLDR, name: "TLDR" })],
-			seed: markedSeed(["settings", "metadata", "modify"]),
-		});
-		await openGmailPage(page, { discovery: "started", add: "0" });
-		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 
-		const box = mappingRow(page, TLDR).locator('input[name="option"]');
-		await tabTo(page, box);
-		await expect(box).not.toBeChecked();
-		let releaseStart: (() => void) | undefined;
-		const startHeld = new Promise<void>((resolve) => {
-			releaseStart = resolve;
-		});
-		await page.route("**/newsletters/gmail/mark-read/start?**", async (route) => {
-			await startHeld;
-			await route.continue();
-		});
-		try {
-			await page.keyboard.press("Space");
-			const form = mappingRow(page, TLDR).locator(".gmail-mappings__mark-form");
-			await expect(form).toHaveCSS("opacity", "0.55");
-			await expect(form).toHaveCSS("cursor", "progress");
-			await expect(form.locator(".gmail-mappings__mark-option")).toHaveCSS("cursor", "progress");
-			await expect(box).toHaveCSS("cursor", "progress");
-		} finally {
-			assert(releaseStart);
-			releaseStart();
-		}
-		await expect(page.locator('[data-test-alert="mark_on"]')).toBeVisible();
-		await expect(box).toBeFocused();
-		await expect(box).toBeChecked();
-		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mark-state]")).toHaveAttribute("data-test-gmail-mark-state", "on");
-
-		await expect(page.locator(".htmx-request, .htmx-swapping, .htmx-settling")).toHaveCount(0);
-		await page.keyboard.press("Space");
-		await expect(page.locator('[data-test-alert="mark_off"]')).toBeVisible();
-		await expect(box).toBeFocused();
-		await expect(box).not.toBeChecked();
-		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mark-state]")).toHaveAttribute("data-test-gmail-mark-state", "off");
-	});
-
-	test("ticks the mark-as-read option without the permission and is sent to Google for it", async ({ page }, testInfo) => {
-		const consentRedirects: string[] = [];
-		await page.context().route(
-			(url) => url.hostname === "accounts.google.com",
-			(route) => route.fulfill({ status: 200, contentType: "text/html", body: GOOGLE_CONSENT_STAND_IN }),
-		);
-		await page.route("**/newsletters/gmail/mark-read/start?**", async (route) => {
-			const start = await route.fetch();
-			consentRedirects.push(start.headers()["hx-redirect"]);
-			await route.fulfill({ response: start });
-		});
-		await signInGmailReader(page, {
-			stamp: uniqueStamp("keyboard-mark-consent", testInfo.workerIndex),
-			catalog: [approved({ from: TLDR, name: "TLDR" })],
-			seed: markedSeed(["settings", "metadata"]),
-		});
-		await openGmailPage(page, { discovery: "started", add: "0" });
-		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
-
-		const box = mappingRow(page, TLDR).locator('input[name="option"]');
-		await tabTo(page, box);
-		await expect(box).not.toBeChecked();
-		await page.keyboard.press("Space");
-		await expect(page.locator("body.google-consent")).toHaveCount(1);
-		assert.equal(consentRedirects.length, 1, "ticking the option must send the reader to Google once");
-		const consent = new URL(consentRedirects[0]);
-		assert.equal(`${consent.origin}${consent.pathname}`, "https://accounts.google.com/o/oauth2/v2/auth");
-		assert.equal(consent.searchParams.get("scope"), GMAIL_MODIFY_SCOPE);
-		assert.equal(consent.searchParams.get("include_granted_scopes"), "true");
-	});
 });
 
 test.describe("GMail Newsletters without JavaScript", () => {
@@ -440,33 +361,37 @@ test.describe("GMail Newsletters without JavaScript", () => {
 		});
 	});
 
-	test("ticks the mark-as-read option, applies it and asks Google only for permission to change messages", async ({ browser }, testInfo) => {
+	test("reconnects the Gmail account and starts an unread import through ordinary forms", async ({ browser }, testInfo) => {
 		await withoutJavaScript(browser, async (page) => {
-			const starts: { status: number; location: string }[] = [];
-			await page.route("**/newsletters/gmail/mark-read/start?**", async (route) => {
+			await signInGmailReader(page, {
+				stamp: uniqueStamp("nojs-import-reconnect", testInfo.workerIndex),
+				catalog: [approved({ from: TLDR, name: "TLDR" })],
+				seed: mappedSeed(["settings", "metadata", "readonly"]),
+			});
+			await page.route("**/newsletters/gmail/connect?**", async (route) => {
 				const start = await route.fetch({ maxRedirects: 0 });
-				starts.push({ status: start.status(), location: start.headers().location });
+				assert.equal(start.status(), 303);
+				assert.ok(new URL(start.headers().location).searchParams.get("scope")?.split(" ").includes(GMAIL_MODIFY_SCOPE));
 				await route.fulfill({ status: 200, contentType: "text/html", body: GOOGLE_CONSENT_STAND_IN });
 			});
-			await signInGmailReader(page, {
-				stamp: uniqueStamp("nojs-mark", testInfo.workerIndex),
-				catalog: [approved({ from: TLDR, name: "TLDR" })],
-				seed: markedSeed(["settings", "metadata"]),
-			});
-			await openGmailPage(page, { add: "0" });
-			const row = mappingRow(page, TLDR);
-			const box = row.locator('[data-test-gmail-mark-checkbox="card"]');
-			await expect(box).not.toBeChecked();
-			await box.check();
-			await row.locator("[data-test-gmail-mark-submit]").click();
 
+			await openGmailPage(page, { add: "0" });
+			const reconnect = page.getByRole("button", { name: "Reconnect Gmail", exact: true });
+			await expect(reconnect).toHaveCount(1);
+			const row = mappingRow(page, TLDR);
+			await expect(row.locator('input[type="checkbox"]')).toHaveCount(0);
+			await row.getByRole("button", { name: "Import unread messages" }).click();
+			await expect(page.locator('[data-test-alert="import_started"]')).toBeVisible();
+			const techHref = await row.getByRole("link", { name: "Tech", exact: true }).getAttribute("href");
+			assert(techHref, "the saved sender must link to its Tech readlist");
+			await reconnect.click();
 			await expect(page.locator("body.google-consent")).toHaveCount(1);
-			assert.equal(starts.length, 1, "applying the option must send the reader to Google once");
-			assert.equal(starts[0].status, 303);
-			const consent = new URL(starts[0].location);
-			assert.equal(`${consent.origin}${consent.pathname}`, "https://accounts.google.com/o/oauth2/v2/auth");
-			assert.equal(consent.searchParams.get("scope"), GMAIL_MODIFY_SCOPE);
-			assert.equal(consent.searchParams.get("include_granted_scopes"), "true");
+
+			await page.goto(new URL(techHref, BASE_URL).href);
+			await page.locator('[data-test-filter="preferences"]').click();
+			await expect(page.locator('[data-test-action="grant-modify-access"]')).toHaveCount(1);
+			await page.locator('[data-test-action="grant-modify-access"]').click();
+			await expect(page.locator("body.google-consent")).toHaveCount(1);
 		});
 	});
 
@@ -636,25 +561,6 @@ const EVERY_ROW_STATE: GmailSeed = {
 	],
 };
 
-const MARK_BACKFILL_FAILED: GmailSeed = {
-	grantedScopes: ["settings", "metadata", "modify"],
-	readlists: [LONG_READLIST],
-	discoveredSenders: [{ email: LONG_SENDER, name: LONG_NAME }],
-	mappings: [
-		{ destination: "readlist", email: LONG_SENDER, readlist: LONG_READLIST, mark: true },
-		{ destination: "readlist", email: "marked@publisher-with-a-long-domain-name.example", readlist: LONG_READLIST, mark: true },
-	],
-	backfills: [
-		{
-			sender: LONG_SENDER,
-			state: "failed",
-			failureReason: "permission-revoked",
-			counts: { marked: 1_234_567, alreadyMarked: 34_567, notFound: 4_567, notSaved: 567, failed: 67 },
-		},
-		{ sender: "marked@publisher-with-a-long-domain-name.example", state: "complete", counts: { marked: 1_234_567, unlocatable: 4_567 } },
-	],
-};
-
 function gmailScenario(input: {
 	name: string;
 	seed: GmailSeed;
@@ -793,7 +699,6 @@ const GMAIL_OVERFLOW_SCENARIOS: readonly OverflowScenario[] = [
 		prepare: openReadlistPicker,
 	}),
 	gmailScenario({ name: "mappings-every-row-state", shows: "[data-test-gmail-import-consent]", seed: EVERY_ROW_STATE, query: { error: "import_reconnect_required" } }),
-	gmailScenario({ name: "mappings-mark-backfill-failed", shows: '[data-test-gmail-mark-backfill="failed"]', seed: MARK_BACKFILL_FAILED }),
 	gmailScenario({
 		name: "mappings-filter-rejected",
 		shows: '[data-test-alert="import_permission_refused"]',
