@@ -1,6 +1,7 @@
 import type { ArticleMetadata, Minutes, SaveProvenance } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import type { SetArticleDisplayUrl } from "@packages/article-store";
 import type { FindArticleCrawlStatus, MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
@@ -76,15 +77,24 @@ export function initSaveEmailIssue(deps: {
 			await onSavedToAll();
 			return { kind: "removed-by-reader", contentPending };
 		}
-		const { saved } = await deps.saveArticleKeepingPosition({
+		const result = await deps.saveArticleKeepingPosition({
 			userId,
 			url,
 			metadata,
 			estimatedReadTime,
 			provenance,
 			savedAt: await deps.allocateSavedAt({ userId }),
+			requestedAt,
 			saveTrigger: "automatic",
+		}).catch((error: unknown) => {
+			if (error instanceof ArticlePurgedAfterRequest) return undefined;
+			throw error;
 		});
+		if (!result) {
+			await onSavedToAll();
+			return { kind: "removed-by-reader", contentPending: false };
+		}
+		const { saved } = result;
 		await deps.setDisplayUrl({ articleUrl: url, displayUrl });
 		await markContentPending();
 		await onSavedToAll();

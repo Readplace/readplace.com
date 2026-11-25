@@ -11,6 +11,7 @@ export interface DeleteConfirmViewModel {
 }
 
 export interface ArticleDeletion {
+	removePick?: true;
 	articleId: string;
 	url: string;
 	confirm: DeleteConfirmViewModel | undefined;
@@ -43,12 +44,14 @@ export function buildArticleDeletion(input: {
 	articleId: string;
 	query: string;
 	acknowledged: boolean | undefined;
+	removePick?: boolean;
 }): ArticleDeletion {
 	const url = `/queue/${input.articleId}/delete${input.query}`;
 	return {
 		articleId: input.articleId,
 		url,
-		confirm: input.acknowledged
+		...(input.removePick ? { removePick: true as const } : {}),
+		confirm: input.removePick || input.acknowledged
 			? undefined
 			: { articleId: input.articleId, popoverId: deleteConfirmPopoverId(input.articleId), url },
 	};
@@ -59,7 +62,9 @@ function trackedDeletionUrl(input: { url: string; surface: DeletionSurface }): s
 }
 
 export function renderDeleteMenuItems(input: { deletion: ArticleDeletion; surface: DeletionSurface }): string {
+	if (input.surface === "queue-card" && input.deletion.removePick) return "";
 	return render(DELETE_MENU_ITEMS_TEMPLATE, {
+		label: input.deletion.removePick ? t("handPicked.remove") : t("readlistDelete.label"),
 		url: trackedDeletionUrl({ url: input.deletion.url, surface: input.surface }),
 		swap: DELETION_SWAP[input.surface],
 		confirm: input.deletion.confirm,

@@ -19,6 +19,7 @@ const DynamoTablesSchema = z.strictObject({
 	pendingViewHighlights: TableName,
 	media: TableName,
 	inboxAddresses: TableName,
+	inboxEmails: TableName,
 	inboxEmailLinks: TableName,
 	inboxSavedLinks: TableName,
 	subscriptionProviders: TableName,

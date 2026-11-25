@@ -59,7 +59,7 @@ const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
 async function loginAs(page: Page, email: string): Promise<void> {
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -97,13 +97,13 @@ async function openReaderWithReadlists(
 	await loginAs(page, email);
 
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-	await expect(page.locator(READLIST_TAB)).toHaveCount(1);
-	await openRail(page);
-	await clickAndWaitForPageReload(page, await nameNewReadlist(page, DEEP_WORK));
 	await expect(page.locator(READLIST_TAB)).toHaveCount(2);
 	await openRail(page);
-	await clickAndWaitForPageReload(page, await nameNewReadlist(page, secondReadlist));
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, DEEP_WORK));
 	await expect(page.locator(READLIST_TAB)).toHaveCount(3);
+	await openRail(page);
+	await clickAndWaitForPageReload(page, await nameNewReadlist(page, secondReadlist));
+	await expect(page.locator(READLIST_TAB)).toHaveCount(4);
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-reader");

@@ -43,6 +43,7 @@ import {
 } from "@packages/storage-client";
 import { z } from "zod";
 import {
+	canonicalRemovalKey,
 	HIGHLIGHT_KEY_PREFIX,
 	READLIST_DEFINITION_KEY_PREFIX,
 	readlistPartitionValue,
@@ -58,6 +59,7 @@ const NewsletterLinkItem = z.object({
 	savedAt: z.string(),
 	provenance: dynamoField(SaveProvenanceSchema),
 	handPickedAt: dynamoField(z.string()),
+	personalPickedAt: dynamoField(z.string()),
 	viewedAt: dynamoField(z.string()),
 	lastSummaryOpenedAt: dynamoField(z.string()),
 	restoredAt: dynamoField(z.string()),
@@ -106,6 +108,7 @@ const LINK_ATTRIBUTES = [
 	"savedAt",
 	"provenance",
 	"handPickedAt",
+	"personalPickedAt",
 	"viewedAt",
 	"lastSummaryOpenedAt",
 	"restoredAt",
@@ -124,6 +127,7 @@ function toNewsletterLinkRow(item: z.infer<typeof NewsletterLinkItem>): Newslett
 		status: item.status,
 		savedAt: new Date(item.savedAt),
 		...(item.provenance === undefined ? {} : { provenance: item.provenance }),
+		...(item.personalPickedAt === undefined ? {} : { personalPickedAt: new Date(item.personalPickedAt) }),
 		...(item.handPickedAt === undefined ? {} : { handPickedAt: new Date(item.handPickedAt) }),
 		...(item.viewedAt === undefined ? {} : { viewedAt: new Date(item.viewedAt) }),
 		...(item.lastSummaryOpenedAt === undefined ? {} : { lastSummaryOpenedAt: new Date(item.lastSummaryOpenedAt) }),
@@ -378,6 +382,7 @@ export function initDynamoDbRemovedLinks(deps: {
 		const decided = holdOutcomeOf({ ...params, item: current });
 		if (decided.outcome !== "held") return decided;
 		assert(current, "a row chosen for the hold was read");
+		const { personalScope, personalOrder, ...heldState } = current;
 		const result = await transactWithRetry({
 			client: deps.client,
 			transactItems: [
@@ -385,7 +390,8 @@ export function initDynamoDbRemovedLinks(deps: {
 					Put: {
 						TableName: deps.userArticlesTableName,
 						Item: {
-							...current,
+							...heldState,
+							...(personalScope ? { heldPersonalScope: personalScope, heldPersonalOrder: personalOrder } : {}),
 							userId: removedLinksPartition(userId),
 							url: removedLinkKey({ jobId, storedKey }),
 							removedUrl: storedKey,
@@ -405,6 +411,9 @@ export function initDynamoDbRemovedLinks(deps: {
 							"#status = :unread",
 							"provenance.kind = :email",
 							"attribute_not_exists(handPickedAt)",
+							"attribute_not_exists(personalPickedAt)",
+							current.personalDecision === undefined ? "attribute_not_exists(personalDecision)" : "personalDecision = :decision",
+							personalScope === undefined ? "attribute_not_exists(personalScope)" : "personalScope = :scope",
 							"attribute_not_exists(viewedAt)",
 							"attribute_not_exists(lastSummaryOpenedAt)",
 							"(attribute_not_exists(restoredAt) OR restoredAt < :cutoff)",
@@ -413,6 +422,8 @@ export function initDynamoDbRemovedLinks(deps: {
 						ExpressionAttributeNames: { "#status": "status", "#url": "url" },
 						ExpressionAttributeValues: {
 							":readSavedAt": current.savedAt,
+							...(current.personalDecision === undefined ? {} : { ":decision": current.personalDecision }),
+							...(personalScope === undefined ? {} : { ":scope": personalScope }),
 							":cutoff": cutoff.toISOString(),
 							":unread": "unread",
 							":email": "email",
@@ -420,6 +431,13 @@ export function initDynamoDbRemovedLinks(deps: {
 						},
 					},
 				},
+				{ Update: {
+					TableName: deps.userArticlesTableName,
+					Key: canonicalRemovalKey(userId, storedKey),
+					UpdateExpression: "SET removedAt = :at",
+					ConditionExpression: "attribute_not_exists(removedAt) OR removedAt <= :at",
+					ExpressionAttributeValues: { ":at": now.toISOString() },
+				} },
 			],
 		});
 		if (result.kind === "written") return { outcome: "held" };
@@ -431,10 +449,12 @@ export function initDynamoDbRemovedLinks(deps: {
 		const heldRowKey = { userId: removedLinksPartition(userId), url: heldKey };
 		const held = await userArticles.get(heldRowKey, { consistentRead: true });
 		if (held === undefined) return { outcome: "gone" };
-		const { removedUrl } = HeldLinkItem.parse(held);
+		const { removedUrl, removedAt, expiresAt } = HeldLinkItem.parse(held);
+		if (expiresAt <= Math.floor(now.getTime() / 1000)) return { outcome: "gone" };
 		const shared = await sharedArticles.get({ url: removedUrl }, { projection: ["purgedAt"] });
 		if (shared === undefined || shared.purgedAt !== undefined) return { outcome: "unrestorable" };
-		const restored: Record<string, unknown> = { ...held, userId, url: removedUrl, restoredAt: now.toISOString() };
+		const { heldPersonalScope, heldPersonalOrder, ...heldState } = held;
+		const restored: Record<string, unknown> = { ...heldState, ...(heldPersonalScope ? { personalScope: heldPersonalScope, personalOrder: heldPersonalOrder } : {}), userId, url: removedUrl, restoredAt: now.toISOString() };
 		for (const attribute of HOLD_ATTRIBUTES) delete restored[attribute];
 		const result = await transactWithRetry({
 			client: deps.client,
@@ -455,9 +475,16 @@ export function initDynamoDbRemovedLinks(deps: {
 						ExpressionAttributeNames: { "#url": "url" },
 					},
 				},
+				{ ConditionCheck: {
+					TableName: deps.userArticlesTableName,
+					Key: canonicalRemovalKey(userId, removedUrl),
+					ConditionExpression: "attribute_not_exists(removedAt) OR removedAt = :at",
+					ExpressionAttributeValues: { ":at": removedAt },
+				} },
 			],
 		});
 		if (result.kind === "written") return { outcome: "restored" };
+		if (result.failedAt === 2) return { outcome: "unrestorable" };
 		return result.failedAt === 0 ? { outcome: "already-in-all" } : { outcome: "gone" };
 	};
 

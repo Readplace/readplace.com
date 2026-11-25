@@ -76,6 +76,7 @@ describe("formatFailedArticlesIssue", () => {
 			contentFetchedAt: undefined,
 		};
 		const readlist = { ...example, historyGroup: "readlist-loaded-no-reader-open" as const };
+		const readlistIncomplete = { ...example, historyGroup: "readlist-admission-reader-history-incomplete" as const };
 		const reader: FailedArticlesIssueRow = {
 			...example,
 			axes: ["crawl-failed", "summary-failed"],
@@ -86,7 +87,7 @@ describe("formatFailedArticlesIssue", () => {
 		const bothReaders: FailedArticlesIssueRow = { ...reader, readerRoutes: ["signed-in", "public"] };
 		const unknown = { ...example, historyGroup: "other-unknown" as const };
 		const issue = formatFailedArticlesIssue({
-			rows: [readlist, readlist, reader, reader, readlist, bothReaders, publicReader, unknown],
+			rows: [readlist, readlist, reader, reader, readlist, readlistIncomplete, bothReaders, publicReader, unknown],
 			runUrl: RUN_URL,
 			reportUrl: REPORT_URL,
 			today: "2026-10-10",
@@ -97,21 +98,26 @@ describe("formatFailedArticlesIssue", () => {
 		assert.deepEqual(lines.slice(lines.indexOf("## Breakdown by recorded access"), lines.indexOf("## Breakdown by axis")), [
 			"## Breakdown by recorded access",
 			"- **Readlist loaded, no reader open recorded**: 3",
+			"- **Readlist triggered processing, reader history incomplete**: 1",
 			"- **Reader opened before failure**: 4",
 			"  - **Signed-in reader recorded**: 3",
 			"  - **Public reader recorded**: 2",
 			"  - **Both recorded**: 1",
+			"- **Authenticated submission**: 0",
+			"- **Scheduled digest preparation**: 0",
+			"- **Operator recrawl**: 0",
 			"- **Other or unknown history**: 1",
 			"",
-			"Some access history could not be verified. Inconclusive rows are counted under Other or unknown history.",
+			"Some access history could not be verified. A recorded trigger can establish how processing began while leaving reader history incomplete.",
 			"",
-			"The reader-open group counts opens recorded before the latest processing admission and signed-in reader requests that triggered it.",
+			"The reader-open group counts opens recorded before the latest processing admission, signed-in reader requests that triggered it, and opens independently verified before the terminal failure for that attempt.",
+			"Both readlist groups require a confirmed readlist trigger. The group with no reader open recorded also requires sufficient reader-history evidence.",
 			"An article can count under both confirmed routes. A zero means no open was confirmed in the available records.",
 			"",
 			"Among these reader routes, local HTML capture can start only from the signed-in reader on supported clients. Confirming an upload requires separate evidence.",
 			"",
 		]);
-		assert.equal(issue.rowCount, 8);
+		assert.equal(issue.rowCount, 9);
 		assert.deepEqual(issue.body.match(/https?:\/\/\S+/g), [RUN_URL, REPORT_URL]);
 		assert.doesNotMatch(issue.body, /private capture detail|do-not-publish/);
 	});
@@ -197,7 +203,7 @@ describe("formatFailedArticlesIssue", () => {
 			[
 				"<!-- CLAUDE_FAILED_ARTICLES_FIX -->",
 				"",
-				"The failed-articles canary surfaced user-visible failures after full processing was requested for the latest attempt. This is a debug worklist: investigate each cluster below, then close this issue once the backlog is processed (the canary skips its scan while this issue stays open).",
+				"The failed-articles canary surfaced failures after full processing was requested for the latest attempt. Investigate each cluster below, then close this issue once the backlog is processed. The canary skips its scan while this issue stays open.",
 				"",
 				"Each row's URL, stored reason and recrawl button are on the report page, which only admins can open. Do not copy a reader's URL into this issue, a comment or a commit; cite a row by its number on the report.",
 				"",
@@ -209,13 +215,18 @@ describe("formatFailedArticlesIssue", () => {
 				"",
 				"## Breakdown by recorded access",
 				"- **Readlist loaded, no reader open recorded**: 0",
+				"- **Readlist triggered processing, reader history incomplete**: 0",
 				"- **Reader opened before failure**: 0",
 				"  - **Signed-in reader recorded**: 0",
 				"  - **Public reader recorded**: 0",
 				"  - **Both recorded**: 0",
+				"- **Authenticated submission**: 0",
+				"- **Scheduled digest preparation**: 0",
+				"- **Operator recrawl**: 0",
 				"- **Other or unknown history**: 8",
 				"",
-				"The reader-open group counts opens recorded before the latest processing admission and signed-in reader requests that triggered it.",
+				"The reader-open group counts opens recorded before the latest processing admission, signed-in reader requests that triggered it, and opens independently verified before the terminal failure for that attempt.",
+				"Both readlist groups require a confirmed readlist trigger. The group with no reader open recorded also requires sufficient reader-history evidence.",
 				"An article can count under both confirmed routes. A zero means no open was confirmed in the available records.",
 				"",
 				"Among these reader routes, local HTML capture can start only from the signed-in reader on supported clients. Confirming an upload requires separate evidence.",

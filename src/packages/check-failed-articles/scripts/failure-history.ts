@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { CollectedFailedRow } from "./collect-failed-rows";
 import type { FailureHistoryMembership } from "./failure-history-memberships";
 import type { FailureHistoryLogMatch } from "./failure-history-logs";
 import type { FailedArticlesIssueRow } from "./failed-articles-issue";
+import type { ReviewedAccessCategory } from "./reviewed-access";
 
 const TIMESTAMP = z.iso.datetime({ offset: true });
 
@@ -37,6 +39,7 @@ export function classifyFailureHistory(input: {
 	memberships: readonly FailureHistoryMembership[] | undefined;
 	publicOpenRecorded: boolean;
 	publicOpensCovered: boolean;
+	reviewedAccess: ReadonlyMap<string, ReviewedAccessCategory>;
 }): FailedArticlesIssueRow {
 	const { row, logs, memberships } = input;
 	const unknown: FailedArticlesIssueRow = { ...row, historyGroup: "other-unknown" };
@@ -45,31 +48,40 @@ export function classifyFailureHistory(input: {
 	const cutoff = input.cutoff.getTime();
 	if (saved === undefined || admitted === undefined || saved > admitted || admitted > cutoff) return unknown;
 
+	const attemptDigest = createHash("sha256")
+		.update(JSON.stringify([row.articleKey, row.savedAt, row.fullCrawlRequestedAt]), "utf8")
+		.digest("hex");
+	const reviewedAccess = input.reviewedAccess.get(attemptDigest);
+	const publicOpen = input.publicOpenRecorded || reviewedAccess === "public-reader-opened-before-failure";
 	const ownerOpens = logs?.ownerOpenTimes.filter((time) => time >= saved && time <= cutoff) ?? [];
+	const ownerOpensCovered = logs?.ownerOpensCovered;
 	const surface = logs?.admissionCovered && timestamp(row.resolutionOnViewClaimedAt) === admitted
 		? logs.admissionSurface : undefined;
 	if (
+		reviewedAccess === "signed-in-reader-opened-before-failure" ||
 		surface === "reader" || surface === "reader-capture-gave-up" ||
 		ownerOpens.some((time) => time < admitted)
 	) {
 		return {
 			...row,
 			historyGroup: "reader-opened-before-failure",
-			readerRoutes: input.publicOpenRecorded ? ["signed-in", "public"] : ["signed-in"],
+			readerRoutes: publicOpen ? ["signed-in", "public"] : ["signed-in"],
 		};
 	}
 
-	if (input.publicOpenRecorded) {
+	if (publicOpen) {
 		return { ...row, historyGroup: "reader-opened-before-failure", readerRoutes: ["public"] };
 	}
 
-	if (
-		(surface === "readlist-html" || surface === "readlist-siren") &&
-		logs?.ownerOpensCovered && input.publicOpensCovered && ownerOpens.length === 0 && memberships &&
-		canVerifyNoReaderStamp({ memberships, saved, admitted, cutoff })
-	) {
-		return { ...row, historyGroup: "readlist-loaded-no-reader-open" };
+	if (surface === "readlist-html" || surface === "readlist-siren") {
+		if (
+			ownerOpensCovered && input.publicOpensCovered && ownerOpens.length === 0 && memberships &&
+			canVerifyNoReaderStamp({ memberships, saved, admitted, cutoff })
+		) {
+			return { ...row, historyGroup: "readlist-loaded-no-reader-open" };
+		}
+		return { ...row, historyGroup: "readlist-admission-reader-history-incomplete" };
 	}
 
-	return unknown;
+	return reviewedAccess === undefined ? unknown : { ...row, historyGroup: reviewedAccess };
 }

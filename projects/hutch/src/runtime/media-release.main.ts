@@ -3,17 +3,21 @@ import {
 	initDeleteArticleRow,
 	initDeleteUserArticleLinks,
 	initDynamoDbFindItemOwner,
+	initDynamoDbSavedArticleStore,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
 } from "@packages/article-store";
 import { Logger, consoleLogger } from "@packages/logger";
+import { LinkDequeuedEvent, ReleaseHeldUploadCommand } from "@packages/infra-components";
+import { initHandleByDetailType, initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initMediaObjectStore } from "@packages/media-object-store";
 import { readEnv } from "@packages/require-env";
 import { initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
 import { MEDIA_RELEASE_ENV } from "./media-release.env";
 import { initMediaReleaseHandler } from "./media-release/media-release-handler";
+import { initBulkUploadRetention } from "./media-release/bulk-upload-retention";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
 
 const env = readEnv(MEDIA_RELEASE_ENV);
@@ -51,7 +55,17 @@ const releasePrivateItem = initReleasePrivateItem({
 	}),
 });
 
-export const handler = initMediaReleaseHandler({
-	releasePrivateItem,
-	logger: Logger.from(consoleLogger),
+const logger = Logger.from(consoleLogger);
+const now = () => new Date();
+const saves = initDynamoDbSavedArticleStore({ client: dynamoClient, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now });
+const retention = initBulkUploadRetention({ client: dynamoClient, tableName: userArticlesTable, listUserSavesForUrl: saves.listUserSavesForUrl, releasePrivateItem, now });
+export const handler = initHandleByDetailType({
+	logger,
+	routes: {
+		[LinkDequeuedEvent.detailType]: [initMediaReleaseHandler({ logger, releasePrivateItem: retention.releaseIfUnheld })],
+		[ReleaseHeldUploadCommand.detailType]: [initSqsRecordHandler({
+			definition: ReleaseHeldUploadCommand, logger, failure: { message: "[media-release] expired hold release failed" }, malformed: { policy: "retry" },
+			handle: ({ marker }) => retention.releaseExpired(marker),
+		})],
+	},
 });

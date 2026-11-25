@@ -97,6 +97,9 @@ export type PublishRefreshArticleContent = (params: {
 }) => Promise<void>;
 
 export type PublishSubmitLink = (params: {
+	requestedAt?: string;
+	personalPickAt?: string;
+	bulkSave?: true;
 	url: string;
 	saveAttemptId: SaveAttemptId;
 	userId: UserId;

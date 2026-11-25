@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { CandidateIdSchema, MinutesSchema, ReaderArticleHashId, SavedLinksJobIdSchema, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
+import { CandidateIdSchema, SaveAttemptIdSchema, MinutesSchema, ReaderArticleHashId, SavedLinksJobIdSchema, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import { toEventInstant } from "@packages/domain/event-envelope";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
@@ -43,6 +43,125 @@ function makeArticleParams(
 }
 
 describe("initInMemoryArticleStore", () => {
+	describe("personal readlists", () => {
+		const attemptId = SaveAttemptIdSchema.parse("pick-1");
+		const request = { requestedAt: "2026-11-20T00:00:00.000Z", attemptId };
+		const query = { userId: USER_A, personalScope: "picked", status: "unread", includeTotal: true, pageSize: 10 } as const;
+
+		it("removes an individually reviewed save from the uncertain index and preserves its canonical copy", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			store.seedUncertainSave({ userId: USER_A, url: URL });
+			const pending = { ...query, personalScope: "uncertain" as const };
+			expect((await store.findArticlesByUser(pending)).articles[0]?.personalReviewPending).toBe(true);
+			await store.changePersonalPick({ userId: USER_A, url: URL, request, picked: false });
+			expect(await store.countArticlesByUser(pending)).toBe(0);
+			expect((await store.findArticleById(saved.id, USER_A))?.status).toBe("unread");
+		});
+
+		it("shows the individual save on page one after 20,000 automatic saves", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ savedAt: new Date(request.requestedAt), personalPick: request }));
+			for (let n = 0; n < 20_000; n++) {
+				await store.saveArticle(makeArticleParams({
+					url: `https://example.com/news/${n}`, saveTrigger: "automatic",
+					provenance: { kind: "email", senderEmail: "letter@example.com" },
+				}));
+			}
+			const page = await store.findArticlesByUser(query);
+			expect(page.articles.map(article => article.url)).toEqual([URL]);
+			expect(page.total).toBe(1);
+			expect(page.hasMore).toBe(false);
+			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(20_001);
+		});
+
+		it("restores a removed row once and honors later saves, purges and erasure", async () => {
+			const store = initInMemoryArticleStore();
+			expect(store.holdBulkArticle(USER_A, URL, new Date())).toBeUndefined();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			expect(store.holdBulkArticle(USER_B, URL, new Date())).toBeUndefined();
+			const first = store.holdBulkArticle(USER_A, URL, new Date());
+			assert(first);
+			expect(first()).toBe(true);
+			expect(first()).toBe(false);
+			expect((await store.findArticleById(saved.id, USER_A))?.savedAt).toEqual(saved.savedAt);
+			const second = store.holdBulkArticle(USER_A, URL, new Date());
+			await store.saveArticle(makeArticleParams());
+			expect(second?.()).toBe(false);
+			const third = store.holdBulkArticle(USER_A, URL, new Date());
+			await store.setPurgedAt({ url: URL, at: new Date() });
+			expect(third?.()).toBe(false);
+			expect(store.holdBulkArticle(USER_A, URL, new Date())).toBeUndefined();
+			await store.saveArticle(makeArticleParams());
+			expect(third?.()).toBe(false);
+			const fourth = store.holdBulkArticle(USER_A, URL, new Date());
+			await store.deleteAllUserArticles(USER_A);
+			expect(fourth?.()).toBe(false);
+		});
+
+		it("rejects delayed work after a deletion and allows a genuinely later save", async () => {
+			const store = initInMemoryArticleStore();
+			const stale = { ...request, requestedAt: "2001-01-01T00:00:00.000Z" };
+			const { saved } = await store.saveArticle(makeArticleParams({ personalPick: stale }));
+			await store.deleteArticle(saved.id, USER_A);
+			await expect(store.saveArticleAsRequested({
+				...makeArticleParams({ personalPick: stale }), requestedAt: new Date(stale.requestedAt),
+			})).rejects.toBeInstanceOf(ArticlePurgedAfterRequest);
+			expect(await store.findArticleById(saved.id, USER_A)).toBeNull();
+			const later = { ...request, requestedAt: "2099-01-01T00:00:00.000Z" };
+			await store.saveArticle(makeArticleParams({ personalPick: later }));
+			expect(await store.changePersonalPick({ userId: USER_A, url: URL, picked: false, request: stale })).toBe("superseded");
+			expect(await store.countArticlesByUser(query)).toBe(1);
+		});
+
+		it("orders membership decisions and preserves the read article in All", async () => {
+			const store = initInMemoryArticleStore();
+			const input = { userId: USER_A, url: URL, picked: true, request };
+			expect(await store.changePersonalPick(input)).toBe("missing");
+			const { saved } = await store.saveArticle(makeArticleParams({ provenance: { kind: "import" } }));
+			expect(await store.countArticlesByUser(query)).toBe(0);
+			const read = await store.updateArticleStatus(saved.id, USER_A, "read");
+			expect(await store.changePersonalPick(input)).toBe("updated");
+			expect(await store.countArticlesByUser({ ...query, status: "read" })).toBe(1);
+			expect(await store.changePersonalPick({ ...input, userId: USER_B })).toBe("missing");
+			const newer = { ...request, requestedAt: "2026-11-21T00:00:00.000Z" };
+			expect(await store.changePersonalPick({ ...input, picked: false, request: newer })).toBe("updated");
+			expect(await store.changePersonalPick(input)).toBe("superseded");
+			expect(await store.countArticlesByUser({ ...query, status: "read" })).toBe(0);
+			expect((await store.findArticleById(saved.id, USER_A))?.readAt).toEqual(read?.readAt);
+		});
+
+		it("orders an immediate Save again by the time it was requested, independently of its new list position", async () => {
+			const store = initInMemoryArticleStore();
+			const originalPosition = new Date("2001-01-01T00:00:00.000Z");
+			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: originalPosition }));
+			const read = await store.updateArticleStatus(saved.id, USER_A, "read");
+			assert(read?.readAt);
+			const pick = { attemptId, requestedAt: new Date(read.readAt.getTime() - 1_000).toISOString() };
+			const newPosition = new Date(read.readAt.getTime() + 2_000);
+
+			const delayed = await store.saveArticle(makeArticleParams({ personalPick: pick, savedAt: newPosition }));
+			expect(delayed.wroteUserArticle).toBe(false);
+			expect(delayed.saved.readAt).toEqual(read.readAt);
+			expect(delayed.saved.savedAt).toEqual(originalPosition);
+			expect(delayed.saved.personalPickedAt).toEqual(new Date(pick.requestedAt));
+
+			const laterPick = { attemptId, requestedAt: new Date(read.readAt.getTime() + 1_000).toISOString() };
+			const newer = await store.saveArticle(makeArticleParams({ personalPick: laterPick, savedAt: newPosition }));
+			expect(newer.wroteUserArticle).toBe(true);
+			expect(newer.saved.savedAt).toEqual(newPosition);
+		});
+
+		it("does not recreate a deleted save from an earlier bulk operation", async () => {
+			const store = initInMemoryArticleStore();
+			const requestedAt = new Date("2001-01-02T00:00:00Z");
+			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: new Date("2001-01-01T00:00:00Z") }));
+			await store.deleteArticle(saved.id, USER_A);
+			await expect(store.saveArticle(makeArticleParams({ requestedAt, bulkSave: true }))).rejects.toBeInstanceOf(ArticlePurgedAfterRequest);
+			expect(await store.findArticleById(saved.id, USER_A)).toBeNull();
+		});
+	});
+
 	describe("canonical aliases and the pinned content source", () => {
 		const NOW = new Date("2026-07-15T10:00:00.000Z");
 

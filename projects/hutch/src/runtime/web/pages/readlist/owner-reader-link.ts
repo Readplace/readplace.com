@@ -87,6 +87,7 @@ export function readerPermalinkPathInReadlist(
 ): string {
 	const params = scalarQueryParams(target.query);
 	params.delete("readlist");
+	params.delete("scope");
 	if (target.readlist === undefined) {
 		params.delete("queue");
 	} else {

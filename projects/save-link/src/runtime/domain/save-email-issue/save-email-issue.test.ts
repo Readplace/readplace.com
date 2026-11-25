@@ -317,6 +317,17 @@ describe("initSaveEmailIssue", () => {
 			assert.deepEqual(await h.saves(), []);
 		});
 
+		it("skips a delayed issue when its canonical row was removed before the display URL was written", async () => {
+			const h = await harness(undefined);
+			await h.seedAllSaveOnly();
+			await h.removeCard();
+			assert.deepEqual(await h.save([]), { kind: "removed-by-reader", contentPending: false });
+			assert.deepEqual(await h.saves(), []);
+			assert.deepEqual(h.calls, ["saved-to-all"]);
+			jest.spyOn(h.store, "saveArticleKeepingPosition").mockRejectedValue(new Error("unavailable"));
+			await expect(h.save([])).rejects.toThrow("unavailable");
+		});
+
 		it("leaves a removed card removed however many times it is redriven", async () => {
 			const h = await harness(undefined);
 			await h.save([WORK]);

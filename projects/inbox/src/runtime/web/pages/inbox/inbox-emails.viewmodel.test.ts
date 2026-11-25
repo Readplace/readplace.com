@@ -55,6 +55,15 @@ function ago(ms: number): string {
 }
 
 describe("toInboxEmailsViewModel", () => {
+	it("keeps a stale sender selection distinct from the full timeline", () => {
+		const vm = toInboxEmailsViewModel({ emails: [], hasOlder: false, hasNewer: false }, {
+			now: NOW, activeAddresses: [], paidFeaturesLocked: false, sender: "missing@example.net",
+		});
+		expect(vm.senderFilter?.currentLabel).toBe("No received issues from this sender");
+		expect(vm.senderFilter?.options).toEqual([]);
+		expect(vm.empty).toBeUndefined();
+	});
+
 	it("tells an empty inbox with an address to wait for mail, surfacing it to copy instead of a CTA", () => {
 		const { empty } = build([]);
 

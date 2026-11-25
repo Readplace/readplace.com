@@ -1,3 +1,4 @@
+import { HAND_PICKED, HAND_PICKED_SCOPE, builtInCaption, personalHomeEnabled, readerHomeHref } from "../pages/readlist/built-in-readlists";
 import assert from "node:assert";
 import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -31,6 +32,7 @@ interface CollectionWarning {
 }
 
 export type CollectionProperties = {
+	browseReadlists: { rel: string; label: string; href: string; description?: string }[];
 	pageSize: number;
 	pages: PageListEntry[];
 	tabs: TabListEntry[];
@@ -98,6 +100,7 @@ export function toArticleCollectionEntity(
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
 		{ rel: ["root"], href: "/queue" },
+		{ rel: ["home"], href: readerHomeHref() },
 		{ rel: ["account"], title: "Account", href: accountHref },
 	];
 
@@ -127,7 +130,27 @@ export function toArticleCollectionEntity(
 		});
 	}
 
+	const filingReadlists = buildReadlistList({
+		readlists: options.readlists,
+		pinnedReadlists: options.pinnedReadlists,
+		currentReadlist: queryParams.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : queryParams.readlist ?? DEFAULT_READLIST_SLUG,
+		hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
+		destinationForCurrent: surfacePlatform === undefined
+			? undefined
+			: (readlist) => readlistDestination({ readlist, platform: surfacePlatform }),
+	});
 	const properties: CollectionProperties = {
+		browseReadlists: [
+			...(personalHomeEnabled() ? [{
+				label: HAND_PICKED.label, href: readerHomeHref(), description: builtInCaption(HAND_PICKED_SCOPE),
+				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "current" : "readlist",
+			}] : []),
+			...filingReadlists.map((entry, index) => ({
+				...entry,
+				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "readlist" : entry.rel,
+				description: builtInCaption(options.readlists[index].slug),
+			})),
+		],
 		pageSize,
 		pages: buildPageList({
 			currentPage: page,
@@ -139,15 +162,7 @@ export function toArticleCollectionEntity(
 			currentStatus: queryParams.status,
 			hrefForStatus: (status) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status, order: queryParams.order })}`,
 		}),
-		readlists: buildReadlistList({
-			readlists: options.readlists,
-			currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
-			pinnedReadlists: options.pinnedReadlists,
-			hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
-			destinationForCurrent: surfacePlatform === undefined
-				? undefined
-				: (readlist) => readlistDestination({ readlist, platform: surfacePlatform }),
-		}),
+		readlists: filingReadlists,
 	};
 	if (options.totalLabel) properties.total = { label: options.totalLabel({ total }) };
 	if (options.sort) {
@@ -165,7 +180,7 @@ export function toArticleCollectionEntity(
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
-	const namedReadlist = queryParams.readlist === DEFAULT_READLIST_SLUG ? undefined : queryParams.readlist;
+	const namedReadlist = (queryParams.readlist === DEFAULT_READLIST_SLUG || queryParams.readlist === HAND_PICKED_SCOPE) ? undefined : queryParams.readlist;
 	return {
 		class: ["collection", "articles"],
 		properties,
@@ -239,6 +254,12 @@ export function toArticleCollectionEntity(
 				href: "/queue",
 				method: "GET",
 				fields: [...SEARCH_FIELDS],
+			},
+			{
+				name: "lookup-article",
+				href: "/queue?lookup=1",
+				method: "GET",
+				fields: [{ name: "url", type: "url" }],
 			},
 			// Mints a browser session cookie from the bearer token so a client's
 			// in-app reader can load the cookie-authenticated reader page. Advertised

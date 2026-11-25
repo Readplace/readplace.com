@@ -166,6 +166,13 @@ describe("renderDeleteMenuItems", () => {
 		return parseHTML(`<div>${renderDeleteMenuItems(input)}</div>`).document;
 	}
 
+	it("only shows the scoped removal control in the reader, with no account-wide delete confirmation", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "?scope=hand-picked", acknowledged: false, removePick: true });
+		expect(deletion.confirm).toBeUndefined();
+		expect(renderDeleteMenuItems({ deletion, surface: "queue-card" })).toBe("");
+		expect(renderDeleteMenuItems({ deletion, surface: "reader" })).toContain("Remove from Hand Picked");
+	});
+
 	it("opens the confirmation and keeps a plain-post fallback while the reader is still asked", () => {
 		const doc = itemsFor({
 			deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),

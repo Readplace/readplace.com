@@ -47,4 +47,4 @@ export const CSS_SELECTORS = {
 /** Reader permalink (readUrl) shape, `/queue/:id/view`: a saved-article link
  * resolves to this, never the original article URL, which is what distinguishes
  * the private reader permalink from an arbitrary saved URL. */
-export const READER_PERMALINK_PATTERN = /\/queue\/[a-f0-9]+\/view$/;
+export const READER_PERMALINK_PATTERN = /\/queue\/[a-f0-9]+\/view(?:\?scope=hand-picked)?$/;

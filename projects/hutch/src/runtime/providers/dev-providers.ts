@@ -1,4 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
+import { initLocalBulkOperations } from "../bulk-articles/local-operations";
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { FindGeneratedSummaries } from "@packages/provider-contracts/article-summary";
@@ -143,7 +144,7 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import { transcriptAllowanceSecondsFromEnv } from "./transcript-allowance-env";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryInboxEmailLink, initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryInboxEmail, initInMemoryInboxEmailLink, initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
@@ -239,6 +240,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		}
 		: undefined;
 	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
+	const inboxEmailStore = initInMemoryInboxEmail();
 	const inboxEmailLinkStore = initInMemoryInboxEmailLink();
 	const inboxSavedLinkStore = initInMemoryInboxSavedLink();
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
@@ -668,6 +670,11 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		createRoutedInboxAddress: (input: Parameters<CreateRoutedInboxAddress>[0]) =>
 			inboxAddressStore.createRoutedAddress({ ...input, domain: inboxAddressDomain, purpose: DEFAULT_INBOX_ADDRESS_PURPOSE }),
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
+		listReceivedSenders: inboxEmailStore.listReceivedSenders,
+		bulkArticles: initLocalBulkOperations({ articles: articleStore, findArticleById: articleStore.findArticleById, findUserById: auth.findUserById,
+			listSenderIssues: inboxEmailStore.listEmailsByUserId, listIssueLinks: inboxEmailLinkStore.listLinksByEmail, resolveCanonicalIdentity,
+			publishLinkQueued, publishLinkDequeued, now: () => new Date() }),
+		listSenderIssues: inboxEmailStore.listEmailsByUserId,
 		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: inboxEmailLinkStore.getLink,
 		findIssueLinkSaveStates: inboxSavedLinkStore.findSavedLinks,
