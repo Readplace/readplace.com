@@ -205,7 +205,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	}
 
 	const getItems: GetItems = async () => {
-		const collection = await start();
+		const root = await start();
+		const collection = root.homeHref ? await root.followPage(root.homeHref) : root;
 		trackItems(collection.items);
 		return adoptCollection(collection);
 	};
@@ -448,7 +449,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const findByUrl: FindByUrl = async (url) => {
 		const collection = await start();
 		trackItems(collection.items);
-		const filterAction = collection.actions.search;
+		const filterAction = collection.actions["lookup-article"] ?? collection.actions.search;
 		assert(
 			filterAction,
 			'Expected Siren action "search" not found in response',

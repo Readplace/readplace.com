@@ -195,6 +195,7 @@ Content-Type: {{sirenMediaType}}</code></pre>
                 <p class="developers__text">Other links serve Readplace's own apps, so ignore the ones you don't use.</p>
                 <p class="developers__text" data-test-copy="offline-prefetch">A <code>next</code> link can carry a <code>class</code> of <code>offline-prefetch</code>. It tells Readplace's own apps how to load that page while they download a readlist for offline reading, so ignore it.</p>
                 <p class="developers__text" data-test-copy="past-last">A page past the last answers <code>200</code> with no <code>entities</code>, a <code>prev</code> link and no <code>next</code> link.</p>
+                <p class="developers__text">To check whether a URL is already saved, submit the <code>url</code> field of <code data-test-action>lookup-article</code>. It finds the signed-in reader’s save across both tabs of All, including older pages and known URL aliases.</p>
                 <p class="developers__text"><code data-test-action>search</code> lists articles with these fields:</p>
                 <ul class="developers__list">
                   {{#each searchFields}}
@@ -302,6 +303,7 @@ Content-Type: application/json
             <div class="developers__row">
               <div class="developers__prose">
                 <h2 class="developers__heading">Mark as read or unread</h2>
+                <p class="developers__text">When Hand Picked is available, a saved article in the “All” readlist offers <code data-test-action>add-to-hand-picked</code> or <code data-test-action>remove-from-hand-picked</code>. Submit the advertised form and its hidden <code>membership</code> field. Both actions preserve the article’s read status and return a <code>303</code> to the collection.</p>
                 <p class="developers__text"><code data-test-action>update-status</code> has one <code>hidden</code> field, <code>status</code>, whose value the server sets to <code>read</code> or <code>unread</code>, so send it as given. It answers <code>303</code> back to the collection, which you follow yourself, and it changes the article in every readlist that holds it. It answers <code>303</code> even when the article no longer exists, so re-read the collection to confirm.</p>
                 <p class="developers__text" data-test-copy="redirects">Follow every redirect yourself, sending the token and the <code>Accept</code> header again. Some HTTP clients drop <code>Authorization</code> when they follow a redirect, and the API then answers <code>401</code>.</p>
               </div>

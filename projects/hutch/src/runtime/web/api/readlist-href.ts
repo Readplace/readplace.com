@@ -11,7 +11,7 @@ export function readlistHref(params: { readlist: ReadlistSlug; readlistKey: Read
 
 function slugAtHref(href: string): ReadlistSlug | undefined {
 	const url = URL.parse(href, HREF_BASE);
-	if (url?.pathname !== READLIST_PATH) return undefined;
+	if (url?.pathname !== READLIST_PATH || url.searchParams.has("scope")) return undefined;
 	const slug = ReadlistSlugSchema.safeParse(
 		url.searchParams.get("readlist") ?? url.searchParams.get("queue") ?? DEFAULT_READLIST_SLUG,
 	);

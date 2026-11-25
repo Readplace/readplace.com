@@ -250,7 +250,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			const lookup = await fixture.auth.findUserByEmail("first-auth@example.com");
 			expect(lookup?.emailVerified).toBe(true);
 			expect(await fixture.auth.findUserByEmail("ignored@example.com")).toBeNull();
@@ -269,7 +269,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await auth.findUserByEmail("free-apple@example.com");
@@ -364,7 +364,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await fixture.auth.findUserByEmail("race-apple@example.com");
@@ -472,7 +472,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await auth.findUserByEmail("brand-new@example.com");
@@ -545,7 +545,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 		}, 30000);
 
@@ -565,7 +565,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?scope=hand-picked");
 
 			const lookup = await auth.findUserByEmail("existing@example.com");
 			expect(lookup?.userId).toBe(existingUserId);
@@ -749,7 +749,7 @@ describe("Apple auth routes", () => {
 				});
 
 				expect(response.status).toBe(303);
-				expect(response.headers.location).toBe("/queue");
+				expect(response.headers.location).toBe("/queue?scope=hand-picked");
 			}, 30000);
 		});
 
@@ -781,7 +781,7 @@ describe("Apple auth routes", () => {
 			});
 
 			expect(postResponse.status).toBe(303);
-			expect(postResponse.headers.location).toBe("/queue");
+			expect(postResponse.headers.location).toBe("/queue?scope=hand-picked");
 
 			const event = harness.conversions.events.find((e) => e.method === "apple");
 			assert(event, "Apple signup must emit a conversion event");

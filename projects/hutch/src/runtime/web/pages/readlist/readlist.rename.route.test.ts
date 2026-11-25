@@ -206,7 +206,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 				),
 				(el) => el.textContent,
 			),
-		).toEqual(["All", "All 2"]);
+		).toEqual(["Hand Picked", "All", "All 2"]);
 	});
 
 	it("refuses a name too long to render in full, keeping what the reader typed", async () => {
@@ -287,7 +287,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 				parse((await agent.get("/queue")).text).querySelectorAll("[data-test-readlist]"),
 				(el) => el.textContent,
 			),
-		).toEqual(["All"]);
+		).toEqual(["Hand Picked", "All"]);
 	});
 
 	it("redirects a readlist address that could never have been minted, since no dialog carries it", async () => {

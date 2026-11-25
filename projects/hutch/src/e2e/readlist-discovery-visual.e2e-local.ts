@@ -113,7 +113,7 @@ async function seedReader(page: Page, stamp: string): Promise<void> {
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
 	}
 	await page.addInitScript(disableLocalTimeTick);
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -371,6 +371,21 @@ function withTheme(checkpoint: VisualCheckpoint, theme: (typeof THEMES)[number])
 	return { ...checkpoint, name: `${checkpoint.name}-${theme}` };
 }
 
+test("the source dropdown keeps the reading tab and search during HTMX navigation", async ({ page }, testInfo) => {
+	await seedReader(page, `source-${testInfo.workerIndex}-${Date.now()}`);
+	await gotoReadlistQueue(page, "?tab=done&q=deep");
+	await page.locator(".readlist__manage > summary").click();
+	const source = page.locator(".readlist__source-menu").first();
+	await source.locator("summary").press("Enter");
+	const request = page.waitForRequest(req => req.headers()["hx-request"] === "true" && new URL(req.url()).searchParams.get("source") === "bulk");
+	await source.getByRole("link", { name: "Bulk import" }).press("Enter");
+	await request;
+	await expect(page.locator(".readlist__source-menu").first().locator("summary")).toContainText("Bulk import");
+	const query = new URL(page.url()).searchParams;
+	expect(query.get("tab")).toBe("done");
+	expect(query.get("q")).toBe("deep");
+});
+
 test.describe("Readlist search results", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
@@ -491,6 +506,37 @@ test.describe("Readlist filter drawer", () => {
 		expect(page.url()).toBe(filtered);
 		await expect(page.locator(ARTICLE)).toHaveCount(1);
 	});
+});
+
+test.describe("Blurred readlist popups", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL, hasTouch: true, javaScriptEnabled: false });
+
+	for (const { name, trigger, panel } of [
+		{ name: "Filters", trigger: FILTER_TRIGGER, panel: OPEN_DRAWER },
+		{ name: "Add article", trigger: '[data-test-action="add-link"]', panel: "#add-link:popover-open" },
+	]) {
+		test(`a click over a link behind ${name} only dismisses the popup`, async ({ page }, testInfo) => {
+			await seedReader(page, `scrim-${testInfo.workerIndex}-${Date.now()}`);
+			const readTab = page.locator('[data-test-filter="read"]');
+			for (const pointer of [page.mouse.click.bind(page.mouse), page.touchscreen.tap.bind(page.touchscreen)]) {
+				await page.locator(trigger).click();
+				await expect(page.locator(panel)).toBeVisible();
+
+				const point = await readTab.evaluate((tab) => {
+					const box = tab.getBoundingClientRect();
+					const x = box.left + box.width / 2;
+					const y = box.top + box.height / 2;
+					return { x, y, hitsLink: tab.contains(document.elementFromPoint(x, y)) };
+				});
+				expect(point.hitsLink).toBe(false);
+				await pointer(point.x, point.y);
+				await expect(page.locator(panel)).toHaveCount(0);
+				await expect(page.locator('[data-test-filter="unread"]')).toHaveAttribute("aria-current", "page");
+			}
+			await readTab.click();
+			await expect(readTab).toHaveAttribute("aria-current", "page");
+		});
+	}
 });
 
 test.describe("Readlist filter drawer (phone)", () => {

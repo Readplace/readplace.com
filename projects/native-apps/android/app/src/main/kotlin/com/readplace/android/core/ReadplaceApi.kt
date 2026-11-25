@@ -76,6 +76,8 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 	/** The href of the collection's structural `root` link — the mainline readlist
 	 * every save also drops into. Null when the server advertised no root, in which
 	 * case the client never guesses which readlist is mainline. */
+	val homeHref: String?
+	val browseReadlists: List<Readlist>
 	val rootHref: String?
 
 	/** The status tabs and sibling readlists the collection advertised, in server
@@ -109,6 +111,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 		val next = links.firstOrNull { it.rel.contains("next") }
 		nextHref = next?.href
 		nextIsOfflinePrefetch = next?.classes.orEmpty().contains("offline-prefetch")
+		homeHref = links.firstOrNull { it.rel.contains("home") }?.href
 		rootHref = links.firstOrNull { it.rel.contains("root") }?.href
 		val actionAffordances = collection.actions.orEmpty().mapNotNull { Affordance.of(it) }
 		val linkAffordances = links.mapNotNull { Affordance.of(it) }
@@ -118,6 +121,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 		appearance = collection.properties?.appearance
 		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
 		readlists = collection.properties?.readlists.orEmpty().map { Readlist.of(it) }
+		browseReadlists = collection.properties?.browseReadlists?.map { Readlist.of(it) } ?: readlists
 	}
 
 	/** The href of the tab the server marked current, or null when none is. */
@@ -125,7 +129,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 
 	/** The href of the readlist the server marked current, or null when none is —
 	 * the only signal the client trusts to remember a readlist as last viewed. */
-	val currentReadlistHref: String? get() = readlists.firstOrNull { it.isCurrent }?.href
+	val currentReadlistHref: String? get() = browseReadlists.firstOrNull { it.isCurrent }?.href
 
 	/** The advertised action with this name, when present and invokable. The
 	 * share-sheet save journey needs a specific action to build its bespoke body

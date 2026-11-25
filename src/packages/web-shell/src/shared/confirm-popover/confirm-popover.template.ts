@@ -1,11 +1,15 @@
-export const CONFIRM_POPOVER_TEMPLATE = `<div class="confirm-popover{{#if illustrationHtml}} confirm-popover--illustrated{{/if}}{{#if besidePassage}} confirm-popover--beside-passage{{/if}}" id="{{id}}" popover="{{#if besidePassage}}manual{{else}}auto{{/if}}" role="dialog" tabindex="-1" aria-labelledby="{{id}}-title" aria-describedby="{{describedBy}}" {{#if oob}}hx-swap-oob="outerHTML" {{/if}}data-test-confirm-popover="{{key}}"{{#if subject}} data-test-confirm-subject="{{subject}}"{{/if}}{{#if openBeaconUrl}} data-beacon-url="{{openBeaconUrl}}"{{/if}}>{{#if illustrationHtml}}<div class="confirm-popover__illustration" aria-hidden="true">{{{illustrationHtml}}}</div>{{/if}}
-	<div class="confirm-popover__header">
-		<h2 class="confirm-popover__title" id="{{id}}-title">{{title}}</h2>
-		{{#each closeControls}}<button class="confirm-popover__close" type="button" popovertarget="{{../id}}" popovertargetaction="hide" data-test-action="{{../key}}-dismiss"{{#if beaconUrl}} data-beacon-url="{{beaconUrl}}"{{/if}}>{{icon "x"}}<span class="sr-only">Close</span></button>{{/each}}
+export const CONFIRM_POPOVER_TEMPLATE = `<div class="confirm-popover{{#if illustrationHtml}} confirm-popover--illustrated{{/if}}{{#if besidePassage}} confirm-popover--beside-passage{{else}} popover--scrimmed{{/if}}" id="{{id}}" popover="{{#if besidePassage}}manual{{else}}auto{{/if}}" role="dialog" tabindex="-1" aria-labelledby="{{id}}-title" aria-describedby="{{describedBy}}" {{#if oob}}hx-swap-oob="outerHTML" {{/if}}data-test-confirm-popover="{{key}}"{{#if subject}} data-test-confirm-subject="{{subject}}"{{/if}}{{#if openBeaconUrl}} data-beacon-url="{{openBeaconUrl}}"{{/if}}>
+	<div class="confirm-popover__surface">
+		{{#if illustrationHtml}}<div class="confirm-popover__illustration" aria-hidden="true">{{{illustrationHtml}}}</div>{{/if}}
+		<div class="confirm-popover__header">
+			<h2 class="confirm-popover__title" id="{{id}}-title">{{title}}</h2>
+			{{#each closeControls}}<button class="confirm-popover__close" type="button" popovertarget="{{../id}}" popovertargetaction="hide" data-test-action="{{../key}}-dismiss"{{#if beaconUrl}} data-beacon-url="{{beaconUrl}}"{{/if}}>{{icon "x"}}<span class="sr-only">{{t "popover.close"}}</span></button>{{/each}}
+		</div>
+		{{#each subheadings}}<h3 class="confirm-popover__subheading" id="{{../id}}-subheading">{{this}}</h3>{{/each}}
+		{{#if lead}}<p class="sr-only" id="{{id}}-lead">{{lead}}</p>{{/if}}
+		<p class="confirm-popover__body" id="{{id}}-body">{{body}}</p>
+		{{#if bodyItems}}<ul class="confirm-popover__items" id="{{id}}-items">{{#each bodyItems}}<li class="confirm-popover__item">{{icon icon}}<span class="confirm-popover__item-label">{{label}}</span></li>{{/each}}</ul>{{/if}}
+		{{{actionsHtml}}}
 	</div>
-	{{#each subheadings}}<h3 class="confirm-popover__subheading" id="{{../id}}-subheading">{{this}}</h3>{{/each}}
-	{{#if lead}}<p class="sr-only" id="{{id}}-lead">{{lead}}</p>{{/if}}
-	<p class="confirm-popover__body" id="{{id}}-body">{{body}}</p>
-	{{#if bodyItems}}<ul class="confirm-popover__items" id="{{id}}-items">{{#each bodyItems}}<li class="confirm-popover__item">{{icon icon}}<span class="confirm-popover__item-label">{{label}}</span></li>{{/each}}</ul>{{/if}}
-	{{{actionsHtml}}}
+	{{#unless besidePassage}}<button class="popover__backdrop-dismiss" type="button" popovertarget="{{id}}" popovertargetaction="hide" tabindex="-1" aria-label="{{t "popover.close"}}"></button>{{/unless}}
 </div>`;

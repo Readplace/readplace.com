@@ -77,6 +77,7 @@ export function createInboxApp(
 			url: string;
 			provenance: SaveProvenance;
 			readlist: ReadlistSlug;
+			personalPickAt?: string;
 			saveTrigger: SaveTrigger;
 			saveAttemptId: SaveAttemptId;
 		}) => Promise<void>;

@@ -1,0 +1,22 @@
+.bulk-status {
+  width: min(100%, var(--reader-max-width));
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-gutter);
+}
+
+.bulk-status dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: .5rem 2rem;
+  max-width: 26rem;
+}
+
+.bulk-status dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-status form {
+  margin-block: 1rem;
+}

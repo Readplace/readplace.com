@@ -78,7 +78,7 @@ async function seedAndLogin(page: Page, stamp: string): Promise<string> {
 		"the seed endpoint must create the crawled article",
 	);
 	const { articleId } = SeededArticle.parse(await seeded.json());
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();

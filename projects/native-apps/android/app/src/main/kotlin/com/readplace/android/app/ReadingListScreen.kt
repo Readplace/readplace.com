@@ -241,6 +241,9 @@ fun ReadingListScreen(
 				.padding(insets),
 		) {
 			Column(modifier = Modifier.fillMaxSize()) {
+				state.currentReadlistDescription?.let { description ->
+					Text(text = description, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
+				}
 				if (state.tabs.isNotEmpty()) {
 					TabStrip(
 						tabs = state.tabs,

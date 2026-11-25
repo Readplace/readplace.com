@@ -54,6 +54,8 @@ struct ReadlistPage {
 	let nextHref: String?
 	let nextIsOfflinePrefetch: Bool
 	let rootHref: String?
+	let homeHref: String?
+	let browseReadlists: [Readlist]
 	/// Every collection-level action and navigable link the server advertised, in
 	/// wire order — the complete set, so the share-sheet save journey can still find
 	/// its bespoke action by name (`action(named:)`, below). The toolbar does not
@@ -84,6 +86,7 @@ struct ReadlistPage {
 		let next = links.first { $0.rel.contains("next") }
 		nextHref = next?.href
 		nextIsOfflinePrefetch = next?.classes?.contains("offline-prefetch") == true
+		homeHref = links.first { $0.rel.contains("home") }?.href
 		rootHref = links.first { $0.rel.contains("root") }?.href
 		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
 		let linkAffordances = links.compactMap(Affordance.init(link:))
@@ -92,6 +95,7 @@ struct ReadlistPage {
 		noticeMessages = (collection.properties?.messages ?? []).filter(\.isRenderable)
 		tabs = (collection.properties?.tabs ?? []).map(ReadlistTab.init(tab:))
 		readlists = (collection.properties?.readlists ?? []).map(Readlist.init(entry:))
+		browseReadlists = collection.properties?.browseReadlists?.map(Readlist.init(entry:)) ?? readlists
 		appearance = collection.properties?.appearance
 		self.isStoredCopy = isStoredCopy
 		self.sirenBody = sirenBody
@@ -100,7 +104,7 @@ struct ReadlistPage {
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
 
-	var currentReadlistHref: String? { readlists.first(where: \.isCurrent)?.href }
+	var currentReadlistHref: String? { browseReadlists.first(where: \.isCurrent)?.href }
 
 	/// The advertised action with this name, when present and invokable. The
 	/// share-sheet save journey needs a specific action to build its bespoke body

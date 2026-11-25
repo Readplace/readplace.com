@@ -82,6 +82,7 @@ const COLLECTION_PROPERTY_DOCS = {
 		"All and each named readlist, each a <code>{label, rel, href, pinned}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field. For Readplace's own apps only, the <code>current</code> entry may also carry <code>preferences</code> on a named readlist or <code>integrations</code> on All, each a <code>{label, href}</code> to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 	total: "a <code>{label}</code> to show the reader, not a number to compute with.",
 	sort: "one <code>{label, rel, order, href}</code> per order, where the order you're on has the rel <code>current</code>. Follow an href to change the order.",
+	browseReadlists: "Ordered browsing destinations. Each carries a label and href. Permanent lists also carry a description. The home link opens Hand Picked.",
 	pageSize: "presentation. The server picks the page size.",
 	appearance: "presentation.",
 	warning: "appears only on a <code>422</code> answer to <code>save-article</code>.",

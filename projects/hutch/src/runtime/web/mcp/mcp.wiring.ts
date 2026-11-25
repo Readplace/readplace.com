@@ -67,6 +67,7 @@ export function mcpServerDependenciesFrom(
 			return highlightOperations.createHighlight(params);
 		},
 		saveLink: initMcpSaveLink({
+			now: deps.now,
 			resolveSaveAccess,
 			claimDailySaves,
 			validateNewSaveUrl,

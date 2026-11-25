@@ -140,6 +140,7 @@ data class CollectionReadlistEntry(
 	val label: String,
 	val rel: String,
 	val href: String,
+	val description: String? = null,
 )
 
 data class CollectionProperties(
@@ -152,6 +153,7 @@ data class CollectionProperties(
 	 * without blanking the collection. */
 	val tabs: List<CollectionReadlistEntry>?,
 	val readlists: List<CollectionReadlistEntry>?,
+	val browseReadlists: List<CollectionReadlistEntry>?,
 )
 
 data class SirenCollection(
@@ -347,6 +349,7 @@ object SirenDecoding {
 			appearance = string(obj["appearance"]),
 			tabs = lossyList(obj["tabs"], ::readlistEntry),
 			readlists = lossyList(obj["readlists"], ::readlistEntry),
+			browseReadlists = lossyList(obj["browseReadlists"], ::readlistEntry),
 		)
 	}
 
@@ -358,7 +361,7 @@ object SirenDecoding {
 		val label = string(obj["label"]) ?: return null
 		val rel = string(obj["rel"]) ?: return null
 		val href = string(obj["href"]) ?: return null
-		return CollectionReadlistEntry(label = label, rel = rel, href = href)
+		return CollectionReadlistEntry(label = label, rel = rel, href = href, description = string(obj["description"]))
 	}
 
 	private fun warning(element: JsonElement?): SirenWarning? {
@@ -588,12 +591,13 @@ data class Readlist(
 	val label: String,
 	val href: String,
 	val isCurrent: Boolean,
+	val description: String? = null,
 ) {
 	fun matches(chain: Iterable<String>): Boolean = href in chain
 
 	companion object {
 		fun of(entry: CollectionReadlistEntry): Readlist =
-			Readlist(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL)
+			Readlist(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL, description = entry.description)
 	}
 }
 

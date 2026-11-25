@@ -4,6 +4,8 @@ import type { KnipConfig } from "knip";
 export default {
 	...baseConfig,
 	entry: [
+		// The test phase runner invokes this standalone DynamoDB exercise by filename.
+		"scripts/test-bulk-article-recovery.cjs",
 		// Lambda entry points referenced by Pulumi infra (Lambda's `entryPoint`)
 		// — knip can't follow those references, so list the convention here.
 		"src/runtime/*.main.ts",

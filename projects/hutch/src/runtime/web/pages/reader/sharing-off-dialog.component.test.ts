@@ -50,7 +50,7 @@ describe("renderSharingOffDialog", () => {
 		const doc = parse(renderSharingOffDialog("email-issue"));
 
 		expect(
-			Array.from(doc.querySelectorAll("button"), (button) => [
+			Array.from(doc.querySelectorAll(".confirm-popover__surface button"), (button) => [
 				button.className,
 				button.textContent,
 				button.getAttribute("popovertarget"),

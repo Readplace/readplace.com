@@ -11,6 +11,7 @@ export interface NewsletterLinkRow {
 	storedKey: string;
 	provenance?: SaveProvenance;
 	handPickedAt?: Date;
+	personalPickedAt?: Date;
 	status: ArticleStatus;
 	viewedAt?: Date;
 	lastSummaryOpenedAt?: Date;
@@ -37,8 +38,8 @@ export interface NewsletterLinkSummary {
 	savedBeforeMarker: number;
 }
 
-export function isHandPicked(row: Pick<NewsletterLinkRow, "handPickedAt" | "provenance">): boolean {
-	return row.handPickedAt !== undefined || keepsProvenanceAgainstAutomaticSave(row.provenance?.kind);
+export function isHandPicked(row: Pick<NewsletterLinkRow, "personalPickedAt" | "handPickedAt" | "provenance">): boolean {
+	return row.personalPickedAt !== undefined || row.handPickedAt !== undefined || keepsProvenanceAgainstAutomaticSave(row.provenance?.kind);
 }
 
 export function isNewsletterLink(params: { row: NewsletterLinkRow; userId: UserId }): boolean {
