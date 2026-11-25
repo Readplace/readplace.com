@@ -99,6 +99,7 @@ import type {
 	ListUserSavesForUrl,
 	FindQueueRowKeys,
 	QueueRowKey,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -336,6 +337,7 @@ export function initInMemoryArticleStore(): {
 	listUserSavesForUrl: ListUserSavesForUrl;
 	findQueueRowKeys: FindQueueRowKeys;
 	hasQueueRow: (key: QueueRowKey) => boolean;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -1288,6 +1290,18 @@ export function initInMemoryArticleStore(): {
 			return candidate.userId === key.userId && candidate.url === key.url;
 		});
 
+	const countSmartReadlistArticles: CountSmartReadlistArticles = async ({ userId, readlists }) => {
+		const urls = new Set<string>();
+		for (const row of userArticles.values()) {
+			if (row.userId === userId && row.readlist && readlists.includes(row.readlist)) {
+				if (!readlistDefinitions.get(readlistDefinitionKey(userId, row.readlist))?.purpose) continue;
+				urls.add(row.url);
+				if (urls.size === 10) break;
+			}
+		}
+		return urls.size;
+	};
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
@@ -1908,6 +1922,7 @@ export function initInMemoryArticleStore(): {
 		listUserSavesForUrl,
 		findQueueRowKeys,
 		hasQueueRow,
+		countSmartReadlistArticles,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,

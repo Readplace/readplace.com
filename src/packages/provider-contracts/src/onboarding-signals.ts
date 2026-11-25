@@ -32,6 +32,10 @@ export type RecordNextReadMinimumReached = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+export type RecordSmartReadlistMinimumReached = (params: { userId: UserId }) => Promise<void>;
+
+export type RecordSmartReadlistStepDismissed = (params: { userId: UserId }) => Promise<void>;
+
 export type RecordInboxArticleQueued = (params: {
 	userId: UserId;
 }) => Promise<void>;
@@ -74,12 +78,15 @@ export type RecordDeleteArticleAcknowledged = (params: {
  * account-scoped rather than device-scoped, and its presence is the milestone. */
 export type GetOnboardingSignals = (params: {
 	userId: UserId;
+	consistentRead?: boolean;
 }) => Promise<{
 	nativeApp: Record<NativeAppPlatform, { installed: boolean; savedArticle: boolean }>;
+	smartReadlistMinimumReachedAt: Date | undefined;
 	nextReadMinimumReachedAt: Date | undefined;
 	firstInboxArticleQueuedAt: Date | undefined;
 	emailStepMarkedDoneAt: Date | undefined;
 	gmailStepDismissedAt: Date | undefined;
+	smartReadlistStepDismissedAt: Date | undefined;
 	onboardingOutstandingVersion: string | undefined;
 	markReadAcrossQueuesAckedAt: Date | undefined;
 	deleteArticleAckedAt: Date | undefined;

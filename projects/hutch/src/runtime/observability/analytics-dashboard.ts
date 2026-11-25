@@ -1174,7 +1174,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 358, width: 8, height: 4,
+			x: index * 8, y: 366, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1383,6 +1383,22 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			].join(" "),
 			x: 0, y: 350, width: 24, height: 8,
 			view: "table",
+		}),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Highlights copied per day, by surface",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, surface",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.highlightCopied}"`,
+				...exclude,
+				"| stats count(*) as copied by surface, bin(1d)",
+			].join(" "),
+			x: 0, y: 358, width: 12, height: 8,
+			view: "timeSeries",
 		}),
 	);
 

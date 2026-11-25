@@ -9,6 +9,7 @@ import com.readplace.android.core.AuthFlowError
 import com.readplace.android.core.AuthorizationRequest
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.DownloadedVersions
+import com.readplace.android.core.KeptVersion
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
 import com.readplace.android.core.OAuthTokens
@@ -562,7 +563,11 @@ class AppSessionTest {
 		pages.load()
 
 		assertEquals(
-			listOf(DownloadedVersions(mapOf("a1" to "v1")), DownloadedVersions(emptyMap()), null),
+			listOf(
+				DownloadedVersions(mapOf("https://readplace.com/queue/a1/view" to KeptVersion("v1", savedAt = java.time.Instant.EPOCH))),
+				DownloadedVersions(emptyMap()),
+				null,
+			),
 			listOf(beforeLogout, pages.versions.value, pages.find("https://readplace.com/queue/a1/view")),
 		)
 	}

@@ -160,6 +160,8 @@ export const READLIST_EMAIL_STEP_DONE_PATH = `${READLIST_PATH}/onboarding/email/
 
 export const READLIST_GMAIL_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/gmail/dismiss`;
 
+export const READLIST_SMART_READLIST_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/smart-readlist/dismiss`;
+
 export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }

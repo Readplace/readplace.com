@@ -61,9 +61,13 @@ for (const device of DEVICES) {
 						await waitForBrandFonts(settledPage, ["Inter"]);
 						await expect(settledPage.locator(STEP)).toHaveAttribute("data-test-onboarding-current", "true");
 						await expect(settledPage.locator(DISMISS)).toBeVisible();
-						await expect(settledPage.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", device.hasClient ? "60" : "0");
+						await expect(settledPage.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", device.hasClient ? "50" : "0");
 					},
 					geometry: async (settledPage) => {
+						const track = await measuredBox(settledPage, ".setup-guide__progress-track");
+						const bar = await settledPage.locator(".setup-guide__progress-bar").evaluate((el) => el.getBoundingClientRect().width);
+						const label = await settledPage.locator("[data-test-onboarding-progress]").getAttribute("data-test-onboarding-progress");
+						assert.equal(Math.round(bar / track.width * 100), Number(label));
 						const row = await measuredBox(settledPage, STEP);
 						for (const selector of [CONNECT, DISMISS]) {
 							const control = await measuredBox(settledPage, selector);
@@ -89,7 +93,7 @@ test.describe("Gmail onboarding with htmx", () => {
 		await page.goto(`${BASE_URL}/queue?tab=done&order=asc`);
 		await clickAndWaitForPageReload(page, page.locator(DISMISS));
 		await expect(page.locator(STEP)).toHaveCount(0);
-		await expect(page.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", "80");
+		await expect(page.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", "67");
 		expect(new URL(page.url()).search).toBe("?tab=done&order=asc");
 	});
 });
@@ -106,7 +110,7 @@ test.describe("Gmail onboarding without JavaScript", () => {
 		await clickAndWaitForPageReload(page, page.locator(DISMISS));
 		expect(new URL(page.url()).search).toBe("?tab=done&order=asc");
 		await expect(page.locator(STEP)).toHaveCount(0);
-		await expect(page.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", "80");
+		await expect(page.locator("[data-test-onboarding-progress]")).toHaveAttribute("data-test-onboarding-progress", "67");
 		await page.context().clearCookies();
 		await login(page, email);
 		await expect(page.locator(STEP)).toHaveCount(0);
@@ -116,7 +120,7 @@ test.describe("Gmail onboarding without JavaScript", () => {
 test.describe("Unsupported-device dismissal without JavaScript", () => {
 	test.use({ javaScriptEnabled: false, userAgent: SAFARI });
 
-	test("dismisses the no-app notice independently and hides the checklist once Gmail is dismissed", async ({ page }, testInfo) => {
+	test("dismisses the no-app notice independently and keeps Smart Readlist setup available after Gmail is dismissed", async ({ page }, testInfo) => {
 		await createReader(page, `no-app-${testInfo.workerIndex}-${Date.now()}`);
 		await expect(page.locator("[data-test-onboarding-no-client]")).toBeVisible();
 		await clickAndWaitForPageReload(page, page.locator("[data-test-onboarding-dismiss]"));
@@ -127,7 +131,7 @@ test.describe("Unsupported-device dismissal without JavaScript", () => {
 		assert.ok(Math.abs(progressRow.y - card.y - 21) <= 1, "the progress row must keep a 20px inset once the notice is dismissed");
 		await clickAndWaitForPageReload(page, page.locator(DISMISS));
 		await expect(page.locator(STEP)).toHaveCount(0);
-		await expect(page.locator(CARD)).toBeHidden();
+		await expect(page.locator('[data-test-onboarding-step="create-smart-readlist"]')).toBeVisible();
 	});
 
 	test("keeps the no-app notice visible when only Gmail is dismissed", async ({ page }, testInfo) => {

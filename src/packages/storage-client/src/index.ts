@@ -13,7 +13,7 @@ export {
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
 } from "@aws-sdk/client-dynamodb";
-export { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+export { TransactGetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 export {
 	writeIfCondition,
 	transactIfConditions,

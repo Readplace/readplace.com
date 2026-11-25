@@ -481,6 +481,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findReadlistRemoval: articleStoreMemory.findReadlistRemoval,
 			markReadlistArticleViewed: articleStoreMemory.markReadlistArticleViewed,
 			listUserSavesForUrl: articleStoreMemory.listUserSavesForUrl,
+			countSmartReadlistArticles: articleStoreMemory.countSmartReadlistArticles,
 			listUserSavesForUrls: articleStoreMemory.listUserSavesForUrls,
 			assignSavedArticleToReadlist: articleStoreMemory.assignSavedArticleToReadlist,
 			moveReadlistArticles: articleStoreMemory.moveReadlistArticles,

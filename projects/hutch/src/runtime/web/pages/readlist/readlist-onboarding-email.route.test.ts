@@ -11,7 +11,7 @@ import {
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+const SMART_GUIDE_VERSION = "2ad99d2b";
 import { useTestServer, loginAgent, type TestAppHarness } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -182,6 +182,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const harness = useApp(stamping.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
+		await stamping.fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
 		await stamping.fixture.onboardingSignals.recordEmailStepMarkedDone({ userId });
 
 		const response = await agent
@@ -211,6 +212,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 			"install-extension",
 			"save-first-article-via-extension",
 			"receive-articles-by-email",
+			"create-smart-readlist",
 			"save-enough-for-next-read",
 		]);
 		assert.equal(emailStepOf(response.text).getAttribute("data-test-onboarding-complete"), "true");
@@ -239,7 +241,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		await agent.get("/queue").set("User-Agent", CHROME_UA);
 		await agent.get("/queue").set("User-Agent", CHROME_UA);
 
-		assert.deepEqual(stamping.versionWrites, [{ userId, version: ONBOARDING_VERSION }]);
+		assert.deepEqual(stamping.versionWrites, [{ userId, version: SMART_GUIDE_VERSION }]);
 	});
 
 	it("writes the version stamp once from the page a rejected save lands on", async () => {
@@ -257,7 +259,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		assert.deepEqual(stamping.versionWrites, []);
 
 		await agent.get(rejected.headers.location).set("User-Agent", CHROME_UA);
-		assert.deepEqual(stamping.versionWrites, [{ userId, version: ONBOARDING_VERSION }]);
+		assert.deepEqual(stamping.versionWrites, [{ userId, version: SMART_GUIDE_VERSION }]);
 
 		await agent.get("/queue").set("User-Agent", CHROME_UA);
 		assert.equal(stamping.versionWrites.length, 1);
@@ -268,6 +270,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const harness = useApp(stamping.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
+		await stamping.fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
 		await stamping.fixture.onboardingSignals.recordInboxArticleQueued({ userId });
 
 		const response = await agent
@@ -286,6 +289,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const harness = useApp(stamping.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
+		await stamping.fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
 		await stamping.fixture.onboardingSignals.recordInboxArticleQueued({ userId });
 		await stamping.fixture.onboardingSignals.recordOnboardingOutstandingVersion({
 			userId,
@@ -309,6 +313,7 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const harness = useApp(stamping.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
+		await stamping.fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
 
 		const first = await agent
 			.get("/queue")
@@ -336,13 +341,14 @@ describe("Readlist onboarding — Get articles from email", () => {
 		const harness = useApp(stamping.fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
+		await stamping.fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
 
 		await agent.post(MARK_DONE_PATH).set("User-Agent", CHROME_UA);
 		const stillOpen = await agent.get("/queue").set("User-Agent", CHROME_UA);
 		const openContainer = parse(stillOpen.text).querySelector("[data-test-onboarding]");
 		assert(openContainer, "onboarding container must be rendered");
 		assert(openContainer.classList.contains("setup-guide--visible"));
-		assert.deepEqual(stamping.versionWrites, [{ userId, version: ONBOARDING_VERSION }]);
+		assert.deepEqual(stamping.versionWrites, [{ userId, version: SMART_GUIDE_VERSION }]);
 
 		const finished = await agent
 			.get("/queue")

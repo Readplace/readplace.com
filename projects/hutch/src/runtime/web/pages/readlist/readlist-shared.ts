@@ -56,6 +56,7 @@ import {
 	sendComponent,
 	withInternalTracking,
 } from "@packages/web-shell";
+import { wantsSiren } from "../../content-negotiation";
 import { FreshForComponent } from "../../conditional-get";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import {
@@ -73,8 +74,10 @@ import {
 	readerReadlists,
 	sessionIdOf,
 } from "./readlist-context";
+import { composeReadlistNav } from "./readlist-nav-layout";
 import { readlistScopedStore } from "./readlist-scoped-store";
 import {
+	pinnedReadlistSlugs,
 	type ReadlistSlug,
 	type ReadlistRef,
 	readlistsHoldingArticle,
@@ -91,7 +94,7 @@ import { tabQuery } from "./readlist.tabs";
 import type { MoveFlash, StatusFlash } from "./readlist.error";
 import { toReadlistViewModel } from "./readlist.viewmodel";
 import { formatReaderDocumentTitle, } from "../reader/reader.component";
-import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
+import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingSmartReadlistStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
 import { gmailConnectionState, } from "@packages/domain/gmail";
 import { canConnectGmail } from "../integrations/gmail-connection-access";
 import {
@@ -518,6 +521,51 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		return savedCount;
 	};
 
+	const resolveSmartCount = async (
+		userId: UserId, reachedAt: Date | undefined, lists: readonly ReadlistDefinitionData[],
+	): Promise<number | undefined> => {
+		if (reachedAt) return 10;
+		if (!lists.length) return 0;
+		try {
+			const count = await deps.countSmartReadlistArticles({ userId, readlists: lists.map(({ slug }) => slug) });
+			if (count === 10) {
+				try {
+					await deps.recordSmartReadlistMinimumReached({ userId });
+				} catch (error) {
+					if (!(await deps.getOnboardingSignals({ userId, consistentRead: true })).smartReadlistMinimumReachedAt) throw error;
+				}
+			}
+			return count;
+		} catch (error) {
+			deps.logError("Failed to resolve Smart Readlist progress", error instanceof Error ? error : undefined);
+			return undefined;
+		}
+	};
+
+	const resolveSmartReadlist = async (
+		userId: UserId, signals: Awaited<ReturnType<typeof deps.getOnboardingSignals>> | undefined,
+		definitions: readonly ReadlistDefinitionData[], active: ReadlistSlug,
+	) => {
+		const configured = definitions.filter((list) => list.purpose);
+		const candidates = configured.length ? configured : definitions;
+		const nav = composeReadlistNav({
+			readlists: readerReadlists(definitions),
+			pinned: pinnedReadlistSlugs(definitions),
+			currentSlug: active,
+		});
+		const candidateSlugs = new Set(candidates.map((list) => list.slug));
+		const target = candidateSlugs.has(active) ? active : [...nav.railEntries, ...nav.moreEntries]
+			.find((list) => candidateSlugs.has(list.slug))?.slug;
+		const dismissed = signals?.smartReadlistStepDismissedAt !== undefined;
+		return {
+			count: signals && !dismissed ? await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured) : undefined,
+			target,
+			configured: configured.length > 0,
+			viewingTarget: target === active,
+			dismissed,
+		};
+	};
+
 	const gmailEligibleFor = (req: Request, access: EffectiveAccess): boolean =>
 		deps.findGmailConnectionByUserId !== undefined &&
 		req.verificationStatus?.state !== "locked" && canConnectGmail(access);
@@ -539,7 +587,10 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	 * matches and the new client isn't installed, so onboarding re-appears.
 	 * Outstanding Gmail always overrides a whole-checklist dismissal; its own
 	 * permanent dismissal is account-scoped and independent of this cookie. */
-	const resolveOnboardingSignals = async (req: Request, userId: UserId, access: EffectiveAccess) => {
+	const resolveOnboardingSignals = async (
+		req: Request, userId: UserId, access: EffectiveAccess,
+		definitions: readonly ReadlistDefinitionData[], active: ReadlistSlug,
+	) => {
 		const advertisedPlatform = advertisedPlatformOf(req);
 		const platform: PitchablePlatform = advertisedPlatform ?? "other";
 		const hasClient = advertisedPlatform !== undefined;
@@ -549,20 +600,27 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const onboardingCompletedBefore =
 			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
 		const [signals, connection] = await Promise.all([
-			deps.getOnboardingSignals({ userId }),
+			deps.getOnboardingSignals({ userId }).catch((error: unknown) => {
+				deps.logError("Failed to read onboarding progress", error instanceof Error ? error : undefined);
+				return undefined;
+			}),
 			gmailEligible && deps.findGmailConnectionByUserId
 				? deps.findGmailConnectionByUserId(userId)
 				: undefined,
 		]);
+		const smartEligible = !wantsSiren(req) && hasPaidFeatures(access) && req.verificationStatus?.state !== "locked";
+		const smartReadlist = smartEligible
+			? await resolveSmartReadlist(userId, signals, definitions, active)
+			: undefined;
 		const gmailState = gmailConnectionState(connection);
-		const gmail = gmailEligible ? {
+		const gmail = gmailEligible && signals ? {
 			connected: !["disconnected", "disconnecting", "revoked"].includes(gmailState),
 			dismissed: signals.gmailStepDismissedAt !== undefined,
 		} : undefined;
-		const markReadAcrossQueuesAckedAt = signals.markReadAcrossQueuesAckedAt;
-		const deleteArticleAckedAt = signals.deleteArticleAckedAt;
+		const markReadAcrossQueuesAckedAt = signals?.markReadAcrossQueuesAckedAt;
+		const deleteArticleAckedAt = signals?.deleteArticleAckedAt;
 		if (!hasClient) {
-			const noClientContext = { hasInstallableClient: false, gmail } satisfies OnboardingContext;
+			const noClientContext = { hasInstallableClient: false, gmail, smartReadlist } satisfies OnboardingContext;
 			return {
 				markReadAcrossQueuesAckedAt,
 				deleteArticleAckedAt,
@@ -576,23 +634,27 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		}
 		const nativeAppPlatform = NATIVE_APP_SIGNAL_PLATFORM[platform];
 		const { installed, savedArticle } = nativeAppPlatform
-			? signals.nativeApp[nativeAppPlatform]
+			? (signals?.nativeApp[nativeAppPlatform] ?? { installed: false, savedArticle: false })
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const savedCount = await resolveSavedCount(userId, signals.nextReadMinimumReachedAt);
+		const savedCount = await resolveSavedCount(userId, signals?.nextReadMinimumReachedAt);
 		const context: InstallableClientOnboarding = {
 			hasInstallableClient: true,
+			smartReadlist,
 			gmail,
 			platform,
 			installed,
 			savedArticle,
 			savedCount,
-			inboxArticleQueued: signals.firstInboxArticleQueuedAt !== undefined,
-			emailStepMarkedDone: signals.emailStepMarkedDoneAt !== undefined,
+			inboxArticleQueued: signals?.firstInboxArticleQueuedAt !== undefined,
+			emailStepMarkedDone: signals?.emailStepMarkedDoneAt !== undefined,
 			paidFeatures: hasPaidFeatures(access),
 		};
 		const version = onboardingVersion(context);
-		const seenUnderThisVersion = signals.onboardingOutstandingVersion === version;
-		if (!seenUnderThisVersion && hasOutstandingStep(context)) {
+		const seenUnderThisVersion = signals?.onboardingOutstandingVersion === version;
+		// A failed read cannot earn a welcome on its own. Other known outstanding
+		// steps still earn it when the reader subsequently completes them.
+		const knownContext = smartReadlist?.count === undefined ? { ...context, smartReadlist: undefined } : context;
+		if (signals && !seenUnderThisVersion && hasOutstandingStep(knownContext)) {
 			await recordOnboardingSignalBestEffort(() =>
 				deps.recordOnboardingOutstandingVersion({ userId, version }),
 			);
@@ -602,7 +664,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			deleteArticleAckedAt,
 			onboarding: {
 				context,
-				dismissed: installed && dismissTokenMatches && !hasOutstandingGmailStep(context),
+				dismissed: (installed || (nativeAppPlatform !== undefined && !signals)) && dismissTokenMatches && !hasOutstandingGmailStep(context) && !hasOutstandingSmartReadlistStep(context),
 				completedBefore: onboardingCompletedBefore,
 				completionUnearned: !seenUnderThisVersion,
 			},
@@ -737,7 +799,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 					state: input.context.state,
 					result: input.result,
 				}),
-				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access)),
+				effectiveAccessPromise.then((access) => resolveOnboardingSignals(req, input.userId, access, input.context.definitions, input.context.state.readlist)),
 				findNonEmptyReadlists({ userId: input.userId, readlists: input.context.readlists }),
 				savesAcrossReadlists({ userId: input.userId, context: input.context, urls }),
 				deps.resolveReaderProvenances(input.result.articles.map((article) => article.provenance)),

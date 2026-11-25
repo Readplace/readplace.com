@@ -45,16 +45,26 @@ sealed interface OfflineDownloadStatus {
 sealed interface OfflineDownloadOutcome {
 	data object Downloaded : OfflineDownloadOutcome
 
-	data class PartiallyDownloaded(val failed: Int, val total: Int) : OfflineDownloadOutcome
+	data class PartiallyDownloaded(val failed: Int, val notReady: Int, val total: Int) : OfflineDownloadOutcome
 
 	val failureText: String?
 		get() = when (this) {
 			Downloaded -> null
-			is PartiallyDownloaded -> "$failed of $total articles couldn't be downloaded for offline reading"
+			is PartiallyDownloaded -> listOfNotNull(
+				"$failed of $total articles couldn't be downloaded for offline reading".takeIf { failed > 0 },
+				notReadyText(notReady).takeIf { notReady > 0 },
+			).joinToString(". ")
 		}
 
 	companion object {
-		fun of(failed: Int, total: Int): OfflineDownloadOutcome =
-			if (failed == 0) Downloaded else PartiallyDownloaded(failed = failed, total = total)
+		fun of(failed: Int, notReady: Int, total: Int): OfflineDownloadOutcome =
+			if (failed == 0 && notReady == 0) Downloaded else PartiallyDownloaded(failed = failed, notReady = notReady, total = total)
+
+		private fun notReadyText(count: Int): String =
+			if (count == 1) {
+				"1 article isn't ready to read yet, so it wasn't downloaded"
+			} else {
+				"$count articles aren't ready to read yet, so they weren't downloaded"
+			}
 	}
 }

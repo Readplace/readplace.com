@@ -83,12 +83,20 @@
   width: 0%;
 }
 
+.setup-guide__progress-bar--17 {
+  width: 17%;
+}
+
 .setup-guide__progress-bar--20 {
   width: 20%;
 }
 
 .setup-guide__progress-bar--25 {
   width: 25%;
+}
+
+.setup-guide__progress-bar--33 {
+  width: 33%;
 }
 
 .setup-guide__progress-bar--40 {
@@ -103,12 +111,20 @@
   width: 60%;
 }
 
+.setup-guide__progress-bar--67 {
+  width: 67%;
+}
+
 .setup-guide__progress-bar--75 {
   width: 75%;
 }
 
 .setup-guide__progress-bar--80 {
   width: 80%;
+}
+
+.setup-guide__progress-bar--83 {
+  width: 83%;
 }
 
 .setup-guide__progress-bar--100 {
