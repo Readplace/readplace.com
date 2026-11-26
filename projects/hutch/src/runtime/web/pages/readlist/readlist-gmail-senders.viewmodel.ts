@@ -358,13 +358,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 			track,
 		}),
 		checklist,
-		results: {
-			resultsState: results.resultsState,
-			resultsMessage: results.resultsMessage,
-			refineSearch: results.resultsState === "limited",
-			options: results.options,
-			formaction: saveAction,
-		},
+		results: { ...results, formaction: saveAction },
 	};
 }
 
