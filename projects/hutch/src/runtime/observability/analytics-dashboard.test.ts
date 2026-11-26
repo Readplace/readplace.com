@@ -781,7 +781,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain("| stats count(*) as opened by origin, bin(1d)");
 	});
 
-	it("charts highlights copied per day by surface on a row of its own below the logged-out highlights, above the counter row", () => {
+	it("charts highlights copied per day by surface, panel and rail alike, with logged-out /view copies as their own series, on a row of its own below the logged-out highlights, above the counter row", () => {
 		const widget = buildBody().widgets.find(
 			({ properties }) => properties.title === "Highlights copied per day, by surface",
 		);
@@ -797,9 +797,9 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const query = widget.properties.query;
 		assert(typeof query === "string");
 		expect(query).toContain(
-			`fields @timestamp, surface | filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.highlightCopied}"`,
+			`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.highlightCopied}" or (event = "${ANALYTICS_EVENTS.viewHighlight}" and action = "copied"))`,
 		);
-		expect(query.endsWith("| stats count(*) as copied by surface, bin(1d)")).toBe(true);
+		expect(query).toContain('| fields coalesce(surface, "view") as copiedOn | stats count(*) as copied by copiedOn, bin(1d)');
 	});
 
 	it("charts the anchored, moved and orphaned Readplace/Highlights metrics in one row of their own below the highlights row", () => {

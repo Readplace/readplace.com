@@ -710,6 +710,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 			),
 		).toEqual([
 			"highlight-jump",
+			"highlight-copy",
 			"highlight-delete-fallback",
 			"highlight-delete",
 			"highlight-note",

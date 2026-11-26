@@ -98,6 +98,35 @@ describe("renderHighlightsRail without a form scope", () => {
 	});
 });
 
+describe("renderHighlightsRail Copy", () => {
+	const placed = highlight({ highlightId: FIRST_ID, exact: "Placed passage", orderKey: 1 });
+	const lost = highlight({ highlightId: SECOND_ID, exact: "Lost passage", orderKey: 2 });
+
+	it.each([
+		["a reader who can edit", WEB_SCOPE],
+		["a reader who cannot", undefined],
+	])("offers %s Copy on placed and not-found rows, named for what it copies", (_reader, scope) => {
+		const doc = railOf([aRow(placed, "anchored"), aRow(lost, "orphaned")], false, scope);
+
+		for (const id of [FIRST_ID, SECOND_ID]) {
+			const row = rowOf(doc, id);
+			const copy = row.querySelector('[data-test-action="highlight-copy"]');
+			assert(copy, `row ${id} renders Copy`);
+			expect({
+				label: copy.textContent,
+				name: copy.getAttribute("aria-label"),
+				source: row.hasAttribute("data-highlight-copy-source"),
+				quote: row.querySelector(".highlights-rail__excerpt")?.textContent,
+			}).toEqual({
+				label: "Copy",
+				name: "Copy highlight",
+				source: true,
+				quote: id === FIRST_ID ? "Placed passage" : "Lost passage",
+			});
+		}
+	});
+});
+
 describe("renderHighlightsRail", () => {
 	const first = highlight({
 		highlightId: FIRST_ID,
@@ -525,7 +554,7 @@ describe("renderHighlightsRail", () => {
 			);
 		}
 
-		it("offers Delete note last in a noted row's actions, and not in a row without a note", () => {
+		it("offers Copy after Jump and Delete note last in a noted row's actions, and not in a row without a note", () => {
 			const doc = railOf([
 				aRow(noted, "anchored"),
 				aRow(second, "anchored"),
@@ -533,6 +562,7 @@ describe("renderHighlightsRail", () => {
 
 			expect(rowActionsOf(doc, FIRST_ID)).toEqual([
 				"highlight-jump",
+				"highlight-copy",
 				"highlight-delete-fallback",
 				"highlight-delete",
 				"highlight-note",
@@ -540,6 +570,7 @@ describe("renderHighlightsRail", () => {
 			]);
 			expect(rowActionsOf(doc, SECOND_ID)).toEqual([
 				"highlight-jump",
+				"highlight-copy",
 				"highlight-delete-fallback",
 				"highlight-delete",
 				"highlight-note",
