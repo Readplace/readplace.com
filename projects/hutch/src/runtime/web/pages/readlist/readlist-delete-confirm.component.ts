@@ -1,7 +1,6 @@
-import type { ReadlistSlug } from "@packages/domain/readlist";
+import { type ReadlistSlug, DEFAULT_READLIST } from "@packages/domain/readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 
-import { DEFAULT_READLIST } from "./readlist.nav";
 
 export function readlistDeleteConfirmPopoverId(readlist: ReadlistSlug): string {
 	return `readlist-remove-confirm-${readlist}`;
