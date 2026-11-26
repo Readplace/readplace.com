@@ -293,7 +293,6 @@ export function initInMemoryArticleStore(): {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
-	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -1931,7 +1930,6 @@ export function initInMemoryArticleStore(): {
 		allocateSavedAtSequence,
 		findSavedUrls,
 		saveArticleGlobally,
-		bumpArticleSavedAt,
 		findArticleById,
 		findArticleByUrl,
 		findArticleUrlById,

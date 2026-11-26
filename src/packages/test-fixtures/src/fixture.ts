@@ -456,7 +456,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			countArticlesByUser: articleStoreMemory.countArticlesByUser,
 			saveArticle: articleStoreMemory.saveArticle,
 			saveArticleGlobally: articleStoreMemory.saveArticleGlobally,
-			bumpArticleSavedAt: articleStoreMemory.bumpArticleSavedAt,
 			deleteArticle: articleStoreMemory.deleteArticle,
 			findQueueRowKeys: articleStoreMemory.findQueueRowKeys,
 			hasQueueRow: articleStoreMemory.hasQueueRow,

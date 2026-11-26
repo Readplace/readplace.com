@@ -298,7 +298,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
-	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -2056,7 +2055,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		allocateSavedAtSequence,
 		findSavedUrls,
 		saveArticleGlobally,
-		bumpArticleSavedAt,
 		findArticleById,
 		findArticleByUrl,
 		findArticleUrlById,

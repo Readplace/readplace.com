@@ -502,43 +502,6 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(Object.keys(row).sort()).toEqual(["contentSelectionRevision", "estimatedReadTime", "excerpt", "imageUrl", "originalUrl", "publishedOn", "revokedCandidateIds", "routeId", "savedAt", "siteName", "title", "url", "wordCount"]);
 	});
 
-	it("bumpArticleSavedAt writes savedAt guarded by attribute_exists", async () => {
-		const { client, commands } = createFakeClient();
-		await initStore(client).bumpArticleSavedAt({ url: URL, savedAt: new Date("2026-05-30T10:00:00.000Z") });
-
-		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET savedAt = :savedAt");
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(#url)");
-	});
-
-	it("bumpArticleSavedAt is a no-op when the row no longer exists", async () => {
-		const { client } = createFakeClient({
-			UpdateCommand: {
-				default: () => {
-					throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
-				},
-			},
-		});
-
-		await expect(
-			initStore(client).bumpArticleSavedAt({ url: URL, savedAt: new Date() }),
-		).resolves.toBeUndefined();
-	});
-
-	it("bumpArticleSavedAt rethrows a non-conditional update error", async () => {
-		const { client } = createFakeClient({
-			UpdateCommand: {
-				default: () => {
-					throw new Error("throttled");
-				},
-			},
-		});
-
-		await expect(
-			initStore(client).bumpArticleSavedAt({ url: URL, savedAt: new Date() }),
-		).rejects.toThrow("throttled");
-	});
-
 	it("saveArticle inserts the global row, upserts the user row, and returns the saved article", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
@@ -697,6 +660,61 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(reads).toHaveLength(2);
 		expect(reads.every((c) => c.input.ConsistentRead === true)).toBe(true);
 		expect(saved.readAt).toBeUndefined();
+	});
+
+	it("saveArticle completes when the global row vanishes before its savedAt bump", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: (input) => {
+					if (input.TableName === "articles") {
+						throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
+					}
+					return {};
+				},
+			},
+			GetCommand: {
+				default: (input) => ({ Item: input.TableName === "articles" ? articleItem() : userArticleItem() }),
+			},
+		});
+
+		const { saved } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
+		});
+
+		expect(saved.url).toBe(URL);
+	});
+
+	it("saveArticle rethrows a non-conditional error from its savedAt bump", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: (input) => {
+					if (input.TableName !== "articles") return {};
+					if (input.UpdateExpression === "SET savedAt = :savedAt") throw new Error("throttled");
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+				},
+			},
+			GetCommand: {
+				default: (input) => ({ Item: input.TableName === "articles" ? articleItem() : userArticleItem() }),
+			},
+		});
+
+		await expect(
+			initStore(client).saveArticle({
+				userId: USER,
+				url: URL,
+				metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+				estimatedReadTime: TWO_MINUTES,
+				provenance,
+				savedAt: OPERATION_SAVED_AT,
+				saveTrigger: "manual",
+			}),
+		).rejects.toThrow("throttled");
 	});
 
 	it("saveArticle stamps the user row with the caller's savedAt and the global row with its own clock", async () => {

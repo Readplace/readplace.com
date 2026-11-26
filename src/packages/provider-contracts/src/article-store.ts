@@ -133,9 +133,7 @@ export interface SaveArticleGloballyParams {
 }
 
 /** Returned `{ created }` lets the caller distinguish a fresh insert from a
- * no-op upsert on an existing row. The store performs the conditional put
- * only; whether to bump `savedAt` (or take any other follow-up) is a
- * domain decision the caller layers on top via `bumpArticleSavedAt`. */
+ * no-op upsert on an existing row. */
 export type SaveArticleGlobally = (
 	params: SaveArticleGloballyParams,
 ) => Promise<{ created: boolean }>;

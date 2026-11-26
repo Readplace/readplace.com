@@ -1,7 +1,5 @@
 export type {
 	ArticleFreshnessData,
-	BumpArticleSavedAt,
-	BumpArticleSavedAtParams,
 	CountArticlesByUser,
 	CountArticlesQuery,
 	DeleteArticle,

@@ -448,9 +448,6 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("does not clobber real parsed metadata when a stub re-save lands on an existing row", async () => {
-			// Simulates the /view fallback path landing on a row that already
-			// holds parsed metadata: title/excerpt/wordCount must stay intact;
-			// only savedAt is allowed to advance (via bumpArticleSavedAt).
 			const store = initInMemoryArticleStore();
 			const url = "https://example.com/article";
 			const realMetadata = {
@@ -460,7 +457,6 @@ describe("initInMemoryArticleStore", () => {
 				wordCount: 500,
 			};
 			const firstSavedAt = new Date("2026-04-01T12:00:00.000Z");
-			const stubSavedAt = new Date("2026-04-02T12:00:00.000Z");
 
 			await store.saveArticleGlobally({
 				url,
@@ -469,20 +465,16 @@ describe("initInMemoryArticleStore", () => {
 				savedAt: firstSavedAt,
 			});
 
-			const stubResult = await store.saveArticleGlobally({
+			await store.saveArticle(makeArticleParams({
 				url,
 				metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: 0 as Minutes,
-				savedAt: stubSavedAt,
-			});
-			expect(stubResult.created).toBe(false);
-
-			await store.bumpArticleSavedAt({ url, savedAt: stubSavedAt });
+			}));
 
 			const found = await store.findArticleByUrl(url);
 			expect(found?.metadata).toEqual(realMetadata);
 			expect(found?.estimatedReadTime).toBe(3);
-			expect(found?.savedAt).toEqual(stubSavedAt);
+			expect(found?.savedAt.getTime()).toBeGreaterThan(firstSavedAt.getTime());
 		});
 
 		it("bumps the global savedAt when the same user re-saves the article", async () => {
@@ -653,18 +645,6 @@ describe("initInMemoryArticleStore", () => {
 			});
 
 			expect(saved).toEqual([]);
-		});
-
-		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {
-			const store = initInMemoryArticleStore();
-
-			await store.bumpArticleSavedAt({
-				url: "https://example.com/missing",
-				savedAt: new Date("2026-04-02T12:00:00.000Z"),
-			});
-
-			const found = await store.findArticleByUrl("https://example.com/missing");
-			expect(found).toBeNull();
 		});
 	});
 

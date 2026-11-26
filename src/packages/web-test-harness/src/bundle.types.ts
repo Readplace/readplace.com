@@ -121,7 +121,6 @@ import type { ParseArticle } from "@packages/article-parser";
 import type {
 	ArticleCrawlVersion,
 	BotDefenseEvent,
-	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	ClaimPendingSignup,
@@ -544,7 +543,6 @@ export interface ArticleStoreBundle {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
-	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
 	findQueueRowKeys: FindQueueRowKeys;
 	hasQueueRow: (key: QueueRowKey) => boolean;
