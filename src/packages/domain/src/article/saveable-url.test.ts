@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import {
 	MAX_SAVEABLE_URL_LENGTH,
 	prepareNewSaveUrl,
-	SaveableUrlSchema,
-	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
 	validateSaveableUrl,
 	withNewSavePreparation,
@@ -206,44 +204,6 @@ describe("validateSaveableUrl", () => {
 				assertErrorCode(url, code);
 			});
 		}
-	});
-});
-
-describe("SaveableUrlSchema (Zod integration)", () => {
-	it("parses a valid URL into its branded form", () => {
-		const parsed = SaveableUrlSchema.safeParse("https://example.com/article");
-		assert(parsed.success);
-		expect(parsed.data).toBe("https://example.com/article");
-	});
-
-	it("attaches the saveable-url error code to issue params", () => {
-		const parsed = SaveableUrlSchema.safeParse("chrome://newtab/");
-		assert(!parsed.success);
-		expect(saveableUrlCodeFromIssues(parsed.error.issues)).toBe("unsupported_scheme");
-	});
-
-	it("returns the malformed_url code on a non-URL", () => {
-		const parsed = SaveableUrlSchema.safeParse("not-a-url");
-		assert(!parsed.success);
-		expect(saveableUrlCodeFromIssues(parsed.error.issues)).toBe("malformed_url");
-	});
-
-	it("returns the private_network code on localhost", () => {
-		const parsed = SaveableUrlSchema.safeParse("http://localhost/page");
-		assert(!parsed.success);
-		expect(saveableUrlCodeFromIssues(parsed.error.issues)).toBe("private_network");
-	});
-
-	it("returns undefined when issues contain no saveable-url custom params", () => {
-		expect(saveableUrlCodeFromIssues([])).toBeUndefined();
-	});
-
-	it("returns the error message from the issue", () => {
-		const parsed = SaveableUrlSchema.safeParse("chrome://newtab/");
-		assert(!parsed.success);
-		expect(parsed.error.issues[0]?.message).toBe(
-			saveableUrlErrorMessage("unsupported_scheme"),
-		);
 	});
 });
 

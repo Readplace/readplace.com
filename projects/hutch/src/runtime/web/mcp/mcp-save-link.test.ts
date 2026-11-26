@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
-	SaveableUrlSchema,
 	type SavedArticle,
 	articleDestinationUrl,
 	articleDisplayMetadata,
 	validateSaveableUrl,
 	viewerFor,
 	withNewSavePreparation,
+	type SaveableUrl,
 } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
@@ -17,8 +17,14 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import { initClaimDailySaves } from "../pages/readlist/daily-save-allowance";
 import { initMcpSaveLink } from "./mcp-save-link";
 
+function saveable(value: string): SaveableUrl {
+	const result = validateSaveableUrl(value);
+	assert(result.status === "SUCCESS");
+	return result.url;
+}
+
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
-const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const exampleUrl = saveable("https://example.com/post");
 const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 const work = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
 const all = { id: DEFAULT_READLIST_SLUG, name: "All" };

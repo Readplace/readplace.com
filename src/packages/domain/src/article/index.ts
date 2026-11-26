@@ -49,10 +49,8 @@ export {
 export {
 	MAX_SAVEABLE_URL_LENGTH,
 	prepareNewSaveUrl,
-	SaveableUrlSchema,
 	SaveableUrlErrorCodeSchema,
 	validateSaveableUrl,
-	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
 	withNewSavePreparation,
 	type SaveableUrl,
