@@ -1,4 +1,4 @@
-import type { RateLimitRule } from "../rate-limit";
+import { fixedWindowStartSeconds, type RateLimitRule } from "../rate-limit";
 
 export interface OcrPageSlot {
 	slotStart: number;
@@ -43,8 +43,7 @@ export function addPagesToSlots(params: {
 	nowMs: number;
 	pages: number;
 }): OcrPageSlot[] {
-	const nowSeconds = Math.floor(params.nowMs / 1000);
-	const currentSlotStart = nowSeconds - (nowSeconds % SLOT_SECONDS);
+	const currentSlotStart = fixedWindowStartSeconds({ nowMs: params.nowMs, windowSeconds: SLOT_SECONDS });
 	const kept = liveSlots(params).filter(
 		(slot) => slot.slotStart !== currentSlotStart,
 	);
