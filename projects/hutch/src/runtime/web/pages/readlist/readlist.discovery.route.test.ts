@@ -1198,6 +1198,17 @@ describe("find-articles (Siren search and filters for the apps)", () => {
 		expect([urlsOf(read), read.properties.findArticles?.noMatches]).toEqual([[], undefined]);
 	});
 
+	it("keeps an exact-URL lookup out of find-articles even when the URL carries its marker", async () => {
+		const harness = useApp(pinnedFixture());
+		await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [QUICK]);
+		const token = await appToken(harness);
+
+		const missed = await sirenAt(harness, token, `/queue?lookup=1&url=${encodeURIComponent(MID.url)}&find=articles&q=quick`);
+
+		expect([urlsOf(missed), missed.properties.findArticles, criteriaOf(linkOf(missed, "self"))]).toEqual([[], undefined, []]);
+	});
+
 	it("leaves out the clear links when nothing is searched or filtered", async () => {
 		const harness = useApp(pinnedFixture());
 		await loginAgent(harness.server, harness.auth);

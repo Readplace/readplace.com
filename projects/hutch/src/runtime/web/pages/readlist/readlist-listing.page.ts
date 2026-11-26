@@ -114,7 +114,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		const readlistKey = readlistQueryKeyOf(req);
 		const lookup = siren && req.query.lookup === "1" && !urlState.managedSource;
 		const status = lookup && req.query.status === undefined && req.query.tab === undefined ? undefined : tab.status;
-		const findArticles = siren && req.query[FIND_ARTICLES_PARAM.name] === FIND_ARTICLES_PARAM.value
+		const findArticles = siren && !lookup && req.query[FIND_ARTICLES_PARAM.name] === FIND_ARTICLES_PARAM.value
 			? { discovery: parseReadlistUrl(req.query).discovery }
 			: undefined;
 		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status, order: urlState.order, findArticles, page: urlState.page, url: filterUrl, lookup };

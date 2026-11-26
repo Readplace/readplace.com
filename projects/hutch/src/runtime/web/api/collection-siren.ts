@@ -23,7 +23,7 @@ import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
-import type { ReadlistDiscovery } from "../pages/readlist/readlist.url";
+import { type ReadlistDiscovery, hasDiscoveryFilters } from "../pages/readlist/readlist.url";
 import { toArticleSubEntity } from "./article-siren";
 import type { ReaderProvenance } from "../shared/article-body/article-header/provenance-label";
 import { type FindArticlesProperty, findArticlesAction, findArticlesProperty } from "./find-articles-siren";
@@ -81,7 +81,7 @@ function setHomeAction(input: { target: HomeReadlistPreference; label: string; r
 }
 
 function filtersOnly(discovery: ReadlistDiscovery | undefined): ReadlistDiscovery | undefined {
-	if (discovery === undefined || discovery.time.length + discovery.saved.length === 0) return undefined;
+	if (discovery === undefined || !hasDiscoveryFilters(discovery)) return undefined;
 	return { time: discovery.time, saved: discovery.saved };
 }
 
