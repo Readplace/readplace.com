@@ -48,10 +48,3 @@ export function joinNotesNewestFirst(notes: readonly (string | undefined)[]): Jo
 	if (note.length > HIGHLIGHT_NOTE_MAX_LENGTH) return { ok: false };
 	return { ok: true, note };
 }
-
-export function joinNotes(notes: {
-	newer?: string;
-	older?: string;
-}): JoinedNote {
-	return joinNotesNewestFirst([notes.newer, notes.older]);
-}

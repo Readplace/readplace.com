@@ -4,7 +4,6 @@ import {
 	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightIdSchema,
 	HighlightNoteSchema,
-	joinNotes,
 	joinNotesNewestFirst,
 } from "./highlight";
 
@@ -66,56 +65,25 @@ describe("HighlightNoteSchema", () => {
 	});
 });
 
-describe("joinNotes", () => {
-	it("puts the newer note first, separated by a blank line", () => {
-		assert.deepEqual(joinNotes({ newer: "new", older: "old" }), {
-			ok: true,
-			note: "new\n\nold",
-		});
-	});
-
-	it("keeps the older note when the newer is absent", () => {
-		assert.deepEqual(joinNotes({ older: "old" }), { ok: true, note: "old" });
-	});
-
-	it("keeps the newer note when the older is absent", () => {
-		assert.deepEqual(joinNotes({ newer: "new" }), { ok: true, note: "new" });
-	});
-
-	it("leaves the note absent when both sides are absent", () => {
-		assert.deepEqual(joinNotes({}), { ok: true });
-	});
-
-	it("accepts a join of exactly the maximum length", () => {
-		const newer = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 3);
-		assert.deepEqual(joinNotes({ newer, older: "b" }), {
-			ok: true,
-			note: `${newer}\n\nb`,
-		});
-	});
-
-	it("refuses a join over the maximum length instead of truncating it", () => {
-		const newer = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 2);
-		assert.deepEqual(joinNotes({ newer, older: "b" }), { ok: false });
-	});
-
-	it("folds three notes pairwise, newest first", () => {
-		const first = joinNotes({ newer: "request", older: "newest row" });
-		assert.equal(first.ok, true);
-		assert(first.ok);
-		assert.deepEqual(joinNotes({ newer: first.note, older: "oldest row" }), {
-			ok: true,
-			note: "request\n\nnewest row\n\noldest row",
-		});
-	});
-});
-
 describe("joinNotesNewestFirst", () => {
 	it("joins every present note in the order given, separated by blank lines", () => {
 		assert.deepEqual(joinNotesNewestFirst(["request", undefined, "newest row", "oldest row"]), {
 			ok: true,
 			note: "request\n\nnewest row\n\noldest row",
 		});
+	});
+
+	it("keeps a lone note as it is", () => {
+		assert.deepEqual(joinNotesNewestFirst([undefined, "old"]), { ok: true, note: "old" });
+	});
+
+	it("leaves the note absent when every note is absent", () => {
+		assert.deepEqual(joinNotesNewestFirst([undefined, undefined]), { ok: true });
+	});
+
+	it("accepts a join of exactly the maximum length", () => {
+		const newer = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 3);
+		assert.deepEqual(joinNotesNewestFirst([newer, "b"]), { ok: true, note: `${newer}\n\nb` });
 	});
 
 	it("refuses notes that join past the cap", () => {

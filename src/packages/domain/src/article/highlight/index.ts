@@ -1,7 +1,6 @@
 export {
 	collectTextChunks,
 	type TextChunk,
-	type TextChunkNode,
 } from "./text-chunks";
 export {
 	HIGHLIGHT_CONTEXT_LENGTH,
@@ -13,8 +12,6 @@ export {
 	describeRange,
 	anchorHighlight,
 	mergeRanges,
-	type NormalisableChunk,
-	type RawSpan,
 	type NormalisedText,
 	type TextRange,
 	type AnchorableHighlight,

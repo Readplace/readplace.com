@@ -70,14 +70,11 @@ export { personalDecisionKey, personalReadlistPartition, personalReadlistOrder, 
 export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
 export {
 	REMOVAL_SKIP_REASONS,
-	classifyForRemoval,
-	isHandPicked,
 	isNewsletterLink,
 	summariseNewsletterLinkRows,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
 	type NewsletterLinkSummary,
-	type RemovalClassification,
 	type RemovalSkipReason,
 } from "./newsletter-link";
 export {
@@ -200,7 +197,6 @@ export {
 	decideNextReadSlot,
 	nextReadDismissalOf,
 	type NextReadDismissal,
-	type NextReadSlot,
 } from "./next-read-dismissal";
 export {
 	NEXT_READ_MINIMUM_SAVES,
@@ -230,9 +226,7 @@ export {
 	type TextQuoteSelector,
 	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightNoteSchema,
-	joinNotes,
 	joinNotesNewestFirst,
-	type JoinedNote,
 } from "./highlight/highlight";
 export {
 	highlightOnPage,
@@ -244,9 +238,7 @@ export {
 } from "./highlight/stored-highlight-state";
 export {
 	reanchorArticleHighlights,
-	type ReanchorableHighlight,
 	type HighlightAnchorUpdate,
-	type HighlightAnchorWrite,
 	type ReanchorCounts,
 } from "./highlight/reanchor-article-highlights";
 export {
