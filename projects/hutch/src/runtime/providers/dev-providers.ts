@@ -39,7 +39,6 @@ import {
 	initInMemoryEngagementStarter,
 	initInMemoryOnboardingSignals,
 } from "@packages/test-fixtures/providers/onboarding-signals";
-import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
 import type { ExtractPdf } from "@packages/crawl-article";
@@ -623,17 +622,12 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		createHighlight: highlights.createHighlight,
 		deleteHighlight: highlights.deleteHighlight,
 		updateHighlightNote: highlights.updateHighlightNote,
-		readArticleImage: initReadArticleImageByIdentity({
-			shared: articleStore.readArticleImage,
-			private: articleStore.readArticleImage,
-		}),
 		readArticleContent: initReadArticleContent({
 			storageProviderQueryOrder: [articleStore.readContent],
 			findItemOwner: articleStore.findItemOwner,
 			logError,
 		}),
 		importSessionStore,
-		savePrivateItem: articleStore.savePrivateItem,
 		...initInMemoryPendingViewHighlights({ now: () => new Date() }),
 		...initInMemoryMediaUploadSessions(),
 		...mediaPending,
@@ -742,18 +736,13 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(crawlStore.findArticleCrawlStatus),
-		findArticleFreshness: articleStore.findArticleFreshness,
-		findArticleCrawlVersions: articleStore.findArticleCrawlVersions,
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
 		refreshArticleIfStaleStored,
 		resolveCanonicalIdentity,
-		findIdentityRow: articleStore.findIdentityRow,
 		resolveFirstVisitIdentity: resolveSaveIdentity,
 		resolveWrapperTarget,
-		pinContentSource: articleStore.pinContentSource,
-		findContentSourceUrl: articleStore.findContentSourceUrl,
 		recordEngagementActivity: engagementStarter.recordEngagementActivity,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
