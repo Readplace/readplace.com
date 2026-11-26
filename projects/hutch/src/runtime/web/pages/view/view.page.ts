@@ -655,7 +655,7 @@ function handleViewArticle(
 	};
 }
 
-function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
+function handleViewPoll(deps: ViewDependencies, poll: ReturnType<typeof initArticleReader>["handleSummaryPoll"]) {
 	const resolveStoredArticle = initResolveStoredArticle(deps);
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
@@ -664,59 +664,14 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			return;
 		}
 		const { articleUrl, existing } = await resolveStoredArticle(validation.url, viewerFor(req.userId));
-		// Stop the htmx summary poll chain once the URL is purged.
+		// Stop the htmx poll chain once the URL is purged.
 		if (existing?.purgedAt !== undefined) {
 			res.status(404).type("html").send("");
 			return;
 		}
 		const pollCount = Number(req.query.poll ?? "0");
 		const utmParams = collectUtmParams(req.query);
-		const component = await reader.handleSummaryPoll({
-			articleUrl,
-			viewer: viewerFor(req.userId),
-			generatedContent: generatedContentOf(req),
-			enclosure: ABSENT_ENCLOSURE,
-			articleId: undefined,
-			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),
-			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl), thresholdBytes: deps.readerSectionThresholdBytes },
-			capture: NO_CAPTURE_WATCH,
-			extensionInstallUrl: readerPublicInstallUrl(req),
-			summaryToggleUrl: undefined,
-			provenance: undefined,
-			readerNotice: undefined,
-			ocrPagesHold: undefined,
-			saved: undefined,
-			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
-			renderDownloadsOob: offersEpubDownload(existing ?? {})
-				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
-				: undefined,
-			renderShareOob: existing === null
-				? undefined
-				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
-		});
-		res.vary("User-Agent");
-		sendComponent(req, res, CacheableComponent(component, req));
-	};
-}
-
-function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
-	const resolveStoredArticle = initResolveStoredArticle(deps);
-	return async (req: Request, res: Response): Promise<void> => {
-		const validation = deps.validateSaveableUrl(req.query.url);
-		if (validation.status === "ERROR") {
-			res.status(400).type("html").send("");
-			return;
-		}
-		const { articleUrl, existing } = await resolveStoredArticle(validation.url, viewerFor(req.userId));
-		// Stop the htmx reader poll chain once the URL is purged.
-		if (existing?.purgedAt !== undefined) {
-			res.status(404).type("html").send("");
-			return;
-		}
-		const pollCount = Number(req.query.poll ?? "0");
-		const utmParams = collectUtmParams(req.query);
-		const component = await reader.handleReaderPoll({
+		const component = await poll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
 			generatedContent: generatedContentOf(req),
@@ -777,8 +732,8 @@ export function initViewRoutes(deps: ViewDependencies): Router {
 	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));
-	router.get("/summary", handleViewSummary(deps, reader));
-	router.get("/reader", handleViewReader(deps, reader));
+	router.get("/summary", handleViewPoll(deps, reader.handleSummaryPoll));
+	router.get("/reader", handleViewPoll(deps, reader.handleReaderPoll));
 	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader, buildArticleEpub));
 
 	return router;
