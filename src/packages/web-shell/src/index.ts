@@ -145,8 +145,6 @@ export {
 	parsePollParam,
 	POLL_INTERVAL_SECONDS,
 } from "./poll-protocol";
-export { QuerystringFeatureToggle } from "./feature-toggle";
-export type { FeatureToggleSource } from "./feature-toggle";
 export { formatTabCountLabel } from "./tab-count-label";
 export {
 	TLDR_DISCLOSURE_STYLES,
