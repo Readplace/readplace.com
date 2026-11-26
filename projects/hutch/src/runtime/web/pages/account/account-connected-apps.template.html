@@ -1,7 +1,7 @@
 <section class="account-section connected-apps" id="connected-apps" aria-labelledby="account-section-connected-apps" data-test-account-section="connected-apps" data-test-connected-apps data-test-connected-apps-state="{{state}}">
           <h2 class="account-section__heading" id="account-section-connected-apps">Connected apps</h2>
           {{#if summary}}
-          <details class="account-section__card connected-apps__card" data-test-connected-apps-disclosure>
+          <details class="account-section__card connected-apps__card" data-test-connected-apps-disclosure{{#if open}} open{{/if}}>
             <summary class="account-row connected-apps__summary" data-test-action="connected-apps-toggle">
               <span class="account-row__icon" aria-hidden="true">{{icon "plug"}}</span>
               <span class="account-row__text">

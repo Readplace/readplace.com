@@ -47,7 +47,7 @@ export async function runDisconnectFlow(options: {
 			maxRedirects: 0,
 		})
 		assert.equal(disconnect.status(), 303, 'a Disconnect must answer with a redirect')
-		assert.equal(disconnect.headers().location, '/account#connected-apps', 'a Disconnect must land back on Connected apps')
+		assert.equal(disconnect.headers().location, '/account?connected-apps=open#connected-apps', 'a Disconnect must land back on Connected apps')
 
 		const refresh = await browserJar.post('/oauth/token', {
 			form: {

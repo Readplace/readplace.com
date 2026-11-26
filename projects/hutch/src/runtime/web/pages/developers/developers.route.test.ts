@@ -710,7 +710,7 @@ describe("/developers copy", () => {
 			"#not-in-the-api",
 			"#walkthrough",
 			"/signup?utm_source=developers&utm_medium=internal&utm_content=signup",
-			"/account?utm_source=developers&utm_medium=internal&utm_content=connected-apps#connected-apps",
+			"/account?connected-apps=open&utm_source=developers&utm_medium=internal&utm_content=connected-apps#connected-apps",
 		]);
 	});
 

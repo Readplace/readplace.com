@@ -6,11 +6,15 @@ import {
 } from "../../onboarding/native-client";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
 
+export const ACCOUNT_CONNECTED_APPS_OPEN_QUERY = "connected-apps";
+export const ACCOUNT_CONNECTED_APPS_OPEN_VALUE = "open";
+
 export function buildAccountUrl(params?: {
 	cancelling?: boolean;
 	deleteConfirmationError?: boolean;
 	passwordChanged?: boolean;
 	manage?: "payment";
+	connectedAppsOpen?: boolean;
 	surfacePlatform?: NativeClientPlatform;
 	appShell?: boolean;
 }): string {
@@ -19,6 +23,7 @@ export function buildAccountUrl(params?: {
 	if (params?.deleteConfirmationError) search.set("error", "delete_confirmation");
 	if (params?.passwordChanged) search.set("password", "changed");
 	if (params?.manage) search.set("manage", params.manage);
+	if (params?.connectedAppsOpen) search.set(ACCOUNT_CONNECTED_APPS_OPEN_QUERY, ACCOUNT_CONNECTED_APPS_OPEN_VALUE);
 	// Both markers are preserved across a POST-Redirect-GET so the re-rendered
 	// account page keeps the app's in-app surface and its chromeless shell — the
 	// web view's form post carries no client header, only whatever query the

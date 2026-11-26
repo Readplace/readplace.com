@@ -27,7 +27,7 @@ function sectionFor(clients: readonly OAuthClient[]): Element {
 }
 
 function signedInSectionFor(apps: readonly { client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[]): Element {
-	const html = renderConnectedApps(buildConnectedAppsSection({ apps, now: NOW, appShell: false, platform: undefined }));
+	const html = renderConnectedApps(buildConnectedAppsSection({ apps, now: NOW, open: false, appShell: false, platform: undefined }));
 	const section = new JSDOM(`<main class="account">${html}</main>`).window.document.querySelector("[data-test-connected-apps]");
 	assert(section, "the connected apps section must render");
 	return section;

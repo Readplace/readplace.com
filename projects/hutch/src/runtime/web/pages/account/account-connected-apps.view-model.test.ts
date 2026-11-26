@@ -23,11 +23,11 @@ const NOW = new Date("2026-10-19T09:00:00.000Z");
 const THREE_DAYS_AGO = NOW.getTime() - 3 * 86_400_000;
 
 function webSection(clients: readonly OAuthClient[]) {
-	return buildConnectedAppsSection({ apps: clients.map((client) => ({ client, latestSignIn: undefined })), now: NOW, appShell: false, platform: undefined });
+	return buildConnectedAppsSection({ apps: clients.map((client) => ({ client, latestSignIn: undefined })), now: NOW, open: false, appShell: false, platform: undefined });
 }
 
 function signInFor(latestSignIn: OAuthSignIn) {
-	const [row] = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn }], now: NOW, appShell: false, platform: undefined }).rows;
+	const [row] = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn }], now: NOW, open: false, appShell: false, platform: undefined }).rows;
 	assert(row, "the signed-in app must have a row");
 	return row.signIn;
 }
@@ -138,7 +138,7 @@ describe("buildConnectedAppsSection", () => {
 	});
 
 	it("keeps the app sheet's markers on a disconnect posted from inside it", () => {
-		const section = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn: undefined }], now: NOW, appShell: true, platform: "ios" });
+		const section = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn: undefined }], now: NOW, open: false, appShell: true, platform: "ios" });
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
 			["/account/connected-apps/hutch-chrome-extension/disconnect?platform=ios&shell=app&utm_source=account&utm_medium=internal&utm_content=disconnect-app"],

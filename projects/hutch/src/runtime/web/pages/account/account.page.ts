@@ -269,13 +269,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			platform: nativeSurfaceOf(req),
 		});
 		const now = deps.now();
+		const queryState = parseAccountQuery(req.query);
 		const connectedApps = buildConnectedAppsSection({
 			apps: connectedClients,
 			now,
+			open: queryState.connectedAppsOpen,
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
-		const queryState = parseAccountQuery(req.query);
 		const security = buildSecuritySection({
 			status: passwordStatus,
 			now,
@@ -714,7 +715,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 		res.redirect(
 			303,
-			`${buildAccountUrl({ surfacePlatform: platform, appShell: isAppShell(req) })}#${ACCOUNT_CONNECTED_APPS_ANCHOR}`,
+			`${buildAccountUrl({ connectedAppsOpen: true, surfacePlatform: platform, appShell: isAppShell(req) })}#${ACCOUNT_CONNECTED_APPS_ANCHOR}`,
 		);
 	});
 

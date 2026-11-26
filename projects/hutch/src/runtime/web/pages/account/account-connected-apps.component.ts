@@ -59,6 +59,7 @@ export function renderConnectedApps(section: ConnectedAppsSectionViewModel): str
 	return render(CONNECTED_APPS_TEMPLATE, {
 		state: section.state,
 		summary: section.state === "listed" ? section.summary : undefined,
+		open: section.state === "listed" && section.open,
 		rows: section.rows.map(toTemplateRow),
 		dialogsHtml: section.dialogs.map(renderDisconnectDialog).join(""),
 	});

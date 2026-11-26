@@ -37,6 +37,8 @@ import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_CONFIRM_URL,
 	ACCOUNT_CARDS_NEW_URL,
+	ACCOUNT_CONNECTED_APPS_OPEN_QUERY,
+	ACCOUNT_CONNECTED_APPS_OPEN_VALUE,
 	ACCOUNT_DELETE_URL,
 	ACCOUNT_IMPORT_URL,
 	ACCOUNT_INVOICES_URL,
@@ -255,6 +257,7 @@ export interface AccountUrlState {
 	passwordChanged: boolean;
 	cardError: CardError | undefined;
 	manage: AccountManage;
+	connectedAppsOpen: boolean;
 }
 
 function parseCardError(error: unknown): CardError | undefined {
@@ -282,6 +285,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 		passwordChanged: query?.password === "changed",
 		cardError: parseCardError(query?.error),
 		manage: parseManage(query?.manage),
+		connectedAppsOpen: query?.[ACCOUNT_CONNECTED_APPS_OPEN_QUERY] === ACCOUNT_CONNECTED_APPS_OPEN_VALUE,
 	};
 }
 

@@ -67,7 +67,7 @@ export interface ConnectedAppsSummary {
 }
 
 export type ConnectedAppsSectionViewModel =
-	| { state: "listed"; summary: ConnectedAppsSummary; rows: ConnectedAppRow[]; dialogs: ConnectedAppDialog[] }
+	| { state: "listed"; open: boolean; summary: ConnectedAppsSummary; rows: ConnectedAppRow[]; dialogs: ConnectedAppDialog[] }
 	| { state: "empty"; rows: ConnectedAppRow[]; dialogs: ConnectedAppDialog[] };
 
 const BUILT_IN_APP_COPY = {
@@ -225,6 +225,7 @@ function byRosterThenHost(a: ConnectedApp, b: ConnectedApp): number {
 export function buildConnectedAppsSection(input: {
 	apps: readonly { client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[];
 	now: Date;
+	open: boolean;
 	appShell: boolean;
 	platform: NativeClientPlatform | undefined;
 }): ConnectedAppsSectionViewModel {
@@ -258,9 +259,12 @@ export function buildConnectedAppsSection(input: {
 	});
 	return {
 		state: "listed",
+		open: input.open,
 		summary: {
 			title: tPlural("connectedApps.summary.title", { count: listed.length }),
 			description: t("connectedApps.summary.description"),
 		},
-		rows: listed.map((entry) => entry.row), dialogs: listed.map((entry) => entry.dialog) };
+		rows: listed.map((entry) => entry.row),
+		dialogs: listed.map((entry) => entry.dialog),
+	};
 }

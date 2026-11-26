@@ -37,6 +37,7 @@ const BASE_QUERY: AccountUrlState = {
 	passwordChanged: false,
 	cardError: undefined,
 	manage: undefined,
+	connectedAppsOpen: false,
 };
 
 const ACTIVE: EffectiveAccess = { tier: "paid", banner: "none" };
@@ -729,7 +730,13 @@ describe("parseAccountQuery", () => {
 			passwordChanged: false,
 			cardError: undefined,
 			manage: undefined,
+			connectedAppsOpen: false,
 		});
+	});
+
+	it("opens the Connected apps card from ?connected-apps=open, and ignores a value that names nothing", () => {
+		assert.equal(parseAccountQuery({ "connected-apps": "open" }).connectedAppsOpen, true);
+		assert.equal(parseAccountQuery({ "connected-apps": "closed" }).connectedAppsOpen, false);
 	});
 
 	it("reads a just-changed password from ?password=changed, and ignores a value that names nothing", () => {

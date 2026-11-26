@@ -320,12 +320,29 @@ describe("POST /account/connected-apps/:clientId/disconnect", () => {
 		const response = await agent.post("/account/connected-apps/hutch-chrome-extension/disconnect");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account#connected-apps");
+		expect(response.headers.location).toBe("/account?connected-apps=open#connected-apps");
 		const refused = await refresh(harness, { clientId: "hutch-chrome-extension", refreshToken: chrome.refreshToken });
 		expect([refused.status, refused.body.error]).toEqual([400, "invalid_grant"]);
 		const refreshed = await refresh(harness, { clientId: claudeId, refreshToken: claude.refreshToken });
 		expect(refreshed.status).toBe(200);
 		expect(rowKeys(connectedApps(await accountPage(agent, "/account")))).toEqual(["claude"]);
+	});
+
+	it("returns to the remaining apps with their card open, while a plain visit starts it collapsed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await signIn(harness, "disconnect-open-card@example.com");
+		await grant(harness, { agent, clientId: "hutch-chrome-extension", redirectUri: EXTENSION_CALLBACK });
+		const claudeId = await registerAssistant(harness, { name: "Claude", redirectUri: CLAUDE_CALLBACK });
+		await grant(harness, { agent, clientId: claudeId, redirectUri: CLAUDE_CALLBACK });
+
+		const response = await agent.post("/account/connected-apps/hutch-chrome-extension/disconnect");
+		const returned = connectedApps(await accountPage(agent, response.headers.location));
+		const plain = connectedApps(await accountPage(agent, "/account"));
+
+		expect(
+			[returned, plain].map((section) => section.querySelector("details[data-test-connected-apps-disclosure]")?.hasAttribute("open")),
+		).toEqual([true, false]);
+		expect(rowKeys(returned)).toEqual(["claude"]);
 	});
 
 	it("keeps every session signed in when it disconnects a client", async () => {
@@ -354,7 +371,7 @@ describe("POST /account/connected-apps/:clientId/disconnect", () => {
 		const response = await agent.post("/account/connected-apps/hutch-chrome-extension/disconnect?platform=ios&shell=app");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?platform=ios&shell=app#connected-apps");
+		expect(response.headers.location).toBe("/account?connected-apps=open&platform=ios&shell=app#connected-apps");
 	});
 
 	it("signs the iPhone app out through its own sheet when the sheet disconnects it", async () => {
@@ -400,7 +417,7 @@ describe("POST /account/connected-apps/:clientId/disconnect", () => {
 		const response = await agent.post("/account/connected-apps/ios-app/disconnect?platform=ios");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?platform=ios#connected-apps");
+		expect(response.headers.location).toBe("/account?connected-apps=open&platform=ios#connected-apps");
 	});
 
 	it("returns a sheet that names no platform to the section, and the app's next refresh is refused", async () => {
@@ -411,7 +428,7 @@ describe("POST /account/connected-apps/:clientId/disconnect", () => {
 		const response = await agent.post("/account/connected-apps/ios-app/disconnect?shell=app");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?shell=app#connected-apps");
+		expect(response.headers.location).toBe("/account?connected-apps=open&shell=app#connected-apps");
 		const refused = await refresh(harness, { clientId: "ios-app", refreshToken: iphone.refreshToken });
 		expect([refused.status, refused.body.error]).toEqual([400, "invalid_grant"]);
 	});
@@ -424,7 +441,7 @@ describe("POST /account/connected-apps/:clientId/disconnect", () => {
 		const response = await agent.post("/account/connected-apps/hutch-firefox-extension/disconnect");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account#connected-apps");
+		expect(response.headers.location).toBe("/account?connected-apps=open#connected-apps");
 		const refreshed = await refresh(harness, { clientId: "hutch-chrome-extension", refreshToken: chrome.refreshToken });
 		expect(refreshed.status).toBe(200);
 	});

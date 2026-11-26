@@ -89,7 +89,7 @@ describe("GET /mcp (browser connection guide)", () => {
 		assert(link, "the setup note must link to the account's connected apps");
 		expect(link.textContent).toBe("Connected apps");
 		expect(link.getAttribute("href")).toBe(
-			"/account?utm_source=mcp-connect&utm_medium=internal&utm_content=connected-apps#connected-apps",
+			"/account?connected-apps=open&utm_source=mcp-connect&utm_medium=internal&utm_content=connected-apps#connected-apps",
 		);
 	});
 
