@@ -129,7 +129,7 @@ export interface ImportCommittedEvent {
 	is_authenticated: 1;
 }
 
-export interface ImportFromUrlAcquiredEvent {
+interface ImportFromUrlAcquiredEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.importFromUrlAcquired;
 	timestamp: string;
@@ -160,7 +160,7 @@ export interface ArticleReadEvent {
  * durable per-user row holds the latest state; this event carries the 30-day
  * history. `user_id` joins per cohort.
  */
-export interface SummaryToggledEvent {
+interface SummaryToggledEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.summaryToggled;
 	timestamp: string;
@@ -181,7 +181,7 @@ export interface HighlightCreatedEvent {
 	surface: "web" | "ios" | "android";
 }
 
-export interface HighlightDeletedEvent {
+interface HighlightDeletedEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.highlightDeleted;
 	timestamp: string;
@@ -220,7 +220,7 @@ export interface HighlightCopiedEvent {
 	surface: "web" | "ios" | "android";
 }
 
-export interface ViewHighlightEvent {
+interface ViewHighlightEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewHighlight;
 	timestamp: string;
@@ -229,7 +229,7 @@ export interface ViewHighlightEvent {
 	visitor_id: string | null;
 }
 
-export interface ViewHighlightsHandedOverEvent {
+interface ViewHighlightsHandedOverEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewHighlightsHandedOver;
 	timestamp: string;
@@ -239,7 +239,7 @@ export interface ViewHighlightsHandedOverEvent {
 	visitor_id: string | null;
 }
 
-export interface ViewHighlightsClaimedEvent {
+interface ViewHighlightsClaimedEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewHighlightsClaimed;
 	timestamp: string;
@@ -263,7 +263,7 @@ export interface ViewOpenedEvent {
 	is_authenticated: 0 | 1;
 }
 
-export interface ViewCrawlLimitedEvent {
+interface ViewCrawlLimitedEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewCrawlLimited;
 	timestamp: string;

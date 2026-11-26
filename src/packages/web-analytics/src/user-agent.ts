@@ -48,12 +48,8 @@ export function mcpUaClientOf(userAgent: string | undefined): McpUaClient {
 	return MCP_UA_CLIENTS.other;
 }
 
-export function isReadplaceNativeClient(userAgent: string | undefined): boolean {
-	return readplaceNativeClientOf(userAgent) !== undefined;
-}
-
 export function isBotUserAgent(userAgent: string | undefined): boolean {
-	if (isReadplaceNativeClient(userAgent)) return false;
+	if (readplaceNativeClientOf(userAgent) !== undefined) return false;
 	return isbot(userAgent);
 }
 
