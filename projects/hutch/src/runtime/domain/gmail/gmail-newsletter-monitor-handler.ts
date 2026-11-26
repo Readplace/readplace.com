@@ -8,17 +8,13 @@ import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription
 import type { Handler, SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from "aws-lambda";
 import type { MonitorGmailNewsletters } from "./monitor-gmail-newsletters";
 
-const RoutedEnvelope = z.discriminatedUnion("detail-type", [
-	z.object({ "detail-type": z.literal(CheckGmailNewslettersCommand.detailType), detail: CheckGmailNewslettersCommand.detailSchema }),
-	z.object({ "detail-type": z.literal(GmailNewsletterAccountsCheckedEvent.detailType), detail: GmailNewsletterAccountsCheckedEvent.detailSchema }),
-	z.object({ "detail-type": z.literal(MonitorGmailNewslettersCommand.detailType), detail: MonitorGmailNewslettersCommand.detailSchema }),
-	z.object({ "detail-type": z.literal(GmailNewsletterMonitoringProgressedEvent.detailType), detail: GmailNewsletterMonitoringProgressedEvent.detailSchema }),
-]);
-
 const Envelope = z.union([
-	RoutedEnvelope,
-	z.object({ "detail-type": z.undefined().optional(), detail: MonitorGmailNewslettersCommand.detailSchema }).transform((value) => ({ ...value, "detail-type": MonitorGmailNewslettersCommand.detailType })),
-	z.object({ "detail-type": z.undefined().optional(), detail: CheckGmailNewslettersCommand.detailSchema.strict() }).transform((value) => ({ ...value, "detail-type": CheckGmailNewslettersCommand.detailType })),
+	z.object({ "detail-type": z.literal(CheckGmailNewslettersCommand.detailType), detail: CheckGmailNewslettersCommand.detailSchema }).transform(({ detail }) => ({ kind: "check" as const, detail })),
+	z.object({ "detail-type": z.literal(GmailNewsletterAccountsCheckedEvent.detailType), detail: GmailNewsletterAccountsCheckedEvent.detailSchema }).transform(({ detail }) => ({ kind: "checked" as const, detail })),
+	z.object({ "detail-type": z.literal(MonitorGmailNewslettersCommand.detailType), detail: MonitorGmailNewslettersCommand.detailSchema }).transform(({ detail }) => ({ kind: "monitor" as const, detail })),
+	z.object({ "detail-type": z.literal(GmailNewsletterMonitoringProgressedEvent.detailType), detail: GmailNewsletterMonitoringProgressedEvent.detailSchema }).transform(({ detail }) => ({ kind: "progressed" as const, detail })),
+	z.object({ "detail-type": z.undefined().optional(), detail: MonitorGmailNewslettersCommand.detailSchema }).transform(({ detail }) => ({ kind: "monitor" as const, detail })),
+	z.object({ "detail-type": z.undefined().optional(), detail: CheckGmailNewslettersCommand.detailSchema.strict() }).transform(({ detail }) => ({ kind: "check" as const, detail })),
 ]);
 
 export function initGmailNewsletterMonitorHandler(deps: {
@@ -36,28 +32,34 @@ export function initGmailNewsletterMonitorHandler(deps: {
 		for (const record of event.Records) {
 			try {
 				const envelope = Envelope.parse(JSON.parse(record.body));
-				if (envelope["detail-type"] === CheckGmailNewslettersCommand.detailType) {
-					const detail = CheckGmailNewslettersCommand.detailSchema.parse(envelope.detail);
-					const accounts = await deps.listConnectedAccounts({ pageToken: detail.accountsPageToken });
-					await deps.publishEvent(GmailNewsletterAccountsCheckedEvent, { userIds: accounts.userIds, nextAccountsPageToken: accounts.nextPageToken });
-				} else if (envelope["detail-type"] === GmailNewsletterAccountsCheckedEvent.detailType) {
-					const detail = GmailNewsletterAccountsCheckedEvent.detailSchema.parse(envelope.detail);
-					for (const userId of detail.userIds) await deps.dispatchMonitor({ userId });
-					if (detail.nextAccountsPageToken !== undefined) await deps.dispatchCheck({ accountsPageToken: detail.nextAccountsPageToken });
-				} else if (envelope["detail-type"] === MonitorGmailNewslettersCommand.detailType) {
-					const detail = MonitorGmailNewslettersCommand.detailSchema.parse(envelope.detail);
-					const { userId } = detail;
-					if (!hasPaidFeatures(await deps.getEffectiveAccess(userId))) {
-						deps.logger.info("[gmail-newsletter-monitor] skipped free-plan account", { messageId: record.messageId });
-						continue;
+				switch (envelope.kind) {
+					case "check": {
+						const accounts = await deps.listConnectedAccounts({ pageToken: envelope.detail.accountsPageToken });
+						await deps.publishEvent(GmailNewsletterAccountsCheckedEvent, { userIds: accounts.userIds, nextAccountsPageToken: accounts.nextPageToken });
+						break;
 					}
-					const result = detail.continuation === undefined ? await deps.monitor.start(userId) : await deps.monitor.page({ userId, ...detail.continuation });
-					await deps.publishEvent(GmailNewsletterMonitoringProgressedEvent, { userId, nextPage: result.nextPage, notices: result.notices });
-				} else {
-					const detail = GmailNewsletterMonitoringProgressedEvent.detailSchema.parse(envelope.detail);
-					const { userId } = detail;
-					if (detail.notices.length > 0) await deps.dispatchNotice({ userId });
-					if (detail.nextPage !== undefined) await deps.dispatchMonitor({ userId, continuation: detail.nextPage });
+					case "checked": {
+						const { detail } = envelope;
+						for (const userId of detail.userIds) await deps.dispatchMonitor({ userId });
+						if (detail.nextAccountsPageToken !== undefined) await deps.dispatchCheck({ accountsPageToken: detail.nextAccountsPageToken });
+						break;
+					}
+					case "monitor": {
+						const { userId, continuation } = envelope.detail;
+						if (!hasPaidFeatures(await deps.getEffectiveAccess(userId))) {
+							deps.logger.info("[gmail-newsletter-monitor] skipped free-plan account", { messageId: record.messageId });
+							break;
+						}
+						const result = continuation === undefined ? await deps.monitor.start(userId) : await deps.monitor.page({ userId, ...continuation });
+						await deps.publishEvent(GmailNewsletterMonitoringProgressedEvent, { userId, nextPage: result.nextPage, notices: result.notices });
+						break;
+					}
+					case "progressed": {
+						const { userId, notices, nextPage } = envelope.detail;
+						if (notices.length > 0) await deps.dispatchNotice({ userId });
+						if (nextPage !== undefined) await deps.dispatchMonitor({ userId, continuation: nextPage });
+						break;
+					}
 				}
 			} catch (error) {
 				deps.logger.error("[gmail-newsletter-monitor] record failed", { messageId: record.messageId, error });
