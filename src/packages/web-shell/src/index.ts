@@ -65,16 +65,8 @@ export type { NavProps } from "./nav.component";
 export { initialsFor } from "./user-initials";
 export { HtmxLoaded, HtmxOmitted } from "./htmx-script";
 export {
-	NEWER_READER_VERSION,
 	NEWER_VERSION_BANNER_TEXT,
 	OFFLINE_BANNER_TEXT,
-	OFFLINE_COPY_PATH_ATTRIBUTE,
-	OFFLINE_COPY_READER_SOURCE,
-	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
-	OFFLINE_SAVED_AT_HEADER,
-	READER_SOURCE_MESSAGE_TYPE,
-	READER_VERSION_MESSAGE_TYPE,
-	REVALIDATE_READER_MESSAGE_TYPE,
 	initBase,
 } from "./base.component";
 export type { BaseConfig, RenderBase, RenderSiteNav } from "./base.component";

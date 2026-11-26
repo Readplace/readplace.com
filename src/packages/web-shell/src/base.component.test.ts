@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { JSDOM, VirtualConsole } from "jsdom";
+import { NEWER_VERSION_BANNER_TEXT, OFFLINE_BANNER_TEXT, initBase } from "./base.component";
 import {
 	NEWER_READER_VERSION,
-	NEWER_VERSION_BANNER_TEXT,
-	OFFLINE_BANNER_TEXT,
 	OFFLINE_COPY_PATH_ATTRIBUTE,
 	OFFLINE_COPY_READER_SOURCE,
 	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
@@ -12,8 +11,7 @@ import {
 	READER_SOURCE_MESSAGE_TYPE,
 	READER_VERSION_MESSAGE_TYPE,
 	REVALIDATE_READER_MESSAGE_TYPE,
-	initBase,
-} from "./base.component";
+} from "./offline-reader-protocol";
 import { DISTRACTION_FREE_BODY_CLASS } from "./base.styles";
 import { NEEDS_UPGRADE_STYLES } from "./shared/needs-upgrade/needs-upgrade.component";
 import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";

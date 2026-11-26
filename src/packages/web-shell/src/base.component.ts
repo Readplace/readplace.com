@@ -28,6 +28,16 @@ import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
 import type { HtmxDelivery } from "./htmx-script";
 import { injectPageStylesIntoMain, insertAfterMainOpenTag } from "./inject-page-styles";
+import {
+	NEWER_READER_VERSION,
+	OFFLINE_COPY_PATH_ATTRIBUTE,
+	OFFLINE_COPY_READER_SOURCE,
+	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
+	OFFLINE_SAVED_AT_HEADER,
+	READER_SOURCE_MESSAGE_TYPE,
+	READER_VERSION_MESSAGE_TYPE,
+	REVALIDATE_READER_MESSAGE_TYPE,
+} from "./offline-reader-protocol";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
@@ -99,15 +109,6 @@ export const OFFLINE_BANNER_TEXT =
 	"Your internet is not working, your reading is offline. Readplace is read-only until you're back online.";
 
 export const NEWER_VERSION_BANNER_TEXT = "There's a newer version of this article reader, want to refresh?";
-
-export const READER_SOURCE_MESSAGE_TYPE = "readplace:reader-source";
-export const OFFLINE_COPY_READER_SOURCE = "offline-copy";
-export const READER_VERSION_MESSAGE_TYPE = "readplace:reader-version";
-export const NEWER_READER_VERSION = "newer";
-export const REVALIDATE_READER_MESSAGE_TYPE = "readplace:revalidate-reader";
-export const OFFLINE_COPY_PATH_ATTRIBUTE = "data-offline-copy-path";
-export const OFFLINE_COPY_SAVED_AT_ATTRIBUTE = "data-offline-copy-saved-at";
-export const OFFLINE_SAVED_AT_HEADER = "Readplace-Offline-Saved-At";
 
 const offlineIndicatorScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
