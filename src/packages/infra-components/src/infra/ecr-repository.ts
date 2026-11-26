@@ -20,9 +20,9 @@ export class EcrRepository {
 
 	static create(
 		name: string,
-		args: { repositoryName: string; keepLastNImages?: number },
+		args: { repositoryName: string; keepLastNImages: number },
 	): EcrRepository {
-		const keep = args.keepLastNImages ?? 20;
+		const keep = args.keepLastNImages;
 		const repository = new aws.ecr.Repository(`${name}-ecr-repo`, {
 			name: args.repositoryName,
 			imageTagMutability: "MUTABLE",
@@ -45,23 +45,5 @@ export class EcrRepository {
 		});
 
 		return new EcrRepository(repository.repositoryUrl, repository.arn);
-	}
-
-	static fromExisting(args: {
-		repositoryUrl: pulumi.Input<string>;
-		repositoryArn: pulumi.Input<string>;
-	}): EcrRepository {
-		return new EcrRepository(
-			pulumi.output(args.repositoryUrl),
-			pulumi.output(args.repositoryArn),
-		);
-	}
-
-	static fromPlatformStack(config: pulumi.Config): EcrRepository {
-		const platformStackName = config.require("platformStack");
-		const stack = new pulumi.StackReference(platformStackName);
-		const repositoryUrl = stack.requireOutput("ocrLambdaRepositoryUrl").apply(String);
-		const repositoryArn = stack.requireOutput("ocrLambdaRepositoryArn").apply(String);
-		return EcrRepository.fromExisting({ repositoryUrl, repositoryArn });
 	}
 }

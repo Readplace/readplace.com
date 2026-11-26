@@ -11,7 +11,7 @@ const deletionProtection = config.requireBoolean("deletionProtection");
 
 const eventBus = EventBus.create("hutch", { eventBusName });
 
-const ocrLambdaRepository = EcrRepository.create("hutch-ocr-lambda", {
+EcrRepository.create("hutch-ocr-lambda", {
 	repositoryName: ocrLambdaRepositoryName,
 	keepLastNImages: 200,
 });
@@ -130,7 +130,5 @@ new aws.cloudtrail.Trail(
 
 export const hutchEventBusName = eventBus.eventBusName;
 export const hutchEventBusArn = eventBus.eventBusArn;
-export const ocrLambdaRepositoryUrl = ocrLambdaRepository.repositoryUrl;
-export const ocrLambdaRepositoryArn = ocrLambdaRepository.repositoryArn;
 export const curlImpersonateLayerArn = curlImpersonateLayer.arn;
 export const ssrEdgeSecret = ssrEdgeSecretValue.result;
