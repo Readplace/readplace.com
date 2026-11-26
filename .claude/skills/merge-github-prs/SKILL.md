@@ -172,7 +172,7 @@ Before merging such a PR:
 - A fresh worktree has no git-ignored `.env`, so link the main checkout's.
 - Drift from placeholder values that `main`'s own preview also shows is not the PR's.
 
-**Prod.** This needs the owner's approval, because it reads prod secrets.
+**Prod.** Run it without asking. The owner approved every prod preview on 2026-11-26, because a preview only reads. The approval covers the preview only: a `pulumi up` or any other write to prod still needs the owner.
 - Nx loads `.env` and silently fills staging values, so run from a worktree with no `.env`.
 - Run `PULUMI_STACK=prod AWS_PROFILE=hutch-production AWS_REGION=ap-southeast-2 PULUMI_BACKEND_URL=s3://hutch-pulumi-state-<account>-ap-southeast-2 pnpm nx run <project>:check-infra`.
 - `<account>` is the account that `aws sts get-caller-identity --profile hutch-production` reports.
