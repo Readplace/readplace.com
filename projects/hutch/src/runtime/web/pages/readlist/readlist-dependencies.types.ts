@@ -1,6 +1,5 @@
 import type { ClaimDailySaves } from "./daily-save-allowance";
 import type { HasNoOcrPagesLeft } from "./ocr-page-allowance";
-import type { CanSaveContent } from "../../middleware/can-save-content";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { PresignEnclosure, PresignMediaImage } from "@packages/domain";
 import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
@@ -277,7 +276,6 @@ export interface ReadlistDependencies {
 	 * invisible to the global resolve step — are locked too. */
 	resolveVerificationStatus: RequestHandler;
 	requirePaidFeatures: RequestHandler;
-	canSaveContent: CanSaveContent;
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
 	claimDailySaves: ClaimDailySaves;

@@ -433,7 +433,6 @@ import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
 import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
-import { initCanSaveContent } from "./web/middleware/can-save-content";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotAgeLocked } from "./web/middleware/require-not-age-locked.middleware";
 import { initAgeLockAccount } from "./web/pages/age-lock/age-lock-account";
@@ -1009,7 +1008,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(markExtensionInstalled);
 
 	const requirePaidFeatures = initRequirePaidFeatures({ getEffectiveAccess });
-	const canSaveContent = initCanSaveContent();
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		findUserById: deps.findUserById,
@@ -1641,7 +1639,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requirePaidFeatures,
-		canSaveContent,
 		getEffectiveAccess,
 		claimDailySaves,
 		hasNoOcrPagesLeft,
