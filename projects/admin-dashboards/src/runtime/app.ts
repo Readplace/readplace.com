@@ -27,7 +27,7 @@ import type { FindDashboardResults, KeepDashboardResults } from "./dashboards/ad
 import { initAdminDashboardsRoutes } from "./dashboards/admin-dashboards.page";
 import { ADMIN_DASHBOARDS_PATH } from "./dashboards/admin-dashboards.url";
 import { initRefuseAdminAccess } from "./dashboards/admin-forbidden.page";
-import { logAndRespondOnError } from "./web/error-handler";
+import { logAndRespondOnError } from "@packages/web-session";
 
 export interface AdminDashboardsAppDependencies {
 	base: RenderBase;

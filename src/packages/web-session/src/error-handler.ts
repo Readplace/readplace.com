@@ -5,7 +5,6 @@ import { formatErrorLogLine, type Logger } from "@packages/logger";
 
 export interface ErrorResponse {
 	error: string;
-	message?: string;
 	statusCode: number;
 }
 

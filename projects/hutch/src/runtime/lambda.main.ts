@@ -10,7 +10,7 @@ import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { createBanMiddleware } from "./web/middleware/ban";
-import { logAndRespondOnError } from "./web/middleware/error-handler";
+import { logAndRespondOnError } from "@packages/web-session";
 import { createReadplaceApp, localServer } from "./app";
 import { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "@packages/crawl-article";
 import { getEnv, readEnv } from "@packages/require-env";
