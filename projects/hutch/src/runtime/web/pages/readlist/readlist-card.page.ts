@@ -306,7 +306,6 @@ export function initReadlistCardRoutes(
 			readerProvenance,
 			filters,
 			pollCount: requestedPoll + 1,
-			maxPolls: MAX_POLLS,
 			confirmReadlists: confirmReadlistsByUrl?.get(article.url),
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 			filing: {
