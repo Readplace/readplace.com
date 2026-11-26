@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import {
 	CreateScheduleCommand,
 	DeleteScheduleCommand,
@@ -79,8 +78,8 @@ function ageLockDeletionScheduleName(userId: UserId): string {
 export function initAwsTrialScheduler(deps: {
 	client: Pick<SchedulerClient, "send">;
 	scheduleGroupName: string;
-	schedulerRoleArn?: string;
-	eventBusArn?: string;
+	schedulerRoleArn: string;
+	eventBusArn: string;
 }): {
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
@@ -98,8 +97,6 @@ export function initAwsTrialScheduler(deps: {
 	deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
 } {
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
-		assert(deps.eventBusArn, "eventBusArn is required for createTrialEndSchedule");
-		assert(deps.schedulerRoleArn, "schedulerRoleArn is required for createTrialEndSchedule");
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: trialEndScheduleName(userId),
@@ -142,11 +139,6 @@ export function initAwsTrialScheduler(deps: {
 		firesAt,
 		reason,
 	}) => {
-		assert(deps.eventBusArn, "eventBusArn is required for createDeferredCancellationSchedule");
-		assert(
-			deps.schedulerRoleArn,
-			"schedulerRoleArn is required for createDeferredCancellationSchedule",
-		);
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: deferredCancellationScheduleName(userId),
@@ -190,14 +182,6 @@ export function initAwsTrialScheduler(deps: {
 		userId,
 		firesAt,
 	}) => {
-		assert(
-			deps.eventBusArn,
-			"eventBusArn is required for createTrialFeedbackEmailSchedule",
-		);
-		assert(
-			deps.schedulerRoleArn,
-			"schedulerRoleArn is required for createTrialFeedbackEmailSchedule",
-		);
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: trialFeedbackEmailScheduleName(userId),
@@ -241,11 +225,6 @@ export function initAwsTrialScheduler(deps: {
 		userId,
 		firesAt,
 	}) => {
-		assert(deps.eventBusArn, "eventBusArn is required for createTrialReminderSchedule");
-		assert(
-			deps.schedulerRoleArn,
-			"schedulerRoleArn is required for createTrialReminderSchedule",
-		);
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: trialReminderScheduleName(userId),
@@ -288,11 +267,6 @@ export function initAwsTrialScheduler(deps: {
 		kind,
 		firesAt,
 	}) => {
-		assert(deps.eventBusArn, "eventBusArn is required for createTrialNudgeSchedule");
-		assert(
-			deps.schedulerRoleArn,
-			"schedulerRoleArn is required for createTrialNudgeSchedule",
-		);
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: trialNudgeScheduleName({ userId, kind }),
@@ -319,11 +293,6 @@ export function initAwsTrialScheduler(deps: {
 		firesAt,
 		chargeAt,
 	}) => {
-		assert(deps.eventBusArn, "eventBusArn is required for createChargeReminderSchedule");
-		assert(
-			deps.schedulerRoleArn,
-			"schedulerRoleArn is required for createChargeReminderSchedule",
-		);
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: chargeReminderScheduleName(userId),
@@ -381,11 +350,6 @@ export function initAwsTrialScheduler(deps: {
 		userId,
 		firesAt,
 	}) => {
-		assert(deps.eventBusArn, "eventBusArn is required for createAgeLockDeletionSchedule");
-		assert(
-			deps.schedulerRoleArn,
-			"schedulerRoleArn is required for createAgeLockDeletionSchedule",
-		);
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: ageLockDeletionScheduleName(userId),

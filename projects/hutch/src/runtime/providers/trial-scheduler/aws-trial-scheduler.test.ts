@@ -96,6 +96,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await scheduler.deleteTrialEndSchedule({ userId: USER_ID });
@@ -114,6 +116,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.doesNotReject(scheduler.deleteTrialEndSchedule({ userId: USER_ID }));
@@ -126,6 +130,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.rejects(scheduler.deleteTrialEndSchedule({ userId: USER_ID }), /Internal failure/);
@@ -257,6 +263,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await scheduler.deleteChargeReminderSchedule({ userId: USER_ID });
@@ -275,6 +283,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.doesNotReject(scheduler.deleteChargeReminderSchedule({ userId: USER_ID }));
@@ -287,6 +297,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.rejects(
@@ -302,6 +314,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await scheduler.deleteDeferredCancellationSchedule({ userId: USER_ID });
@@ -320,6 +334,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.doesNotReject(
@@ -334,6 +350,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.rejects(
@@ -405,6 +423,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await scheduler.deleteTrialFeedbackEmailSchedule({ userId: USER_ID });
@@ -423,6 +443,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.doesNotReject(
@@ -437,6 +459,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.rejects(
@@ -552,7 +576,7 @@ describe("initAwsTrialScheduler", () => {
 			{ kind: "trial_day7", name: `trial-day7-${USER_ID}` },
 		] as const)("issues a DeleteScheduleCommand with name=$name + group", async ({ kind, name }) => {
 			const { client, captured } = buildFakeClient();
-			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME, schedulerRoleArn: ROLE_ARN, eventBusArn: EVENT_BUS_ARN });
 
 			await scheduler.deleteTrialNudgeSchedule({ userId: USER_ID, kind });
 
@@ -567,7 +591,7 @@ describe("initAwsTrialScheduler", () => {
 			const notFound = new Error("Schedule not found");
 			notFound.name = "ResourceNotFoundException";
 			const { client } = buildFakeClient({ deleteThrows: notFound });
-			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME, schedulerRoleArn: ROLE_ARN, eventBusArn: EVENT_BUS_ARN });
 
 			await assert.doesNotReject(scheduler.deleteTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day3" }));
 		});
@@ -576,7 +600,7 @@ describe("initAwsTrialScheduler", () => {
 			const wrenchInGears = new Error("Internal failure");
 			wrenchInGears.name = "InternalServerException";
 			const { client } = buildFakeClient({ deleteThrows: wrenchInGears });
-			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME, schedulerRoleArn: ROLE_ARN, eventBusArn: EVENT_BUS_ARN });
 
 			await assert.rejects(
 				scheduler.deleteTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day7" }),
@@ -591,6 +615,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await scheduler.deleteTrialReminderSchedule({ userId: USER_ID });
@@ -609,6 +635,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.doesNotReject(
@@ -623,6 +651,8 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.rejects(
@@ -669,7 +699,7 @@ describe("initAwsTrialScheduler", () => {
 	describe("deleteAgeLockDeletionSchedule", () => {
 		it("issues a DeleteScheduleCommand with name=age-lock-delete-<userId> + group", async () => {
 			const { client, captured } = buildFakeClient();
-			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME, schedulerRoleArn: ROLE_ARN, eventBusArn: EVENT_BUS_ARN });
 
 			await scheduler.deleteAgeLockDeletionSchedule({ userId: USER_ID });
 
@@ -684,7 +714,7 @@ describe("initAwsTrialScheduler", () => {
 			const notFound = new Error("Schedule not found");
 			notFound.name = "ResourceNotFoundException";
 			const { client } = buildFakeClient({ deleteThrows: notFound });
-			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME, schedulerRoleArn: ROLE_ARN, eventBusArn: EVENT_BUS_ARN });
 
 			await assert.doesNotReject(scheduler.deleteAgeLockDeletionSchedule({ userId: USER_ID }));
 		});
@@ -693,7 +723,7 @@ describe("initAwsTrialScheduler", () => {
 			const wrenchInGears = new Error("Internal failure");
 			wrenchInGears.name = "InternalServerException";
 			const { client } = buildFakeClient({ deleteThrows: wrenchInGears });
-			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME, schedulerRoleArn: ROLE_ARN, eventBusArn: EVENT_BUS_ARN });
 
 			await assert.rejects(
 				scheduler.deleteAgeLockDeletionSchedule({ userId: USER_ID }),
