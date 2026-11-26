@@ -14,6 +14,7 @@ import {
 } from "@packages/storage-client";
 import { toEventInstant } from "@packages/domain/event-envelope";
 import { initFindReadlistRemoval, initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
+import { initFindSmartMatchRevisions, initRecordSmartMatchRevision } from "./smart-match-revision-marker";
 import { EnclosureSchema, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
@@ -62,6 +63,8 @@ import type {
 	FileIntoLiveReadlist,
 	FindReadlistFiling,
 	FindReadlistRemoval,
+	FindSmartMatchRevisions,
+	RecordSmartMatchRevision,
 	PurgeReadlistArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
@@ -329,6 +332,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
+	findSmartMatchRevisions: FindSmartMatchRevisions;
+	recordSmartMatchRevision: RecordSmartMatchRevision;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
@@ -1385,6 +1390,17 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const isNeitherPassedNorConditionFailed = (code: string | undefined) =>
 		code !== "None" && code !== "ConditionalCheckFailed";
 
+	const definitionCondition = (smartRule: Parameters<FileIntoLiveReadlist>[0]["smartRule"]) => {
+		if (smartRule === undefined) {
+			return { ConditionExpression: "attribute_exists(#url)", ExpressionAttributeNames: { "#url": "url" } };
+		}
+		return {
+			ConditionExpression: "attribute_exists(#url) AND filingMode = :smart AND filingRuleRevision = :revision",
+			ExpressionAttributeNames: { "#url": "url" },
+			ExpressionAttributeValues: { ":smart": "smart", ":revision": smartRule.revision },
+		};
+	};
+
 	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
 		const { userId, readlist } = params;
 		const key = ArticleResourceUniqueId.parse(params.url).value;
@@ -1396,8 +1412,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 							ConditionCheck: {
 								TableName: userArticlesTableName,
 								Key: { userId, url: readlistDefinitionKey(readlist) },
-								ConditionExpression: "attribute_exists(#url)",
-								ExpressionAttributeNames: { "#url": "url" },
+								...definitionCondition(params.smartRule),
 							},
 						},
 						{
@@ -1426,7 +1441,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			const codes = (error.CancellationReasons ?? []).map((reason) => reason.Code);
 			const decisive = codes.indexOf("ConditionalCheckFailed");
 			if (decisive === -1 || codes.some(isNeitherPassedNorConditionFailed)) throw error;
-			if (decisive === 0) return { outcome: "readlist-gone" };
+			if (decisive === 0) return { outcome: params.smartRule === undefined ? "readlist-gone" : "smart-rule-changed" };
 			if (decisive === 1) {
 				const allRow = await userArticles.get({ userId, url: key }, { consistentRead: true });
 				return { outcome: allRow === undefined ? "not-in-all" : "removed-after-request" };
@@ -2098,6 +2113,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 		purgeReadlistArticle,
 		findReadlistFiling,
 		findReadlistRemoval: initFindReadlistRemoval({ client, userArticlesTableName }),
+		findSmartMatchRevisions: initFindSmartMatchRevisions({ client, userArticlesTableName }),
+		recordSmartMatchRevision: initRecordSmartMatchRevision({ client, userArticlesTableName }),
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,

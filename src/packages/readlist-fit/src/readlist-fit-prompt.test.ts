@@ -24,4 +24,9 @@ describe("READLIST_FIT_PROMPT", () => {
 		expect(READLIST_FIT_PROMPT.toLowerCase()).not.toMatch(/uncertain[^.]*keep it/);
 		expect(READLIST_FIT_PROMPT).toContain("prefer unsure to a guess");
 	});
+
+	it("judges a single saved article as well as a newsletter's links", () => {
+		expect(READLIST_FIT_PROMPT).toContain("a single article the reader saved");
+		expect(READLIST_FIT_PROMPT).toContain("absent when the candidate was not saved from an email");
+	});
 });

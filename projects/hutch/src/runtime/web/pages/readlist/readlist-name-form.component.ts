@@ -26,9 +26,12 @@ export function renderReadlistNameForm(input: {
 	failureMessage: string;
 	error?: string;
 	hiddenFields: readonly { name: string; value: string }[];
+	smart?: { fieldsHtml: string; commitLabel: string };
 }): string {
 	return render(TEMPLATE, {
 		...input,
+		smartFieldsHtml: input.smart?.fieldsHtml,
+		smartCommitLabel: input.smart?.commitLabel,
 		field: READLIST_NAME_FIELD,
 		fieldLabel: READLIST_NAME_LABEL,
 		placeholder: READLIST_NAME_PLACEHOLDER,

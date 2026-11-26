@@ -6,6 +6,7 @@ export interface ReadlistRef {
 	starterCampaignId?: string;
 	slug: ReadlistSlug;
 	label: string;
+	smart?: true;
 }
 
 export const DEFAULT_READLIST: ReadlistRef = {
@@ -14,14 +15,15 @@ export const DEFAULT_READLIST: ReadlistRef = {
 };
 
 export function readerReadlists(
-	definitions: readonly ReadlistRef[],
+	definitions: readonly (ReadlistRef & { filing?: { mode: "manual" | "smart" } })[],
 ): readonly ReadlistRef[] {
 	return [
 		DEFAULT_READLIST,
-		...definitions.map(({ slug, label, starterCampaignId }) => ({
+		...definitions.map(({ slug, label, starterCampaignId, filing }) => ({
 			slug,
 			label,
 			...(starterCampaignId === undefined ? {} : { starterCampaignId }),
+			...(filing?.mode === "smart" ? { smart: true as const } : {}),
 		})),
 	];
 }

@@ -29,6 +29,16 @@ describe("readerReadlists", () => {
 		const withExtras = { slug: WORK.slug, label: WORK.label, createdAt: new Date(0) };
 		assert.deepEqual(readerReadlists([withExtras]), [DEFAULT_READLIST, WORK]);
 	});
+
+	it("marks a smart readlist and leaves a manual one unmarked", () => {
+		assert.deepEqual(
+			readerReadlists([
+				{ ...WORK, filing: { mode: "smart" } },
+				{ ...RUST, filing: { mode: "manual" } },
+			]),
+			[DEFAULT_READLIST, { ...WORK, smart: true }, RUST],
+		);
+	});
 });
 
 describe("readlistsHoldingArticle", () => {

@@ -20,7 +20,7 @@ import { READLIST_PATH } from "./readlist.url";
 
 const FILING_SOURCE = "reader-readlists";
 
-const { tPlural } = translator(hutchReadlist, DEFAULT_LOCALE);
+const { t, tPlural } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export const READER_READLIST_CREATE_POPOVER_ID = "reader-readlist-create";
 
@@ -69,7 +69,14 @@ export function buildReaderReadlistFiling(input: {
 			}),
 			returnTo: input.returnTo,
 			choice: assignable.length >= 2 ? "several" : "single",
-			options: assignable.map(({ slug, label }) => ({ slug, label, iconName: READLIST_KIND_ICON.custom })),
+			options: assignable.map(({ slug, label, filing }) => ({
+				slug,
+				label,
+				iconName: READLIST_KIND_ICON.custom,
+				...(filing?.mode === "smart"
+					? { smart: true, accessibleName: t("readlistSmart.accessibleName", { name: label }) }
+					: {}),
+			})),
 			filterHtml: renderReadlistFilter({ readlistCount: assignable.length, tag: "li" }),
 			create,
 		};

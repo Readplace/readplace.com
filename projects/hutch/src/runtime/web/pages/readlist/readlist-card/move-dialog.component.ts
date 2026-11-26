@@ -1,4 +1,6 @@
 import type { ReadlistSlug } from "@packages/domain/readlist";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 
 import { READLIST_KIND_ICON } from "../../../shared/readlist-kind-icon";
@@ -7,9 +9,12 @@ import { isBuiltInReadlist } from "../built-in-readlists";
 import { renderReadlistCreate, renderReadlistCreateForm } from "../readlist-create.component";
 import { DEFAULT_READLIST } from "../readlist.nav";
 
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
 export interface ArticleMoveDestination {
 	slug: ReadlistSlug;
 	label: string;
+	smart?: true;
 }
 
 export interface ArticleMoveViewModel {
@@ -80,9 +85,9 @@ const MOVE_DIALOG_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions read
 			<legend class="sr-only">Readlists</legend>
 			{{#each destinations}}
 			{{#if ../oneClick}}
-			<button class="readlist-row readlist-move__option readlist-move__pick readlist-filter__option" type="submit" name="to" value="{{slug}}" data-test-move-destination="{{slug}}"{{#if autofocus}} autofocus{{/if}}><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span></span></button>
+			<button class="readlist-row readlist-move__option readlist-move__pick readlist-filter__option" type="submit" name="to" value="{{slug}}" data-test-move-destination="{{slug}}"{{#if smart}} aria-label="{{accessibleName}}" data-test-readlist-smart{{/if}}{{#if autofocus}} autofocus{{/if}}><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span>{{#if smart}}<span class="readlist-row__smart">{{icon "sparkles"}}</span>{{/if}}</span></button>
 			{{else}}
-			<label class="readlist-row readlist-move__option readlist-filter__option" data-test-move-destination="{{slug}}"><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span></span><span class="readlist-row__trailing readlist-move__choice-slot"><input class="form-choice readlist-move__choice" type="{{../choice.inputType}}" name="to" value="{{slug}}"{{#if ../choice.required}} required{{/if}}{{#if autofocus}} autofocus{{/if}}></span></label>
+			<label class="readlist-row readlist-move__option readlist-filter__option" data-test-move-destination="{{slug}}"><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span>{{#if smart}}<span class="readlist-row__smart">{{icon "sparkles"}}</span>{{/if}}</span><span class="readlist-row__trailing readlist-move__choice-slot"><input class="form-choice readlist-move__choice" type="{{../choice.inputType}}" name="to" value="{{slug}}"{{#if smart}} aria-label="{{accessibleName}}" data-test-readlist-smart{{/if}}{{#if ../choice.required}} required{{/if}}{{#if autofocus}} autofocus{{/if}}></span></label>
 			{{/if}}
 			{{/each}}
 		</fieldset>
@@ -143,6 +148,8 @@ function renderMoveDialog(move: ArticleMoveViewModel, title: string): string {
 				slug: destination.slug,
 				label: destination.label,
 				iconName: READLIST_KIND_ICON[isBuiltInReadlist(destination.slug) ? "default" : "custom"],
+				smart: destination.smart === true,
+				accessibleName: t("readlistSmart.accessibleName", { name: destination.label }),
 				autofocus: index === 0,
 			})),
 			createRows: move.create === undefined ? [] : [move.create],

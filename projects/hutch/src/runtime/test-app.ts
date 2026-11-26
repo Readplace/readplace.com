@@ -294,6 +294,8 @@ function flattenFixtureToAppDependencies(
 		pinReadlistDefinition: fixture.articleStore.pinReadlistDefinition,
 		unpinReadlistDefinition: fixture.articleStore.unpinReadlistDefinition,
 		setReadlistDefinitionPurpose: fixture.articleStore.setReadlistDefinitionPurpose,
+		setSmartReadlistRule: fixture.articleStore.setSmartReadlistRule,
+		turnOffSmartReadlistMatching: fixture.articleStore.turnOffSmartReadlistMatching,
 		clearReadlistDefinitionPurpose: fixture.articleStore.clearReadlistDefinitionPurpose,
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,

@@ -1,0 +1,7 @@
+<div class="readlist-create__smart">
+  <label class="readlist-create__smart-option"><input class="form-choice readlist-create__smart-toggle" type="checkbox" name="smart" value="1"{{#if checked}} checked{{/if}} data-test-field="smart">{{icon "sparkles"}}<span>{{t "readlistSmart.create.toggle"}}</span></label>
+  <div class="readlist-create__smart-purpose">
+    <label class="form-field__label" for="{{inputId}}">{{t "readlistSmart.create.purposeLabel"}}</label>
+    <textarea class="form-input form-input--multiline" id="{{inputId}}" name="purpose" rows="3" maxlength="{{maxLength}}" data-test-field="smart-purpose">{{purpose}}</textarea>
+  </div>
+</div>

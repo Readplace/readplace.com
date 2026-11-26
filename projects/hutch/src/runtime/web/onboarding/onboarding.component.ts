@@ -66,9 +66,9 @@ function toActionDisplayModel(
 		const href = withInternalTracking(`${action.href}${returnQuery}`, tracking);
 		return { ...shared, action: href, inputs: [] };
 	}
-	const [path, query] = withInternalTracking(action.href, tracking).split("?");
-	const inputs = [...new URLSearchParams(query)].map(([name, value]) => ({ name, value }));
-	return { ...shared, action: path, inputs };
+	const url = new URL(withInternalTracking(action.href, tracking), "https://readplace.invalid");
+	const inputs = [...url.searchParams].map(([name, value]) => ({ name, value }));
+	return { ...shared, action: `${url.pathname}${url.hash}`, inputs };
 }
 
 type OnboardingStepStatus = "complete" | "current" | "upcoming";

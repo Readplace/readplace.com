@@ -4047,6 +4047,31 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 		});
 	});
 
+	it("files a smart match only while the readlist still holds the rule revision it was matched under", async () => {
+		const { client, commands } = createFakeClient();
+
+		expect(await initStore(client).fileIntoLiveReadlist(filing({ smartRule: { revision: 4 } }))).toEqual({
+			outcome: "filed",
+		});
+
+		const definition = itemsOf(commands)[0]?.ConditionCheck;
+		expect(definition?.ConditionExpression).toBe(
+			"attribute_exists(#url) AND filingMode = :smart AND filingRuleRevision = :revision",
+		);
+		expect(definition?.ExpressionAttributeValues).toEqual({ ":smart": "smart", ":revision": 4 });
+	});
+
+	it("answers smart-rule-changed when a smart match's definition check fails", async () => {
+		const { client, commands } = createFakeClient({
+			TransactWriteCommand: { default: cancelled(["ConditionalCheckFailed", "None", "None"]) },
+		});
+
+		expect(await initStore(client).fileIntoLiveReadlist(filing({ smartRule: { revision: 4 } }))).toEqual({
+			outcome: "smart-rule-changed",
+		});
+		expect(commands.map((c) => c.name)).toEqual(["TransactWriteCommand"]);
+	});
+
 	it.each([
 		["the readlist definition", ["ConditionalCheckFailed", "None", "None"], "readlist-gone"],
 		["the definition and the All row together", ["ConditionalCheckFailed", "ConditionalCheckFailed", "None"], "readlist-gone"],

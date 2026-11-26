@@ -43,6 +43,9 @@ describe("READLIST_CREATE_REJECTIONS", () => {
 			"name-taken": {
 				message: "You already have a readlist with that name, so pick another one.",
 			},
+			"invalid-purpose": {
+				message: "Say what this readlist is for, in up to 10,000 characters.",
+			},
 		});
 	});
 

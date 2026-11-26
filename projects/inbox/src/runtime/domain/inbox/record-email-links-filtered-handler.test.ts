@@ -23,7 +23,7 @@ function filteredBody(detail: {
 	scope?: "email" | "link";
 	startIndex?: number;
 	readlistLabel?: string;
-	decision?: "filtered" | "no-purpose" | "readlist-missing";
+	decision?: "filtered" | "no-purpose" | "readlist-missing" | "smart-matching";
 	fit: { ordinal: string; verdict: string; reason: string }[];
 	purposeVersion?: string;
 	engine?: string;
@@ -189,6 +189,22 @@ describe("recordEmailLinksFilteredHandler", () => {
 				readlist: WORK,
 				readlistLabel: "Work",
 				decision: "no-purpose",
+				fit: [],
+			},
+		]);
+	});
+
+	it("records a smart-matching fact with no verdicts", async () => {
+		const { store, run, read } = createHandler();
+		await snapshotDestinations(store);
+
+		await run([filteredBody({ decision: "smart-matching", fit: [] })]);
+
+		expect((await read()).meta?.readlistOutcomes).toStrictEqual([
+			{
+				readlist: WORK,
+				readlistLabel: "Work",
+				decision: "smart-matching",
 				fit: [],
 			},
 		]);
