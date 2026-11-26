@@ -11,7 +11,7 @@ import type { ListReadlistDefinitions } from "@packages/provider-contracts/artic
 import type { FindSessionReadlistFilter } from "@packages/provider-contracts/auth";
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
-import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTarget } from "./readlist-home";
+import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./readlist-home";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
@@ -84,13 +84,6 @@ export function initResolveReadlistContext(deps: {
 		const { source: _source, sender: _sender, ...plainQuery } = req.query;
 		const parsed = parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query);
 		const requested = withRememberedFilter({ ...parsed, readlist: home?.open && homeSlug === home.preference?.slug ? homeSlug : parsed.readlist }, remembered);
-		const targets = new Map<ReadlistSlug, HomeReadlistPreference>();
-		if (home) {
-			for (const { slug } of readlists) {
-				const target = homeReadlistTarget(slug, definitions);
-				if (target && slug !== homeSlug) targets.set(slug, target);
-			}
-		}
 		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			definitions,
@@ -99,7 +92,7 @@ export function initResolveReadlistContext(deps: {
 			readlists,
 			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
 			pinnedReadlists: pinnedReadlistSlugs(definitions),
-			...(home ? { home: { slug: homeSlug, entry: homeEntryReadlistOf(home?.preference, definitions), targets } } : {}),
+			...(home ? { home: { slug: homeSlug, entry: homeEntryReadlistOf(home.preference, definitions), targets: homeReadlistTargets(homeSlug, definitions) } } : {}),
 		};
 	};
 }

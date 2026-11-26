@@ -1,5 +1,5 @@
 import type { FindHomeReadlist } from "@packages/provider-contracts/auth";
-import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTarget } from "./readlist-home";
+import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./readlist-home";
 import assert from "node:assert";
 import {
 	AliasNameSchema,
@@ -199,12 +199,8 @@ export function initReadlistPreferencesRoutes(deps: {
 		const paidFeaturesLocked = !hasPaidFeatures(access);
 		const activeReadlist = { slug: definition.slug, label: definition.label };
 		const homeSlug = homeReadlistOf(preference, definitions);
-		const targets = new Map(readlists.flatMap(({ slug }) => {
-			const target = homeReadlistTarget(slug, definitions);
-			return target && slug !== homeSlug ? [[slug, target] as const] : [];
-		}));
 		const context = {
-			home: { slug: homeSlug, entry: homeEntryReadlistOf(preference, definitions), targets },
+			home: { slug: homeSlug, entry: homeEntryReadlistOf(preference, definitions), targets: homeReadlistTargets(homeSlug, definitions) },
 			definitions,
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
 			activeReadlist,
