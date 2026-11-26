@@ -13,6 +13,7 @@ export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";
 export { HtmlPage } from "./html-page";
+export { NotFoundPage } from "./not-found.component";
 export { MarkdownPage } from "./markdown-page";
 export { htmlToMarkdown } from "./html-to-markdown";
 export { buildMarkdownFrontmatter } from "./markdown-frontmatter";

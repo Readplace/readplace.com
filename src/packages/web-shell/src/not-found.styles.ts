@@ -1,0 +1,50 @@
+export const NOT_FOUND_STYLES = `
+	.not-found {
+		background: var(--muted);
+		flex: 1 1 auto;
+		padding: var(--page-top) var(--page-gutter) 64px;
+	}
+
+	.not-found__container {
+		max-width: 480px;
+		margin: 0 auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		padding: 40px 24px 44px;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		text-align: center;
+	}
+
+	.not-found__title {
+		font-family: var(--font-sans);
+		font-size: var(--text-lg);
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--foreground);
+		margin: 0;
+		text-wrap: balance;
+	}
+
+	.not-found__text {
+		max-width: 44ch;
+		margin: 0;
+		font-size: var(--text-sm);
+		line-height: 1.55;
+		color: var(--muted-foreground);
+		text-wrap: pretty;
+	}
+
+	.not-found__action {
+		margin-top: 4px;
+	}
+
+	@media (min-width: 1024px) {
+		.not-found {
+			padding-bottom: 80px;
+		}
+	}
+`;

@@ -295,7 +295,7 @@ describe("GET /blog/:slug", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector(".not-found__title")?.textContent).toBe("Page not found");
 		expect(doc.querySelector(".not-found__text")?.textContent).toBe(
-			"The page you're looking for doesn't exist or has moved.",
+			"The page you are looking for does not exist or has been moved.",
 		);
 	});
 

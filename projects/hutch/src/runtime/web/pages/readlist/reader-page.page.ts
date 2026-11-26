@@ -26,9 +26,9 @@ import type {
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
 import { Base, ChromelessPage } from "../../base.component";
-import { NotFoundPage } from "../not-found";
 import {
 	FETCH_CHANGELOG_BANNER_IN_BROWSER,
+	NotFoundPage,
 	requireCspNonce,
 	sendComponent,
 	withInternalTracking,
@@ -521,7 +521,7 @@ export function initReaderPageRoutes(deps: Pick<
 		}
 
 		if (resolved.kind === "not-found") {
-			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 			return;
 		}
 

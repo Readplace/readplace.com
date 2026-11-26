@@ -375,6 +375,7 @@ import {
 	createCrossSiteRequestMiddleware,
 	createCspNonceMiddleware,
 	generateCspNonce,
+	NotFoundPage,
 	requireCspNonce,
 	sendComponent,
 	sendContentSecurityPolicy,
@@ -426,7 +427,6 @@ import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/pr
 import type { FindCanaryReport } from "@packages/provider-contracts/canary-report";
 import { LANDING_PAGE_CONTENT, LandingPage, landingPageLastModified } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
-import { NotFoundPage } from "./web/pages/not-found";
 import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
 import { initCanSaveContent } from "./web/middleware/can-save-content";
@@ -1921,7 +1921,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/oauth", oauthRouter);
 
 	app.use(async (req: Request, res: Response) => {
-		sendComponent(req, res, Base(NotFoundPage(), await buildBannerState(req)));
+		sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await buildBannerState(req)));
 	});
 
 	return app;

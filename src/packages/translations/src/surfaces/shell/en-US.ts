@@ -1,4 +1,13 @@
 export const enUS = {
+	notFound: {
+		seo: {
+			title: "Page Not Found — Readplace",
+			description: "The page you are looking for does not exist.",
+		},
+		title: "Page not found",
+		text: "The page you are looking for does not exist or has been moved.",
+		action: "Go to homepage",
+	},
 	popover: {
 		close: "Close",
 		cancel: "Cancel",
