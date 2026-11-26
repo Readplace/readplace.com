@@ -8,4 +8,3 @@ export { initResolveLogin } from "./resolve-login";
 export { initResolveWebsiteLogin } from "./resolve-website-login";
 export type { LoginState, ResolveLogin } from "./resolve-login";
 export { createValidateAccessToken } from "./validate-access-token";
-export type { ValidateAccessToken } from "./validate-access-token";
