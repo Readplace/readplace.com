@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { AuthDiagnosticClient } from "@packages/domain/auth-diagnostics";
+import { authDiagnosticReference } from "@packages/web-session";
 import { z } from "zod";
 
 const Permit = z.strictObject({
@@ -18,7 +19,7 @@ export function initAuthDiagnosticPermits(deps: { salt: string; now: () => Date 
 	const key = createHmac("sha256", deps.salt).update("readplace-auth-diagnostics-permit-v1").digest();
 	const sign = (value: string) => createHmac("sha256", key).update(value).digest();
 	const reference = (input: { kind: "subject" | "session"; value: string }) =>
-		createHmac("sha256", deps.salt).update(`auth-diagnostics:${input.kind}:`).update(input.value).digest("hex");
+		authDiagnosticReference({ salt: deps.salt, ...input });
 	return {
 		reference,
 		issue(input: { userId: string; grantId: string; client: AuthDiagnosticPermit["client"]; installationId: string }): string {
