@@ -5,7 +5,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 const OembedVideoSchema = z.object({ title: z.string().min(1), author_name: z.string().min(1) });
 
-type YouTubeVideoCard = { title: string; author: string; excerpt: string; watchUrl: string; posterUrl: string; html: string };
+type YouTubeVideoCard = { title: string; excerpt: string; watchUrl: string; posterUrl: string; html: string };
 
 export type FetchYouTubeVideoCard = (params: { url: string }) => Promise<YouTubeVideoCard | undefined>;
 
@@ -28,7 +28,6 @@ export function initFetchYouTubeVideoCard(deps: { fetch: typeof fetch; logError:
 			const { title, author_name: author } = video.data;
 			return {
 				title,
-				author,
 				excerpt: `Video by ${author} on YouTube.`,
 				watchUrl,
 				posterUrl,
