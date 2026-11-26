@@ -21,6 +21,7 @@ import {
 	parsePollParam,
 	toAbsoluteDate,
 	toRelativePhrase,
+	trackedGetForm,
 	withInternalTracking,
 } from "@packages/web-shell";
 import {
@@ -307,17 +308,14 @@ function postAction(input: ActionInput): AccountAction {
 
 function getAction(input: ActionInput & { fields: AccountHiddenField[] }): AccountAction {
 	const { fields, ...rest } = input;
-	const tracked = new URL(
-		withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: input.key }),
-		APP_HREF_PARSE_ORIGIN,
-	);
+	const form = trackedGetForm(input.href, { source: ACCOUNT_SOURCE, content: input.key });
 	return {
 		...rest,
 		method: "GET",
 		isPending: false,
 		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
-		href: tracked.pathname,
-		hiddenFields: [...Array.from(tracked.searchParams, ([name, value]) => ({ name, value })), ...fields],
+		href: form.action,
+		hiddenFields: [...form.fields, ...fields],
 	};
 }
 

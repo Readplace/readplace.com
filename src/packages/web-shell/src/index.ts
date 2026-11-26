@@ -8,7 +8,7 @@ export {
 	offerPrice,
 } from "./pricing";
 export type { PricingPanel } from "./pricing";
-export { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
+export { CLICK_SURFACES, isClickSurface, trackedGetForm, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";

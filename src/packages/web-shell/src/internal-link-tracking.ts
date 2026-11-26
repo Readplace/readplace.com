@@ -48,6 +48,17 @@ export function withInternalTracking(href: string, tracking: InternalTracking): 
 	return `${url.pathname}${url.search}${url.hash}`;
 }
 
+export function trackedGetForm(
+	href: string,
+	tracking: InternalTracking,
+): { action: string; fields: readonly { name: string; value: string }[] } {
+	const tracked = new URL(withInternalTracking(href, tracking), PARSE_ORIGIN);
+	return {
+		action: tracked.pathname,
+		fields: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
+	};
+}
+
 export const CLICK_SURFACES = {
 	readerPublic: "reader-public",
 } as const;

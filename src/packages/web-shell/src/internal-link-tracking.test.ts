@@ -1,4 +1,10 @@
-import { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
+import {
+	CLICK_SURFACES,
+	isClickSurface,
+	trackedGetForm,
+	withClickSurface,
+	withInternalTracking,
+} from "./internal-link-tracking";
 
 describe("withInternalTracking", () => {
 	it("stamps a root-relative href with the section (utm_source), the element (utm_content), and utm_medium=internal so the click middleware can count it", () => {
@@ -55,6 +61,20 @@ describe("withInternalTracking", () => {
 	it("leaves a protocol-relative URL untouched — it resolves to another origin, so stamping it would both leak our params and strip the host", () => {
 		const external = "//cdn.example.com/x?a=1";
 		expect(withInternalTracking(external, { source: "home-hero", content: "cdn" })).toBe(external);
+	});
+});
+
+describe("trackedGetForm", () => {
+	it("splits a tracked href into the form action path and one hidden field per query param, keeping the href's own params first", () => {
+		expect(trackedGetForm("/account/plans?plan=yearly", { source: "account", content: "upgrade" })).toEqual({
+			action: "/account/plans",
+			fields: [
+				{ name: "plan", value: "yearly" },
+				{ name: "utm_source", value: "account" },
+				{ name: "utm_medium", value: "internal" },
+				{ name: "utm_content", value: "upgrade" },
+			],
+		});
 	});
 });
 
