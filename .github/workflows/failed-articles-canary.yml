@@ -43,10 +43,6 @@ jobs:
       DYNAMODB_ARTICLES_TABLE: hutch-articles-cda0a08
       DYNAMODB_USER_ARTICLES_TABLE: hutch-user-articles-8226beb
       READPLACE_ORIGIN: https://readplace.com
-      # 0 = no time gate (full historical scan). Raise to N to gate on
-      # `savedAt >= now - N days` once the operator has worked through the
-      # initial backlog and wants to narrow to recent regressions.
-      FAILED_ARTICLES_LOOKBACK_DAYS: '0'
       DYNAMODB_CANARY_REPORTS_TABLE: hutch-canary-reports-prod
       FAILED_ARTICLES_ISSUE_PATH: ${{ github.workspace }}/.failed-articles-issue.json
     steps:

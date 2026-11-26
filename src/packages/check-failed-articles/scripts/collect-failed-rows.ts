@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
 	classifyCrawlOutcome,
@@ -54,30 +53,11 @@ export interface CollectedFailedRow extends FailedRow {
 	resolutionOnViewClaimedAt: string | undefined;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/**
- * When `lookbackDays` is `0` no time gate is
- * applied (every historical row is a candidate). For `lookbackDays > 0` the
- * gate is anchored to `savedAt` (always present, unlike `contentFetchedAt`
- * which only exists after a crawl produced content).
- */
-export function buildQueryInputs(now: Date, lookbackDays: number) {
-	assert(
-		Number.isInteger(lookbackDays) && lookbackDays >= 0,
-		`lookbackDays must be a non-negative integer (got ${lookbackDays})`,
-	);
+export function buildQueryInputs() {
 	const expressionAttributeValues: Record<string, string> = {
 		":failed": "failed",
 		":pending": "pending",
 	};
-	let sinceGate = "";
-	if (lookbackDays > 0) {
-		sinceGate = " AND savedAt >= :since";
-		expressionAttributeValues[":since"] = new Date(
-			now.getTime() - lookbackDays * MS_PER_DAY,
-		).toISOString();
-	}
 	const shared = {
 		ProjectionExpression:
 			"originalUrl, #u, crawlStatus, crawlFailureReason, " +
@@ -92,13 +72,13 @@ export function buildQueryInputs(now: Date, lookbackDays: number) {
 			...shared,
 			IndexName: CRAWL_STATUS_INDEX,
 			KeyConditionExpression: "crawlStatus = :failed",
-			FilterExpression: `attribute_exists(summaryStatus) AND summaryStatus <> :pending AND ${meteredLegsTried}${sinceGate}`,
+			FilterExpression: `attribute_exists(summaryStatus) AND summaryStatus <> :pending AND ${meteredLegsTried}`,
 		},
 		{
 			...shared,
 			IndexName: SUMMARY_STATUS_INDEX,
 			KeyConditionExpression: "summaryStatus = :failed",
-			FilterExpression: `attribute_exists(crawlStatus) AND crawlStatus <> :pending AND ${meteredLegsTried}${sinceGate}`,
+			FilterExpression: `attribute_exists(crawlStatus) AND crawlStatus <> :pending AND ${meteredLegsTried}`,
 		},
 	] as const;
 }
@@ -137,8 +117,6 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 export async function collectFailedRows(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	now: () => Date;
-	lookbackDays: number;
 	excludePatterns: readonly RegExp[];
 	ignoredKeyHashes?: ReadonlySet<string>;
 }): Promise<CollectedFailedRow[]> {
@@ -148,7 +126,7 @@ export async function collectFailedRows(deps: {
 		schema: FailedArticleRow,
 	});
 	const candidates = new Map<string, z.infer<typeof FailedArticleRow>>();
-	for (const input of buildQueryInputs(deps.now(), deps.lookbackDays)) {
+	for (const input of buildQueryInputs()) {
 		await forEachQueryPage(table, input, async (items) => {
 			for (const row of items) candidates.set(row.url, row);
 		});
