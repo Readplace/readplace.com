@@ -7,7 +7,7 @@ import {
 } from "./highlight-preview.client";
 import { initNoteEditors, type NoteEditors } from "./note-editor.client";
 import { assert, initPendingHighlights, type Passage, passageOf, type ReaderFetch } from "./pending-highlight.client";
-import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
+import { type PassageRect, type PlacementViewport, placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
 import {
 	COARSE_POINTER_QUERY,
 	initSentenceTap,
@@ -35,18 +35,7 @@ const OPENED_URL_ATTRIBUTE = "data-highlight-opened-url";
 const OWNED_ATTRIBUTE = "data-highlight-toolbar-owned";
 const LOCAL_FORM_ATTRIBUTE = "data-highlight-local";
 
-export interface ToolbarRect {
-	readonly top: number;
-	readonly bottom: number;
-	readonly left: number;
-	readonly width: number;
-}
-
-interface ToolbarViewport {
-	readonly width: number;
-	readonly height: number;
-	readonly offsetLeft: number;
-	readonly offsetTop: number;
+interface ToolbarViewport extends PlacementViewport {
 	addEventListener(type: "scroll" | "resize", listener: () => void): void;
 }
 
@@ -70,7 +59,7 @@ interface HighlightToolbarDeps {
 	document: Document;
 	window: HighlightToolbarWindow;
 	timers: HighlightToolbarTimers;
-	rectsOf: (range: Range) => readonly ToolbarRect[];
+	rectsOf: (range: Range) => readonly PassageRect[];
 	isPopoverOpen: () => boolean;
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;

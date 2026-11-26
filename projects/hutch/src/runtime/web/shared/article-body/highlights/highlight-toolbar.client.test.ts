@@ -16,8 +16,8 @@ import {
 	initHighlightToolbar,
 	POINTER_SETTLE_MS,
 	SELECTION_DEBOUNCE_MS,
-	type ToolbarRect,
 } from "./highlight-toolbar.client";
+import type { PassageRect } from "./place-clear-of-passage";
 import {
 	ARTICLE_HIGHLIGHT_CLASS,
 	HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
@@ -109,7 +109,7 @@ interface Harness {
 	};
 	coarse: boolean;
 	scrollWindow(): void;
-	rects: ToolbarRect[];
+	rects: PassageRect[];
 	submitted: HTMLFormElement[];
 	popoverSupported: boolean;
 	shownPopovers: Element[];
