@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt, pageHostUrl } from "@packages/domain/article";
-import { type CrawlArticle, type YouTubeEmbed, resolveDocumentUrl } from "@packages/crawl-article";
+import { type CrawlArticle, type YouTubeEmbed, escapeHtmlText, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
 import type {
@@ -292,14 +292,6 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const descriptionTag = extracted.excerpt ? `<meta name="description" content="${escapeHtmlText(extracted.excerpt)}">` : "";
 	const siteNameTag = extracted.siteName ? `<meta property="og:site_name" content="${escapeHtmlText(extracted.siteName)}">` : "";
 	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}${siteNameTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
-}
-
-function escapeHtmlText(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
 }
 
 const VIDEO_PLACEHOLDER_LEAD = "Watch this video on ";
