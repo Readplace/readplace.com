@@ -84,7 +84,6 @@ describe("oversized alias identities", () => {
 		}) });
 		await store.claimAlias({ aliasUrl, targetOriginalUrl, sourceBinding: binding, now: NOW });
 		expect(stored?.aliasOriginalUrl).toBe(aliasUrl);
-		expect(await store.resolveAlias(aliasUrl)).toBe(targetOriginalUrl);
 		expect(await store.findIdentityRow(aliasUrl)).toEqual({ kind: "alias", targetUrl: targetOriginalUrl, sourceBinding: binding });
 		expect(await store.findContentSourceUrl(aliasUrl)).toBe(aliasUrl);
 		expect(await store.findAdoptedFetchUrl(aliasUrl)).toBeUndefined();
@@ -473,33 +472,6 @@ describe("initCanonicalAliasStore", () => {
 			const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: TABLE });
 
 			await expect(findIdentityRow("https://site.com/page")).rejects.toThrow("has no aliasTargetUrl");
-		});
-	});
-
-	describe("resolveAlias", () => {
-		it("returns the target URL for an alias row", async () => {
-			const client = createFakeClient(() => ({
-				Item: { url: "site.com/page", rowKind: "alias", aliasTargetUrl: "https://site.com/page.html" },
-			}));
-			const { resolveAlias } = initCanonicalAliasStore({ client, tableName: TABLE });
-
-			expect(await resolveAlias("https://site.com/page")).toBe("https://site.com/page.html");
-		});
-
-		it("returns undefined when no row exists at the identity", async () => {
-			const client = createFakeClient(() => ({ Item: undefined }));
-			const { resolveAlias } = initCanonicalAliasStore({ client, tableName: TABLE });
-
-			expect(await resolveAlias("https://site.com/page")).toBeUndefined();
-		});
-
-		it("returns undefined for a real article row (no alias marker)", async () => {
-			const client = createFakeClient(() => ({
-				Item: { url: "site.com/page", routeId: "a".repeat(32), originalUrl: "https://site.com/page", title: "Real" },
-			}));
-			const { resolveAlias } = initCanonicalAliasStore({ client, tableName: TABLE });
-
-			expect(await resolveAlias("https://site.com/page")).toBeUndefined();
 		});
 	});
 });

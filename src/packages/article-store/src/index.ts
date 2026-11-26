@@ -17,7 +17,6 @@ export { initDynamoDbSavedLinksJob } from "./dynamodb-saved-links-job";
 export {
 	initCanonicalAliasStore,
 	type ClaimCanonicalAlias,
-	type ResolveCanonicalAlias,
 	type IdentityRow,
 	type FindIdentityRow,
 	type SetArticleDisplayUrl,

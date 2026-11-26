@@ -41,11 +41,6 @@ const CanonicalAliasRow = z.object({
 
 export type { ClaimCanonicalAlias, FindIdentityRow, IdentityRow, PinContentSource };
 
-/** Full original URL an alias resolves to, or `undefined` when `id(url)` is not
- * an alias (no row, or a real article row). Depth-1 by construction: the value
- * is a stored URL, never itself resolved again. */
-export type ResolveCanonicalAlias = (url: string) => Promise<string | undefined>;
-
 export type SetArticleDisplayUrl = (params: {
 	articleUrl: string;
 	displayUrl: string;
@@ -78,7 +73,6 @@ export function initCanonicalAliasStore(deps: {
 	tableName: string;
 }): {
 	claimAlias: ClaimCanonicalAlias;
-	resolveAlias: ResolveCanonicalAlias;
 	findIdentityRow: FindIdentityRow;
 	setDisplayUrl: SetArticleDisplayUrl;
 	pinContentSource: PinContentSource;
@@ -109,12 +103,6 @@ export function initCanonicalAliasStore(deps: {
 				...(sourceBinding === undefined ? {} : { ":source": sourceBinding.contentSourceUrl, ":original": sourceBinding.sourceOriginalUrl }),
 			},
 		}));
-	};
-
-	const resolveAlias: ResolveCanonicalAlias = async (url) => {
-		const row = await table.get({ url: aliasIdentity(url).key });
-		if (row?.rowKind !== "alias") return undefined;
-		return row.aliasTargetUrl;
 	};
 
 	const findIdentityRow: FindIdentityRow = async (url) => {
@@ -228,7 +216,6 @@ export function initCanonicalAliasStore(deps: {
 	return {
 		repairWrapperIdentity,
 		claimAlias,
-		resolveAlias,
 		findIdentityRow,
 		setDisplayUrl,
 		pinContentSource,
