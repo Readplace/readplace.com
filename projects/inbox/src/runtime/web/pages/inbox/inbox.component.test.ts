@@ -52,7 +52,7 @@ describe("InboxPage", () => {
 		const page = InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" });
 		assert.equal(page.seo.robots, "noindex, nofollow");
 		assert.equal(page.bodyClass, "page-inbox");
-		assert.match(page.scripts ?? "", /inbox\.client\.js/);
+		assert.match(page.scripts ?? "", /clipboard-copy\.client\.js/);
 	});
 
 	it("shows an empty state with a create CTA when the user has no addresses", () => {
