@@ -14,7 +14,7 @@ import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/r
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
-import type { ConversionEvent } from "./conversions";
+import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";

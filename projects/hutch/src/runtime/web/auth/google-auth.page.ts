@@ -28,7 +28,7 @@ import { oauthCallbackResponses } from "./oauth-callback-responses";
 import { readClickAttribution } from "@packages/web-analytics";
 import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
-import type { ConversionEvent } from "../../conversions";
+import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";

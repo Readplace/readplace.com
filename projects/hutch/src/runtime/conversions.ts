@@ -5,8 +5,6 @@ import type { ClickAttribution } from "@packages/web-analytics";
 import { CONVERSION_EVENTS } from "@packages/dashboard-widgets";
 import { STREAMS } from "./observability/events";
 
-export type { ConversionEvent };
-
 function hashEmail(email: string): string {
 	return createHash("sha256").update(email.toLowerCase()).digest("hex").slice(0, 16);
 }

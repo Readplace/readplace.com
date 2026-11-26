@@ -73,7 +73,7 @@ import { readClickAttribution } from "@packages/web-analytics";
 import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
 import { LAST_VIEW_COOKIE_NAME } from "../last-view";
-import type { ConversionEvent } from "../../conversions";
+import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { buildSignupAttemptedEvent } from "@packages/web-analytics";
