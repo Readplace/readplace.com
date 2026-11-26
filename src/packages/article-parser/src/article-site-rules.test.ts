@@ -52,7 +52,7 @@ describe("initArticleSiteRules", () => {
 			intuitPrivacySiteRules,
 			...crawlClaimingSiteRules,
 		]);
-		expect(crawlClaimingSiteRules).toHaveLength(9);
+		expect(crawlClaimingSiteRules).toHaveLength(10);
 	});
 
 	it("claims X, Apple News, GitHub PDF, OJS galley and Stack Overflow URLs among the crawl-claiming rules", () => {
@@ -71,6 +71,8 @@ describe("initArticleSiteRules", () => {
 		expect(claimed("https://journals.example.org/index.php/sample/article/view/37")).toBe(0);
 		expect(claimed("https://investor.mercadolibre.com/open-file?file=aHR0cHM6Ly9maWxlcy5leGFtcGxlLmNvbS9yZXBvcnQucGRm")).toBe(1);
 		expect(claimed("https://investor.mercadolibre.com/open-file/pdf?file=aHR0cHM6Ly9maWxlcy5leGFtcGxlLmNvbS9yZXBvcnQucGRm")).toBe(0);
+		expect(claimed("https://claude.ai/artifact/InventedArtifactId123")).toBe(1);
+		expect(claimed("https://claude.ai/artifact/InventedArtifactId123/edit")).toBe(0);
 		expect(claimed("https://stackoverflow.com/questions/42/why")).toBe(1);
 		expect(claimed("https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=typescript&sort=byPopularity&type=story")).toBe(1);
 		expect(claimed("https://example.com/story")).toBe(0);
