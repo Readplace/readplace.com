@@ -101,7 +101,7 @@ import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 import {
 	REPORT_ARTICLE_SCRIPT,
 } from "../../shared/report-article/report-article-dialog.component";
-import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
+import { isReaderViewReady } from "../../shared/article-state/is-reader-view-ready";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 
@@ -186,7 +186,7 @@ export function renderReaderShareUpgradeOob(input: {
 	appOrigin: string;
 	state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
 }): string {
-	if (sharingOffReasonFor(input.article.url) !== undefined || !isReaderViewShareable(input.state)) return "";
+	if (sharingOffReasonFor(input.article.url) !== undefined || !isReaderViewReady(input.state)) return "";
 	return renderSharePanelsOob(
 		readerShareInput({
 			articleUrl: input.article.url,
@@ -307,7 +307,7 @@ export function ReaderPage(
 		originalUrl: article.destinationUrl,
 		title: article.metadata.title,
 		appOrigin: options.appOrigin,
-		readerViewShareable: isReaderViewShareable({ content: options.content, crawl: options.crawl }),
+		readerViewShareable: isReaderViewReady({ content: options.content, crawl: options.crawl }),
 		epubDownloadHref: options.epubDownloadHref,
 		epubDownloadGuide: options.epubDownloadGuide,
 	});

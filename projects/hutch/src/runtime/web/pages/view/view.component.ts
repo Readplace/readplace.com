@@ -58,7 +58,7 @@ import {
 	REPORT_ARTICLE_SCRIPT,
 	type ReportArticleDialogInput,
 } from "../../shared/report-article/report-article-dialog.component";
-import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
+import { isReaderViewReady } from "../../shared/article-state/is-reader-view-ready";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
@@ -225,7 +225,7 @@ export function renderViewShareUpgradeOob(input: {
 	appOrigin: string;
 	state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
 }): string {
-	if (isPrivateItemUrl(input.articleUrl) || !isReaderViewShareable(input.state)) return "";
+	if (isPrivateItemUrl(input.articleUrl) || !isReaderViewReady(input.state)) return "";
 	return renderSharePanelsOob(
 		viewShareInput({
 			shareableViewUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
@@ -277,7 +277,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 				shareableViewUrl,
 				originalUrl: input.destinationUrl,
 				title: input.metadata.title,
-				readerViewShareable: isReaderViewShareable({ content: input.content, crawl: input.crawl }),
+				readerViewShareable: isReaderViewReady({ content: input.content, crawl: input.crawl }),
 			});
 	const actions = WebReader({
 		actionBtns: {
