@@ -20,6 +20,7 @@ interface OfflineOwnership<R extends OwnedCopy> {
 	adopt(cache: OwnedCache<R>, answer: R): Promise<void>;
 	confirmedOwner(cache: OwnedCache<R>): Promise<string | undefined>;
 	isOwnedBy(copy: R, owner: string): boolean;
+	freshCopy(cache: OwnedCache<R>, key: string): Promise<R | undefined>;
 }
 
 export function initOfflineOwnership<R extends OwnedCopy>(deps: {
@@ -54,6 +55,13 @@ export function initOfflineOwnership<R extends OwnedCopy>(deps: {
 
 		isOwnedBy(copy, owner) {
 			return copy.headers.get(OFFLINE_OWNER_HEADER) === owner;
+		},
+
+		async freshCopy(cache, key) {
+			const copy = await cache.match(key, { ignoreVary: true });
+			if (copy === undefined || isFreshOfflineCopy(copy, deps.now())) return copy;
+			await cache.delete(key);
+			return undefined;
 		},
 	};
 }
