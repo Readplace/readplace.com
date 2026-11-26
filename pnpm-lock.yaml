@@ -1438,6 +1438,9 @@ importers:
       '@packages/web-session':
         specifier: workspace:*
         version: link:../web-session
+      '@packages/web-shell':
+        specifier: workspace:*
+        version: link:../web-shell
     devDependencies:
       '@packages/domain':
         specifier: workspace:*

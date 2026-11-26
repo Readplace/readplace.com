@@ -22,7 +22,8 @@
   "dependencies": {
     "@packages/provider-contracts": "workspace:*",
     "@packages/web-analytics": "workspace:*",
-    "@packages/web-session": "workspace:*"
+    "@packages/web-session": "workspace:*",
+    "@packages/web-shell": "workspace:*"
   },
   "devDependencies": {
     "@packages/domain": "workspace:*",

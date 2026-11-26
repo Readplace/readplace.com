@@ -1,14 +1,21 @@
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
-import { ADMIN_MFA_PATH, initRequireAdmin, type SecondFactorPolicy, serviceTokenPolicy } from "@packages/admin-gate";
+import {
+	ADMIN_MFA_PATH,
+	initRefuseAdminAccess,
+	initRequireAdmin,
+	type SecondFactorPolicy,
+	serviceTokenPolicy,
+} from "@packages/admin-gate";
 import { CANARY_REPORTS_PATH } from "@packages/provider-contracts/canary-report";
 import { withSyntacticUnwrap } from "@packages/save-article";
 import type { AppDependencies } from "../../../server";
 import { initUpdateNewsletterCatalog } from "../../../domain/newsletter-catalog/update-newsletter-catalog";
 import type { EmitLifecycleEmailSent } from "../../../observability/lifecycle-email-events";
 import type { BuildBannerState } from "../../banner-state";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
+import { Base } from "../../base.component";
 import { initAdminIndexHandler } from "./admin-index.page";
+import { ADMIN_INDEX_STYLES } from "./admin-index.styles";
 import { initAdminNewslettersRoutes } from "./admin-newsletters.page";
 import { initAdminCanaryReportRoutes } from "./canary-report.page";
 import { initAdminExtendTrialRoutes } from "./extend-trial.page";
@@ -57,7 +64,7 @@ export function initAdminRoutes(
 ): Router {
 	const { appOrigin, buildBannerState, emitLifecycleEmailSent } = built;
 	const router = express.Router();
-	const refuse = initRefuseAdminAccess({ buildBannerState });
+	const refuse = initRefuseAdminAccess({ base: Base, bannerStateFor: buildBannerState, styles: ADMIN_INDEX_STYLES });
 	const secondFactor: SecondFactorPolicy = {
 		kind: "enforced",
 		findSessionAdminMfaVerifiedAt: deps.findSessionAdminMfaVerifiedAt,
