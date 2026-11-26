@@ -385,7 +385,6 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		appOrigin: deps.appOrigin,
 		now: deps.now,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
-		summaryOpen: false,
 		requestResolutionOnView: undefined,
 	});
 

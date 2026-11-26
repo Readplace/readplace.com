@@ -433,7 +433,6 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		appOrigin: deps.appOrigin,
 		now: deps.now,
 		formatDocumentTitle: formatReaderDocumentTitle,
-		summaryOpen: false,
 		requestResolutionOnView: deps.requestResolutionOnView,
 	});
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {

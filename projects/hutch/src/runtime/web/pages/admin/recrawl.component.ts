@@ -98,7 +98,6 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		readerPollUrl: input.readerPollUrl,
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
-		summaryOpen: false,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,

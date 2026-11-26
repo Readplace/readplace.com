@@ -48,7 +48,6 @@ export interface ArticleBodyInput {
 	capturePollUrls?: CapturePollUrls;
 	summary?: GeneratedSummary;
 	summaryPollUrl?: string;
-	summaryOpen?: boolean;
 	/** Tracking URL forwarded to the ready TL;DR `<details>`. Present only on the
 	 * internal reader, where summary open/close is recorded; omitted elsewhere. */
 	summaryToggleUrl?: string;
@@ -141,7 +140,6 @@ export function renderArticleBody(input: ArticleBodyInput): RenderedArticleBody 
 		crawl: input.crawl,
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
-		summaryOpen: input.summaryOpen,
 		summaryToggleUrl: input.summaryToggleUrl,
 		content: input.content,
 	});

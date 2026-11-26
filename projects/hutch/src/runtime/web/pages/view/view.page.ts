@@ -286,7 +286,6 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		appOrigin: deps.appOrigin,
 		now: deps.now,
 		formatDocumentTitle: formatViewDocumentTitle,
-		summaryOpen: false,
 		requestResolutionOnView: undefined,
 	};
 }

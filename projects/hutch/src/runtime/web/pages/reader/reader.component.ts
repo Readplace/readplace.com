@@ -350,7 +350,6 @@ export function ReaderPage(
 		capturePollUrls: options.capturePollUrls,
 		summary: options.summary,
 		summaryPollUrl: options.summaryPollUrl,
-		summaryOpen: false,
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,

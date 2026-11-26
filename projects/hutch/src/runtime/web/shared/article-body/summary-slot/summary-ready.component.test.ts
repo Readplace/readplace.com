@@ -16,7 +16,7 @@ function slotOf(html: string): Element {
 
 describe("renderSummaryReady", () => {
 	it("renders a visible slot with status=ready", () => {
-		const slot = slotOf(renderSummaryReady({ summary: "Key points.", open: false }));
+		const slot = slotOf(renderSummaryReady({ summary: "Key points." }));
 
 		expect(slot.id).toBe("article-body-summary-slot");
 		expect(slot.getAttribute("data-summary-status")).toBe("ready");
@@ -25,10 +25,10 @@ describe("renderSummaryReady", () => {
 
 	it("swaps out-of-band only when asked to", () => {
 		expect(
-			slotOf(renderSummaryReady({ summary: "Key points.", open: false, oob: true })).getAttribute("hx-swap-oob"),
+			slotOf(renderSummaryReady({ summary: "Key points.", oob: true })).getAttribute("hx-swap-oob"),
 		).toBe("outerHTML");
 		expect(
-			slotOf(renderSummaryReady({ summary: "Key points.", open: false })).hasAttribute("hx-swap-oob"),
+			slotOf(renderSummaryReady({ summary: "Key points." })).hasAttribute("hx-swap-oob"),
 		).toBe(false);
 	});
 
@@ -36,7 +36,6 @@ describe("renderSummaryReady", () => {
 		const html = renderSummaryReady({
 			summary: "<b>Key</b> points.",
 			excerpt: "Teaser.",
-			open: true,
 			summaryToggleUrl: "/queue/abc/summary-toggle",
 		});
 
@@ -44,13 +43,13 @@ describe("renderSummaryReady", () => {
 			renderTldrDisclosure({
 				body: { text: plainText("<b>Key</b> points.") },
 				excerpt: "Teaser.",
-				open: true,
+				open: false,
 				toggleUrl: "/queue/abc/summary-toggle",
 			}),
 		);
 		const details = slotOf(html).querySelector("details");
 		assert(details, "the disclosure must be rendered inside the slot");
 		expect(details.getAttribute("data-summary-toggle-url")).toBe("/queue/abc/summary-toggle");
-		expect(details.hasAttribute("open")).toBe(true);
+		expect(details.hasAttribute("open")).toBe(false);
 	});
 });
