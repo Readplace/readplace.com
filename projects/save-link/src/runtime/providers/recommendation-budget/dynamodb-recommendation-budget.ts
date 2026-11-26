@@ -1,9 +1,9 @@
 import assert from "node:assert";
 import {
 	type DynamoDBDocumentClient,
-	TransactWriteCommand,
-	TransactionCanceledException,
+	type TransactWriteCommand,
 	defineDynamoTable,
+	transactWithConflictRetry,
 } from "@packages/storage-client";
 import { fixedWindowStartSeconds } from "@packages/domain/rate-limit";
 import type { UserId } from "@packages/domain/user";
@@ -20,7 +20,6 @@ import type {
 const CounterRow = z.object({ consumed: z.number().optional() });
 
 const MAX_TRANSACTION_ATTEMPTS = 6;
-const CONFLICT_RETRY_BASE_DELAY_MS = 50;
 
 type TransactItems = NonNullable<
 	ConstructorParameters<typeof TransactWriteCommand>[0]["TransactItems"]
@@ -32,10 +31,6 @@ function counterKey(input: { userId: UserId; windowStartSeconds: number }) {
 
 function reservationKey(id: string) {
 	return { pk: `recommendation-budget#reservation#${id}` };
-}
-
-function reasonCodes(error: TransactionCanceledException): (string | undefined)[] {
-	return (error.CancellationReasons ?? []).map((reason) => reason.Code);
 }
 
 export function initDynamoDbRecommendationBudget(deps: {
@@ -64,27 +59,19 @@ export function initDynamoDbRecommendationBudget(deps: {
 		};
 	};
 
-	const transactWithConflictRetry = async <T>(input: {
+	const transact = async <T>(input: {
 		items: TransactItems;
 		onCancelled: (codes: (string | undefined)[]) => Promise<{ handled: true; value: T } | { handled: false }>;
 		onSuccess: T;
-		attempt: number;
 	}): Promise<T> => {
-		try {
-			await deps.client.send(new TransactWriteCommand({ TransactItems: input.items }));
-			return input.onSuccess;
-		} catch (error) {
-			if (error instanceof TransactionCanceledException) {
-				const codes = reasonCodes(error);
-				const outcome = await input.onCancelled(codes);
-				if (outcome.handled) return outcome.value;
-				if (codes.includes("TransactionConflict") && input.attempt < MAX_TRANSACTION_ATTEMPTS) {
-					await deps.delay(Math.random() * CONFLICT_RETRY_BASE_DELAY_MS * 2 ** (input.attempt - 1));
-					return transactWithConflictRetry({ ...input, attempt: input.attempt + 1 });
-				}
-			}
-			throw error;
-		}
+		const outcome = await transactWithConflictRetry({
+			client: deps.client,
+			delay: deps.delay,
+			maxAttempts: MAX_TRANSACTION_ATTEMPTS,
+			input: { TransactItems: input.items },
+			onCancelled: (reasons) => input.onCancelled(reasons.map((reason) => reason.Code)),
+		});
+		return outcome.kind === "written" ? input.onSuccess : outcome.value;
 	};
 
 	const reserveRecommendationBudget: ReserveRecommendationBudget = async ({ userId, reservations }) => {
@@ -132,9 +119,8 @@ export function initDynamoDbRecommendationBudget(deps: {
 				},
 			},
 		];
-		return transactWithConflictRetry<Awaited<ReturnType<ReserveRecommendationBudget>>>({
+		return transact<Awaited<ReturnType<ReserveRecommendationBudget>>>({
 			items,
-			attempt: 1,
 			onSuccess: { allowed: true, window, reservations: budgetReservations },
 			onCancelled: async (codes) => {
 				assert(
@@ -157,7 +143,7 @@ export function initDynamoDbRecommendationBudget(deps: {
 		values: Record<string, unknown>;
 		deltaNanodollars: number;
 	}): Promise<void> =>
-		transactWithConflictRetry({
+		transact({
 			items: [
 				{
 					Update: {
@@ -182,7 +168,6 @@ export function initDynamoDbRecommendationBudget(deps: {
 					},
 				},
 			],
-			attempt: 1,
 			onSuccess: undefined,
 			onCancelled: async (codes) =>
 				codes[0] === "ConditionalCheckFailed" ? { handled: true, value: undefined } : { handled: false },

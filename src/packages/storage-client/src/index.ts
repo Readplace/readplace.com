@@ -9,6 +9,7 @@ export {
 } from "./define-table";
 export { createDynamoDocumentClient } from "./create-client";
 export {
+	type CancellationReason,
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
 } from "@aws-sdk/client-dynamodb";
@@ -16,7 +17,10 @@ export { TransactGetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb"
 export {
 	writeIfCondition,
 	transactIfConditions,
+	transactWithConflictRetry,
+	type CancellationDecision,
 	type ConditionalWriteOutcome,
+	type ConflictRetryOutcome,
 	type TransactionOutcome,
 } from "./conditional-write";
 export { assembleRowUpdate } from "./row-update";
