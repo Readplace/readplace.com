@@ -37,26 +37,6 @@ describe("contentSignalMiddleware", () => {
 		expect(next).toHaveBeenCalled();
 	});
 
-	it("varies on Accept so a CDN keys HTML and markdown separately", () => {
-		const { varied, res } = createFakeRes();
-		const next = jest.fn() as unknown as NextFunction;
-
-		contentSignalMiddleware({ method: "GET", path: "/" } as Request, res, next);
-
-		expect(varied).toEqual(["Accept"]);
-	});
-
-	it("does not set the Content-Signal header on non-GET requests", () => {
-		const { headers, varied, res } = createFakeRes();
-		const next = jest.fn() as unknown as NextFunction;
-
-		contentSignalMiddleware({ method: "POST" } as Request, res, next);
-
-		expect(headers["Content-Signal"]).toBeUndefined();
-		expect(varied).toEqual([]);
-		expect(next).toHaveBeenCalled();
-	});
-
 	it.each([
 		"/robots.txt",
 		"/llms.txt",

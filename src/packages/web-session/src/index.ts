@@ -10,3 +10,4 @@ export type { LoginState, ResolveLogin } from "./resolve-login";
 export { createValidateAccessToken } from "./validate-access-token";
 export { logAndRespondOnError } from "./error-handler";
 export { initResolveVerificationStatus } from "./resolve-verification-status.middleware";
+export { createContentSignalMiddleware } from "./content-signal.middleware";
