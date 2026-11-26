@@ -1,3 +1,4 @@
+import type { GmailAccountEmail } from "./gmail-account-email.schema";
 import type { GmailConnection } from "./gmail-connection.types";
 
 export type GmailConnectionState =
@@ -21,4 +22,15 @@ export function gmailConnectionState(connection: GmailConnection | undefined): G
 	}
 	if (!connection.filterCount) return "ready-to-filter";
 	return "filtering";
+}
+
+export function liveGmailConnection(
+	connection: GmailConnection | undefined,
+): connection is GmailConnection & { accountEmail: GmailAccountEmail } {
+	return (
+		connection !== undefined &&
+		connection.accountEmail !== undefined &&
+		connection.disconnectRequestedAt === undefined &&
+		connection.revokedAt === undefined
+	);
 }

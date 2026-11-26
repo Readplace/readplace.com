@@ -1,7 +1,7 @@
 import { READPLACE_SENDER, REPLY_TO } from "../../email-senders";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
-import type { ForwardableSender, GmailConnectionStore, GmailMappingStore } from "@packages/domain/gmail";
+import { type ForwardableSender, type GmailConnectionStore, type GmailMappingStore, liveGmailConnection, sameGmailAccount } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import type { UserId } from "@packages/domain/user";
 import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/infra-components";
@@ -102,7 +102,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		const ineligible: ForwardableSender[] = [];
 		for (const notice of pending) {
 			const mapping = await deps.mappings.findMapping({ userId, accountEmail: notice.accountEmail, senderEmail: notice.senderEmail });
-			const matching = connection !== undefined && connection.revokedAt === undefined && connection.disconnectRequestedAt === undefined && connection.gatewayAddress === notice.gatewayAddress && connection.accountEmail?.toLowerCase() === notice.accountEmail.toLowerCase() && checkpoint?.mailboxId === notice.mailboxId;
+			const matching = liveGmailConnection(connection) && connection.gatewayAddress === notice.gatewayAddress && sameGmailAccount(connection.accountEmail, notice.accountEmail) && checkpoint?.mailboxId === notice.mailboxId;
 			const recognition = detection.recognized.get(notice.senderEmail);
 			if (!paidFeatures || !matching || mapping?.addedToFilterAt !== undefined || recognition === undefined || email === null) {
 				ineligible.push(notice.senderEmail);

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { InboxAddressSchema } from "../inbox/inbox-address.schema";
 import { UserIdSchema } from "../user";
-import { gmailConnectionState } from "./gmail-connection-state";
+import { GmailAccountEmailSchema } from "./gmail-account-email.schema";
+import { gmailConnectionState, liveGmailConnection } from "./gmail-connection-state";
 import type { GmailConnection } from "./gmail-connection.types";
 
 function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
@@ -112,5 +113,29 @@ describe("gmailConnectionState", () => {
 			}),
 		);
 		assert.equal(state, "filtering");
+	});
+});
+
+describe("liveGmailConnection", () => {
+	const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+
+	it("is false when there is no connection", () => {
+		assert.equal(liveGmailConnection(undefined), false);
+	});
+
+	it("is false when the connection has no account email", () => {
+		assert.equal(liveGmailConnection(connection()), false);
+	});
+
+	it("is false when a disconnect has been requested", () => {
+		assert.equal(liveGmailConnection(connection({ accountEmail, disconnectRequestedAt: "2026-08-25T00:00:00.000Z" })), false);
+	});
+
+	it("is false when the grant was revoked", () => {
+		assert.equal(liveGmailConnection(connection({ accountEmail, revokedAt: "2026-08-25T00:00:00.000Z" })), false);
+	});
+
+	it("is true for a connected account that is neither disconnecting nor revoked", () => {
+		assert.equal(liveGmailConnection(connection({ accountEmail })), true);
 	});
 });

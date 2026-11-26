@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { GmailConnection, GmailConnectionStore, GmailDiscovery, GmailDiscoveryStore } from "@packages/domain/gmail";
+import { type GmailConnection, type GmailConnectionStore, type GmailDiscovery, type GmailDiscoveryStore, sameGmailAccount } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GmailMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
 import { GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW } from "./gmail-discovery-window";
@@ -55,7 +55,7 @@ export function initDiscoverGmailSenders(deps: {
 			await discovery.deleteDiscoveryByUserId(input.userId);
 			return undefined;
 		}
-		if (connection.gatewayAddress !== previous.gatewayAddress || connection.accountEmail?.toLowerCase() !== previous.accountEmail.toLowerCase()) return undefined;
+		if (connection.gatewayAddress !== previous.gatewayAddress || connection.accountEmail === undefined || !sameGmailAccount(connection.accountEmail, previous.accountEmail)) return undefined;
 		if (previous.page !== input.page) return nextPage(previous);
 		if (!(await discovery.claimPage(input))) return undefined;
 
@@ -66,7 +66,7 @@ export function initDiscoverGmailSenders(deps: {
 				await fail(connection, input.generation, profile);
 				return undefined;
 			}
-			if (profile.value.accountEmail.toLowerCase() !== active.accountEmail.toLowerCase()) {
+			if (!sameGmailAccount(profile.value.accountEmail, active.accountEmail)) {
 				await discovery.failDiscovery({ userId: input.userId, generation: input.generation, error: "Reconnect the Gmail account linked to Readplace.", requiresReconnect: true });
 				return undefined;
 			}
@@ -118,7 +118,7 @@ export function initDiscoverGmailSenders(deps: {
 			const connection = await connections.findConnectionByUserId(userId);
 			if (connection === undefined || connection.accountEmail === undefined || connection.disconnectRequestedAt !== undefined) return undefined;
 			let current = await discovery.findDiscoveryByUserId(userId);
-			if (current !== undefined && (current.accountEmail.toLowerCase() !== connection.accountEmail.toLowerCase() || current.gatewayAddress !== connection.gatewayAddress)) {
+			if (current !== undefined && (!sameGmailAccount(current.accountEmail, connection.accountEmail) || current.gatewayAddress !== connection.gatewayAddress)) {
 				await discovery.deleteDiscoveryByUserId(userId);
 				current = undefined;
 			}

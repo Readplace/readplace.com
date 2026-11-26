@@ -12,7 +12,7 @@ export type {
 	ForwardingFilterQuery,
 	ForwardingFilterQueryResult,
 } from "./build-forwarding-filter-query";
-export { gmailConnectionState } from "./gmail-connection-state";
+export { gmailConnectionState, liveGmailConnection } from "./gmail-connection-state";
 export type { GmailConnectionState } from "./gmail-connection-state";
 export type {
 	GmailConfirmError,
