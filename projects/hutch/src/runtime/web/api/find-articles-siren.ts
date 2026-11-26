@@ -3,7 +3,7 @@ import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchApi } from "@packages/translations/hutch-api";
 import { HAND_PICKED_SCOPE } from "../pages/readlist/built-in-readlists";
-import type { ReadlistDiscovery } from "../pages/readlist/readlist.url";
+import { type ReadlistDiscovery, hasDiscoveryFilters } from "../pages/readlist/readlist.url";
 import { type CollectionQueryParams, FIND_ARTICLES_PARAM, buildQueryString } from "./collection-query";
 import type { SirenAction, SirenField } from "./siren";
 
@@ -98,7 +98,7 @@ export function findArticlesProperty(input: {
 	const hrefWith = (kept: ReadlistDiscovery) =>
 		`/queue${buildQueryString({ ...input.queryParams, findArticles: { discovery: kept }, page: undefined })}`;
 	const hasSearch = discovery.q !== undefined;
-	const hasFilters = discovery.time.length + discovery.saved.length > 0;
+	const hasFilters = hasDiscoveryFilters(discovery);
 	const clearTitle = !hasFilters
 		? t("findArticles.clearSearch")
 		: hasSearch

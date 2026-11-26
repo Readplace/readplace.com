@@ -67,12 +67,16 @@ function searchQueryOf(raw: string | undefined): string | undefined {
 	return q === "" ? undefined : q;
 }
 
+export function hasDiscoveryFilters(discovery: ReadlistFilter): boolean {
+	return discovery.time.length > 0 || discovery.saved.length > 0;
+}
+
 function discoveryOf(parsed: z.infer<typeof ReadlistQuerySchema>): ReadlistDiscovery | undefined {
 	const discovery: ReadlistDiscovery = {
 		q: searchQueryOf(parsed.q),
 		...readlistFilterOf({ time: listOf(parsed.time), saved: listOf(parsed.saved) }),
 	};
-	const active = discovery.q !== undefined || discovery.time.length > 0 || discovery.saved.length > 0;
+	const active = discovery.q !== undefined || hasDiscoveryFilters(discovery);
 	return active ? discovery : undefined;
 }
 
