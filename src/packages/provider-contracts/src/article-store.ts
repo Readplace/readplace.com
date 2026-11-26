@@ -596,7 +596,7 @@ export type ListUserSavesForUrls = (params: {
 	userId: UserId;
 	urls: readonly string[];
 	readlists?: readonly ReadlistSlug[];
-}) => Promise<Map<string, { readlist?: ReadlistSlug }[]>>;
+}) => Promise<Map<string, { readlist?: ReadlistSlug; picked?: true }[]>>;
 
 export type WrapperSourceBinding = { contentSourceUrl: string; sourceOriginalUrl: string };
 

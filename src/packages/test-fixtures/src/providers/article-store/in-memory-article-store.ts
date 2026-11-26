@@ -1353,9 +1353,12 @@ export function initInMemoryArticleStore(): {
 	};
 
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
-		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
+		const saves = new Map<string, { readlist?: ReadlistSlug; picked?: true }[]>();
 		for (const url of urls) {
-			const memberships = await listUserSavesForUrl({ userId, url });
+			const picked = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value))?.personalPickedAt !== undefined;
+			const memberships = (await listUserSavesForUrl({ userId, url })).map((save) =>
+				save.readlist === undefined && picked ? { ...save, picked: true as const } : save,
+			);
 			saves.set(url, readlists === undefined ? memberships : memberships.filter(
 				(save) => readlists.includes(save.readlist ?? DEFAULT_READLIST_SLUG),
 			));

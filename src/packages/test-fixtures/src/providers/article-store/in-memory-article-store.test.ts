@@ -1872,6 +1872,22 @@ describe("initInMemoryArticleStore", () => {
 			expect(saves.get("https://example.com/never-saved")).toEqual([]);
 		});
 
+		it("marks the All save of a picked URL as picked in batched membership", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.changePersonalPick({
+				userId: USER_A,
+				url: URL,
+				picked: true,
+				request: { requestedAt: "2026-11-20T00:00:00.000Z", attemptId: SaveAttemptIdSchema.parse("pick-1") },
+			});
+
+			const saves = await store.listUserSavesForUrls({ userId: USER_A, urls: [URL] });
+
+			expect(saves.get(URL)).toEqual([{ picked: true }, { readlist: WORK }]);
+		});
+
 		it("restricts batched membership to the supplied readlists, including All only when requested", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());

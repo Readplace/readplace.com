@@ -1888,18 +1888,21 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const rows = await batchGetFromTable({
 			client,
 			tableName: userArticlesTableName,
-			schema: z.object({ userId: z.string(), url: z.string() }),
+			schema: z.object({ userId: z.string(), url: z.string(), personalPickedAt: z.string().optional() }),
 			keys: normalizedUrls.flatMap((url) =>
 				partitions.map((partition) => ({ userId: partition, url })),
 			),
-			projection: ["userId", "url"],
+			projection: ["userId", "url", "personalPickedAt"],
 			consistentRead: true,
 		});
-		const byNormalizedUrl = new Map<string, { readlist?: ReadlistSlug }[]>();
+		const byNormalizedUrl = new Map<string, { readlist?: ReadlistSlug; picked?: true }[]>();
 		for (const row of rows) {
 			const { readlist } = decodeUserArticlePartition(row.userId);
 			const saves = byNormalizedUrl.get(row.url) ?? [];
-			saves.push(readlist === undefined ? {} : { readlist });
+			saves.push({
+				...(readlist === undefined ? {} : { readlist }),
+				...(row.personalPickedAt === undefined ? {} : { picked: true as const }),
+			});
 			byNormalizedUrl.set(row.url, saves);
 		}
 		return new Map(
