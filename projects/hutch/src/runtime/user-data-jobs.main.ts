@@ -23,7 +23,7 @@ import { BulkArticlesProgressedEvent, RunBulkArticlesCommand, AgeLockDeletionDue
 import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
-import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-model";
+import { initOAuthCredentialLifecycle } from "./providers/oauth/oauth-credential-lifecycle";
 import {
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
@@ -91,11 +91,11 @@ const auth = initDynamoDbAuth({
 	sessionsTableName: env.DYNAMODB_SESSIONS_TABLE,
 });
 
-const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({
+const revokeAllUserOAuthTokens = initOAuthCredentialLifecycle({
 	secret: env.ANALYTICS_SALT,
 	client: dynamoClient,
 	tableName: env.DYNAMODB_OAUTH_TABLE,
-});
+}).revokeAll;
 
 const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
