@@ -8,6 +8,7 @@ import type {
 	GmailHttpResponseHeaders,
 	ObserveGmailHttpAttempt,
 } from "@packages/provider-contracts/gmail-history";
+import { errorClassName } from "../../domain/gmail/error-class-name";
 
 export const GMAIL_API_ORIGIN = "https://gmail.googleapis.com";
 export const GOOGLE_OAUTH_ORIGIN = "https://oauth2.googleapis.com";
@@ -81,10 +82,6 @@ export function items(value: unknown): unknown[] {
 	return Array.isArray(value) ? value : [];
 }
 
-function errorName(error: unknown): string {
-	return error instanceof Error ? error.name : "unknown";
-}
-
 function errorCode(value: unknown): string | undefined {
 	const code = member(value, "code");
 	return typeof code === "string" && ERROR_CODE.test(code) ? code : undefined;
@@ -151,7 +148,7 @@ function bodyReadEvidence(read: ObservedBodyRead): GmailHttpBodyRead {
 		source,
 		outcome: body.outcome,
 		measuredBytes: body.outcome === "json-decode-failed" ? body.measuredBytes : undefined,
-		errorName: errorName(body.error),
+		errorName: errorClassName(body.error),
 		fields: {},
 	};
 }
@@ -211,7 +208,7 @@ export async function observedFetch(input: {
 			describe: () => ({
 				...attempt(durationMs),
 				response: undefined,
-				transportFailure: { errorName: errorName(error), errorCode: errorCode(error) ?? errorCode(member(error, "cause")) },
+				transportFailure: { errorName: errorClassName(error), errorCode: errorCode(error) ?? errorCode(member(error, "cause")) },
 				classification: "transport-failed",
 			}),
 		});
