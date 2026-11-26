@@ -1,12 +1,11 @@
-import type { Component, ParsedComponent } from "@packages/web-shell";
+import type { Request, Response } from "express";
+import { type Component, type ParsedComponent, sendComponent } from "@packages/web-shell";
 
 /** Tells HTMX to navigate the whole browser to `url` via
  * `window.location.href = url`. Needed when an hx-boost form submit must
  * redirect to a different origin (e.g., Stripe Checkout): HTMX's default
  * XHR-follow of a 303 Location is a cross-origin XHR that can't swap into
- * `<main>`, so the page never leaves. Non-HTMX clients should be sent a
- * plain 303 by the caller instead; this component is only useful when
- * `HX-Request: true` is on the request. */
+ * `<main>`, so the page never leaves. */
 export function HxRedirectPage(url: string): Component {
 	return {
 		to: (mediaType): ParsedComponent => {
@@ -23,4 +22,12 @@ export function HxRedirectPage(url: string): Component {
 			};
 		},
 	};
+}
+
+export function redirectFullPage(req: Request, res: Response, url: string): void {
+	if (req.get("HX-Request") === "true") {
+		sendComponent(req, res, HxRedirectPage(url));
+		return;
+	}
+	res.redirect(303, url);
 }

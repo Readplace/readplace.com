@@ -31,7 +31,7 @@ import { type VerifyAccountPasswordResult, initVerifyAccountPassword } from "../
 import type { BuildBannerState } from "../../banner-state";
 import { Base, ChromelessPage } from "../../base.component";
 import { hxLocationToMain } from "../../hx-location";
-import { HxRedirectPage } from "../../hx-redirect-page";
+import { redirectFullPage } from "../../hx-redirect-page";
 import { type NativeClientPlatform, isAppShell, nativeSurfaceOf } from "../../onboarding/native-client";
 import type { ComponentError } from "../../shared/component-error.types";
 import {
@@ -154,11 +154,7 @@ export function initAccountPasswordRoutes(deps: {
 			next();
 			return;
 		}
-		if (req.get("HX-Request") === "true") {
-			sendComponent(req, res, HxRedirectPage(LOGIN_URL));
-			return;
-		}
-		res.redirect(303, LOGIN_URL);
+		redirectFullPage(req, res, LOGIN_URL);
 	});
 
 	router.get("/", async (req: Request, res: Response) => {
