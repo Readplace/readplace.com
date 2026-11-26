@@ -149,10 +149,7 @@ describe("initRouteGmailForwardedEmail", () => {
 		await run();
 		await run(forwardedEmail({ subject: "TLDR 2026-08-28" }));
 
-		const sender = await senders.findSender({
-			userId: USER,
-			senderEmail: TLDR,
-		});
+		const sender = (await senders.listSendersByUserId(USER)).find((s) => s.senderEmail === TLDR);
 		assert.equal(sender?.seenCount, 2);
 		assert.equal(sender?.lastSubject, "TLDR 2026-08-28");
 	});
@@ -192,10 +189,7 @@ describe("initRouteGmailForwardedEmail", () => {
 		);
 
 		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
-		const sender = await senders.findSender({
-			userId: USER,
-			senderEmail: TLDR,
-		});
+		const sender = (await senders.listSendersByUserId(USER)).find((s) => s.senderEmail === TLDR);
 		assert.equal(sender?.lastSubject, "TLDR 2026-08-28");
 	});
 
@@ -209,7 +203,7 @@ describe("initRouteGmailForwardedEmail", () => {
 
 		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
 		assert.equal(
-			await senders.findSender({ userId: USER, senderEmail: TLDR }),
+			(await senders.listSendersByUserId(USER)).find((s) => s.senderEmail === TLDR),
 			undefined,
 		);
 	});
@@ -224,7 +218,7 @@ describe("initRouteGmailForwardedEmail", () => {
 		});
 
 		assert.deepEqual(delivered, { destinationAddresses: [ALIAS], deliveryMode: "links" });
-		assert.equal((await senders.findSender({ userId: USER, senderEmail: TLDR }))?.seenCount, 1);
+		assert.equal((await senders.listSendersByUserId(USER)).find((s) => s.senderEmail === TLDR)?.seenCount, 1);
 	});
 
 	it("logs the held and unreadable paths by user id and never the sender or an inbox address", async () => {

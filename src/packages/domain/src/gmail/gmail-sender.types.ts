@@ -16,10 +16,6 @@ export interface GmailSenderStore {
 		senderEmail: ForwardableSender;
 		subject: string;
 	}) => Promise<void>;
-	findSender: (input: {
-		userId: UserId;
-		senderEmail: ForwardableSender;
-	}) => Promise<GmailSenderEntry | undefined>;
 	listSendersByUserId: (userId: UserId) => Promise<GmailSenderEntry[]>;
 	removeSender: (input: {
 		userId: UserId;

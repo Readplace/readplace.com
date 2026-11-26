@@ -21,7 +21,7 @@ describe("initInMemoryGmailSender", () => {
 		clock = new Date("2026-08-27T01:00:00.000Z");
 		await senders.recordSenderSeen({ userId: owner, senderEmail: tldr, subject: "second" });
 
-		assert.deepEqual(await senders.findSender({ userId: owner, senderEmail: tldr }), {
+		assert.deepEqual((await senders.listSendersByUserId(owner)).find((s) => s.senderEmail === tldr), {
 			userId: owner,
 			senderEmail: tldr,
 			firstSeenAt: "2026-08-27T00:00:00.000Z",
@@ -33,7 +33,7 @@ describe("initInMemoryGmailSender", () => {
 
 	it("returns undefined for a sender the reader has never met", async () => {
 		assert.equal(
-			await store().findSender({ userId: owner, senderEmail: tldr }),
+			(await store().listSendersByUserId(owner)).find((s) => s.senderEmail === tldr),
 			undefined,
 		);
 	});
