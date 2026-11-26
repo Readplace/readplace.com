@@ -1,3 +1,4 @@
+import { safeJsonParse } from "../safe-json-parse";
 import { createHash } from "node:crypto";
 import { initIngestRefreshRefusal } from "../oauth-refresh/ingest-refusal";
 import type { RefreshRefusal } from "../oauth-refresh/outcomes";
@@ -107,14 +108,6 @@ const ClassifiableLineSchema = z.object({
 	stream: z.string().optional(),
 	level: z.string().optional(),
 });
-
-function safeJsonParse(text: string): unknown {
-	try {
-		return JSON.parse(text);
-	} catch {
-		return undefined;
-	}
-}
 
 /** First-phase parse: read only the discriminator so a subscription-validation
  * CONTROL_MESSAGE (which carries no real log data) is recognised before the
