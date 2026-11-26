@@ -7,7 +7,6 @@ import { LambdaClient } from "@aws-sdk/client-lambda";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { consoleLogger, Logger } from "@packages/logger";
 import { setTimeout as sleep } from "node:timers/promises";
-import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initDynamoDbOcrPageQuota } from "./providers/ocr-page-quota/dynamodb-ocr-page-quota";
@@ -113,7 +112,6 @@ const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pe
 const ocrPageQuota = initDynamoDbOcrPageQuota({
 	client: dynamoClient,
 	tableName: env.DYNAMODB_RATE_LIMITS_TABLE,
-	rule: OCR_PAGE_QUOTA_RULE,
 	now,
 	delay: (milliseconds) => sleep(milliseconds),
 });

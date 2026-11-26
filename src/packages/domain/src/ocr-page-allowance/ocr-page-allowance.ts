@@ -33,10 +33,9 @@ function pagesUsed(slots: readonly OcrPageSlot[]): number {
 export function pagesLeftInWindow(params: {
 	slots: readonly OcrPageSlot[];
 	nowMs: number;
-	limit: number;
 }): number {
 	const used = pagesUsed(liveSlots(params));
-	return Math.max(0, params.limit - used);
+	return Math.max(0, OCR_PAGE_QUOTA_RULE.limit - used);
 }
 
 export function addPagesToSlots(params: {
@@ -62,16 +61,16 @@ export function addPagesToSlots(params: {
 export function retryAtFor(params: {
 	slots: readonly OcrPageSlot[];
 	nowMs: number;
-	limit: number;
 	pages: number;
 }): Date {
+	const { limit } = OCR_PAGE_QUOTA_RULE;
 	const live = liveSlots(params);
-	const needed = Math.min(params.pages, params.limit);
+	const needed = Math.min(params.pages, limit);
 	let used = pagesUsed(live);
-	if (params.limit - used >= params.pages) return new Date(params.nowMs);
+	if (limit - used >= params.pages) return new Date(params.nowMs);
 	for (const slot of live) {
 		used -= slot.pages;
-		if (params.limit - used >= needed || params.pages > params.limit) {
+		if (limit - used >= needed || params.pages > limit) {
 			return new Date(slotFreesAtSeconds(slot) * 1000);
 		}
 	}
