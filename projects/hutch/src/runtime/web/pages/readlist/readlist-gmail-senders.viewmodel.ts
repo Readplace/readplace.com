@@ -98,7 +98,6 @@ export interface ReadlistGmailChecklist extends GmailChecklistView {
 }
 
 export interface ReadlistGmailPickerViewModel extends GmailSenderWidgetViewModel {
-	autoDiscoverHtml: string;
 	selectionFields: FormField[];
 	saveAction: string;
 	checklist: ReadlistGmailChecklist;
@@ -317,7 +316,6 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 		return `${poll.pathname}${poll.search}`;
 	};
 	return {
-		autoDiscoverHtml: "",
 		selectionFields: [MARKER_FIELD, ...trackingFields("select-gmail-senders")],
 		saveAction,
 		discoveryAction: track({ href: readlistGmailDiscoveryPath(slug), content: "load-gmail-senders" }),
