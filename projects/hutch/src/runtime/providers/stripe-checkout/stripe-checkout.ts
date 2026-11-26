@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import { z } from "zod";
 import {
 	CheckoutSessionIdSchema,
@@ -18,12 +17,9 @@ const CreateSessionResponse = z.object({
 });
 
 const RetrieveSessionResponse = z.object({
-	customer_email: z.string().nullish(),
-	customer_details: z.object({ email: z.string().nullish() }).nullish(),
 	payment_status: z.enum(["paid", "unpaid", "no_payment_required"]),
 	amount_total: z.number().nullable(),
 	status: z.enum(["open", "complete", "expired"]),
-	created: z.number(),
 	subscription: z.string().nullish(),
 	customer: z.string().nullish(),
 });
@@ -120,16 +116,11 @@ export function initStripeCheckout(deps: {
 		}
 
 		const parsed = RetrieveSessionResponse.parse(json);
-		const customerEmail = parsed.customer_details?.email ?? parsed.customer_email;
-		assert(customerEmail, `Stripe checkout session ${id} has no customer email`);
 		return {
 			ok: true,
 			paid: parsed.payment_status === "paid" || parsed.payment_status === "no_payment_required",
-			paymentStatus: parsed.payment_status,
 			amountTotal: parsed.amount_total ?? 0,
-			customerEmail,
 			status: parsed.status,
-			created: parsed.created,
 			...(parsed.subscription ? { subscriptionId: parsed.subscription } : {}),
 			...(parsed.customer ? { customerId: parsed.customer } : {}),
 		};

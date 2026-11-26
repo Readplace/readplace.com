@@ -51,9 +51,7 @@ describe("initInMemoryHostedCheckout", () => {
 		assert.equal(before.ok, true);
 		if (before.ok) {
 			expect(before.paid).toBe(false);
-			expect(before.customerEmail).toBe("buyer@example.com");
 			expect(before.status).toBe("open");
-			expect(before.created).toBe(Math.floor(new Date("2026-01-01T00:00:00Z").getTime() / 1000));
 		}
 
 		stripe.markPaid(session.id);
@@ -66,7 +64,7 @@ describe("initInMemoryHostedCheckout", () => {
 		}
 	});
 
-	it("reports the payment status and total a test marks the session paid with, and a total of 0 when it names none", async () => {
+	it("reports the total a test marks the session paid with, and a total of 0 when it names none", async () => {
 		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const charged = await stripe.createCheckoutSession({
 			customerEmail: "charged@example.com",
@@ -88,11 +86,9 @@ describe("initInMemoryHostedCheckout", () => {
 
 		const chargedResult = await stripe.retrieveCheckoutSession(charged.id);
 		assert(chargedResult.ok);
-		expect(chargedResult.paymentStatus).toBe("paid");
 		expect(chargedResult.amountTotal).toBe(4900);
 		const defaultedResult = await stripe.retrieveCheckoutSession(defaulted.id);
 		assert(defaultedResult.ok);
-		expect(defaultedResult.paymentStatus).toBe("paid");
 		expect(defaultedResult.amountTotal).toBe(0);
 	});
 
@@ -111,24 +107,6 @@ describe("initInMemoryHostedCheckout", () => {
 		if (retrieved.ok) {
 			expect(retrieved.subscriptionId).toMatch(/^sub_test_[0-9a-f]+$/);
 			expect(retrieved.customerId).toMatch(/^cus_test_[0-9a-f]+$/);
-		}
-	});
-
-	it("uses the injected clock for created timestamp", async () => {
-		const fixedDate = new Date("2026-06-15T10:00:00Z");
-		const stripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => fixedDate });
-		const session = await stripe.createCheckoutSession({
-			customerEmail: "buyer@example.com",
-			priceId: "price_test_yearly",
-			successUrl: "https://app.test/ok",
-			cancelUrl: "https://app.test/cancel",
-			coupon: null,
-		});
-
-		const retrieved = await stripe.retrieveCheckoutSession(session.id);
-		assert.equal(retrieved.ok, true);
-		if (retrieved.ok) {
-			expect(retrieved.created).toBe(Math.floor(fixedDate.getTime() / 1000));
 		}
 	});
 

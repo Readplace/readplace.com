@@ -207,7 +207,7 @@ describe("initStripeCheckout", () => {
 	});
 
 	describe("retrieveCheckoutSession", () => {
-		it("issues GET /v1/checkout/sessions/<id> and maps a paid session, reading the email from customer_details", async () => {
+		it("issues GET /v1/checkout/sessions/<id> and maps a paid session", async () => {
 			let receivedUrl: string | undefined;
 			let receivedInit: RequestInit | undefined;
 			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
@@ -237,11 +237,8 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: true,
-				paymentStatus: "paid",
 				amountTotal: 4900,
-				customerEmail: "paid@example.com",
 				status: "complete",
-				created: 1735000000,
 				subscriptionId: "sub_test_123",
 				customerId: "cus_test_123",
 			});
@@ -276,11 +273,8 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: true,
-				paymentStatus: "paid",
 				amountTotal: 0,
-				customerEmail: "trial@example.com",
 				status: "complete",
-				created: 1763000000,
 				subscriptionId: "sub_test_trial",
 				customerId: "cus_test_trial",
 			});
@@ -312,7 +306,7 @@ describe("initStripeCheckout", () => {
 			);
 		});
 
-		it("falls back to customer_email when customer_details is absent, and omits subscription/customer ids when Stripe leaves them null", async () => {
+		it("omits subscription/customer ids when Stripe leaves them null", async () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(200, {
 					customer_email: "fallback@example.com",
@@ -336,11 +330,8 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: true,
-				paymentStatus: "no_payment_required",
 				amountTotal: 0,
-				customerEmail: "fallback@example.com",
 				status: "complete",
-				created: 1735000001,
 			});
 		});
 
@@ -366,34 +357,9 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: false,
-				paymentStatus: "unpaid",
 				amountTotal: 0,
-				customerEmail: "open@example.com",
 				status: "open",
-				created: 1735000002,
 			});
-		});
-
-		it("throws when the session response carries no email at all — a complete session must always have one", async () => {
-			const fakeFetch: typeof globalThis.fetch = async () =>
-				jsonResponse(200, {
-					customer_details: { email: null },
-					customer_email: null,
-					payment_status: "paid",
-					amount_total: 0,
-					status: "complete",
-					created: 1735000003,
-				});
-
-			const stripe = initStripeCheckout({
-				apiKey: "sk_test_abc",
-				fetch: fakeFetch,
-			});
-
-			await assert.rejects(
-				() => stripe.retrieveCheckoutSession(CheckoutSessionIdSchema.parse("cs_test_noemail")),
-				/Stripe checkout session cs_test_noemail has no customer email/,
-			);
 		});
 
 		it("returns not-found when Stripe answers 404", async () => {
