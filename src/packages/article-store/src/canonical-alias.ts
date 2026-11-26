@@ -13,7 +13,6 @@ import {
 import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
-	IdentityRow,
 	PinContentSource,
 	RepairWrapperIdentity,
 } from "@packages/provider-contracts/article-store";
@@ -39,7 +38,7 @@ const CanonicalAliasRow = z.object({
 	purgedAt: dynamoField(z.string()),
 });
 
-export type { ClaimCanonicalAlias, FindIdentityRow, IdentityRow, PinContentSource };
+export type { ClaimCanonicalAlias, FindIdentityRow, PinContentSource };
 
 export type SetArticleDisplayUrl = (params: {
 	articleUrl: string;

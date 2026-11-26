@@ -16,19 +16,11 @@ export { initDynamoDbRemovedLinks } from "./dynamodb-removed-links";
 export { initDynamoDbSavedLinksJob } from "./dynamodb-saved-links-job";
 export {
 	initCanonicalAliasStore,
-	type ClaimCanonicalAlias,
-	type IdentityRow,
-	type FindIdentityRow,
 	type SetArticleDisplayUrl,
-	type PinContentSource,
 	type ReconcileStubMetadata,
-	type FindAdoptedFetchUrl,
-	type FindContentSourceUrl,
 	type AdoptArticleDestination,
 } from "./canonical-alias";
-export type { ArticleStore } from "@packages/domain/article-aggregate";
 export {
-	CrawlVersionEntrySchema,
 	StoredCrawlVersionSchema,
 	normalizeCrawlVersion,
 } from "./crawl-version-log";
@@ -56,16 +48,14 @@ export { initDeleteUserArticleLinks } from "./delete-user-article-links";
 export type { DeleteUserArticleLinks } from "./delete-user-article-links";
 export { initReadArticleContent } from "./read-article-content";
 export { initReadArticleContentOrThrow } from "./read-article-content-or-throw";
-export type { ContentProvider, ReadArticleContent } from "./read-article-content";
 export { initS3ReadContent } from "./s3-read-content";
-export { initReadContentLocation, type ReadContentLocation } from "./read-content-location";
+export { initReadContentLocation } from "./read-content-location";
 export { initReadCanonicalSnapshot } from "./read-canonical-snapshot";
 export { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 export { initRevokeContentCandidates, type RevokeContentCandidates } from "./revoke-content-candidates";
 export type { S3GetObject } from "./s3-read-content";
 export { initS3ReadArticleImage } from "./s3-read-image";
 export type { S3GetImageObject } from "./s3-read-image";
-export type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 export {
 	initDynamoDbEngagementActivity,
 	initDynamoDbEngagementStarter,
