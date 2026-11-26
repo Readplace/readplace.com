@@ -5,6 +5,7 @@ import {
 } from "@packages/domain/article";
 import {
 	markHighlights,
+	type PageText,
 	type ReaderHighlightState,
 	type ReaderHighlights,
 } from "./mark-highlights";
@@ -29,6 +30,7 @@ interface PrepareReaderContentInput {
 
 type PreparedReaderContent = SectionPage & {
 	text: string;
+	page: PageText;
 	states: readonly ReaderHighlightState[];
 	noteEnds: ReadonlySet<HighlightId>;
 };
@@ -61,6 +63,7 @@ const preparedWholeHtml = rememberLastCall({
 		return {
 			html: sanitizeArticleHtml(marked.html),
 			text: marked.text,
+			page: marked.page,
 			states: marked.states,
 			noteEnds: marked.noteEnds,
 		};
@@ -88,6 +91,7 @@ export const prepareReaderContent = rememberLastCall({
 				split: readerSectionSplitFor(input.url),
 			}),
 			text: whole.text,
+			page: whole.page,
 			states: whole.states,
 			noteEnds: whole.noteEnds,
 		};

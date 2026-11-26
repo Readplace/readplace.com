@@ -31,7 +31,7 @@ export type SharePanelInstance = "dialog" | "toolbar" | "menu";
 
 type ShareLinkKey = "reader-view" | "original";
 
-type ShareTargetKey = "whatsapp" | "facebook" | "x" | "email" | "reddit";
+export type ShareTargetKey = "whatsapp" | "facebook" | "x" | "email" | "reddit";
 
 export interface ShareTarget {
 	key: ShareTargetKey;
@@ -50,60 +50,109 @@ interface ShareLink {
 	targets: ShareTarget[];
 }
 
-function taggedReaderViewUrl(input: { readerViewUrl: string; campaign: ShareCampaign }, medium: ShareTargetKey | "copy"): string {
+export function taggedReaderViewUrl(input: {
+	readerViewUrl: string;
+	campaign: ShareCampaign;
+	source: "share-dialog" | "highlight-share";
+	medium: ShareTargetKey | "copy" | "native-share";
+}): string {
+	const { medium } = input;
 	const url = new URL(input.readerViewUrl);
-	url.searchParams.set("utm_source", "share-dialog");
+	url.searchParams.set("utm_source", input.source);
 	url.searchParams.set("utm_medium", medium);
 	url.searchParams.set("utm_campaign", input.campaign);
 	url.searchParams.set("utm_content", "reader-view");
 	return url.toString();
 }
 
-function buildShareTargets(input: { title: string; linkFor: (medium: ShareTargetKey) => string }): ShareTarget[] {
-	const title = encodeURIComponent(input.title);
-	const encodedLinkFor = (medium: ShareTargetKey): string => encodeURIComponent(input.linkFor(medium));
-	return [
-		{
-			key: "whatsapp",
-			label: "WhatsApp",
-			href: `https://wa.me/?text=${encodeURIComponent(`${input.title} ${input.linkFor("whatsapp")}`)}`,
-			logoSvg: SHARE_TARGET_LOGO_SVG.whatsapp,
-			circleClass: "share-dialog__circle--whatsapp",
-			opensNewTab: true,
-		},
-		{
-			key: "facebook",
-			label: "Facebook",
-			href: `https://www.facebook.com/sharer/sharer.php?u=${encodedLinkFor("facebook")}`,
-			logoSvg: SHARE_TARGET_LOGO_SVG.facebook,
-			circleClass: "share-dialog__circle--facebook",
-			opensNewTab: true,
-		},
-		{
-			key: "x",
-			label: "X",
-			href: `https://x.com/intent/post?url=${encodedLinkFor("x")}&text=${title}`,
-			logoSvg: SHARE_TARGET_LOGO_SVG.x,
-			circleClass: "share-dialog__circle--x",
-			opensNewTab: true,
-		},
-		{
-			key: "email",
-			label: "Email",
-			href: `mailto:?subject=${title}&body=${encodedLinkFor("email")}`,
-			logoSvg: iconSvg("envelope"),
-			circleClass: "share-dialog__circle--email",
-			opensNewTab: false,
-		},
-		{
-			key: "reddit",
-			label: "Reddit",
-			href: `https://www.reddit.com/submit?url=${encodedLinkFor("reddit")}&title=${title}`,
-			logoSvg: SHARE_TARGET_LOGO_SVG.reddit,
-			circleClass: "share-dialog__circle--reddit",
-			opensNewTab: true,
-		},
-	];
+export const ALL_SHARE_TARGETS: readonly ShareTargetKey[] = ["whatsapp", "facebook", "x", "email", "reddit"];
+
+function queryOf(params: ReadonlyArray<readonly [string, string | undefined]>): string {
+	return params
+		.flatMap(([name, value]) => (value === undefined ? [] : [`${name}=${encodeURIComponent(value)}`]))
+		.join("&");
+}
+
+function joined(parts: ReadonlyArray<string | undefined>, separator: string): string | undefined {
+	const present = parts.filter((part): part is string => part !== undefined);
+	return present.length === 0 ? undefined : present.join(separator);
+}
+
+function shareTargetFor(input: {
+	key: ShareTargetKey;
+	title: string | undefined;
+	quote: string | undefined;
+	link: string | undefined;
+}): ShareTarget {
+	const { key, title, quote, link } = input;
+	switch (key) {
+		case "whatsapp":
+			return {
+				key,
+				label: "WhatsApp",
+				href: `https://wa.me/?${queryOf([["text", joined([quote, joined([title, link], " ")], "\n")]])}`,
+				logoSvg: SHARE_TARGET_LOGO_SVG.whatsapp,
+				circleClass: "share-dialog__circle--whatsapp",
+				opensNewTab: true,
+			};
+		case "facebook":
+			return {
+				key,
+				label: "Facebook",
+				href: `https://www.facebook.com/sharer/sharer.php?${queryOf([["u", link]])}`,
+				logoSvg: SHARE_TARGET_LOGO_SVG.facebook,
+				circleClass: "share-dialog__circle--facebook",
+				opensNewTab: true,
+			};
+		case "x":
+			return {
+				key,
+				label: "X",
+				href: `https://x.com/intent/post?${queryOf([
+					["url", link],
+					["text", joined([quote, title], "\n")],
+				])}`,
+				logoSvg: SHARE_TARGET_LOGO_SVG.x,
+				circleClass: "share-dialog__circle--x",
+				opensNewTab: true,
+			};
+		case "email":
+			return {
+				key,
+				label: t("reader.share.target.email"),
+				href: `mailto:?${queryOf([
+					["subject", title],
+					["body", joined([quote, link], "\r\n\r\n")],
+				])}`,
+				logoSvg: iconSvg("envelope"),
+				circleClass: "share-dialog__circle--email",
+				opensNewTab: false,
+			};
+		case "reddit":
+			return {
+				key,
+				label: "Reddit",
+				href: `https://www.reddit.com/submit?${queryOf([
+					["url", link],
+					["title", title],
+				])}`,
+				logoSvg: SHARE_TARGET_LOGO_SVG.reddit,
+				circleClass: "share-dialog__circle--reddit",
+				opensNewTab: true,
+			};
+	}
+}
+
+export function buildShareTargets(input: {
+	title?: string;
+	quote?: string;
+	linkFor?: (medium: ShareTargetKey) => string;
+	targets: readonly ShareTargetKey[];
+}): ShareTarget[] {
+	const { linkFor } = input;
+	return input.targets.map((key) =>
+		shareTargetFor({ key, title: input.title, quote: input.quote, link: linkFor === undefined ? undefined : linkFor(key) }),
+	);
 }
 
 function originalLink(input: ShareInput): ShareLink {
@@ -112,7 +161,7 @@ function originalLink(input: ShareInput): ShareLink {
 		label: t("reader.share.link.original"),
 		copyName: t("reader.share.copy.original"),
 		copyUrl: input.originalUrl,
-		targets: buildShareTargets({ title: input.title, linkFor: () => input.originalUrl }),
+		targets: buildShareTargets({ title: input.title, linkFor: () => input.originalUrl, targets: ALL_SHARE_TARGETS }),
 	};
 }
 
@@ -120,14 +169,14 @@ function shareLinksOf(input: ShareInput): ShareLink[] {
 	const readerViewUrl = input.readerViewUrl;
 	if (readerViewUrl === undefined) return [originalLink(input)];
 	const tagged = (medium: ShareTargetKey | "copy"): string =>
-		taggedReaderViewUrl({ readerViewUrl, campaign: input.campaign }, medium);
+		taggedReaderViewUrl({ readerViewUrl, campaign: input.campaign, source: "share-dialog", medium });
 	return [
 		{
 			key: "reader-view",
 			label: t("reader.share.link.readerView"),
 			copyName: t("reader.share.copy.readerView"),
 			copyUrl: tagged("copy"),
-			targets: buildShareTargets({ title: input.title, linkFor: tagged }),
+			targets: buildShareTargets({ title: input.title, linkFor: tagged, targets: ALL_SHARE_TARGETS }),
 		},
 		originalLink(input),
 	];

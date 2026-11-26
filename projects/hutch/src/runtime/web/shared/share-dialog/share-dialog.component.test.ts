@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { renderShareDialog, renderShareFallbacks, renderSharePanel, renderSharePanelsOob } from "./share-dialog.component";
+import {
+	ALL_SHARE_TARGETS,
+	buildShareTargets,
+	renderShareDialog,
+	renderShareFallbacks,
+	renderSharePanel,
+	renderSharePanelsOob,
+} from "./share-dialog.component";
 
 const ORIGINAL = "https://example.com/post?ref=newsletter&id=7";
 
@@ -301,5 +308,36 @@ describe("renderSharePanel opening focus", () => {
 		}));
 
 		expect(targets).toEqual([{ copy: "reader-view", hidden: true }]);
+	});
+});
+
+describe("buildShareTargets", () => {
+	const Q = "“It’s a — test, & more”";
+	const T = "A title";
+	const L = "https://readplace.com/view/example.com/post?utm_medium=x#:~:text=It%E2%80%99s";
+
+	it("builds every target of a highlight with a link from the quote, the title and the link", () => {
+		expect(
+			buildShareTargets({ title: T, quote: Q, linkFor: () => L, targets: ALL_SHARE_TARGETS }).map(({ key, href }) => [
+				key,
+				href,
+			]),
+		).toEqual([
+			["whatsapp", `https://wa.me/?text=${encodeURIComponent(`${Q}\n${T} ${L}`)}`],
+			["facebook", `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(L)}`],
+			["x", `https://x.com/intent/post?url=${encodeURIComponent(L)}&text=${encodeURIComponent(`${Q}\n${T}`)}`],
+			["email", `mailto:?subject=${encodeURIComponent(T)}&body=${encodeURIComponent(`${Q}\r\n\r\n${L}`)}`],
+			["reddit", `https://www.reddit.com/submit?url=${encodeURIComponent(L)}&title=${encodeURIComponent(T)}`],
+		]);
+	});
+
+	it("builds only the named targets, in their order, from the quote alone", () => {
+		expect(
+			buildShareTargets({ quote: Q, targets: ["whatsapp", "x", "email"] }).map(({ key, href, label }) => [key, label, href]),
+		).toEqual([
+			["whatsapp", "WhatsApp", `https://wa.me/?text=${encodeURIComponent(Q)}`],
+			["x", "X", `https://x.com/intent/post?text=${encodeURIComponent(Q)}`],
+			["email", "Email", `mailto:?body=${encodeURIComponent(Q)}`],
+		]);
 	});
 });

@@ -7,6 +7,9 @@ import {
 import { renderReaderReady } from "./reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./section-pages";
 import { articleBody } from "@packages/test-fixtures";
+import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
+import { collectTextChunks, describeRange, normaliseText } from "@packages/domain/article/highlight";
+import { parseHTML } from "linkedom";
 
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const TEST_READER_URL = "https://example.com/post";
@@ -346,5 +349,88 @@ describe("renderReaderReady paged body", () => {
 
 		expect(render(600).querySelector("[data-test-section-pager]")).not.toBeNull();
 		expect(render(READER_SECTION_PAGE_THRESHOLD_BYTES).querySelector("[data-test-section-pager]")).toBeNull();
+	});
+});
+
+describe("renderReaderReady highlight share", () => {
+	const SHARE_ID = HighlightIdSchema.parse("66666666-6666-4666-8666-666666666666");
+	const SCOPE = { articleId: "abc", readlist: [], surface: [["platform", "ios"]] as [string, string][] };
+	const SHARE = {
+		title: "A title",
+		sharing: { kind: "view" as const, url: "https://readplace.com/view/example.com/post" },
+		campaign: "reader-internal" as const,
+	};
+
+	function highlightOf(input: { html: string; exact: string }): Highlight {
+		const { document } = parseHTML(`<!DOCTYPE html><html><body><div id="probe">${input.html}</div></body></html>`);
+		const root = document.querySelector("div#probe");
+		assert(root);
+		const text = normaliseText(collectTextChunks<Node>(root)).text;
+		const start = text.indexOf(input.exact);
+		assert.ok(start >= 0);
+		const described = describeRange({ text, start, end: start + input.exact.length });
+		return {
+			highlightId: SHARE_ID,
+			highlightOf: TEST_READER_URL,
+			exact: described.exact,
+			prefix: described.prefix,
+			suffix: described.suffix,
+			start: described.start,
+			end: described.end,
+			anchoredContentHash: "hash",
+			anchorState: "anchored",
+			orderKey: 0,
+			createdAt: new Date("2026-11-01T00:00:00.000Z"),
+			updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+			anchorRevision: 0,
+		};
+	}
+
+	function shareButton(input: { html: string; highlight: Highlight; thresholdBytes?: number }): Element {
+		const doc = parse(
+			renderReaderReady({
+				readerSection: { ...TEST_READER_SECTION, thresholdBytes: input.thresholdBytes ?? READER_SECTION_PAGE_THRESHOLD_BYTES },
+				url: TEST_READER_URL,
+				appOrigin: APP_ORIGIN,
+				content: articleBody(input.html),
+				highlights: { rows: [input.highlight], canonicalContentHash: "hash", scope: SCOPE, share: SHARE },
+			}).html,
+		);
+		const panel = doc.querySelector(`[data-highlight-popover="${SHARE_ID}"]`);
+		assert(panel, "a placed highlight with a scope gets a panel");
+		expect(panel.getAttribute("data-highlight-share-beacon")).toBe("/queue/abc/highlights/shared?platform=ios");
+		const button = panel.querySelector("[data-highlight-share]");
+		assert(button);
+		return button;
+	}
+
+	const tagged = `https://readplace.com/view/example.com/post?utm_source=highlight-share&utm_medium=native-share&utm_campaign=reader-internal&utm_content=reader-view`;
+
+	it("shares the passage in the page's own characters with a text fragment that keeps its em dash", () => {
+		const html = "<p>Before. Wait — then go. After.</p>";
+		const button = shareButton({ html, highlight: highlightOf({ html, exact: "Wait - then go." }) });
+
+		expect([button.getAttribute("data-share-text"), button.getAttribute("data-share-url")]).toEqual([
+			"“Wait — then go.”",
+			`${tagged}#:~:text=Wait%20%E2%80%94%20then%20go.`,
+		]);
+	});
+
+	it("shares an edited highlight's current passage and its fragment", () => {
+		const html = "<p>The new words stand here.</p>";
+		const highlight: Highlight = { ...highlightOf({ html, exact: "new words" }), basisQuote: "old words" };
+		const button = shareButton({ html, highlight });
+
+		expect([button.getAttribute("data-share-text"), button.getAttribute("data-share-url")]).toEqual([
+			"“new words”",
+			`${tagged}#:~:text=new%20words`,
+		]);
+	});
+
+	it("shares a highlight on an article split into section pages without a fragment", () => {
+		const html = [1, 2, 3].map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(60)}marker${n}</p>`).join("");
+		const button = shareButton({ html, highlight: highlightOf({ html, exact: "marker1" }), thresholdBytes: 600 });
+
+		expect([button.getAttribute("data-share-url"), button.getAttribute("data-share-fragment")]).toEqual([tagged, "false"]);
 	});
 });

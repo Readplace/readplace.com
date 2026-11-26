@@ -220,6 +220,19 @@ export interface HighlightCopiedEvent {
 	surface: "web" | "ios" | "android";
 }
 
+export interface HighlightSharedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightShared;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+	highlight_id: HighlightId;
+	method: "native-share" | "whatsapp" | "facebook" | "x" | "email" | "reddit";
+	linked: "view" | "original" | "none";
+	fragment: boolean;
+	surface: "web" | "ios" | "android";
+}
+
 interface ViewHighlightEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewHighlight;
@@ -542,6 +555,7 @@ export type AnalyticsEvent =
 	| HighlightNoteSavedEvent
 	| HighlightOpenedEvent
 	| HighlightCopiedEvent
+	| HighlightSharedEvent
 	| ViewHighlightEvent
 	| ViewHighlightsHandedOverEvent
 	| ViewHighlightsClaimedEvent;

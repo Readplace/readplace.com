@@ -1,12 +1,21 @@
 <div class="highlight-popover" id="manage-highlight-{{highlightId}}" popover="auto" role="dialog" tabindex="-1"
     aria-labelledby="manage-highlight-{{highlightId}}-title"{{#if note}}
     aria-describedby="manage-highlight-{{highlightId}}-note"{{/if}}
-    data-highlight-popover="{{highlightId}}" data-test-confirm-popover="highlight-manage" data-test-confirm-subject="{{highlightId}}">
+    data-highlight-popover="{{highlightId}}"{{#if share}} data-highlight-share-beacon="{{share.beaconUrl}}"{{/if}} data-test-confirm-popover="highlight-manage" data-test-confirm-subject="{{highlightId}}">
     <h2 class="sr-only" id="manage-highlight-{{highlightId}}-title">{{t "articleBody.highlightPopover.title"}}</h2>
     {{#if note}}<p class="highlight-note highlight-popover__note" id="manage-highlight-{{highlightId}}-note" data-highlight-note-text data-test-highlight-popover-note>{{note}}</p>{{/if}}
     <div class="highlight-popover__actions">
       <button class="menu__item" type="button" popovertarget="{{notePopoverId}}" aria-haspopup="dialog" autofocus data-test-action="highlight-panel-note">{{icon "pencil"}}{{noteLabel}}</button>
       <button class="menu__item highlight-popover__copy" type="button" data-highlight-copy="{{quote}}" data-test-action="highlight-panel-copy">{{icon "copy"}}{{t "articleBody.highlightPopover.copy"}}</button>
+      {{#if share}}
+      <button class="menu__item highlight-popover__share" type="button" data-highlight-share data-share-text="{{share.text}}"{{#if share.title}} data-share-title="{{share.title}}"{{/if}}{{#if share.url}} data-share-url="{{share.url}}"{{/if}} data-share-linked="{{share.linked}}" data-share-fragment="{{share.fragment}}" data-test-action="highlight-panel-share">{{icon "share"}}{{t "articleBody.highlightPopover.share"}}</button>
+      <div class="highlight-popover__share-targets" role="group" aria-labelledby="manage-highlight-{{highlightId}}-share" data-highlight-share-targets data-test-highlight-share-targets>
+        <p class="highlight-popover__share-heading" id="manage-highlight-{{highlightId}}-share">{{t "articleBody.highlightPopover.shareTargets"}}</p>
+        {{#each share.targets}}
+        <a class="menu__item highlight-popover__share-target" href="{{href}}"{{#if opensNewTab}} target="_blank" rel="noopener noreferrer"{{/if}} data-highlight-share-target="{{key}}" data-test-highlight-share-target="{{key}}"><span class="share-dialog__circle highlight-popover__share-circle {{circleClass}}">{{{logoSvg}}}</span>{{label}}</a>
+        {{/each}}
+      </div>
+      {{/if}}
       {{{noteDeleteTriggerHtml}}}
       <button class="menu__item" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="highlight-panel-delete">{{icon "trash"}}{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
     </div>

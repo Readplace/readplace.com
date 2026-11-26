@@ -45,7 +45,7 @@ const LOCAL_TARGET: HighlightFormTarget = { kind: "local" };
 function renderTextSurfaces(note: string | undefined): string {
 	return [
 		note === undefined ? "" : renderHighlightPreview({ highlightId: PLACEHOLDER_ID, note }),
-		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note, quote: "" }),
+		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note, quote: "", share: undefined }),
 		renderHighlightNoteEditDialog({ highlightId: PLACEHOLDER_ID, note, target: LOCAL_TARGET }),
 	].join("");
 }

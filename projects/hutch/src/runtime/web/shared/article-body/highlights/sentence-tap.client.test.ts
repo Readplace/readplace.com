@@ -103,6 +103,7 @@ function harness(): Harness {
 		isOpen: () => false,
 		isFocusVisible: () => false,
 		sendBeacon: () => undefined,
+		share: undefined,
 		isAutoPopoverOpen: () => false,
 		paintDraft: () => undefined,
 		clearDraft: () => undefined,

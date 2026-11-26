@@ -34,6 +34,7 @@ import {
 	storedHighlightsRailRows,
 	renderHighlightsRail,
 } from "../article-body/highlights-rail/highlights-rail.component";
+import type { HighlightShareInput } from "../article-body/highlight-popover/highlight-popover.component";
 import { type ReaderSlotCapture, renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
@@ -93,6 +94,7 @@ interface PollResponseBodyInput {
 	now: Date;
 	readerSection: ReaderSectionInput;
 	highlights: PollHighlights | undefined;
+	highlightShare: HighlightShareInput | undefined;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -112,7 +114,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		appOrigin: input.appOrigin,
 		now: input.now,
 		readerSection: input.readerSection,
-		highlights: input.highlights,
+		highlights: input.highlights === undefined ? undefined : { ...input.highlights, share: input.highlightShare },
 	});
 	const highlightsRail =
 		input.highlights === undefined
@@ -411,6 +413,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				url: destinationUrl,
 				articleId: undefined,
 				highlights: undefined,
+				highlightShare: undefined,
 				crawl: undefined,
 				summary: undefined,
 				content: undefined,
@@ -522,6 +525,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			ocrPagesHold: params.ocrPagesHold,
 			title: article?.metadata.title,
 			highlights: params.highlights,
+			highlightShare: params.highlightShareFor === undefined ? undefined : params.highlightShareFor({ content, crawl }),
 		}));
 	}
 
@@ -594,6 +598,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			ocrPagesHold: params.ocrPagesHold,
 			title: article?.metadata.title,
 			highlights: params.highlights,
+			highlightShare: params.highlightShareFor === undefined ? undefined : params.highlightShareFor({ content, crawl }),
 		}));
 	}
 

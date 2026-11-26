@@ -29,6 +29,7 @@ import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/re
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { OcrPagesHold } from "../ocr-pages-hold";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
+import type { HighlightShareInput } from "../article-body/highlight-popover/highlight-popover.component";
 import type { HighlightFormScope } from "../article-body/highlights/highlight-note-dialog.component";
 import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import type { CaptureWatch } from "./capture-watch";
@@ -172,4 +173,7 @@ export interface HandlePollParams {
 	readerViewFailedOob: ReaderViewFailedOob;
 	renderDownloadsOob: ((articleUrl: string) => string) | undefined;
 	renderShareOob: ((state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined }) => string) | undefined;
+	highlightShareFor:
+		| ((state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined }) => HighlightShareInput)
+		| undefined;
 }

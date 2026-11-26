@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { readerScripts } from "../../shared/reader-nav-script";
 import type { ArticleBody, ArticleStatus, HighlightId, SavedArticle } from "@packages/domain/article";
-import { isPrivateItemUrl, nextReadDismissalOf } from "@packages/domain/article";
+import { nextReadDismissalOf } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
@@ -72,6 +72,7 @@ import { type IssueLinksSectionInput, renderIssueLinksSection } from "../../shar
 import {
 	SHARE_DIALOG_POPOVER_ID,
 	SHARE_DIALOG_SCRIPT,
+	type ShareCampaign,
 	type ShareInput,
 	renderShareDialog,
 	renderShareFallbacks,
@@ -90,18 +91,20 @@ import {
 	SHARING_OFF_POPOVER_ID,
 	renderSharingOffDialog,
 	renderSharingOffNote,
-	type SharingOffReason,
 } from "./sharing-off-dialog.component";
 import { READER_TOP_SCRIPT } from "./reader-top-script";
+import { type ArticleSharing, articleSharingFor } from "./article-sharing";
+import type { HighlightShareInput } from "../../shared/article-body/highlight-popover/highlight-popover.component";
 import { READER_STYLES } from "./reader.styles";
 import type { EnclosureRead } from "@packages/domain/article";
 import { displayableTime } from "../../shared/displayable-time";
 import { PLAYER_SCRIPT, renderPlayer } from "../../shared/player/player.component";
-import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 import {
 	REPORT_ARTICLE_SCRIPT,
 } from "../../shared/report-article/report-article-dialog.component";
 import { isReaderViewReady } from "../../shared/article-state/is-reader-view-ready";
+
+const READER_SHARE_CAMPAIGN: ShareCampaign = "reader-internal";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 
@@ -156,45 +159,59 @@ export interface ReaderPageHighlights extends ReaderHighlights {
 	copiedUrl: string;
 }
 
-function sharingOffReasonFor(articleUrl: string): SharingOffReason | undefined {
-	if (parseEmailIssueArticleUrl(articleUrl) !== undefined) return "email-issue";
-	if (isPrivateItemUrl(articleUrl)) return "private-upload";
-	return undefined;
-}
-
 function readerShareInput(input: {
-	articleUrl: string;
-	originalUrl: string;
 	title: string;
-	appOrigin: string;
-	readerViewShareable: boolean;
+	originalUrl: string;
+	sharing: Exclude<ArticleSharing, { kind: "quote-only" }>;
 }): ShareInput {
 	return {
 		title: input.title,
-		campaign: "reader-internal",
+		campaign: READER_SHARE_CAMPAIGN,
 		originalUrl: input.originalUrl,
-		readerViewUrl: input.readerViewShareable ? `${input.appOrigin}${viewPathFor(input.articleUrl)}` : undefined,
+		readerViewUrl: input.sharing.kind === "view" ? input.sharing.url : undefined,
 	};
 }
 
 const READER_SHARE_PANELS = ["dialog", "toolbar", "menu"] as const;
 
+type ShareState = { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
+
+function readerArticleSharing(input: {
+	article: Pick<SavedArticle, "url" | "destinationUrl">;
+	appOrigin: string;
+	state: ShareState;
+}): ArticleSharing {
+	return articleSharingFor({
+		articleUrl: input.article.url,
+		originalUrl: input.article.destinationUrl,
+		appOrigin: input.appOrigin,
+		readerViewShareable: isReaderViewReady(input.state),
+	});
+}
+
 export function renderReaderShareUpgradeOob(input: {
 	article: Pick<SavedArticle, "url" | "destinationUrl" | "metadata">;
 	appOrigin: string;
-	state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
+	state: ShareState;
 }): string {
-	if (sharingOffReasonFor(input.article.url) !== undefined || !isReaderViewReady(input.state)) return "";
+	const sharing = readerArticleSharing(input);
+	if (sharing.kind !== "view") return "";
 	return renderSharePanelsOob(
-		readerShareInput({
-			articleUrl: input.article.url,
-			originalUrl: input.article.destinationUrl,
-			title: input.article.metadata.title,
-			appOrigin: input.appOrigin,
-			readerViewShareable: true,
-		}),
+		readerShareInput({ title: input.article.metadata.title, originalUrl: input.article.destinationUrl, sharing }),
 		READER_SHARE_PANELS,
 	);
+}
+
+export function readerHighlightShareFor(input: {
+	article: Pick<SavedArticle, "url" | "destinationUrl" | "metadata">;
+	appOrigin: string;
+	state: ShareState;
+}): HighlightShareInput {
+	return {
+		title: input.article.metadata.title,
+		sharing: readerArticleSharing(input),
+		campaign: READER_SHARE_CAMPAIGN,
+	};
 }
 
 function readerSharingFor(input: {
@@ -202,13 +219,13 @@ function readerSharingFor(input: {
 	originalUrl: string;
 	title: string;
 	appOrigin: string;
-	readerViewShareable: boolean;
+	sharing: ArticleSharing;
 	epubDownloadHref: string | undefined;
 	epubDownloadGuide: EpubDownloadGuide | undefined;
 }): { reportViewUrl: string | undefined; sharing: ReaderSharing; shareDialogHtml: string } {
-	const reason = sharingOffReasonFor(input.articleUrl);
-	if (reason === undefined) {
-		const share = readerShareInput(input);
+	const sharing = input.sharing;
+	if (sharing.kind !== "quote-only") {
+		const share = readerShareInput({ title: input.title, originalUrl: input.originalUrl, sharing });
 		return {
 			reportViewUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
 			sharing: {
@@ -219,18 +236,18 @@ function readerSharingFor(input: {
 			shareDialogHtml: renderShareDialog(share),
 		};
 	}
-	const off = { popoverId: SHARING_OFF_POPOVER_ID, fallbackHtml: renderSharingOffNote(reason) };
+	const off = { popoverId: SHARING_OFF_POPOVER_ID, fallbackHtml: renderSharingOffNote(sharing.reason) };
 	return {
 		reportViewUrl: undefined,
 		sharing:
-			reason === "email-issue"
+			sharing.reason === "email-issue"
 				? { withheld: off }
 				: {
 						shareWithheld: off,
 						epubDownloadHref: input.epubDownloadHref,
 						epubDownloadGuide: input.epubDownloadGuide,
 					},
-		shareDialogHtml: renderSharingOffDialog(reason),
+		shareDialogHtml: renderSharingOffDialog(sharing.reason),
 	};
 }
 
@@ -300,12 +317,13 @@ export function ReaderPage(
 				: { confirmPopoverId: markStatusConfirm.popoverId }),
 		},
 	];
+	const shareState = { content: options.content, crawl: options.crawl };
 	const { reportViewUrl, sharing, shareDialogHtml } = readerSharingFor({
 		articleUrl: article.url,
 		originalUrl: article.destinationUrl,
 		title: article.metadata.title,
 		appOrigin: options.appOrigin,
-		readerViewShareable: isReaderViewReady({ content: options.content, crawl: options.crawl }),
+		sharing: readerArticleSharing({ article, appOrigin: options.appOrigin, state: shareState }),
 		epubDownloadHref: options.epubDownloadHref,
 		epubDownloadGuide: options.epubDownloadGuide,
 	});
@@ -326,7 +344,10 @@ export function ReaderPage(
 		readerPathForReadlist: options.readerPathForReadlist,
 	};
 	const { html: articleBodyHtml, states: highlightStates } = renderArticleBody({
-		highlights: options.highlights,
+		highlights: {
+			...options.highlights,
+			share: readerHighlightShareFor({ article, appOrigin: options.appOrigin, state: shareState }),
+		},
 		readerSection: options.readerSection,
 		now: options.now,
 		title: article.metadata.title,

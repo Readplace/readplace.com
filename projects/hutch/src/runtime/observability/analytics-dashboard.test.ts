@@ -99,9 +99,9 @@ function collectReferencedEvents(queries: readonly string[]): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 69 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 oauth-client-acquisition, 1 save-refusals, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored, 1 logged-out-highlights, 1 highlights-copied) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 70 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 oauth-client-acquisition, 1 save-refusals, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored, 1 logged-out-highlights, 1 highlights-copied, 1 highlights-shared) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(69);
+		expect(body.widgets).toHaveLength(70);
 	});
 
 	it.each([
@@ -785,6 +785,27 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.highlightCopied}" or (event = "${ANALYTICS_EVENTS.viewHighlight}" and action = "copied"))`,
 		);
 		expect(query).toContain('| fields coalesce(surface, "view") as copiedOn | stats count(*) as copied by copiedOn, bin(1d)');
+	});
+
+	it("charts highlights shared per day by method beside the highlights copied, with no highlight text in the query", () => {
+		const widget = buildBody().widgets.find(
+			({ properties }) => properties.title === "Highlights shared per day, by method",
+		);
+		assert(widget, "the highlights shared widget must exist");
+		expect(widget).toMatchObject({
+			type: "log",
+			x: 12,
+			y: 358,
+			width: 12,
+			height: 8,
+			properties: { view: "timeSeries" },
+		});
+		const query = widget.properties.query;
+		assert(typeof query === "string");
+		expect(query).toContain(
+			`fields @timestamp, method | filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.highlightShared}"`,
+		);
+		expect(query).toContain("| stats count(*) as shared by method, bin(1d)");
 	});
 
 	it("charts the anchored, moved and orphaned Readplace/Highlights metrics in one row of their own below the highlights row", () => {

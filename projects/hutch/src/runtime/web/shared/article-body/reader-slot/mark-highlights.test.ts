@@ -462,4 +462,33 @@ describe("markHighlights", () => {
 
 		expect(marked.states[0].place).toEqual({ start: 9, end: 10 });
 	});
+
+	it("keeps each placed passage in the page's own dashes and curly quotes, with blocks on their own lines", () => {
+		const html = "<p>Lead in. It\u2019s a \u201cfine\u201d day \u2014 or   so</p><p>they say \u2013 often.</p><p>Tail.</p>";
+		const highlight = highlightOn({
+			html,
+			exact: `It's a "fine" day - or so\nthey say - often.`,
+			highlightId: FIRST_ID,
+		});
+		const orphan: Highlight = {
+			...highlightOn({ html, exact: "Tail.", highlightId: SECOND_ID }),
+			exact: "absent passage",
+			anchorState: "orphaned",
+		};
+
+		const marked = markHighlights({
+			html,
+			highlights: { rows: [highlight, orphan], canonicalContentHash: CANONICAL_HASH },
+		});
+
+		const place = marked.page.places.get(FIRST_ID);
+		assert(place);
+		expect(marked.page.text.slice(place.start, place.end)).toBe(
+			"It\u2019s a \u201cfine\u201d day \u2014 or so\nthey say \u2013 often.",
+		);
+		expect(marked.page.text).toBe(
+			"Lead in. It\u2019s a \u201cfine\u201d day \u2014 or so\nthey say \u2013 often.\nTail.",
+		);
+		expect([...marked.page.places.keys()]).toEqual([FIRST_ID]);
+	});
 });

@@ -1074,3 +1074,105 @@ describe("ReaderPage", () => {
 		]);
 	});
 });
+
+describe("ReaderPage highlight share", () => {
+	const HIGHLIGHT = {
+		highlightId: HighlightIdSchema.parse("66666666-6666-4666-8666-666666666666"),
+		highlightOf: "https://example.com/post",
+		exact: "body text",
+		prefix: "The ",
+		suffix: " here.",
+		start: 4,
+		end: 13,
+		anchoredContentHash: "hash",
+		anchorState: "anchored" as const,
+		orderKey: 0,
+		createdAt: new Date("2026-11-01T00:00:00.000Z"),
+		updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+		anchorRevision: 0,
+	};
+	const HIGHLIGHTS: ReaderPageHighlights = {
+		rows: [HIGHLIGHT],
+		canonicalContentHash: undefined,
+		scope: { articleId: "abc", readlist: [], surface: [] },
+		openNote: undefined,
+		copiedUrl: "/queue/abc/highlights/copied",
+	};
+	const QUOTE = "“body text”";
+
+	function sharePanelOf(article: SavedArticle): { attributes: Record<string, string>; targets: (string | null)[][] } {
+		const html = Base(
+			ReaderPage(article, { ...OWNER_READER_OPTIONS,
+				readerSection: TEST_READER_SECTION,
+				enclosure: ABSENT_ENCLOSURE,
+				highlights: HIGHLIGHTS,
+				content: articleBody("<p>The body text here.</p>"),
+				crawl: { status: "ready" },
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: WebReader,
+				readlistFiling: NO_QUEUE_FILING,
+				provenance: undefined,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const panel = new JSDOM(html).window.document.querySelector(`[data-highlight-popover="${HIGHLIGHT.highlightId}"]`);
+		assert(panel, "the marked highlight has a panel");
+		const button = panel.querySelector("[data-highlight-share]");
+		assert(button, "the panel offers Share highlight");
+		return {
+			attributes: Object.fromEntries(
+				Array.from(button.attributes)
+					.filter(({ name }) => name.startsWith("data-share-"))
+					.map(({ name, value }) => [name, value]),
+			),
+			targets: Array.from(panel.querySelectorAll("[data-highlight-share-target]"), (target) => [
+				target.getAttribute("data-highlight-share-target"),
+				target.getAttribute("href"),
+			]),
+		};
+	}
+
+	const QUOTE_ONLY_TARGETS = [
+		["whatsapp", `https://wa.me/?text=${encodeURIComponent(QUOTE)}`],
+		["x", `https://x.com/intent/post?text=${encodeURIComponent(QUOTE)}`],
+		["email", `mailto:?body=${encodeURIComponent(QUOTE)}`],
+	];
+
+	it.each([
+		["an email issue", "email://inbox/owner/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E"],
+		["a private upload", "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef"],
+	])("shares only the quote of %s, through WhatsApp, X and email", (_case, articleUrl) => {
+		expect(sharePanelOf(makeArticle({ url: articleUrl }))).toEqual({
+			attributes: { "data-share-text": QUOTE, "data-share-linked": "none", "data-share-fragment": "false" },
+			targets: QUOTE_ONLY_TARGETS,
+		});
+	});
+
+	it("shares a shareable article's quote, title and tagged /view link with the passage's text fragment", () => {
+		const view = "http://localhost:3000/view/example.com/post";
+		const link = (medium: string) =>
+			`${view}?utm_source=highlight-share&utm_medium=${medium}&utm_campaign=reader-internal&utm_content=reader-view#:~:text=body%20text`;
+
+		expect(sharePanelOf(makeArticle())).toEqual({
+			attributes: {
+				"data-share-text": QUOTE,
+				"data-share-title": "Hello World",
+				"data-share-url": link("native-share"),
+				"data-share-linked": "view",
+				"data-share-fragment": "true",
+			},
+			targets: [
+				["whatsapp", `https://wa.me/?text=${encodeURIComponent(`${QUOTE}\nHello World ${link("whatsapp")}`)}`],
+				["facebook", `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link("facebook"))}`],
+				["x", `https://x.com/intent/post?url=${encodeURIComponent(link("x"))}&text=${encodeURIComponent(`${QUOTE}\nHello World`)}`],
+				["email", `mailto:?subject=${encodeURIComponent("Hello World")}&body=${encodeURIComponent(`${QUOTE}\r\n\r\n${link("email")}`)}`],
+				["reddit", `https://www.reddit.com/submit?url=${encodeURIComponent(link("reddit"))}&title=${encodeURIComponent("Hello World")}`],
+			],
+		});
+	});
+});
