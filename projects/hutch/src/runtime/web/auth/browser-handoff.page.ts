@@ -11,10 +11,10 @@ import {
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { AccessTokenSchema } from "@packages/domain/oauth";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { parseReturnUrl } from "./parse-return-url";
+import { requireValidBearer } from "./require-valid-bearer";
 import { sessionCookie } from "../session-cookie";
 
 const HandoffQuerySchema = z.looseObject({ code: BrowserHandoffCodeSchema });
@@ -37,16 +37,8 @@ export function initBrowserHandoffRoutes(deps: BrowserHandoffDependencies): Rout
 		"/auth/handoff",
 		createRateLimitMiddleware({ consumeRateLimit: deps.consumeRateLimit, bucket: "browser-handoff", rule: deps.rateLimitRule }),
 		async (req: Request, res: Response) => {
-			const header = req.headers.authorization;
-			if (!header?.startsWith("Bearer ")) {
-				res.status(401).set("WWW-Authenticate", "Bearer").end();
-				return;
-			}
-			const validated = await deps.validateAccessToken(AccessTokenSchema.parse(header.slice(7)));
-			if (!validated) {
-				res.status(401).set("WWW-Authenticate", 'Bearer error="invalid_token"').end();
-				return;
-			}
+			const validated = await requireValidBearer({ req, res, validateAccessToken: deps.validateAccessToken });
+			if (!validated) return;
 			const code = await deps.mintBrowserHandoffCode({
 				userId: validated.userId,
 				emailVerified: validated.emailVerified,

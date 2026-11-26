@@ -33,7 +33,7 @@ import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initTokenRevocation } from "./token-revocation";
 import { describeSignInDevice } from "./sign-in-device";
 
-const authorizeQuerySchema = z.object({
+const authorizeRequestSchema = z.object({
 	client_id: z.string(),
 	redirect_uri: z.string().url(),
 	response_type: z.literal("code"),
@@ -47,16 +47,6 @@ const denyBodySchema = z.object({
 	client_id: z.string(),
 	redirect_uri: z.string().url(),
 	state: z.string().optional(),
-});
-
-const switchBodySchema = z.object({
-	client_id: z.string(),
-	redirect_uri: z.string().url(),
-	response_type: z.literal("code"),
-	code_challenge: z.string().min(43).max(128),
-	code_challenge_method: z.literal("S256"),
-	state: z.string().optional(),
-	screen_hint: z.enum(["login", "signup"]).optional(),
 });
 
 /**
@@ -208,7 +198,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 	);
 
 	router.get("/authorize", async (req: Request, res: Response) => {
-		const parsed = authorizeQuerySchema.safeParse(req.query);
+		const parsed = authorizeRequestSchema.safeParse(req.query);
 		if (!parsed.success) {
 			res.status(400).json({
 				error: "invalid_request",
@@ -302,7 +292,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 			}
 
 			if (req.body.action === "switch") {
-				const switchParsed = switchBodySchema.safeParse(req.body);
+				const switchParsed = authorizeRequestSchema.safeParse(req.body);
 				if (!switchParsed.success) {
 					res.status(400).json({
 						error: "invalid_request",

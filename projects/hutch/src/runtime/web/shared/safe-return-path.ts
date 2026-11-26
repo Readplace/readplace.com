@@ -17,14 +17,14 @@ const RETURN_PATH_BASE = "https://return-path.invalid";
  * A posted `returnTo` carries the origin page rather than the `Referer` header,
  * which helmet's default `Referrer-Policy: no-referrer` strips from the no-JS
  * form POST — without it every dismissal would dead-end on the homepage. */
+export function staysOnOrigin(returnTo: string): boolean {
+	if (!URL.canParse(returnTo, RETURN_PATH_BASE)) return false;
+	const target = new URL(returnTo, RETURN_PATH_BASE);
+	return target.origin === RETURN_PATH_BASE && !target.pathname.startsWith("//");
+}
+
 export function safeReturnPath(returnTo: unknown): string {
-	if (typeof returnTo !== "string") return "/";
-	try {
-		const target = new URL(returnTo, RETURN_PATH_BASE);
-		if (target.origin !== RETURN_PATH_BASE) return "/";
-		const path = `${target.pathname}${target.search}`;
-		return path.startsWith("//") ? "/" : path;
-	} catch {
-		return "/";
-	}
+	if (typeof returnTo !== "string" || !staysOnOrigin(returnTo)) return "/";
+	const target = new URL(returnTo, RETURN_PATH_BASE);
+	return target.pathname + target.search;
 }
