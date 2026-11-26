@@ -7,7 +7,7 @@ export {
 	UPGRADE_CTA_LABEL,
 	offerPrice,
 } from "./pricing";
-export type { PlanOffer, PricingPanel, PricingPlan, StatedPrice } from "./pricing";
+export type { PricingPanel } from "./pricing";
 export { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
@@ -16,7 +16,6 @@ export { HtmlPage } from "./html-page";
 export { MarkdownPage } from "./markdown-page";
 export { htmlToMarkdown } from "./html-to-markdown";
 export { buildMarkdownFrontmatter } from "./markdown-frontmatter";
-export type { MarkdownFrontmatterOpts } from "./markdown-frontmatter";
 export { MARKDOWN_MEDIA_TYPE, wantsMarkdown } from "./content-negotiation";
 export { sendComponent } from "./send-component";
 export {
@@ -38,12 +37,7 @@ export {
 	toRelativeOrDate,
 	toRelativePhrase,
 } from "./local-time.format";
-export type {
-	CalendarDate,
-	LocalTime,
-	LocalTimeMode,
-	LocalTimeStyle,
-} from "./local-time.format";
+export type { LocalTime } from "./local-time.format";
 export {
 	bannerStateFromRequest,
 	buildGuestNavGroups,
@@ -64,17 +58,12 @@ export {
 	isChangelogVersion,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
-/** Cookie parsing is owned by the session package and re-exported here so view-shell
- * consumers can keep importing it from this shell. The dependency is one-way: the
- * session package never depends on this view shell. */
-export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
 export { brandMarkSmallSvg, brandMarkSvg } from "./brand-mark";
 export { GlobalNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initialsFor } from "./user-initials";
 export { HtmxLoaded, HtmxOmitted } from "./htmx-script";
-export type { HtmxDelivery } from "./htmx-script";
 export {
 	NEWER_READER_VERSION,
 	NEWER_VERSION_BANNER_TEXT,
@@ -120,8 +109,6 @@ export {
 export { ALERT_STYLES, renderAlert } from "./shared/alert/alert.component";
 export type {
 	AlertContent,
-	AlertMessage,
-	AlertTitle,
 	AlertVariant,
 } from "./shared/alert/alert.component";
 export type {

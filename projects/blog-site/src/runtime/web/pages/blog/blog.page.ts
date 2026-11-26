@@ -7,12 +7,11 @@ import {
 	type ChangelogBanner,
 	type ClickSurface,
 	isClickSurface,
-	readCookie,
 	type RenderBase,
 	renderChangelogBannerShell,
 	sendComponent,
 } from "@packages/web-shell";
-import type { ResolveLogin } from "@packages/web-session";
+import { readCookie, type ResolveLogin } from "@packages/web-session";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
 import { NotFoundPage } from "../not-found";
