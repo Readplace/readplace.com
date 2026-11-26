@@ -1,8 +1,8 @@
 import { parseHTML } from "linkedom";
-import { REDIRECT_STATUS_CODES } from "./follow-redirects";
+import { ALLOWED_PROTOCOLS, REDIRECT_STATUS_CODES } from "./follow-redirects";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { classifyMediaType } from "./media-type";
-import { ALLOWED_PROTOCOLS, isTextlessOnceHidden } from "./meta-refresh";
+import { isTextlessOnceHidden } from "./meta-refresh";
 
 const REDIRECT_URL_ASSIGNMENT = /\bvar\s+redirecturl\s*=\s*(['"])(.*?)\1/;
 

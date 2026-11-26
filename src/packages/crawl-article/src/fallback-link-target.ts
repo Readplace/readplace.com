@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { classifyMediaType } from "./media-type";
-import { ALLOWED_PROTOCOLS } from "./meta-refresh";
+import { ALLOWED_PROTOCOLS } from "./follow-redirects";
 
 export type TrackerPage = { response: Response; buffer: Buffer; documentUrl: string };
 

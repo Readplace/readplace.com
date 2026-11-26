@@ -1,11 +1,11 @@
 import { parseHTML } from "linkedom";
+import { ALLOWED_PROTOCOLS } from "./follow-redirects";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { classifyMediaType } from "./media-type";
 import { publisherPublicRefreshTarget } from "./publisher-public-refresh";
 
 const REFRESH_DECLARATION = /^\s*[\d.]+(?:\s*[;,]\s*|\s+)url\s*=\s*(.+)$/is;
 const LEADING_QUOTE = /^['"]/;
-export const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 
 export function isTextlessOnceHidden(document: ReturnType<typeof parseHTML>["document"]): boolean {
 	for (const hidden of document.querySelectorAll("title, script")) {

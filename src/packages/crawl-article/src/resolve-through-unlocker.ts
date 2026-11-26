@@ -1,5 +1,5 @@
 import type { CrawlFetch } from "./crawl-fetch";
-import { ALLOWED_PROTOCOLS } from "./meta-refresh";
+import { ALLOWED_PROTOCOLS } from "./follow-redirects";
 
 const UNLOCKER_FINAL_URL_HEADER = "x-unblocker-redirected-to";
 
