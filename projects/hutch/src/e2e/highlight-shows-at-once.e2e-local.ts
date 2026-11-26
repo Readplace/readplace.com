@@ -228,7 +228,8 @@ test.describe("Selecting again while a highlight is saving", () => {
 		await held.arrival;
 
 		await select(page, SECOND_PASSAGE);
-		await page.locator(HIGHLIGHT_BUTTON).click();
+		await expect(page.locator(HIGHLIGHT_BUTTON)).toBeDisabled();
+		await page.locator(HIGHLIGHT_BUTTON).click({ force: true });
 		held.release();
 		await expect(page.locator(MARK).filter({ hasText: FIRST_PASSAGE })).toHaveCount(1, { timeout: SETTLE_MS });
 		expect(held.posted).toHaveLength(1);
