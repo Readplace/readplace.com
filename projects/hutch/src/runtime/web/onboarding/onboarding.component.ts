@@ -3,7 +3,7 @@ import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
-import type { PitchablePlatform } from "./extension-install";
+import type { AdvertisedClientNameInCategory } from "@packages/supported-clients";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
 import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep, hasOutstandingSmartReadlistStep } from "./onboarding.steps";
@@ -96,8 +96,7 @@ const FOLD_OPEN_BY_PLATFORM = {
 	firefox: true,
 	iphone: false,
 	android: false,
-	other: true,
-} satisfies Record<PitchablePlatform, boolean>;
+} satisfies Record<AdvertisedClientNameInCategory<"contentCapture">, boolean>;
 
 interface OnboardingStepDisplayModel {
 	id: string;

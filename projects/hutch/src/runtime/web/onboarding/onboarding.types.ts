@@ -33,7 +33,7 @@ export interface InstallableClientOnboarding extends AccountOnboardingContext {
 	/** Narrower than {@link Platform}: a checklist only ever renders for a
 	 * device whose client is advertised, so the copy maps it indexes never need
 	 * an entry for one that is not. */
-	platform: AdvertisedClientNameInCategory<"contentCapture"> | "other";
+	platform: AdvertisedClientNameInCategory<"contentCapture">;
 	inboxArticleQueued: boolean;
 	emailStepMarkedDone: boolean;
 	paidFeatures: boolean;
@@ -60,7 +60,6 @@ export type OnboardingActionKey =
 	| "install"
 	| "save-article"
 	| "view-readlist"
-	| "choose-browser"
 	| "see-install-options"
 	| "see-inbox-address"
 	| "email-mark-done"
