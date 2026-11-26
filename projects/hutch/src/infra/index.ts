@@ -532,7 +532,6 @@ const heldUploadScheduleReadPolicy = {
 };
 
 const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
-	priorLogGroupLogicalName: "hutch-log-analytics",
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
@@ -1513,7 +1512,6 @@ const sendTrialFeedbackEmailQueue = new Sqs("send-trial-feedback-email", {
 const sendTrialFeedbackEmailLambda = new Lambda(
 	LAMBDA_NAMES.sendTrialFeedbackEmail,
 	{
-		priorLogGroupLogicalName: "send-trial-feedback-email-log-group",
 		entryPoint: "./src/runtime/send-trial-feedback-email.main.ts",
 		outputDir: ".lib/send-trial-feedback-email",
 		assetDir: "./src/runtime",
