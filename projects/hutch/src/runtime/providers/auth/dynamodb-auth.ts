@@ -219,7 +219,7 @@ export function initDynamoDbAuth(deps: {
 	setKeepOfferDismissed: SetKeepOfferDismissed;
 } {
 	const users = defineUsersTable(deps);
-	const { findEmailByUserId, findUserContactByUserId } = initUserRowLookups(users);
+	const { findUserRowByUserId, findEmailByUserId, findUserContactByUserId } = initUserRowLookups(users);
 	const sessions = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.sessionsTableName,
@@ -366,13 +366,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		return row?.appleRefreshToken ?? null;
 	};
 
@@ -681,13 +675,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const findUserById: FindUserById = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		if (!row) return null;
 		return {
 			userId: row.userId,
@@ -706,13 +694,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const countEarlyIntentionalSave: CountEarlyIntentionalSave = async ({ userId, at }) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		if (!row) return { inWindow: false };
 		const outcome = await writeIfCondition(() =>
 			users.update({
@@ -740,13 +722,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		if (!row) return null;
 		if (row.passwordHash === undefined) return { kind: "not-set" };
 		return { kind: "set", updatedAt: row.passwordUpdatedAt };
