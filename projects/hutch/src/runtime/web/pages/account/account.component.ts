@@ -37,6 +37,10 @@ const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.templat
 const ACCOUNT_BILLING_TEMPLATE = readFileSync(join(__dirname, "account-billing.template.html"), "utf-8");
 const ACCOUNT_DANGER_FORM_TEMPLATE = readFileSync(join(__dirname, "account-danger-form.template.html"), "utf-8");
 
+const ACCOUNT_ACTION_FORM_TEMPLATE = readFileSync(join(__dirname, "account-action-form.template.html"), "utf-8").trimEnd();
+
+const ACCOUNT_ADD_CARD_FORM_TEMPLATE = readFileSync(join(__dirname, "account-add-card-form.template.html"), "utf-8").trimEnd();
+
 /** Same-origin glue bundle (Stripe.js itself loads from js.stripe.com inside it).
  * Loaded on every /account render; it no-ops unless the Elements container is
  * present, so the list/manage views pay nothing for it. */
@@ -221,34 +225,26 @@ interface AccountCardPopoverTrigger {
 	testAction: string;
 }
 
-interface AccountCardAction extends AccountAction {
-	formClass: string;
-	hxSwap: string;
-	leadingIconHtml: string;
-	trailingIconHtml: string;
-	loaderHtml: string;
+interface AccountCardAction {
 	popoverTriggers: readonly AccountCardPopoverTrigger[];
+	html: string;
 }
 
 function toAccountCardAction(action: AccountAction): AccountCardAction {
-	const rendered = {
+	const popoverTarget = action.popoverTarget;
+	const html = render(ACCOUNT_ACTION_FORM_TEMPLATE, {
 		...action,
+		formClass: popoverTarget === undefined ? ACCOUNT_ACTION_FORM_CLASS : `${ACCOUNT_ACTION_FORM_CLASS} subscribe-plans__fallback`,
 		hxSwap: ACTION_SWAP[action.key],
 		leadingIconHtml: action.leadingIcon === undefined ? "" : iconSvg(action.leadingIcon),
 		trailingIconHtml: action.trailingIcon === undefined ? "" : iconSvg(action.trailingIcon),
 		loaderHtml: ACTION_LOADER_HTML,
-	};
-	const popoverTarget = action.popoverTarget;
+	});
 	if (popoverTarget === undefined) {
-		return {
-			...rendered,
-			formClass: ACCOUNT_ACTION_FORM_CLASS,
-			popoverTriggers: [],
-		};
+		return { popoverTriggers: [], html };
 	}
 	return {
-		...rendered,
-		formClass: `${ACCOUNT_ACTION_FORM_CLASS} subscribe-plans__fallback`,
+		html,
 		popoverTriggers: [
 			{
 				popoverTarget,
@@ -301,6 +297,7 @@ function renderBillingSections(vm: AccountViewModel): string {
 		paymentActions: payment.actions.map(toAccountCardAction),
 		historyActions: vm.billingHistory.actions.map(toAccountCardAction),
 		actionLoaderHtml: ACTION_LOADER_HTML,
+		addCardFormHtml: render(ACCOUNT_ADD_CARD_FORM_TEMPLATE, { addUrl: payment.addUrl, loaderHtml: ACTION_LOADER_HTML }),
 		alertHtml: payment.isError
 			? renderAlert({ key: "payment-methods", content: { variant: "error", message: { text: payment.message } } })
 			: "",
