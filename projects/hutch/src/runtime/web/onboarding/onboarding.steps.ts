@@ -12,7 +12,7 @@ import type {
 	OnboardingAction,
 	OnboardingStep,
 } from "./onboarding.types";
-import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH, READLIST_SMART_READLIST_STEP_DISMISS_PATH } from "../pages/readlist/readlist.url";
+import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH, READLIST_SMART_READLIST_STEP_DISMISS_PATH, READLIST_SMART_SECTION_ID } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
@@ -226,7 +226,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 
 function smartReadlistPrimaryAction(smart: OnboardingContext["smartReadlist"]): OnboardingAction {
 	if (!smart?.target) return { key: "create-readlist", method: "POST", href: READLIST_CREATE_PATH, label: t("smartReadlist.create"), variant: "primary" };
-	if (!smart.configured) return { key: "set-preferences", method: "GET", href: `${readlistPreferencesPath(smart.target)}?setup=1`, label: t("smartReadlist.preferences"), variant: "primary" };
+	if (!smart.configured) return { key: "set-preferences", method: "GET", href: `${readlistPreferencesPath(smart.target)}#${READLIST_SMART_SECTION_ID}`, label: t("smartReadlist.preferences"), variant: "primary" };
 	if (smart.viewingTarget) return { key: "open-all", method: "GET", href: READLIST_PATH, label: t("smartReadlist.all"), variant: "primary" };
 	return { key: "open-smart-readlist", method: "GET", href: buildReadlistUrl({ readlist: smart.target }), label: t("smartReadlist.open"), variant: "primary" };
 }

@@ -4,7 +4,7 @@ import { READLIST_PURPOSE_MAX_LENGTH, type ReadlistSlug } from "@packages/domain
 import { render } from "@packages/web-shell";
 
 import { GMAIL_PATH } from "../integrations/gmail.url";
-import { readlistPreferencesPath } from "./readlist.url";
+import { READLIST_SMART_SECTION_ID, readlistPreferencesPath } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-smart-filing.template.html"), "utf-8");
 
@@ -29,6 +29,7 @@ export function renderReadlistSmartFiling(vm: {
 }): string {
 	const smart = vm.mode === "smart";
 	return render(TEMPLATE, {
+		sectionId: READLIST_SMART_SECTION_ID,
 		mode: vm.mode,
 		smart,
 		paused: smart && vm.paidFeaturesLocked,
