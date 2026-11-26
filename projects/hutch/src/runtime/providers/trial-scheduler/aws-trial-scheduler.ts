@@ -96,36 +96,34 @@ export function initAwsTrialScheduler(deps: {
 	createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule;
 	deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule;
 } {
-	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
+	const createOneShot = async (schedule: {
+		name: string;
+		firesAt: string;
+		source: string;
+		detailType: string;
+		input: Record<string, unknown>;
+	}): Promise<void> => {
 		await deps.client.send(
 			new CreateScheduleCommand({
-				Name: trialEndScheduleName(userId),
+				Name: schedule.name,
 				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
+				ScheduleExpression: `at(${toNaiveSeconds(schedule.firesAt)})`,
 				FlexibleTimeWindow: { Mode: "OFF" },
 				ActionAfterCompletion: "DELETE",
 				State: "ENABLED",
 				Target: {
 					Arn: deps.eventBusArn,
 					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: "hutch.subscriptions",
-						DetailType: "SubscriptionStartRequestCommand",
-					},
-					Input: JSON.stringify({ userId }),
+					EventBridgeParameters: { Source: schedule.source, DetailType: schedule.detailType },
+					Input: JSON.stringify(schedule.input),
 				},
 			}),
 		);
 	};
 
-	const deleteTrialEndSchedule: DeleteTrialEndSchedule = async ({ userId }) => {
+	const deleteIfExists = async (name: string): Promise<void> => {
 		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: trialEndScheduleName(userId),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
+			await deps.client.send(new DeleteScheduleCommand({ Name: name, GroupName: deps.scheduleGroupName }));
 		} catch (err) {
 			if (err instanceof Error && err.name === "ResourceNotFoundException") {
 				return;
@@ -134,258 +132,89 @@ export function initAwsTrialScheduler(deps: {
 		}
 	};
 
-	const createDeferredCancellationSchedule: CreateDeferredCancellationSchedule = async ({
-		userId,
-		firesAt,
-		reason,
-	}) => {
-		await deps.client.send(
-			new CreateScheduleCommand({
-				Name: deferredCancellationScheduleName(userId),
-				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
-				FlexibleTimeWindow: { Mode: "OFF" },
-				ActionAfterCompletion: "DELETE",
-				State: "ENABLED",
-				Target: {
-					Arn: deps.eventBusArn,
-					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: "hutch.subscriptions",
-						DetailType: "CancelSubscriptionCommand",
-					},
-					Input: JSON.stringify(reason ? { userId, reason } : { userId }),
-				},
-			}),
-		);
-	};
+	const createTrialEndSchedule: CreateTrialEndSchedule = ({ userId, firesAt }) =>
+		createOneShot({
+			name: trialEndScheduleName(userId),
+			firesAt,
+			source: "hutch.subscriptions",
+			detailType: "SubscriptionStartRequestCommand",
+			input: { userId },
+		});
 
-	const deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule = async ({
-		userId,
-	}) => {
-		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: deferredCancellationScheduleName(userId),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
-		} catch (err) {
-			if (err instanceof Error && err.name === "ResourceNotFoundException") {
-				return;
-			}
-			throw err;
-		}
-	};
+	const deleteTrialEndSchedule: DeleteTrialEndSchedule = ({ userId }) =>
+		deleteIfExists(trialEndScheduleName(userId));
 
-	const createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule = async ({
-		userId,
-		firesAt,
-	}) => {
-		await deps.client.send(
-			new CreateScheduleCommand({
-				Name: trialFeedbackEmailScheduleName(userId),
-				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
-				FlexibleTimeWindow: { Mode: "OFF" },
-				ActionAfterCompletion: "DELETE",
-				State: "ENABLED",
-				Target: {
-					Arn: deps.eventBusArn,
-					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: "hutch.subscriptions",
-						DetailType: "SendTrialFeedbackEmailCommand",
-					},
-					Input: JSON.stringify({ userId }),
-				},
-			}),
-		);
-	};
+	const createDeferredCancellationSchedule: CreateDeferredCancellationSchedule = ({ userId, firesAt, reason }) =>
+		createOneShot({
+			name: deferredCancellationScheduleName(userId),
+			firesAt,
+			source: "hutch.subscriptions",
+			detailType: "CancelSubscriptionCommand",
+			input: reason ? { userId, reason } : { userId },
+		});
 
-	const deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule = async ({
-		userId,
-	}) => {
-		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: trialFeedbackEmailScheduleName(userId),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
-		} catch (err) {
-			if (err instanceof Error && err.name === "ResourceNotFoundException") {
-				return;
-			}
-			throw err;
-		}
-	};
+	const deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule = ({ userId }) =>
+		deleteIfExists(deferredCancellationScheduleName(userId));
 
-	const createTrialReminderSchedule: CreateTrialReminderSchedule = async ({
-		userId,
-		firesAt,
-	}) => {
-		await deps.client.send(
-			new CreateScheduleCommand({
-				Name: trialReminderScheduleName(userId),
-				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
-				FlexibleTimeWindow: { Mode: "OFF" },
-				ActionAfterCompletion: "DELETE",
-				State: "ENABLED",
-				Target: {
-					Arn: deps.eventBusArn,
-					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: "hutch.subscriptions",
-						DetailType: "SendTrialFeedbackEmailCommand",
-					},
-					Input: JSON.stringify({ userId, kind: "reminder" }),
-				},
-			}),
-		);
-	};
+	const createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule = ({ userId, firesAt }) =>
+		createOneShot({
+			name: trialFeedbackEmailScheduleName(userId),
+			firesAt,
+			source: "hutch.subscriptions",
+			detailType: "SendTrialFeedbackEmailCommand",
+			input: { userId },
+		});
 
-	const deleteTrialReminderSchedule: DeleteTrialReminderSchedule = async ({ userId }) => {
-		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: trialReminderScheduleName(userId),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
-		} catch (err) {
-			if (err instanceof Error && err.name === "ResourceNotFoundException") {
-				return;
-			}
-			throw err;
-		}
-	};
+	const deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule = ({ userId }) =>
+		deleteIfExists(trialFeedbackEmailScheduleName(userId));
 
-	const createTrialNudgeSchedule: CreateTrialNudgeSchedule = async ({
-		userId,
-		kind,
-		firesAt,
-	}) => {
-		await deps.client.send(
-			new CreateScheduleCommand({
-				Name: trialNudgeScheduleName({ userId, kind }),
-				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
-				FlexibleTimeWindow: { Mode: "OFF" },
-				ActionAfterCompletion: "DELETE",
-				State: "ENABLED",
-				Target: {
-					Arn: deps.eventBusArn,
-					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: "hutch.subscriptions",
-						DetailType: "SendTrialFeedbackEmailCommand",
-					},
-					Input: JSON.stringify({ userId, kind }),
-				},
-			}),
-		);
-	};
+	const createTrialReminderSchedule: CreateTrialReminderSchedule = ({ userId, firesAt }) =>
+		createOneShot({
+			name: trialReminderScheduleName(userId),
+			firesAt,
+			source: "hutch.subscriptions",
+			detailType: "SendTrialFeedbackEmailCommand",
+			input: { userId, kind: "reminder" },
+		});
 
-	const createChargeReminderSchedule: CreateChargeReminderSchedule = async ({
-		userId,
-		firesAt,
-		chargeAt,
-	}) => {
-		await deps.client.send(
-			new CreateScheduleCommand({
-				Name: chargeReminderScheduleName(userId),
-				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
-				FlexibleTimeWindow: { Mode: "OFF" },
-				ActionAfterCompletion: "DELETE",
-				State: "ENABLED",
-				Target: {
-					Arn: deps.eventBusArn,
-					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: "hutch.subscriptions",
-						DetailType: "SendTrialFeedbackEmailCommand",
-					},
-					Input: JSON.stringify({ userId, kind: "charge_reminder", chargeAt }),
-				},
-			}),
-		);
-	};
+	const deleteTrialReminderSchedule: DeleteTrialReminderSchedule = ({ userId }) =>
+		deleteIfExists(trialReminderScheduleName(userId));
 
-	const deleteChargeReminderSchedule: DeleteChargeReminderSchedule = async ({ userId }) => {
-		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: chargeReminderScheduleName(userId),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
-		} catch (err) {
-			if (err instanceof Error && err.name === "ResourceNotFoundException") {
-				return;
-			}
-			throw err;
-		}
-	};
+	const createTrialNudgeSchedule: CreateTrialNudgeSchedule = ({ userId, kind, firesAt }) =>
+		createOneShot({
+			name: trialNudgeScheduleName({ userId, kind }),
+			firesAt,
+			source: "hutch.subscriptions",
+			detailType: "SendTrialFeedbackEmailCommand",
+			input: { userId, kind },
+		});
 
-	const deleteTrialNudgeSchedule: DeleteTrialNudgeSchedule = async ({ userId, kind }) => {
-		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: trialNudgeScheduleName({ userId, kind }),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
-		} catch (err) {
-			if (err instanceof Error && err.name === "ResourceNotFoundException") {
-				return;
-			}
-			throw err;
-		}
-	};
+	const createChargeReminderSchedule: CreateChargeReminderSchedule = ({ userId, firesAt, chargeAt }) =>
+		createOneShot({
+			name: chargeReminderScheduleName(userId),
+			firesAt,
+			source: "hutch.subscriptions",
+			detailType: "SendTrialFeedbackEmailCommand",
+			input: { userId, kind: "charge_reminder", chargeAt },
+		});
 
-	const createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule = async ({
-		userId,
-		firesAt,
-	}) => {
-		await deps.client.send(
-			new CreateScheduleCommand({
-				Name: ageLockDeletionScheduleName(userId),
-				GroupName: deps.scheduleGroupName,
-				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
-				FlexibleTimeWindow: { Mode: "OFF" },
-				ActionAfterCompletion: "DELETE",
-				State: "ENABLED",
-				Target: {
-					Arn: deps.eventBusArn,
-					RoleArn: deps.schedulerRoleArn,
-					EventBridgeParameters: {
-						Source: AgeLockDeletionDueCommand.source,
-						DetailType: AgeLockDeletionDueCommand.detailType,
-					},
-					Input: JSON.stringify({ userId }),
-				},
-			}),
-		);
-	};
+	const deleteChargeReminderSchedule: DeleteChargeReminderSchedule = ({ userId }) =>
+		deleteIfExists(chargeReminderScheduleName(userId));
 
-	const deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule = async ({ userId }) => {
-		try {
-			await deps.client.send(
-				new DeleteScheduleCommand({
-					Name: ageLockDeletionScheduleName(userId),
-					GroupName: deps.scheduleGroupName,
-				}),
-			);
-		} catch (err) {
-			if (err instanceof Error && err.name === "ResourceNotFoundException") {
-				return;
-			}
-			throw err;
-		}
-	};
+	const deleteTrialNudgeSchedule: DeleteTrialNudgeSchedule = ({ userId, kind }) =>
+		deleteIfExists(trialNudgeScheduleName({ userId, kind }));
+
+	const createAgeLockDeletionSchedule: CreateAgeLockDeletionSchedule = ({ userId, firesAt }) =>
+		createOneShot({
+			name: ageLockDeletionScheduleName(userId),
+			firesAt,
+			source: AgeLockDeletionDueCommand.source,
+			detailType: AgeLockDeletionDueCommand.detailType,
+			input: { userId },
+		});
+
+	const deleteAgeLockDeletionSchedule: DeleteAgeLockDeletionSchedule = ({ userId }) =>
+		deleteIfExists(ageLockDeletionScheduleName(userId));
 
 	return {
 		createTrialEndSchedule,
