@@ -20,18 +20,14 @@ import {
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
-import { Base } from "../base.component";
-import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { oauthClientIdFrom } from "./oauth-client-id";
 import { defineCookie } from "@packages/web-analytics";
-import { sessionCookie } from "../session-cookie";
-import { LoginPage } from "./auth.component";
+import { oauthCallbackResponses } from "./oauth-callback-responses";
 import { readClickAttribution } from "@packages/web-analytics";
 import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
-import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
@@ -39,7 +35,7 @@ import { signState, verifyState } from "./oauth-state";
 import type { Logger, LogError } from "@packages/logger";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
-import { initClaimSignupAllowance, signupAllowanceSpentMessage } from "./signup-allowance";
+import { initClaimSignupAllowance } from "./signup-allowance";
 
 const CallbackQuerySchema = z.object({
 	code: z.string().min(1),
@@ -84,11 +80,6 @@ interface GoogleAuthDependencies {
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const router = express.Router();
-	const signIn = (res: Response, sessionId: string): void => {
-		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
-		res.set("Clear-Site-Data", '"storage"');
-		setLastAuthProvider({ res, secure: deps.secureCookies }, "google");
-	};
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
 	const claimSignupAllowance = initClaimSignupAllowance({
 		consumeRateLimit: deps.consumeRateLimit,
@@ -133,54 +124,23 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		res.clearCookie(STATE_COOKIE, { path: "/" });
 
-		const renderError = async ({ message, reason = "provider_rejected" }: { message: string; reason?: "callback_invalid" | "expired" | "provider_rejected" }) => {
-			res.locals.authDiagnosticReason = reason;
-			sendComponent(
-				req,
-				res,
-				Base(LoginPage(
-					{
-						lastUsedProvider: readLastAuthProvider(req),
-						errors: [{ message }],
-					},
-					{ statusCode: 400 },
-				), bannerStateFromRequest(req)),
-			);
-		};
-
-		const renderAllowanceSpent = async ({ returnUrl, retryAfterSeconds }: { returnUrl: string | undefined; retryAfterSeconds: number }) => {
-			deps.logger.info("[Signup] allowance spent", { method: "google" });
-			res.locals.authDiagnosticReason = "signup_allowance_spent";
-			res.set("Retry-After", String(retryAfterSeconds));
-			sendComponent(
-				req,
-				res,
-				Base(LoginPage(
-					{
-						lastUsedProvider: readLastAuthProvider(req),
-						returnUrl,
-						errors: [{ message: signupAllowanceSpentMessage({ limit: deps.signupCreatedRule.limit }) }],
-					},
-					{ statusCode: 429 },
-				), bannerStateFromRequest(req)),
-			);
-		};
+		const { renderError, renderAllowanceSpent, signIn } = oauthCallbackResponses({ req, res, provider: "google", deps });
 
 		if (!parsedQuery.success || !stateCookie || parsedQuery.data.state !== stateCookie) {
-			await renderError({ message: "Google sign-in failed. Please try again.", reason: "callback_invalid" });
+			renderError({ message: "Google sign-in failed. Please try again.", reason: "callback_invalid" });
 			return;
 		}
 		const { code, state: stateParam } = parsedQuery.data;
 
 		const payload = verifyState({ signed: stateParam, secret: deps.googleClientSecret });
 		if (!payload) {
-			await renderError({ message: "Google sign-in failed. Please try again.", reason: "callback_invalid" });
+			renderError({ message: "Google sign-in failed. Please try again.", reason: "callback_invalid" });
 			return;
 		}
 
 		const stateData = StatePayloadSchema.parse(JSON.parse(payload));
 		if (Date.now() - stateData.createdAt > STATE_TTL_MS) {
-			await renderError({ message: "Google sign-in expired. Please try again.", reason: "expired" });
+			renderError({ message: "Google sign-in expired. Please try again.", reason: "expired" });
 			return;
 		}
 
@@ -189,12 +149,12 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			tokenResult = await deps.exchangeGoogleCode(code);
 		} catch (error) {
 			deps.logError("[Google Auth] Token exchange failed", error instanceof Error ? error : new Error(String(error)));
-			await renderError({ message: "Google sign-in failed. Please try again." });
+			renderError({ message: "Google sign-in failed. Please try again." });
 			return;
 		}
 
 		if (!tokenResult.emailVerified) {
-			await renderError({ message: "Your Google account email is not verified." });
+			renderError({ message: "Your Google account email is not verified." });
 			return;
 		}
 
@@ -204,7 +164,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				await deps.markEmailVerified(tokenResult.email);
 			}
 			const sessionId = await deps.createSession({ userId: existing.userId, emailVerified: true });
-			signIn(res, sessionId);
+			signIn(sessionId);
 			res.redirect(303, parseReturnUrl({ return: stateData.returnUrl }));
 			return;
 		}
@@ -221,7 +181,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const allowance = await claimSignupAllowance(req);
 		if (!allowance.allowed) {
-			await renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
+			renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
 			return;
 		}
 		/* Read once, then persisted on the user row (durable) AND emitted on the
@@ -240,11 +200,11 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					await deps.markEmailVerified(tokenResult.email);
 				}
 				const sessionIdRace = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-				signIn(res, sessionIdRace);
+				signIn(sessionIdRace);
 				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 				return;
 			}
-			await renderError({ message: "Account creation failed. Please try again." });
+			renderError({ message: "Account creation failed. Please try again." });
 			return;
 		}
 
@@ -260,7 +220,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		});
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-		signIn(res, sessionId);
+		signIn(sessionId);
 		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
