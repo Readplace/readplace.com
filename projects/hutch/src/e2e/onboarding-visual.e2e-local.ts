@@ -237,7 +237,7 @@ async function smartReadlistIsTheOnlyOpenRow(page: Page): Promise<void> {
 async function autoTickedRowCollapses(page: Page): Promise<void> {
 	await expect(page.locator(EMAIL_STEP)).toHaveAttribute("data-test-onboarding-complete", "true");
 	await smartReadlistIsTheOnlyOpenRow(page);
-	await stepAnatomyHolds(page, 611);
+	await stepAnatomyHolds(page, 563);
 }
 
 async function nextReadRowSettled(page: Page): Promise<void> {
