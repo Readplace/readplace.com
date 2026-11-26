@@ -29,8 +29,10 @@ export const enUS = {
 		action: {
 			file: "Add to readlist",
 			read: "Mark as read in “All”",
+			"read-everywhere": "Mark as read in every readlist",
 			remove: "Remove from “All”",
 		},
+		staleForm: "This form is out of date. Refresh the page and choose the action again.",
 		confirmBy: "Confirm by",
 		restoreBy: "Restore by",
 		retry: "Retry unfinished work",
@@ -44,6 +46,7 @@ export const enUS = {
 			completed: "Completed",
 			skipped: "Skipped",
 			failed: "Failed",
+			unfinished: "Unfinished articles",
 			restorable: "Restorable",
 			restoredCount: "Restored",
 		},

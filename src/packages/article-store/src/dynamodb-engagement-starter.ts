@@ -22,7 +22,7 @@ import {
 } from "@packages/provider-contracts/engagement-starter";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
-import { partitionFor, readlistDefinitionKey } from "./user-readlist-partition";
+import { partitionFor, readlistDefinitionKey, readlistDefinitionsRevisionIncrement } from "./user-readlist-partition";
 
 const DAY_MS = 86_400_000;
 
@@ -287,6 +287,7 @@ export function initDynamoDbEngagementStarter(deps: {
 							ExpressionAttributeNames: { "#url": "url" },
 						},
 					},
+					{ Update: { TableName: deps.userArticlesTableName, ...readlistDefinitionsRevisionIncrement(userId) } },
 					...pack.picks.flatMap((pick, index) =>
 						[DEFAULT_READLIST_SLUG, pack.readlist].map((readlist) => ({
 							Put: {

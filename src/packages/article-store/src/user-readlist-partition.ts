@@ -14,6 +14,21 @@ export const READLIST_DEFINITION_KEY_PREFIX = "readplace:queue-def/";
 
 export const BULK_ARTICLE_JOB_PREFIX = "readplace:bulk-articles/";
 
+export const READLIST_DEFINITIONS_REVISION_ATTRIBUTE = "definitionRevision";
+
+export function readlistDefinitionsRevisionKey(userId: string) {
+	return { userId, url: "readplace:queue-revision" };
+}
+
+export function readlistDefinitionsRevisionIncrement(userId: string) {
+	return {
+		Key: readlistDefinitionsRevisionKey(userId),
+		UpdateExpression: "SET #revision = if_not_exists(#revision, :zero) + :one",
+		ExpressionAttributeNames: { "#revision": READLIST_DEFINITIONS_REVISION_ATTRIBUTE },
+		ExpressionAttributeValues: { ":zero": 0, ":one": 1 },
+	};
+}
+
 export const CANONICAL_REMOVAL_PREFIX = "readplace:removed-article/";
 
 export function canonicalRemovalKey(userId: string, url: string) {
