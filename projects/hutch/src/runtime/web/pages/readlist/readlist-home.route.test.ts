@@ -61,7 +61,16 @@ describe("Home readlist", () => {
 		});
 		expect(reset.status).toBe(303);
 		expect(reset.headers.location).toContain(`queue=${slug}`);
+		const afterReset = view((await agent.get(reset.headers.location)).text);
+		expect(afterReset.querySelector('[role="status"][autofocus]')?.textContent).toBe("All is now your home readlist.");
+		const badged = Array.from(afterReset.querySelectorAll(".readlist-nav__home"), (badge) => badge.previousElementSibling?.getAttribute("data-test-readlist"));
+		expect(badged.length).toBeGreaterThan(0);
+		expect(new Set(badged)).toEqual(new Set(["default"]));
+		expect(afterReset.querySelector('[data-test-readlist-menu="default"] [data-test-action="readlist-set-home"]')).toBeNull();
 		expect(view((await agent.get("/queue")).text).querySelector('[data-test-readlist][aria-current="page"]')?.textContent).toBe("All");
+		const nativeAfterReset = await siren("/queue").set(NATIVE_CLIENT_HEADER, "ios").set(HOME_READLIST_HEADER, "1");
+		expect(nativeAfterReset.body.links).toContainEqual({ rel: ["root", "home"], href: "/queue" });
+		expect(nativeAfterReset.body.actions).not.toContainEqual(expect.objectContaining({ name: "set-home-readlist" }));
 	});
 
 	it("offers the action in More and the phone switcher, and keeps the marker after a rejected POST", async () => {

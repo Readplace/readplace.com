@@ -10,6 +10,7 @@ export function homeReadlistOf(
 	preference: HomeReadlistPreference | undefined,
 	definitions: readonly ReadlistDefinitionData[],
 ): ReadlistSlug {
+	if (preference?.slug === DEFAULT_READLIST_SLUG) return DEFAULT_READLIST_SLUG;
 	if (preference && definitions.some((definition) =>
 		definition.slug === preference.slug && definition.createdAt.toISOString() === preference.createdAt,
 	)) return preference.slug;
