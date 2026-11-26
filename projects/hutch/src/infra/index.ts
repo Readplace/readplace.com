@@ -8,7 +8,6 @@ import { join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DynamoDbStreamBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
 import {
-	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
 	CheckoutCompletedEvent,
@@ -101,7 +100,6 @@ import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-e
 import { REANCHOR_HIGHLIGHTS_ENV } from "../runtime/reanchor-highlights.env";
 import { SMART_READLIST_INTAKE_ENV } from "../runtime/smart-readlist-intake.env";
 import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
-import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
@@ -2760,39 +2758,6 @@ export const apiGatewayId = gateway.apiGatewayId;
 export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const staticBaseUrl = staticAssets.baseUrl;
 export const _dependencies = [gateway.defaultRoute];
-
-const evaluateRefreshQueue = new Sqs("evaluate-oauth-refresh", { visibilityTimeoutSeconds: 180 });
-const evaluateRefreshRead = new DynamoDBAccess("evaluate-oauth-refresh-read", {
-	tables: [{ arn: oauthOutcomes.arn, includeIndexes: false }], actions: ["dynamodb:Query"],
-});
-const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
-	entryPoint: "./src/runtime/evaluate-oauth-refresh.main.ts", outputDir: ".lib/evaluate-oauth-refresh", assetDir: "./src/runtime",
-	memorySize: 256, timeout: 30,
-	environmentNames: EVALUATE_OAUTH_REFRESH_ENV,
-	environment: { DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name },
-	policies: [...evaluateRefreshRead.policies, { name: "oauth-refresh-metrics", policy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "cloudwatch:PutMetricData", Resource: "*", Condition: { StringEquals: { "cloudwatch:namespace": "Readplace/OAuth" } } }] }) }],
-});
-new SqsBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
-const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
-	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
-});
-new aws.iam.RolePolicy("evaluate-oauth-refresh-scheduler-send", {
-	role: evaluateRefreshRole.id,
-	policy: evaluateRefreshQueue.queueArn.apply(arn => JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "sqs:SendMessage", Resource: arn }] })),
-});
-new aws.scheduler.Schedule("evaluate-oauth-refresh", {
-	scheduleExpression: "rate(1 minute)", flexibleTimeWindow: { mode: "OFF" },
-	target: { arn: evaluateRefreshQueue.queueArn, roleArn: evaluateRefreshRole.arn, input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>) },
-});
-new aws.cloudwatch.MetricAlarm("oauth-refresh-monitoring-health", {
-	name: "oauth-refresh-monitoring-health",
-	comparisonOperator: "LessThanThreshold", threshold: 1, evaluationPeriods: 5, datapointsToAlarm: 5, treatMissingData: "breaching",
-	metricQueries: [
-		{ id: "heartbeat", metric: { namespace: "Readplace/OAuth", metricName: "OAuthRefreshEvaluationSucceeded", period: 60, stat: "Maximum" }, returnData: false },
-		{ id: "completed", expression: "FILL(heartbeat, 0)", returnData: true },
-	],
-	alarmActions: [oauthRefreshRefusedTopic.arn], alarmDescription: "OAuth refresh monitoring has not completed an evaluation for five minutes",
-});
 
 if (mcpScanListingWindowHours !== undefined) {
 	new aws.cloudwatch.LogMetricFilter("mcp-tools-listed-by-openai-scan-filter", {

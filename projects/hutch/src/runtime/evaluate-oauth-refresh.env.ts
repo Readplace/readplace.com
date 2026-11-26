@@ -1,3 +1,0 @@
-export const EVALUATE_OAUTH_REFRESH_ENV = [
-	"DYNAMODB_OAUTH_OUTCOMES_TABLE",
-] as const;

@@ -1,9 +1,5 @@
 import { z } from "zod";
-import type { ProofValidation } from "./dpop";
 import { OAuthGrantId, RefreshAttempt } from "./evidence";
-
-export type RefreshCounts = { raw: number; challenged: number; expected: number; recovered: number; unexpected: number; unknown: number; pending: number };
-const NONCE_REQUIRED = "nonce_required" satisfies Extract<ProofValidation, { ok: false }>["reason"];
 
 export const RefreshRefusal = RefreshAttempt.extend({
 	status: z.number().int(),
@@ -21,32 +17,3 @@ export const RefreshOutcome = z.object({
 	recoveredAt: z.number().optional(),
 });
 export type RefreshOutcome = z.infer<typeof RefreshOutcome>;
-
-export function initEvaluateRefreshOutcomes(deps: {
-	readDay: (input: { day: string; from: number; until: number }) => Promise<RefreshOutcome[]>;
-	publish: (input: { minute: number; counts: RefreshCounts }) => Promise<void>;
-}) {
-	return async (at: number) => {
-		const minute = Math.floor(at / 60_000) * 60_000;
-		const from = minute - 86_400_000;
-		const days = [...new Set([new Date(from).toISOString().slice(0, 10), new Date(minute).toISOString().slice(0, 10)])];
-		const rows = (await Promise.all(days.map(day => deps.readDay({ day, from, until: minute })))).flat();
-		const counts = { raw: 0, challenged: 0, expected: 0, recovered: 0, unexpected: 0, unknown: 0, pending: 0 };
-		const seen = new Set<string>();
-		for (const row of rows) {
-			const refusal = row.refusal;
-			if (!refusal || refusal.occurredAt < from || refusal.occurredAt > minute || seen.has(refusal.refusalId)) continue;
-			seen.add(refusal.refusalId);
-			counts.raw++;
-			if (refusal.status === 400 && refusal.reason === NONCE_REQUIRED) { counts.challenged++; continue; }
-			if (refusal.status === 400 && (refusal.reason === "expired" && refusal.credentialExpiresAt !== undefined && refusal.credentialExpiresAt <= refusal.occurredAt || refusal.revocation && refusal.reason === refusal.revocation.cause && refusal.revocation.cause !== "rotation" && refusal.revocation.completedAt <= refusal.occurredAt)) { counts.expected++; continue; }
-			if (row.recoveredAt !== undefined) { counts.recovered++; continue; }
-			if (!refusal.grantId) counts.unknown++;
-			if (refusal.status >= 500) { counts.unexpected++; continue; }
-			if (refusal.occurredAt > minute - 300_000) { counts.pending++; continue; }
-			counts.unexpected++;
-		}
-		await deps.publish({ minute, counts });
-		return counts;
-	};
-}

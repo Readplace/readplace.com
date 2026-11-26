@@ -105,7 +105,6 @@ export {
 	type CheckoutCompletedDetail,
 	SubscriptionChargeFailedEvent,
 	type SubscriptionChargeFailedDetail,
-	EvaluateOAuthRefreshCommand,
 	SendTrialFeedbackEmailCommand,
 	type SendTrialFeedbackEmailDetail,
 	SendFirstInboxEmailNoticeCommand,

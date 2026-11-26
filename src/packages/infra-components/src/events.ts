@@ -1680,13 +1680,6 @@ export type GmailModifyPermissionGrantedDetail = z.infer<typeof GmailModifyPermi
 
 export type { EventDefinition, CommandDefinition };
 
-export const EvaluateOAuthRefreshCommand = defineEvent({
-	name: "evaluate-oauth-refresh",
-	source: "hutch.oauth-refresh",
-	detailType: "EvaluateOAuthRefreshCommand",
-	detailSchema: z.object({ scheduledAt: z.iso.datetime() }),
-});
-
 export const CheckGmailNewslettersCommand = defineEvent({
 	name: "check-gmail-newsletters", source: "hutch.app", detailType: "CheckGmailNewsletters",
 	detailSchema: z.object({ accountsPageToken: z.string().optional() }),

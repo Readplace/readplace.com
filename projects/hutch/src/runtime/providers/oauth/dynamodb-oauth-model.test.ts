@@ -14,7 +14,7 @@ import { initDynamoDbOAuthModel } from "./dynamodb-oauth-model";
 import { initDynamoRefreshStore } from "./dynamodb-refresh-store";
 import { initRefreshProof, refreshContext, type RefreshContext } from "../../oauth-refresh/evidence";
 import { captureOAuthBody } from "../../oauth-refresh/request-body";
-import { initEvaluateRefreshOutcomes, RefreshRefusal } from "../../oauth-refresh/outcomes";
+import { RefreshRefusal } from "../../oauth-refresh/outcomes";
 import { initTokenExchange } from "../../web/oauth/token-exchange";
 import { initObserveTokenOutcome } from "../../web/oauth/token-refusal";
 
@@ -679,17 +679,12 @@ function tokenEndpoint(model: ReturnType<typeof setup>["model"]) {
 	};
 }
 
-async function evaluateAfterPendingWindow(refusal: RefreshRefusal) {
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [{ day: "day", order: "order", expiresAt: 0, refusal }], publish: async () => {} });
-	return evaluate(refusal.occurredAt + 360_000);
-}
-
 it.each([
 	["disconnect", (model: ReturnType<typeof setup>["model"]) => model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })],
 	["logout-all", (model: ReturnType<typeof setup>["model"]) => model.revokeAllUserOAuthTokens(reader, "logout-all")],
 	["logout", (model: ReturnType<typeof setup>["model"]) => model.refresh.revoke({ token: "r", now: Date.now() })],
 	["account-deletion", (model: ReturnType<typeof setup>["model"]) => model.revokeAllUserOAuthTokens(reader, "account-deletion")],
-] as const)("records a refresh refused after a %s revocation under its cause, which the evaluator counts expected, while the app still reads revoked", async (cause, revoke) => {
+] as const)("records a refresh refused after a %s revocation under its cause while the app still reads revoked", async (cause, revoke) => {
 	const { model } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	await revoke(model);
@@ -699,10 +694,9 @@ it.each([
 	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "revoked" });
 	const refusal = endpoint.lastRefusal();
 	expect(refusal).toMatchObject({ reason: cause, revocation: { cause } });
-	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 1, unexpected: 0 });
 });
 
-it("records a reused rotated refresh token under rotation, which the evaluator counts unexpected past the pending window", async () => {
+it("records a reused rotated refresh token under rotation", async () => {
 	const { model } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	const endpoint = tokenEndpoint(model);
@@ -711,10 +705,9 @@ it("records a reused rotated refresh token under rotation, which the evaluator c
 	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "superseded" });
 	const refusal = endpoint.lastRefusal();
 	expect(refusal).toMatchObject({ reason: "rotation", revocation: { cause: "rotation" } });
-	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
 });
 
-it("records a refresh another client presented for a token that logout-all revoked under unknown, not the revocation's cause, which the evaluator counts unexpected", async () => {
+it("records a refresh another client presented for a token that logout-all revoked under unknown, not the revocation's cause", async () => {
 	const { model } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	const endpoint = tokenEndpoint(model);
@@ -725,10 +718,9 @@ it("records a refresh another client presented for a token that logout-all revok
 	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "unknown" });
 	const refusal = endpoint.lastRefusal();
 	expect(refusal).toMatchObject({ reason: "unknown", revocation: { cause: "logout-all" } });
-	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
 });
 
-it("records a bound grant's refresh that arrived without its proof after logout-all under proof_required, not the revocation's cause, which the evaluator counts unexpected", async () => {
+it("records a bound grant's refresh that arrived without its proof after logout-all under proof_required, not the revocation's cause", async () => {
 	const { model } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	const bound = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: Date.now() + 300_000 } });
@@ -740,7 +732,6 @@ it("records a bound grant's refresh that arrived without its proof after logout-
 	expect(response.body).toEqual({ error: "invalid_dpop_proof", readplace_reason: "proof_required" });
 	const refusal = endpoint.lastRefusal();
 	expect(refusal).toMatchObject({ reason: "proof_required", revocation: { cause: "logout-all" } });
-	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
 });
 
 it("validates an exempt access token and refuses the other grants at the old epoch", async () => {
@@ -908,7 +899,6 @@ it("keeps the named grant and disconnects every other grant and code", async () 
 	expect((await endpoint.refreshAs({ clientId: chrome.id, refreshToken: "s" })).body).toEqual({ error: "invalid_grant", readplace_reason: "revoked" });
 	const refusal = endpoint.lastRefusal();
 	expect(refusal).toMatchObject({ reason: "logout-all", revocation: { cause: "logout-all" } });
-	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 1, unexpected: 0 });
 	expect(await model.getAuthorizationCode("before")).toBeNull();
 	await model.saveAuthorizationCode(authorizationCode("after"), client, user);
 	expect(await model.getAuthorizationCode("after")).toMatchObject({ authorizationCode: "after" });
