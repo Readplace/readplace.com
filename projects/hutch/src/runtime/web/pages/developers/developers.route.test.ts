@@ -49,7 +49,7 @@ async function openAll(harness: Harness, token: string): Promise<request.Respons
 interface Action {
 	name: string;
 	href: string;
-	fields?: { name: string; value?: string }[];
+	fields?: { name: string; type?: string; value?: string }[];
 }
 
 function actionNamed(body: { actions?: Action[] }, name: string): Action {
@@ -412,6 +412,17 @@ describe("/developers documents what the API emits", () => {
 		expect(marked(root, "data-test-field").sort()).toEqual((search.fields ?? []).map((field) => field.name).sort());
 	});
 
+	it("documents exactly the find-articles fields a client fills in", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const root = await readPage(harness);
+
+		const findArticles = actionNamed((await openAll(harness, token)).body, "find-articles");
+		const filledIn = (findArticles.fields ?? []).filter((field) => field.type !== "hidden").map((field) => field.name);
+
+		expect(marked(root, "data-test-find-articles-field").sort()).toEqual(filledIn.sort());
+	});
+
 	it("documents every property an article entity carries", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await createAccessToken(harness);
@@ -565,6 +576,8 @@ describe("/developers copy", () => {
 				"Follow every redirect yourself, sending the token and the Accept header again. Some HTTP clients drop Authorization when they follow a redirect, and the API then answers 401.",
 			"field-limits":
 				"Each action also states its limits in its fields, as maxItems, maxBytes and maxRequestBytes, Readplace's own additions to Siren's fields. Read them from the answer rather than hard-coding these numbers.",
+			"find-articles":
+				"find-articles searches and filters the readlist and tab you're on. Send every hidden field with its value, and fill in these:",
 			vary: "A collection, and the 303 that moves an older collection href to its current form, answer Vary: Accept, Authorization, User-Agent, X-Readplace-Client, X-Readplace-Save-Continuity. Key any copy you keep on the token and the Accept header too, so one reader's collection is never served for another's token.",
 			delete:
 				"Deleting an article stays in the Readplace app. The API advertises no delete action, and remove-from-readlist takes nothing out of All.",

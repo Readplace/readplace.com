@@ -88,7 +88,15 @@ const COLLECTION_PROPERTY_DOCS = {
 	warning: "appears only on a <code>422</code> answer to <code>save-article</code>.",
 	messages: "on a listing, these are only for Readplace's own apps.",
 	hint: "for Readplace's own apps only, on the Hand Picked collection: a <code>{text, link: {label, href}}</code> note the app shows with its link. Skip it.",
+	findArticles:
+		"present on a <code>find-articles</code> answer that searches or filters. <code>clear</code> is a <code>{title, href}</code> to the whole tab, <code>clearSearch</code> and <code>clearFilters</code> drop only the text or only the choices, and <code>noMatches</code> carries a <code>{title}</code> when the tab holds articles but none match.",
 } satisfies Record<keyof CollectionProperties, string>;
+
+export const FIND_ARTICLES_FIELD_DOCS = {
+	q: "text to find in each article's title, site name and host. Every word must match, ignoring case and accents.",
+	time: "one or more reading times, from the field's <code>options</code>. An article matches any one you send.",
+	saved: "one or more saved dates, from the field's <code>options</code>. An article matches any one you send.",
+} as const;
 
 const SEARCH_FIELD_DOCS = {
 	status: "<code>unread</code> or <code>read</code>. Without it, <code>search</code> lists unread articles.",
@@ -208,6 +216,7 @@ export function DevelopersPage(input: { language: SampleLanguage }): PageBody {
 				htmlUploadLimit: MAX_HTML_BYTES.label,
 				collectionProperties: documented(COLLECTION_PROPERTY_DOCS),
 				searchFields: documented(SEARCH_FIELD_DOCS),
+				findArticlesFields: documented(FIND_ARTICLES_FIELD_DOCS),
 				articleProperties: documented(ARTICLE_PROPERTY_DOCS),
 				frontmatterKeys: documented(FRONTMATTER_DOCS),
 			}),

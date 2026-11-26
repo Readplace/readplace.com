@@ -23,7 +23,7 @@ import { readlistHref } from "../../api/readlist-href";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { HOME_READLIST_SAVED, homeReadlistTarget } from "./readlist-home";
 import { UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
-import { buildQueryString } from "../../api/collection-query";
+import { FIND_ARTICLES_PARAM, buildQueryString } from "../../api/collection-query";
 import {
 	parseReadlistUrl,
 	buildReadlistUrl,
@@ -114,7 +114,10 @@ export function initReadlistListingRoutes(deps: Pick<
 		const readlistKey = readlistQueryKeyOf(req);
 		const lookup = siren && req.query.lookup === "1" && !urlState.managedSource;
 		const status = lookup && req.query.status === undefined && req.query.tab === undefined ? undefined : tab.status;
-		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status, order: urlState.order, page: urlState.page, url: filterUrl, lookup };
+		const findArticles = siren && req.query[FIND_ARTICLES_PARAM.name] === FIND_ARTICLES_PARAM.value
+			? { discovery: parseReadlistUrl(req.query).discovery }
+			: undefined;
+		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status, order: urlState.order, findArticles, page: urlState.page, url: filterUrl, lookup };
 		if (siren && readlistKey === "readlist" && req.query.queue !== undefined && req.query.readlist === undefined) {
 			setSirenCanonicalRedirectCaching(res);
 			res.redirect(303, `${READLIST_PATH}${buildQueryString(canonicalQuery)}`);
@@ -123,7 +126,9 @@ export function initReadlistListingRoutes(deps: Pick<
 
 		tagPageviewSortOrder(res, urlState.order);
 		const order = urlState.order ?? tab.defaultOrder;
-		const discovery = siren ? undefined : storeDiscoveryOf(urlState);
+		const discovery = siren
+			? storeDiscoveryOf({ ...urlState, discovery: findArticles?.discovery })
+			: storeDiscoveryOf(urlState);
 		const pageSize = readlistPageSizeForClient(req.oauthClientId);
 		const result = lookup ? await savedArticleUrlPage({
 			url: filterUrl, userId, status, page: urlState.page, pageSize,
@@ -165,6 +170,8 @@ export function initReadlistListingRoutes(deps: Pick<
 						summaryByUrl: loadedSummaryByUrl,
 					});
 
+			const findArticlesMatchedNothing = discovery !== undefined && result.total === 0 &&
+				await store.countArticlesByUser({ userId, status: tab.status }) > 0;
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			const setHomeTarget = homeSupported ? context.home?.targets.get(urlState.readlist) : undefined;
 			setSirenCollectionCaching(req, res);
@@ -190,6 +197,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						readerProvenanceByUrl,
 						totalLabel: readlistTotalLabel,
 						sort: { options: READLIST_SORT_OPTIONS, current: order },
+						findArticlesMatchedNothing,
 					},
 				),
 			);

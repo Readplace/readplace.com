@@ -761,6 +761,7 @@ describe("toArticleCollectionEntity", () => {
 			"stage-upload",
 			"search",
 			"lookup-article",
+			"find-articles",
 			"create-session",
 			"create-browser-handoff",
 			"report-age-range",
@@ -1301,4 +1302,27 @@ describe("toArticleCollectionEntity", () => {
 		expect(queryKeys).toContain("readlist");
 	});
 
+});
+
+describe("toArticleCollectionEntity with find-articles", () => {
+	const empty: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
+
+	it.each([
+		{ discovery: { q: "rust", time: [], saved: [] }, clear: "Clear search", offers: ["clearSearch"] },
+		{ discovery: { time: ["under-5" as const], saved: [] }, clear: "Clear filters", offers: ["clearFilters"] },
+		{ discovery: { q: "rust", time: [], saved: ["week" as const] }, clear: "Clear search and filters", offers: ["clearSearch", "clearFilters"] },
+	])("names the clear for $clear and offers only the clears that apply", ({ discovery, clear, offers }) => {
+		const entity = toArticleCollectionEntity(
+			empty,
+			{ readlistKey: "readlist", status: "unread", findArticles: { discovery } },
+			{ tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW },
+		);
+
+		const property = z
+			.object({ findArticles: z.looseObject({ clear: z.object({ title: z.string(), href: z.string() }) }) })
+			.parse(entity.properties).findArticles;
+		expect(property.clear).toEqual({ title: clear, href: "/queue?status=unread&find=articles" });
+		expect(Object.keys(property).filter((key) => key.startsWith("clear") && key !== "clear")).toEqual(offers);
+		expect(property.noMatches).toBeUndefined();
+	});
 });
