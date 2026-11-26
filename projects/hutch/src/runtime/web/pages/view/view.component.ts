@@ -308,7 +308,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
-		bottomActionsHtml: actions.bottom.to("text/html").body,
 		readerNotice: input.readerNotice,
 		report: share === undefined ? undefined : reportFor({ input, viewUrl: shareableViewUrl }),
 	});

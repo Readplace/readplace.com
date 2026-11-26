@@ -52,7 +52,6 @@ export interface ArticleBodyInput {
 	 * internal reader, where summary open/close is recorded; omitted elsewhere. */
 	summaryToggleUrl?: string;
 	topActionsHtml: string;
-	bottomActionsHtml: string;
 	now: Date;
 	extensionInstallUrl?: string;
 	appOrigin: string;
@@ -163,7 +162,6 @@ export function renderArticleBody(input: ArticleBodyInput): RenderedArticleBody 
 		summarySlotHtml,
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",
-		bottomActionsHtml: input.bottomActionsHtml,
 		reportDialogHtml: input.report === undefined ? undefined : renderReportArticleDialog(input.report),
 	});
 	return { html, states: readerRegions.states };

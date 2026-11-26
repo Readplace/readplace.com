@@ -812,11 +812,6 @@ describe("WebReader", () => {
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "the web reader keeps the top mark-read form");
 	});
 
-	it("drops the entire bottom bar — the toolbar row carries the article's actions", () => {
-		const { bottom } = WebReader({ actionBtns: ACTION_BTNS });
-		expect(bottom.to("text/html").body).toBe("");
-	});
-
 	it("carries the distraction-free page body class so the shell hides its chrome", () => {
 		expect(WebReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader page-distraction-free");
 	});
@@ -835,11 +830,6 @@ describe("ChromelessReader", () => {
 		);
 		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "chromeless keeps the top mark-read form");
-	});
-
-	it("drops the entire bottom bar — the native sheet handles dismissal", () => {
-		const { bottom } = ChromelessReader({ actionBtns: ACTION_BTNS });
-		expect(bottom.to("text/html").body).toBe("");
 	});
 
 	it("carries the chromeless body class so the reader CSS pins the toolbar row at the top", () => {

@@ -101,7 +101,6 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
-		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
 	const railHtml = renderArticleRail({
 		url: input.destinationUrl,

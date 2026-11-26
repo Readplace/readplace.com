@@ -90,7 +90,6 @@ export type ActionButtons = {
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 	top: Component;
-	bottom: Component;
 	/** The page body class for this variant. */
 	bodyClass: string;
 };
@@ -244,19 +243,12 @@ function toolbar(actionBtns: ActionButtons): string {
 	return `<div class="article-body__toolbar">${topBar(actionBtns)}</div>`;
 }
 
-function toolbarOnlyActions(actionBtns: ActionButtons): { top: Component; bottom: Component } {
-	return {
-		top: HtmlPage(toolbar(actionBtns)),
-		bottom: HtmlPage(""),
-	};
-}
-
 export const WebReader: RenderReaderActions = ({ actionBtns }) => ({
-	...toolbarOnlyActions(actionBtns),
+	top: HtmlPage(toolbar(actionBtns)),
 	bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}`,
 });
 
 export const ChromelessReader: RenderReaderActions = ({ actionBtns }) => ({
-	...toolbarOnlyActions(actionBtns),
+	top: HtmlPage(toolbar(actionBtns)),
 	bodyClass: "page-reader page-reader--chromeless",
 });
