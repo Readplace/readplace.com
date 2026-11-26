@@ -120,7 +120,6 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type { BuildBannerState } from "../../banner-state";
 import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
-import type { HttpErrorMessageMapping, } from "./readlist.error";
 import type { GmailIntegrationDependencies } from "../integrations/gmail-integration.types";
 import type { GmailConnectionStore } from "@packages/domain/gmail";
 import type {
@@ -245,7 +244,6 @@ export interface ReadlistDependencies {
 	markdownBearerAuth: RequestHandler;
 	webReader: RenderReaderActions;
 	chromelessReader: RenderReaderActions;
-	httpErrorMessageMapping: HttpErrorMessageMapping;
 	/** Reads the per-user onboarding signals for the `/queue` render: the iOS
 	 * app's install/save state when the visitor is on an iPhone (where completion
 	 * can't come from cookies because Safari can't see the app's cookie jar), and

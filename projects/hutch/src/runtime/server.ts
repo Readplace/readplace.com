@@ -325,7 +325,6 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import { type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
@@ -647,7 +646,6 @@ export interface AppDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	readArticleImage: ReadArticleImage;
-	httpErrorMessageMapping: HttpErrorMessageMapping;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	savePrivateItem: SavePrivateItem;

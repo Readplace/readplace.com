@@ -22,7 +22,6 @@ import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
-import { httpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { readNewsletterCatalogSeed } from "./domain/newsletter-catalog/newsletter-catalog-seed";
@@ -41,7 +40,6 @@ type AssemblyProvidedKeys =
 	| "recrawlServiceToken"
 	| "baseUrl"
 	| "logError"
-	| "httpErrorMessageMapping"
 	| "now"
 	| "drawRandomByte"
 	| "botDefenseLogger"
@@ -108,7 +106,6 @@ export function assembleReadplaceApp(input: {
 			Logger.from(consoleLogger).error(
 				formatErrorLogLine({ message, error, now: () => new Date() }),
 			),
-		httpErrorMessageMapping,
 		now: () => new Date(),
 		drawRandomByte: () => randomInt(256),
 		botDefenseLogger: Logger.fromJSON<BotDefenseEvent>(),
