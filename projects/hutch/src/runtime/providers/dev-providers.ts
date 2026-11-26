@@ -152,7 +152,7 @@ import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
 import { initInMemoryHostedCheckout } from "@packages/test-fixtures/providers/hosted-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
-import { Logger, consoleLogger } from "@packages/logger";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import {
 	WRAPPER_RESOLVE_BUDGETS,
 	neverResolveChallengedTracker,
@@ -190,7 +190,7 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 
 export function initDevProviders(input: { appOrigin: string; putImageObject: PutImageObject }) {
 	const logger = Logger.from(consoleLogger);
-	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
+	const logError = (message: string, error?: Error) => logger.error(formatErrorLogLine({ message, error, now: () => new Date() }));
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, egress: { kind: "direct" } });
