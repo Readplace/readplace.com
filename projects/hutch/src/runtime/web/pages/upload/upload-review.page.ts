@@ -26,12 +26,10 @@ import { redirectAnonymousToUploadSignup } from "./redirect-anonymous-to-upload-
 import { type UploadOutcome, type UploadOutcomeKey, writeUploadOutcome } from "./upload.outcome";
 import { UPLOAD_OUTCOME_HTML } from "./upload.page";
 import { uploadRefusalCopyOf } from "./upload.refusal";
-import { uploadStartPathOf } from "./upload-features";
 import { kindsForViewer } from "./upload.viewmodel";
 import { UploadReviewPage, type UploadReviewView } from "./upload-review.component";
 
 export const GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book", "audio"];
-export const METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[] = [];
 
 type ReviewViewState = "inspecting" | "ready" | "rejected";
 const REVIEW_VIEW_STATES: readonly string[] = ["inspecting", "ready", "rejected"] satisfies ReviewViewState[];
@@ -46,12 +44,10 @@ const PollSchema = z.coerce.number().int().min(0);
 
 const REVIEW_SOURCE = "upload-review";
 
-function uploadAgainUrlOf(session: ReviewableSession): string {
-	return withInternalTracking(uploadStartPathOf(session.metered === true), {
-		source: REVIEW_SOURCE,
-		content: "upload-again",
-	});
-}
+const UPLOAD_AGAIN_URL = withInternalTracking("/upload", {
+	source: REVIEW_SOURCE,
+	content: "upload-again",
+});
 
 const REVIEW_VIEWS: Record<
 	ReviewViewState,
@@ -64,7 +60,7 @@ const REVIEW_VIEWS: Record<
 	}) => UploadReviewView
 > = {
 	inspecting: ({ session, poll, maxPolls }) => {
-		if (poll > maxPolls) return { view: "overrun", uploadAgainUrl: uploadAgainUrlOf(session) };
+		if (poll > maxPolls) return { view: "overrun", uploadAgainUrl: UPLOAD_AGAIN_URL };
 		const next = `/upload/${session.uploadId}?poll=${poll + 1}`;
 		return {
 			view: "inspecting",
@@ -93,7 +89,7 @@ const REVIEW_VIEWS: Record<
 			return {
 				view: "too-long",
 				notice: uploadRefusalCopyOf(transcriptAllowanceSeconds)["transcript-too-long"],
-				uploadAgainUrl: uploadAgainUrlOf(session),
+				uploadAgainUrl: UPLOAD_AGAIN_URL,
 			};
 		}
 		return {
@@ -106,7 +102,7 @@ const REVIEW_VIEWS: Record<
 	},
 	rejected: ({ session }) => {
 		assert(session.notice, `rejected upload ${session.uploadId} has no notice`);
-		return { view: "rejected", notice: session.notice, uploadAgainUrl: uploadAgainUrlOf(session) };
+		return { view: "rejected", notice: session.notice, uploadAgainUrl: UPLOAD_AGAIN_URL };
 	},
 };
 
@@ -135,7 +131,6 @@ export function initAnonymousUploadRoutes(deps: {
 				guestKinds: deps.GUEST_UPLOAD_KINDS,
 				isSignedIn: Boolean(req.userId),
 			}),
-			metered: false,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 		};
 		writeUploadOutcome({ writers: UPLOAD_OUTCOME_HTML, res, outcome, context });

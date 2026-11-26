@@ -270,7 +270,6 @@ describe("Guest upload routes", () => {
 	});
 
 	it.each([
-		{ startPath: "/upload?features=transcripts", features: "transcripts" },
 		{ startPath: "/upload", features: null },
 	])("keeps the start path $startPath on an overrun's Upload again", async ({ startPath, features }) => {
 		const harness = guestApp();

@@ -31,7 +31,6 @@ export type UploadWriteContext = {
 	req: Request;
 	bannerState: Awaited<ReturnType<BuildBannerState>>;
 	kinds: readonly MediaKindManifest[];
-	metered: boolean;
 	transcriptAllowanceSeconds: number;
 };
 

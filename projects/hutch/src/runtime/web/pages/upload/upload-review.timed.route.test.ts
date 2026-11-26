@@ -37,13 +37,13 @@ async function stageAudio(params: { harness: Harness; agent: ReturnType<typeof r
 }
 
 async function guestAudio(harness: Harness) {
-	return stageAudio({ harness, agent: request.agent(harness.server), startPath: "/upload?features=transcripts" });
+	return stageAudio({ harness, agent: request.agent(harness.server), startPath: "/upload" });
 }
 
-function featuresOfUploadAgain(doc: Document): string | null {
+function uploadAgainPathOf(doc: Document): string {
 	const href = doc.querySelector("[data-test-upload-again]")?.getAttribute("href");
 	assert(href, "Upload again must carry a target");
-	return new URL(href, TEST_APP_ORIGIN).searchParams.get("features");
+	return new URL(href, TEST_APP_ORIGIN).pathname;
 }
 
 async function reviewOf(harness: Harness, uploadId: string) {
@@ -107,7 +107,7 @@ describe("Guest audio review", () => {
 		);
 		expect(doc.querySelector("[data-test-upload-commit-form]")).toBeNull();
 		expect(findUntrackedCtas(view.text, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).toEqual([]);
-		expect(featuresOfUploadAgain(doc)).toBe("transcripts");
+		expect(uploadAgainPathOf(doc)).toBe("/upload");
 	});
 
 	it.each([
@@ -123,7 +123,7 @@ describe("Guest audio review", () => {
 		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(
 			"Readplace couldn't read this audio file. Upload an MP3 or M4A that plays on your device.",
 		);
-		expect(featuresOfUploadAgain(doc)).toBe("transcripts");
+		expect(uploadAgainPathOf(doc)).toBe("/upload");
 	});
 
 	it.each([
@@ -165,14 +165,14 @@ describe("Guest audio review", () => {
 	it("refuses to save a flagged guest's audio once the reader's day is spent", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		await stageAudio({ harness, agent, startPath: "/upload?features=transcripts" });
-		await stageAudio({ harness, agent, startPath: "/upload?features=transcripts" });
+		await stageAudio({ harness, agent, startPath: "/upload" });
+		await stageAudio({ harness, agent, startPath: "/upload" });
 		const { uploadId } = await guestAudio(harness);
 
 		const commit = await agent.post(`/upload/${uploadId}/commit`);
 
 		expect(commit.status).toBe(303);
-		expect(commit.headers.location).toBe("/upload?features=transcripts&refused=transcript-quota");
+		expect(commit.headers.location).toBe("/upload?refused=transcript-quota");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(2);
 	});
 });
@@ -189,7 +189,7 @@ describe("Guest timed review refused by the kind's own judgement", () => {
 		const { uploadId, received } = await stageAudio({
 			harness,
 			agent: request.agent(harness.server),
-			startPath: "/upload?features=transcripts",
+			startPath: "/upload",
 		});
 
 		expect(received.status).toBe(303);

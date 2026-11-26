@@ -11,7 +11,6 @@ export interface MediaUploadSession {
 	readonly fileName?: string;
 	readonly byteLength?: number;
 	readonly saveAttemptId: SaveAttemptId;
-	readonly metered?: boolean;
 	readonly status: MediaUploadSessionState;
 }
 

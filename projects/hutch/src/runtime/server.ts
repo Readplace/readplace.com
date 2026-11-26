@@ -292,10 +292,7 @@ import { initMeterBookUploads } from "./web/pages/upload/meter-book-uploads";
 import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
-import {
-	initAnonymousUploadRoutes,
-	METERED_ONLY_UPLOAD_KINDS,
-} from "./web/pages/upload/upload-review.page";
+import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import type { ReadAdminTotpSecrets } from "./web/pages/admin/admin-totp-secrets";
@@ -1767,7 +1764,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			mintUploadId: deps.mintUploadId,
 			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
-					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
 			logger: deps.uploadLogger,

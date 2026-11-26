@@ -16,7 +16,6 @@ const session: MediaUploadSession = {
 	kind: "audio",
 	saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
 	status: "staged",
-	metered: true,
 };
 const params = { session, kind: AUDIO, etag: '"e1"', size: 10 };
 const freshCharge: ChargedTranscript = { userId, uploadId, attempt: 1, seconds: 600, day: "2026-11-07" };

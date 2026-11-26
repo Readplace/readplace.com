@@ -15,7 +15,6 @@ const session: MediaUploadSession = {
 	kind: "audio",
 	saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
 	status: "staged",
-	metered: true,
 };
 
 function readingSeconds(durationSeconds: number): ReadTimedDuration {
@@ -62,16 +61,6 @@ describe("initChargeTranscript", () => {
 		await charge({ session, kind: METERED_AUDIO, etag: '"e1"' });
 
 		assert.deepEqual(quota.calls, [{ userId, uploadId, attempt: 1, seconds: 120 }]);
-	});
-
-	it("charges a metered upload started without the transcripts feature", async () => {
-		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
-		const charge = chargeWith({ read: readingSeconds(60), quota: quota.chargeTranscriptQuota });
-
-		const decision = await charge({ session: { ...session, metered: undefined }, kind: METERED_AUDIO, etag: '"e1"' });
-
-		assert.deepEqual(quota.calls, [{ userId, uploadId, attempt: 1, seconds: 60 }]);
-		assert.equal(decision.kind, "proceed");
 	});
 
 	it("proceeds with the earlier charge's day and no fresh charge when the commit was already charged", async () => {
