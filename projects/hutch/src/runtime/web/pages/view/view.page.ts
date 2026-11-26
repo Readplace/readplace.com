@@ -38,7 +38,7 @@ import { articleHostFrom, buildSaveRefusedEvent, buildViewEndCtaShownEvent, clas
 import { saveClientOf } from "../../shared/save-client";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
-import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
+import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "@packages/web-analytics";
 import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";

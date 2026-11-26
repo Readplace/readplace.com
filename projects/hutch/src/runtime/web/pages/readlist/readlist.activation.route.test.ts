@@ -4,7 +4,7 @@ import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { ANALYTICS_EVENTS } from "../../../observability/events";
+import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { loginAgent, useTestServer, type TestAppHarness } from "../../../test-app";
 
 const useApp = useTestServer();

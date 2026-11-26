@@ -8,7 +8,7 @@ import type { RecordEngagementActivity } from "@packages/provider-contracts/enga
 import { initRecordPersonalSaves } from "./record-personal-saves";
 import { initRecordImportRequest } from "./record-import-request";
 import type { ActivationThresholdReachedEvent } from "./funnel-events";
-import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 
 const userId = UserIdSchema.parse("reader");
 const NOW = new Date("2026-10-10T12:00:00.000Z");

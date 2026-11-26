@@ -13,7 +13,7 @@ import { saveClientOf } from "../../shared/save-client";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import express, { type Request, type RequestHandler, type Response, type Router } from "express";
 import { z } from "zod";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import {
 	type FindPendingViewHighlights,
 	PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS,

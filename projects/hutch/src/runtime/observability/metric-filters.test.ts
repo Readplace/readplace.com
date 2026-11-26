@@ -1,7 +1,8 @@
 import { SUPPORTED_CLIENTS, isBuiltInOAuthClientId } from "@packages/supported-clients";
 import { mcpUaClientOf } from "@packages/web-analytics";
 import { CONVERSION_EVENTS } from "@packages/dashboard-widgets";
-import { ANALYTICS_EVENTS, FORWARDED_STREAMS, METRICS, STREAMS } from "./events";
+import { FORWARDED_STREAMS, METRICS } from "./events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import {
 	ANALYTICS_METRIC_FILTERS,
 	ANALYTICS_METRIC_NAMESPACE,

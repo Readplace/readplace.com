@@ -3,22 +3,6 @@ import type { ReanchorCounts } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { STREAMS } from "@packages/web-analytics";
 
-export {
-	STREAMS,
-	ANALYTICS_EVENTS,
-	SAVE_SURFACES,
-	SAVE_SURFACE_QUERY,
-	SAVE_CLIENTS,
-	SAVE_OUTCOMES,
-	SIGNUP_OUTCOMES,
-	PAGE_EXIT_KINDS,
-	type SaveSurface,
-	type SaveClient,
-	type SaveOutcome,
-	type SignupOutcome,
-	type McpToolOutcome,
-} from "@packages/web-analytics";
-
 export const QUEUE_DIGEST_EVENTS = {
 	sent: "queue_digest_sent",
 	skipped: "queue_digest_skipped",

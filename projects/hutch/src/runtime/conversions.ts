@@ -3,7 +3,7 @@ import type { UserId } from "@packages/domain/user";
 import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import type { ClickAttribution } from "@packages/web-analytics";
 import { CONVERSION_EVENTS } from "@packages/dashboard-widgets";
-import { STREAMS } from "./observability/events";
+import { STREAMS } from "@packages/web-analytics";
 
 function hashEmail(email: string): string {
 	return createHash("sha256").update(email.toLowerCase()).digest("hex").slice(0, 16);

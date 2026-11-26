@@ -5,7 +5,8 @@ import {
 	ERROR_STREAMS,
 	RUNTIME_FAILURE_MARKERS,
 } from "@packages/infra-components";
-import { FORWARDED_STREAMS, STREAMS } from "./events";
+import { FORWARDED_STREAMS } from "./events";
+import { STREAMS } from "@packages/web-analytics";
 import { classifyForwardedLine } from "../forward-analytics/forward-analytics-handler";
 
 const pattern = buildObservabilityFilterPattern();

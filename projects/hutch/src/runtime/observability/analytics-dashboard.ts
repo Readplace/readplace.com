@@ -21,16 +21,8 @@ import {
 	type LogWidgetSpec,
 	SUBSCRIPTION_EVENTS,
 } from "@packages/dashboard-widgets";
-import {
-	ANALYTICS_EVENTS,
-	PAGE_EXIT_KINDS,
-	LOG_GROUPS,
-	METRICS,
-	QUEUE_DIGEST_EVENTS,
-	SAVE_OUTCOMES,
-	SAVE_SURFACES,
-	STREAMS,
-} from "./events";
+import { LOG_GROUPS, METRICS, QUEUE_DIGEST_EVENTS } from "./events";
+import { ANALYTICS_EVENTS, PAGE_EXIT_KINDS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS } from "@packages/web-analytics";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
 import { deepseekCostWidget } from "./deepseek-cost-widget";
 

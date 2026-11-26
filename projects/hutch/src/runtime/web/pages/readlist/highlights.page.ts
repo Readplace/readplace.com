@@ -21,7 +21,7 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { parseFragmentRoot } from "../../shared/article-body/parse-fragment-root";
 import { z } from "zod";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { nativeSurfaceOf } from "../../onboarding/native-client";
 import {

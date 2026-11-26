@@ -13,7 +13,7 @@ import type { BulkSaveOutcome, SaveAttemptId, SaveTrigger, SaveableUrl, Saveable
 import type { UserId } from "@packages/domain/user";
 import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, } from "@packages/domain/article";
 import { buildSaveIntentEvent, } from "@packages/web-analytics";
-import { SAVE_OUTCOMES, SAVE_SURFACES, type SaveOutcome, type SaveSurface } from "../../../observability/events";
+import { SAVE_OUTCOMES, SAVE_SURFACES, type SaveOutcome, type SaveSurface } from "@packages/web-analytics";
 import { saveClientOf } from "../../shared/save-client";
 import { isNonArticleHost, ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
 import { CaptureTriggerSchema, type CaptureTrigger, } from "@packages/domain/article";

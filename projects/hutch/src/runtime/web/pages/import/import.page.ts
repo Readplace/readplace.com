@@ -29,7 +29,7 @@ import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@pa
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import { type AnalyticsEvent, hashIp, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	encodeImportSkippedCookie,

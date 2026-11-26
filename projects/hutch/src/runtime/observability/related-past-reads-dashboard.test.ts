@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
-import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { ANALYTICS_LOG_GROUP, type ExcludedIdentities } from "@packages/dashboard-widgets";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 

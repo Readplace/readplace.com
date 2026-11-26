@@ -12,16 +12,8 @@ import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
-import {
-	ANALYTICS_EVENTS,
-	ERRORS_LOG_GROUP,
-	LAMBDA_NAMES,
-	LOG_GROUPS,
-	METRICS,
-	QUEUE_DIGEST_EVENTS,
-	SAVE_SURFACES,
-	STREAMS,
-} from "./events";
+import { ERRORS_LOG_GROUP, LAMBDA_NAMES, LOG_GROUPS, METRICS, QUEUE_DIGEST_EVENTS } from "./events";
+import { ANALYTICS_EVENTS, SAVE_SURFACES, STREAMS } from "@packages/web-analytics";
 import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
 import {
 	ANALYTICS_LOG_GROUP,

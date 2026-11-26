@@ -78,7 +78,7 @@ import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { buildSignupAttemptedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
-import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
+import { SIGNUP_OUTCOMES, type SignupOutcome } from "@packages/web-analytics";
 import {
 	CHECKOUT_RETURN_FAILURE_REASONS,
 	type CheckoutReturnFailureReason,

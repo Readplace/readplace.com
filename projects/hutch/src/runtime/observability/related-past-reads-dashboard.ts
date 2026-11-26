@@ -1,6 +1,6 @@
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
-import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "@packages/dashboard-widgets";
 import { type DashboardBody, type DashboardWidget, logWidget } from "./analytics-dashboard";
 

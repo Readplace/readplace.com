@@ -12,7 +12,7 @@ import type { UserId } from "@packages/domain/user";
 import { ArticleStatusSchema, newSaveAttemptId } from "@packages/domain/article";
 import { classifyDeviceClass, hashIp, } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
-import { ANALYTICS_EVENTS, STREAMS, } from "../../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
 import { ReaderArticleHashIdSchema, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import {
