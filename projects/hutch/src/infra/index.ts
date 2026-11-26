@@ -123,7 +123,8 @@ const adminTotpSecretsParameter = new aws.ssm.Parameter("admin-totp-secrets", {
 });
 const engagementDeploymentSha = config.require("engagementStarterDeploymentSha");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
-const domains = config.getObject<string[]>("domains") ?? [];
+const domains = config.requireObject<string[]>("domains");
+assert(domains.length > 0, "domains must have at least one entry");
 const SsrCdnSchema = z.object({
 	domain: z.string().min(1),
 	dnsTarget: z.enum(["api-gateway", "cloudfront"]),
@@ -266,10 +267,10 @@ const redirectSubdomains = config.getObject<Array<{ host: string; zoneName: stri
  *                          wins so migrating to a new canonical just means appending.
  */
 const [legacyPrimaryDomain, ...additionalDomains] = domains;
-const canonicalDomain: string | undefined = domains[domains.length - 1];
+const canonicalDomain: string = domains[domains.length - 1];
 
 const legacyDomainRegistration = new DomainRegistration("hutch-domain", {
-	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
+	domains: [legacyPrimaryDomain],
 });
 
 const additionalDomainRegistrations = additionalDomains.map((domain) =>
@@ -284,18 +285,14 @@ const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainReg
  * complete the DNSSEC chain of trust. */
 const canonicalDomainRegistration =
 	allDomainRegistrations[allDomainRegistrations.length - 1];
-const agentDiscoveryDns =
-	canonicalDomain && canonicalDomainRegistration?.zoneId
-		? new AgentDiscoveryDns("hutch-agent-dns", {
-				domain: canonicalDomain,
-				zoneId: canonicalDomainRegistration.zoneId,
-			})
-		: undefined;
+const agentDiscoveryDns = new AgentDiscoveryDns("hutch-agent-dns", {
+	domain: canonicalDomain,
+	zoneId: canonicalDomainRegistration.zoneId,
+});
 
-export const agentDnsDsRecord = agentDiscoveryDns?.dsRecord;
+export const agentDnsDsRecord = agentDiscoveryDns.dsRecord;
 
 if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
-	assert(canonicalDomain, "redirectDomains requires domains to be configured");
 	new DomainRedirect("hutch-redirect", {
 		redirectDomains,
 		redirectSubdomains,
@@ -305,10 +302,9 @@ if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
 
 const staticDomainEntries = staticDomains.map((staticDomain) => {
 	const parentIndex = domains.findIndex((d) => staticDomain.endsWith(`.${d}`));
-	const parentRegistration = parentIndex >= 0 ? allDomainRegistrations[parentIndex] : undefined;
-	return parentRegistration?.zoneId
-		? { domain: staticDomain, zoneId: parentRegistration.zoneId }
-		: { domain: staticDomain };
+	const parentRegistration = allDomainRegistrations[parentIndex];
+	assert(parentRegistration, `staticDomain ${staticDomain} must be a subdomain of a configured domain`);
+	return { domain: staticDomain, zoneId: parentRegistration.zoneId };
 });
 
 const staticAssets = new HutchStaticAssets("hutch-static", {
@@ -416,9 +412,7 @@ const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	description: `Readplace API Gateway (${stage})`,
 });
 
-export const appOrigin: pulumi.Input<string> = canonicalDomain
-	? `https://${canonicalDomain}`
-	: api.apiEndpoint;
+export const appOrigin: pulumi.Input<string> = `https://${canonicalDomain}`;
 
 // --- EventBridge Scheduler Group + Execution Role ---
 // One-shot schedules created at trial signup live in a dedicated group so a
@@ -714,7 +708,7 @@ const gateway = new APIGateway("hutch", {
 	api,
 	lambda: lambda,
 	stage,
-	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
+	domains: [legacyPrimaryDomain],
 	zoneId: legacyDomainRegistration.zoneId,
 	certificateArn: legacyDomainRegistration.certificateArn,
 	throttling: apiThrottle,
@@ -724,8 +718,6 @@ const gateway = new APIGateway("hutch", {
 for (const [i, domain] of additionalDomains.entries()) {
 	const safeName = domain.replace(/\./g, "-");
 	const registration = additionalDomainRegistrations[i];
-	assert(registration.certificateArn, `${domain} registration must have a certificate`);
-	assert(registration.zoneId, `${domain} registration must have a zoneId`);
 
 	const customDomain = new aws.apigatewayv2.DomainName(
 		`hutch-apigw-domain-${safeName}`,
@@ -2761,7 +2753,7 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 
 // --- Exports ---
 
-export const apiUrl: pulumi.Input<string> = canonicalDomain ? `https://${canonicalDomain}` : gateway.apiUrl;
+export const apiUrl: pulumi.Input<string> = `https://${canonicalDomain}`;
 // Consumed by sibling deployables (blog-site, marketing-site) via a Pulumi
 // StackReference to attach their own more-specific routes to this same API.
 export const apiGatewayId = gateway.apiGatewayId;
