@@ -371,7 +371,6 @@ export function initBase(config: BaseConfig): RenderBase {
 			ogImageAlt: seo.ogImageAlt,
 			ogImageType: seo.ogImageType,
 			twitterImage: seo.twitterImage ?? seo.ogImage,
-			twitterSite: seo.twitterSite,
 			structuredDataScript: renderStructuredData(seo.structuredData, state.cspNonce),
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,
