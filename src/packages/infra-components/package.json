@@ -13,14 +13,6 @@
       "types": "./dist/infra/index.d.ts",
       "default": "./dist/infra/index.js"
     },
-    "./infra/copy-asset-files": {
-      "types": "./dist/infra/copy-asset-files.d.ts",
-      "default": "./dist/infra/copy-asset-files.js"
-    },
-    "./infra/compute-image-tag": {
-      "types": "./dist/infra/compute-image-tag.d.ts",
-      "default": "./dist/infra/compute-image-tag.js"
-    },
     "./infra/build-handler-images": {
       "types": "./dist/infra/build-handler-images.d.ts",
       "default": "./dist/infra/build-handler-images.js"
@@ -33,8 +25,6 @@
   "typesVersions": {
     "*": {
       "infra": ["./dist/infra/index.d.ts"],
-      "infra/copy-asset-files": ["./dist/infra/copy-asset-files.d.ts"],
-      "infra/compute-image-tag": ["./dist/infra/compute-image-tag.d.ts"],
       "infra/build-handler-images": ["./dist/infra/build-handler-images.d.ts"],
       "runtime": ["./dist/runtime/index.d.ts"]
     }
