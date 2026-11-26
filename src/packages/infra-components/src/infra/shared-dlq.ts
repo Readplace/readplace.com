@@ -23,8 +23,6 @@ export class SharedDlq extends pulumi.ComponentResource {
 		name: string,
 		args: {
 			alertEmailDLQEntry: string;
-			retentionSeconds?: number;
-			drainedByHandler?: true;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -32,7 +30,7 @@ export class SharedDlq extends pulumi.ComponentResource {
 
 		const queue = new aws.sqs.Queue(`${name}-dlq`, {
 			name: `${name}-dlq`,
-			messageRetentionSeconds: args.retentionSeconds ?? DEFAULT_DLQ_RETENTION_SECONDS,
+			messageRetentionSeconds: DEFAULT_DLQ_RETENTION_SECONDS,
 		}, { parent: this });
 
 		const topic = new aws.sns.Topic(`${name}-dlq-topic`, {
@@ -44,24 +42,6 @@ export class SharedDlq extends pulumi.ComponentResource {
 			protocol: "email",
 			endpoint: args.alertEmailDLQEntry,
 		}, { parent: this });
-
-		if (!args.drainedByHandler) {
-			new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
-				name: `${name}-dlq-alarm`,
-				comparisonOperator: "GreaterThanOrEqualToThreshold",
-				evaluationPeriods: 1,
-				metricName: "ApproximateNumberOfMessagesVisible",
-				namespace: "AWS/SQS",
-				period: 300,
-				statistic: "Sum",
-				threshold: 1,
-				alarmDescription: `Message entered ${name} dead letter queue`,
-				dimensions: {
-					QueueName: queue.name,
-				},
-				alarmActions: [topic.arn],
-			}, { parent: this });
-		}
 
 		const accountId = pulumi.output(
 			aws.getCallerIdentity({}, { parent: this }),

@@ -2165,7 +2165,7 @@ const newsletterCatalogSuggestionsWithSqs = new SqsBackedLambda("newsletter-cata
 });
 eventBus.subscribe(SubmitNewsletterSenderCommand, newsletterCatalogSuggestionsWithSqs, { name: "hutch-submit-newsletter-sender" });
 
-const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail, drainedByHandler: true });
+const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail });
 const gmailHistoryImportAccess = new DynamoDBAccess("hutch-gmail-history-import-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: [

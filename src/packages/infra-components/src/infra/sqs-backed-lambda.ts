@@ -8,7 +8,6 @@ export class SqsBackedLambda extends pulumi.ComponentResource {
 	public readonly queueArn: Sqs["queueArn"];
 	public readonly queueUrl: Sqs["queueUrl"];
 	public readonly dlqArn: Sqs["dlqArn"];
-	public readonly dlqUrl: Sqs["dlqUrl"];
 	public readonly ownDlq: AlarmedDeadLetterQueue | undefined;
 
 	constructor(
@@ -38,7 +37,6 @@ export class SqsBackedLambda extends pulumi.ComponentResource {
 		this.queueArn = args.queue.queueArn;
 		this.queueUrl = args.queue.queueUrl;
 		this.dlqArn = args.queue.dlqArn;
-		this.dlqUrl = args.queue.dlqUrl;
 		new aws.iam.RolePolicy(`${name}-sqs-recv`, {
 			name: `${name}-sqs-recv`,
 			role: args.lambda.role.name,
