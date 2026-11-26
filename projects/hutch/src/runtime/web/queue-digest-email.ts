@@ -6,12 +6,14 @@ import { formatLocalInstant, render } from "@packages/web-shell";
 import type { QueueDigestEmailItem } from "../domain/engagement/digest-email.types";
 import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
+import { EMAIL_COLORS } from "./email-colors";
 import { EMAIL_POSTAL_ADDRESS, EMAIL_REPLY_INVITATION } from "./email-copy";
 import { KINDLE_GUIDE_PATH } from "./shared/epub/epub-download-guide";
 import { ACCOUNT_PLANS_URL } from "./pages/account/account.url";
 import { buildOwnerReaderPath } from "./pages/readlist/owner-reader-link";
 import { READLIST_PATH } from "./pages/readlist/readlist.url";
+import Handlebars from "handlebars";
+import { renderEmailCard } from "./email-card";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "queue-digest-email.template.html"),
@@ -235,23 +237,25 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 		headers: listUnsubscribeHeaders(oneClickUnsubscribeUrl),
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
-					subject,
-					intro,
-					items: cards,
-					readlistButtons,
-					payBlocks,
-					keepLabel: KEEP_READPLACE_LABEL,
-					attachment,
-					kindleGuideUrl,
-					kindleGuideLabel: KINDLE_GUIDE_LABEL,
-					replyLine: EMAIL_REPLY_INVITATION,
-					footerReason,
-					unsubscribeUrl: unsubscribeLinkUrl,
-					unsubscribeLabel: UNSUBSCRIBE_LABEL,
-					postalAddress: EMAIL_POSTAL_ADDRESS,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
+				return renderEmailCard({
+					titleHtml: Handlebars.Utils.escapeExpression(subject),
+					body: render(TEMPLATE, {
+						subject,
+						intro,
+						items: cards,
+						readlistButtons,
+						payBlocks,
+						keepLabel: KEEP_READPLACE_LABEL,
+						attachment,
+						kindleGuideUrl,
+						kindleGuideLabel: KINDLE_GUIDE_LABEL,
+						replyLine: EMAIL_REPLY_INVITATION,
+						footerReason,
+						unsubscribeUrl: unsubscribeLinkUrl,
+						unsubscribeLabel: UNSUBSCRIBE_LABEL,
+						postalAddress: EMAIL_POSTAL_ADDRESS,
+						colors: EMAIL_COLORS,
+					}),
 				});
 			}
 

@@ -1,14 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { renderEmailCardMessage } from "../email-card";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchEmails } from "@packages/translations/hutch-emails";
-import { render } from "@packages/web-shell";
-
-const TEMPLATE = readFileSync(
-	join(__dirname, "payment-failed-email.template.html"),
-	"utf-8",
-);
 
 export const PAYMENT_FAILED_EMAIL_SUBJECT = "your Readplace payment didn't go through";
 
@@ -37,17 +29,16 @@ export function PaymentFailedEmail(
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
+				return renderEmailCardMessage({
+					titleHtml: t("paymentFailedEmail.title"),
 					founderAvatarUrl: params.founderAvatarUrl,
-					paragraphs: PARAGRAPHS,
-					ctaUrl: params.ctaUrl,
+					paragraphs: PARAGRAPHS.map((html) => ({ html })),
+					cta: { url: params.ctaUrl, label: t("paymentFailedEmail.cta") },
 					signoff: SIGNOFF,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 
-			return [...PARAGRAPHS, `Update your card: ${params.ctaUrl}`, SIGNOFF].join("\n\n");
+			return [...PARAGRAPHS, `${t("paymentFailedEmail.cta")}: ${params.ctaUrl}`, SIGNOFF].join("\n\n");
 		},
 	};
 }

@@ -1,15 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { renderEmailCardMessage } from "../email-card";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchEmails } from "@packages/translations/hutch-emails";
-import { render } from "@packages/web-shell";
 import { TRIAL_REMINDER_LEAD_DAYS } from "../../domain/stripe/stripe-trial-config";
-
-const TEMPLATE = readFileSync(
-	join(__dirname, "trial-reminder-email.template.html"),
-	"utf-8",
-);
 
 export const TRIAL_REMINDER_EMAIL_SUBJECT = `your Readplace trial ends in ${TRIAL_REMINDER_LEAD_DAYS} days`;
 
@@ -48,13 +40,12 @@ export function TrialReminderEmail(
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
+				return renderEmailCardMessage({
+					titleHtml: t("trialReminderEmail.title"),
 					founderAvatarUrl: params.founderAvatarUrl,
-					paragraphs,
-					ctaUrl: params.ctaUrl,
+					paragraphs: paragraphs.map((html) => ({ html })),
+					cta: { url: params.ctaUrl, label: t("trialReminderEmail.cta") },
 					signoff: SIGNOFF,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchEmails } from "@packages/translations/hutch-emails";
 import { render, toAbsoluteDate } from "@packages/web-shell";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { EMAIL_COLORS } from "../email-colors";
 import { EMAIL_POSTAL_ADDRESS } from "../email-copy";
 import { RENEWAL_PRICES } from "../price-statement";
 import { KEEP_READPLACE_LABEL, UNSUBSCRIBE_LABEL } from "../queue-digest-email";
@@ -13,6 +13,8 @@ import {
 	type TrialNudgeEmail,
 	type TrialNudgeEmailItem,
 } from "./trial-nudge-email";
+import Handlebars from "handlebars";
+import { renderEmailCard } from "../email-card";
 
 const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
@@ -93,24 +95,26 @@ export function TrialDay3Email(params: {
 					`${footerReason} ${UNSUBSCRIBE_LABEL}: ${unsubscribeUrl} · Proficient Pty Ltd, ${EMAIL_POSTAL_ADDRESS}`,
 				].join("\n\n");
 			}
-			return render(TEMPLATE, {
-				subject,
-				heading,
-				intro,
-				items: listed,
-				moreLine,
-				install,
-				pricing,
-				keepLabel: KEEP_READPLACE_LABEL,
-				keepUrl,
-				replyInvitation: REPLY_INVITATION,
-				signoff: TRIAL_NUDGE_SIGNOFF,
-				footerReason,
-				unsubscribeUrl,
-				unsubscribeLabel: UNSUBSCRIBE_LABEL,
-				postalAddress: EMAIL_POSTAL_ADDRESS,
-				colors: EMAIL_COLORS,
-				fontStack: EMAIL_FONT_STACK,
+			return renderEmailCard({
+				titleHtml: Handlebars.Utils.escapeExpression(subject),
+				body: render(TEMPLATE, {
+					subject,
+					heading,
+					intro,
+					items: listed,
+					moreLine,
+					install,
+					pricing,
+					keepLabel: KEEP_READPLACE_LABEL,
+					keepUrl,
+					replyInvitation: REPLY_INVITATION,
+					signoff: TRIAL_NUDGE_SIGNOFF,
+					footerReason,
+					unsubscribeUrl,
+					unsubscribeLabel: UNSUBSCRIBE_LABEL,
+					postalAddress: EMAIL_POSTAL_ADDRESS,
+					colors: EMAIL_COLORS,
+				}),
 			});
 		},
 	};

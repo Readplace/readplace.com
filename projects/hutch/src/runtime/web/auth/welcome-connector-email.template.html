@@ -1,24 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Readplace</title>
-    <style>
-      @media (min-width: 768px) {
-        .email-card__body {
-          padding: 40px !important;
-        }
-      }
-    </style>
-  </head>
-  <body style="margin:0;padding:0;background-color:{{colors.muted}};font-family:{{fontStack}};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.muted}};padding:40px 20px;font-family:{{fontStack}};table-layout:fixed;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:100%;background-color:{{colors.card}};border:1px solid {{colors.border}};border-radius:12px;">
-            <tr>
-              <td class="email-card__body" style="padding:24px;">
                 <img src="{{avatarUrl}}" alt="Fayner Brack" width="80" height="80" style="display:block;border-radius:50%;margin:0 0 16px;">
                 <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.3;color:{{colors.foreground}};">Welcome to Readplace</h1>
                 <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">Thanks for connecting Readplace to {{assistantName}} — really glad you're here.</p>
@@ -35,11 +14,3 @@
                 <p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">If anything breaks or feels off, just reply to this email — it comes straight to me, and I read everything.</p>
                 <p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:{{colors.mutedForeground}};">— Fayner Brack, Founder &amp; CEO</p>
                 <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.mutedForeground}};">You're getting this because you created a Readplace account from {{assistantName}}. <a href="{{unsubscribeUrl}}" style="color:{{colors.primaryText}};text-decoration:underline;">{{unsubscribeLabel}}</a> · Proficient Pty Ltd, {{postalAddress}}</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>

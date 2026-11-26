@@ -1,18 +1,11 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
-import { PRICING_PLANS, formatLocalInstant, render } from "@packages/web-shell";
+import { renderEmailCardMessage } from "../email-card";
+import { PRICING_PLANS, formatLocalInstant } from "@packages/web-shell";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { translator } from "@packages/translations";
 import { hutchEmails } from "@packages/translations/hutch-emails";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import { formatChargeAmount } from "../billing-amount";
-
-const TEMPLATE = readFileSync(
-	join(__dirname, "charge-reminder-email.template.html"),
-	"utf-8",
-);
 
 interface ChargeReminderEmailParams {
 	founderAvatarUrl: string;
@@ -81,15 +74,12 @@ export function ChargeReminderEmail(
 		subject: t("chargeReminder.subject", { chargeDate }),
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
+				return renderEmailCardMessage({
+					titleHtml: t("chargeReminder.title"),
 					founderAvatarUrl: params.founderAvatarUrl,
-					paragraphs,
-					ctaUrl: params.ctaUrl,
-					ctaLabel: t("chargeReminder.cta"),
-					title: t("chargeReminder.title"),
+					paragraphs: paragraphs.map((html) => ({ html })),
+					cta: { url: params.ctaUrl, label: t("chargeReminder.cta") },
 					signoff,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 
