@@ -28,6 +28,7 @@ export type { CrawlVersionEntry, StoredCrawlVersion } from "./crawl-version-log"
 export { initS3DeleteContentObjects } from "./s3-delete-content-objects";
 export type { DeleteContentObjects } from "./s3-delete-content-objects";
 export { initS3ListContentKeys } from "./s3-list-content-keys";
+export { initS3DeleteObjectsByPrefix } from "./s3-delete-objects-by-prefix";
 export type { ListContentKeys } from "./s3-list-content-keys";
 export { initCountOtherSaversByUrl, initCountSaversByUrl } from "./count-savers-by-url";
 export type { CountOtherSaversByUrl, CountSaversByUrl } from "./count-savers-by-url";

@@ -103,7 +103,7 @@ describe("initS3DeleteObjectsByPrefix", () => {
 		expect(deletes).toHaveLength(0);
 	});
 
-	it("follows continuation tokens across list pages and skips keyless entries", async () => {
+	it("follows continuation tokens across list pages, skips keyless entries and deletes what it listed", async () => {
 		const { client, lists, deletes } = fakeClient({
 			"content/email-images/ddd/": [
 				{
@@ -119,8 +119,7 @@ describe("initS3DeleteObjectsByPrefix", () => {
 
 		expect(lists.map((list) => list.continuationToken)).toEqual([undefined, "page-2"]);
 		expect(deletes.map((request) => request.keys)).toEqual([
-			["content/email-images/ddd/1.png"],
-			["content/email-images/ddd/2.png"],
+			["content/email-images/ddd/1.png", "content/email-images/ddd/2.png"],
 		]);
 	});
 });
