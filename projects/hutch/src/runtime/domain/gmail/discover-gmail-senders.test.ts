@@ -5,7 +5,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import type { GmailMailbox } from "@packages/provider-contracts/gmail-mailbox";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
-import { initDiscoverGmailSenders, initRunGmailDiscovery } from "./discover-gmail-senders";
+import { initDiscoverGmailSenders } from "./discover-gmail-senders";
 
 const USER = UserIdSchema.parse("user-1");
 const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
@@ -488,17 +488,5 @@ describe("initDiscoverGmailSenders", () => {
 		const h = await harness();
 		await h.discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, generation: "broken", mode: "history", historyId: undefined });
 		await assert.rejects(h.discover.start(USER), /history baseline/);
-	});
-});
-
-describe("initRunGmailDiscovery", () => {
-	it("paces real provider pages in development until discovery completes", async () => {
-		const h = await harness();
-		let waits = 0;
-		await initRunGmailDiscovery({ discover: h.discover, waitForNextPage: async () => { waits += 1; } })({ userId: USER });
-		assert.equal(waits, 1);
-		assert.equal((await h.state()).state, "complete");
-		await initRunGmailDiscovery({ discover: h.discover, waitForNextPage: async () => { waits += 1; } })({ userId: USER });
-		assert.equal(waits, 1);
 	});
 });

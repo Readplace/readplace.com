@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { GmailAccountEmailSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
+import type { GmailMailbox } from "@packages/provider-contracts/gmail-mailbox";
+import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
-import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE } from "./discover-gmail-senders";
+import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE, initDiscoverGmailSenders } from "./discover-gmail-senders";
 import { initRunGmailDiscoveryLocally } from "./run-gmail-discovery-locally";
 
 const USER = UserIdSchema.parse("user-1");
@@ -33,6 +35,32 @@ const startRunning = (discovery: ReturnType<typeof initInMemoryGmailDiscovery>) 
 	});
 
 describe("initRunGmailDiscoveryLocally", () => {
+	it("paces real provider pages in development until discovery completes", async () => {
+		const account = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const newest = Date.parse("2026-09-14T00:00:00.000Z");
+		const connections = initInMemoryGmailConnection({ now: () => NOW });
+		const discovery = initInMemoryGmailDiscovery({ now: () => NOW });
+		await connections.createConnection({ userId: USER, gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place") });
+		await connections.recordAccountEmail({ userId: USER, accountEmail: account });
+		const mailbox: GmailMailbox = {
+			findProfile: async () => ({ ok: true, value: { accountEmail: account, historyId: "100" } }),
+			listMessageSenders: async () => ({ ok: true, value: { senders: [{ email: ForwardableSenderSchema.parse("sender@example.com"), name: "Sender" }], nextPageToken: undefined, scannedMessages: 1, estimatedTotalMessages: 1, newestMessageAt: newest, oldestMessageAt: newest } }),
+			listChangedMessageSenders: async () => ({ ok: true, value: { senders: [], nextPageToken: undefined, scannedMessages: 0, estimatedTotalMessages: undefined, newestMessageAt: undefined, oldestMessageAt: undefined, historyId: "200" } }),
+		};
+		let generation = 0;
+		const discover = initDiscoverGmailSenders({ mailbox, connections, discovery, newGeneration: () => `run-${++generation}` });
+		const { calls, logger } = capturingLogger();
+		let waits = 0;
+		const run = initRunGmailDiscoveryLocally({ discover, discovery, waitForNextPage: async () => { waits += 1; }, logger });
+
+		await run({ userId: USER });
+		assert.equal(waits, 1);
+		assert.equal((await discovery.findDiscoveryByUserId(USER))?.state, "complete");
+		await run({ userId: USER });
+		assert.equal(waits, 1);
+		assert.deepEqual(calls, []);
+	});
+
 	it("records nothing and does not log when a run completes", async () => {
 		const discovery = initInMemoryGmailDiscovery({ now: () => NOW });
 		const discover: DiscoverGmailSenders = { start: async () => undefined, page: async () => undefined };
