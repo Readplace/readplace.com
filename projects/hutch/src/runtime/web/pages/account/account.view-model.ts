@@ -1,4 +1,3 @@
-import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
 import {
 	APPEARANCE_PREFERENCES,
@@ -231,9 +230,7 @@ export interface AccountViewModel {
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
 	const remaining = new Date(trialEndsAt).getTime() - now.getTime();
-	const timeLeft = decomposeTimeLeft(remaining);
-	const hasRemainder = timeLeft.hours > 0 || timeLeft.minutes > 0 || timeLeft.seconds > 0;
-	const daysLeft = Math.max(1, timeLeft.days + (hasRemainder ? 1 : 0));
+	const daysLeft = Math.max(1, Math.ceil(Math.floor(remaining / 1000) / 86_400));
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 

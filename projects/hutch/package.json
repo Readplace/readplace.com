@@ -80,7 +80,6 @@
     "@packages/subscription-access": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/tier-source": "workspace:*",
-    "@packages/time-left": "workspace:*",
     "@packages/transcript-quota": "workspace:*",
     "@packages/translations": "workspace:*",
     "@packages/ui-icons": "workspace:*",
