@@ -1219,47 +1219,45 @@ new SqsBackedLambda("digest-scan", {
 	batchSize: 1,
 });
 
+function scheduleQueueMessage(args: {
+	roleName: string;
+	policyName: string;
+	scheduleName: string;
+	queue: Sqs;
+	scheduleExpression: string;
+	input: string;
+}): void {
+	const role = new aws.iam.Role(args.roleName, {
+		assumeRolePolicy: JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }],
+		}),
+	});
+	new aws.iam.RolePolicy(args.policyName, {
+		role: role.id,
+		policy: args.queue.queueArn.apply((arn) => JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: arn }],
+		})),
+	});
+	new aws.scheduler.Schedule(args.scheduleName, {
+		scheduleExpression: args.scheduleExpression,
+		flexibleTimeWindow: { mode: "OFF" },
+		state: "ENABLED",
+		target: { arn: args.queue.queueArn, roleArn: role.arn, input: args.input },
+	});
+}
+
 // Recurring 6h flush: EventBridge Scheduler puts a trigger message on the
 // digest-scan queue. A dedicated execution role lets the scheduler service
 // SendMessage to that one queue.
-const digestSchedulerRole = new aws.iam.Role("hutch-digest-scheduler-role", {
-	assumeRolePolicy: JSON.stringify({
-		Version: "2012-10-17",
-		Statement: [
-			{
-				Effect: "Allow",
-				Principal: { Service: "scheduler.amazonaws.com" },
-				Action: "sts:AssumeRole",
-			},
-		],
-	}),
-});
-
-new aws.iam.RolePolicy("hutch-digest-scheduler-role-policy", {
-	role: digestSchedulerRole.id,
-	policy: digestScanQueue.queueArn.apply((arn) =>
-		JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Action: ["sqs:SendMessage"],
-					Resource: arn,
-				},
-			],
-		}),
-	),
-});
-
-new aws.scheduler.Schedule("hutch-digest-flush", {
+scheduleQueueMessage({
+	roleName: "hutch-digest-scheduler-role",
+	policyName: "hutch-digest-scheduler-role-policy",
+	scheduleName: "hutch-digest-flush",
+	queue: digestScanQueue,
 	scheduleExpression: "rate(6 hours)",
-	flexibleTimeWindow: { mode: "OFF" },
-	state: "ENABLED",
-	target: {
-		arn: digestScanQueue.queueArn,
-		roleArn: digestSchedulerRole.arn,
-		input: JSON.stringify({ trigger: "digest-flush" }),
-	},
+	input: JSON.stringify({ trigger: "digest-flush" }),
 });
 
 // Warns before Google's 100-test-user cap: an OAuth client in
@@ -1298,47 +1296,13 @@ new SqsBackedLambda("count-gmail-connections", {
 	batchSize: 1,
 });
 
-const countGmailConnectionsSchedulerRole = new aws.iam.Role(
-	"hutch-count-gmail-connections-scheduler-role",
-	{
-		assumeRolePolicy: JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Principal: { Service: "scheduler.amazonaws.com" },
-					Action: "sts:AssumeRole",
-				},
-			],
-		}),
-	},
-);
-
-new aws.iam.RolePolicy("hutch-count-gmail-connections-scheduler-role-policy", {
-	role: countGmailConnectionsSchedulerRole.id,
-	policy: countGmailConnectionsQueue.queueArn.apply((arn) =>
-		JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Action: ["sqs:SendMessage"],
-					Resource: arn,
-				},
-			],
-		}),
-	),
-});
-
-new aws.scheduler.Schedule("hutch-count-gmail-connections", {
+scheduleQueueMessage({
+	roleName: "hutch-count-gmail-connections-scheduler-role",
+	policyName: "hutch-count-gmail-connections-scheduler-role-policy",
+	scheduleName: "hutch-count-gmail-connections",
+	queue: countGmailConnectionsQueue,
 	scheduleExpression: "rate(1 hour)",
-	flexibleTimeWindow: { mode: "OFF" },
-	state: "ENABLED",
-	target: {
-		arn: countGmailConnectionsQueue.queueArn,
-		roleArn: countGmailConnectionsSchedulerRole.arn,
-		input: JSON.stringify({ trigger: "count-gmail-connections" }),
-	},
+	input: JSON.stringify({ trigger: "count-gmail-connections" }),
 });
 
 new aws.cloudwatch.LogMetricFilter("gmail-connections-filter", {
@@ -2057,28 +2021,13 @@ eventBus.subscribeAll([
 	GmailNewsletterMonitoringProgressedEvent,
 ], gmailNewsletterMonitorWithSqs, { name: "hutch-gmail-newsletter-monitor" });
 
-const gmailNewsletterSchedulerRole = new aws.iam.Role("hutch-gmail-newsletter-scheduler-role", {
-	assumeRolePolicy: JSON.stringify({
-		Version: "2012-10-17",
-		Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }],
-	}),
-});
-new aws.iam.RolePolicy("hutch-gmail-newsletter-scheduler-role-policy", {
-	role: gmailNewsletterSchedulerRole.id,
-	policy: gmailNewsletterMonitorQueue.queueArn.apply((arn) => JSON.stringify({
-		Version: "2012-10-17",
-		Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: arn }],
-	})),
-});
-new aws.scheduler.Schedule("hutch-gmail-newsletter-monitor", {
+scheduleQueueMessage({
+	roleName: "hutch-gmail-newsletter-scheduler-role",
+	policyName: "hutch-gmail-newsletter-scheduler-role-policy",
+	scheduleName: "hutch-gmail-newsletter-monitor",
+	queue: gmailNewsletterMonitorQueue,
 	scheduleExpression: "rate(6 hours)",
-	flexibleTimeWindow: { mode: "OFF" },
-	state: "ENABLED",
-	target: {
-		arn: gmailNewsletterMonitorQueue.queueArn,
-		roleArn: gmailNewsletterSchedulerRole.arn,
-		input: JSON.stringify({ "detail-type": CheckGmailNewslettersCommand.detailType, detail: {} }),
-	},
+	input: JSON.stringify({ "detail-type": CheckGmailNewslettersCommand.detailType, detail: {} }),
 });
 
 const gmailDiscoveryAccess = new DynamoDBAccess("hutch-gmail-discovery-tables", {
@@ -2754,16 +2703,13 @@ const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
 });
 eventBus.grantPublish(evaluateRefreshLambda);
 new SqsBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
-const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
-	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
-});
-new aws.iam.RolePolicy("evaluate-oauth-refresh-scheduler-send", {
-	role: evaluateRefreshRole.id,
-	policy: evaluateRefreshQueue.queueArn.apply(arn => JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "sqs:SendMessage", Resource: arn }] })),
-});
-new aws.scheduler.Schedule("evaluate-oauth-refresh", {
-	scheduleExpression: "rate(1 minute)", flexibleTimeWindow: { mode: "OFF" },
-	target: { arn: evaluateRefreshQueue.queueArn, roleArn: evaluateRefreshRole.arn, input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>) },
+scheduleQueueMessage({
+	roleName: "evaluate-oauth-refresh-scheduler",
+	policyName: "evaluate-oauth-refresh-scheduler-send",
+	scheduleName: "evaluate-oauth-refresh",
+	queue: evaluateRefreshQueue,
+	scheduleExpression: "rate(1 minute)",
+	input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>),
 });
 new aws.cloudwatch.MetricAlarm("oauth-refresh-unexpected-comparison", {
 	name: "oauth-refresh-unexpected-comparison", namespace: "Readplace/OAuth", metricName: "OAuthRefreshUnexpected24h",
