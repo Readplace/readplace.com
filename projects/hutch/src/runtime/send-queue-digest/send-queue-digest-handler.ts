@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
+import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, type ShownSummary, viewerFor } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/infra-components";
@@ -78,7 +78,6 @@ export interface SendQueueDigestDeps {
 	publishEvent: PublishEvent;
 	emitQueueDigestEvent: EmitQueueDigestEvent;
 	signUnsubscribeToken: (userId: UserId) => string;
-	signMarkReadToken: (input: { userId: UserId; articleIds: ReaderArticleHashId[] }) => string;
 	appOrigin: string;
 	cooldownMs: number;
 	regularDigestMinGapMs: number;
@@ -307,7 +306,6 @@ function regularDigestPlan(context: RecipientContext): DigestKindPlan {
 				kind: "regular",
 				items,
 				links,
-				markReadToken: deps.signMarkReadToken({ userId, articleIds: items.map((item) => item.articleId) }),
 			}),
 	};
 }

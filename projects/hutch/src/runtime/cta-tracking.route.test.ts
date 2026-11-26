@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { ReaderArticleHashId } from "@packages/domain/article";
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema } from "@packages/domain/inbox";
@@ -14,9 +13,8 @@ import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
 import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "./test-app";
-import { initQueueDigestMarkReadToken } from "./domain/email/queue-digest-mark-read-token";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
-import { QUEUE_DIGEST_MARK_READ_PATH, QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "./web/queue-digest-email";
+import { QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "./web/queue-digest-email";
 
 const useApp = useTestServer();
 const useArmB = useTestServer({ drawRandomByte: () => 0 });
@@ -141,16 +139,10 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const unsubscribeQuery = new URLSearchParams({
 			t: initQueueDigestUnsubscribeToken("test-analytics-salt").sign(digestReader.userId),
 		});
-		const markReadToken = initQueueDigestMarkReadToken("test-analytics-salt").sign({
-			userId: digestReader.userId,
-			articleIds: [ReaderArticleHashId.from("https://example.com/article")],
-		});
 		const untracked: string[] = [];
 		for (const path of [
 			...GUEST_PATHS,
 			`${QUEUE_DIGEST_UNSUBSCRIBE_PATH}?${unsubscribeQuery.toString()}`,
-			`${QUEUE_DIGEST_MARK_READ_PATH}?${new URLSearchParams({ t: markReadToken }).toString()}`,
-			`${QUEUE_DIGEST_MARK_READ_PATH}?${new URLSearchParams({ t: markReadToken, done: "1" }).toString()}`,
 		]) {
 			const response = await request(harness.server).get(path).set(BROWSER_REQUEST_HEADERS);
 			untracked.push(...untrackedOn(path, response.text));

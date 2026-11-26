@@ -7,7 +7,6 @@ import { QueueDigestEmail, type QueueDigestEmailItem } from "./queue-digest-emai
 const ORIGIN = "https://readplace.com";
 const SEND_ID = "3f1d2c4b-8a7e-4c61-9b0d-5e2f6a7c8d90";
 const UNSUBSCRIBE_TOKEN = "user-7.5d41402abc4b2a76b9719d911017c592";
-const MARK_READ_TOKEN = "eyJ1c2VySWQiOiJ1c2VyLTcifQ.7d793037a0760186574b0282f2f435e7";
 const LINKS = {
 	appOrigin: ORIGIN,
 	sendId: SEND_ID,
@@ -23,9 +22,6 @@ const REGULAR_FOOTER_REASON =
 	"You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days.";
 const PAY_FOOTER_REASON = "You're getting this because you save articles to Readplace.";
 const AMBER_FILL = "rgb(173, 98, 37)";
-const CARD_FILL = "rgb(255, 255, 255)";
-const FOREGROUND_INK = "rgb(26, 32, 44)";
-const BORDER_EDGE = "rgb(226, 229, 234)";
 
 const item = (overrides: Partial<QueueDigestEmailItem> = {}): QueueDigestEmailItem => ({
 	articleId: ARTICLE_ID,
@@ -36,7 +32,7 @@ const item = (overrides: Partial<QueueDigestEmailItem> = {}): QueueDigestEmailIt
 });
 
 const regularDigest = (items: QueueDigestEmailItem[]) =>
-	QueueDigestEmail({ kind: "regular", items, links: LINKS, markReadToken: MARK_READ_TOKEN });
+	QueueDigestEmail({ kind: "regular", items, links: LINKS });
 const payDigest = (items: QueueDigestEmailItem[]) =>
 	QueueDigestEmail({ kind: "pay", items, links: LINKS, pay: { trialEndsAt: TRIAL_ENDS_AT } });
 const starterDigest = (items: QueueDigestEmailItem[]) =>
@@ -62,16 +58,6 @@ const amberButtonPathsOf = (html: string) =>
 const buttonsOf = (html: string) =>
 	anchorsOf(html).filter((anchor) => anchor.parentElement?.style.backgroundColor !== "");
 const buttonPathsOf = (html: string) => buttonsOf(html).map((anchor) => urlOf(anchor).pathname);
-function markAllReadButtonOf(html: string) {
-	const button = buttonsOf(html).find((anchor) => urlOf(anchor).pathname === "/email/queue-digest/mark-read");
-	assert(button, "a regular digest must carry the mark-all-read button");
-	return button;
-}
-function buttonRowSlotOf(button: Element) {
-	const slot = button.closest("table[align]");
-	assert(slot, "every digest button must sit in its own slot of the button row");
-	return slot;
-}
 
 describe("QueueDigestEmail", () => {
 	describe("subject", () => {
@@ -249,50 +235,9 @@ describe("QueueDigestEmail", () => {
 			expect(amberButtonPathsOf(payDigest([item()]).to("text/html"))).toEqual(["/account/plans"]);
 		});
 
-		it("follows a regular digest's continue-reading button with a mark-all-read button, and leaves a pay digest's buttons as they were", () => {
-			expect(buttonPathsOf(regularDigest([item()]).to("text/html"))).toEqual([
-				"/queue",
-				"/email/queue-digest/mark-read",
-			]);
+		it("gives a regular digest only the continue-reading button, and leaves a pay digest's buttons as they were", () => {
+			expect(buttonPathsOf(regularDigest([item()]).to("text/html"))).toEqual(["/queue"]);
 			expect(buttonPathsOf(payDigest([item()]).to("text/html"))).toEqual(["/queue", "/account/plans"]);
-		});
-
-		it("links the mark-all-read button to the mark-read confirmation with this email's token, tagged with the digest's click tags", () => {
-			const button = markAllReadButtonOf(regularDigest([item()]).to("text/html"));
-
-			expect(button.textContent).toBe("Mark all as read");
-			expect(Object.fromEntries(urlOf(button).searchParams)).toEqual({
-				t: MARK_READ_TOKEN,
-				utm_source: "queue-digest",
-				utm_medium: "email",
-				utm_campaign: "regular",
-				utm_content: "mark-all-read",
-				utm_term: SEND_ID,
-			});
-		});
-
-		it("paints the mark-all-read button neutral: card fill, foreground ink, border edge", () => {
-			const button = markAllReadButtonOf(regularDigest([item()]).to("text/html"));
-			const cell = button.parentElement;
-			assert(cell, "the mark-all-read link must sit in its button cell");
-
-			expect({
-				fill: cell.style.backgroundColor,
-				edge: cell.style.borderColor,
-				ink: button.style.color,
-			}).toEqual({ fill: CARD_FILL, edge: BORDER_EDGE, ink: FOREGROUND_INK });
-		});
-
-		it("sets the regular digest's two buttons side by side in one row that wraps them onto two lines on a narrow screen, spaced apart either way", () => {
-			const html = regularDigest([item()]).to("text/html");
-			const [continueReading, markAllRead] = buttonsOf(html).map(buttonRowSlotOf);
-			assert(continueReading && markAllRead, "a regular digest must carry both buttons");
-
-			expect(continueReading.parentElement).toBe(markAllRead.parentElement);
-			expect([continueReading.getAttribute("align"), markAllRead.getAttribute("align")]).toEqual(["left", "left"]);
-			expect(
-				[continueReading, markAllRead].map((slot) => slot.querySelector("td")?.style.padding),
-			).toEqual(["0px 12px 12px 0px", "0px"]);
 		});
 
 		it.each([
@@ -368,18 +313,6 @@ describe("QueueDigestEmail", () => {
 			).toBe(true);
 			expect(text).toContain(
 				`Continue reading: https://readplace.com/queue?utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=continue-reading&utm_term=${SEND_ID}`,
-			);
-		});
-
-		it("offers the mark-all-read link right after the readlist link in a regular digest", () => {
-			const text = regularDigest([item()]).to("text/plain");
-
-			expect(text).toContain(
-				[
-					`Continue reading: https://readplace.com/queue?utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=continue-reading&utm_term=${SEND_ID}`,
-					`Mark all as read: https://readplace.com/email/queue-digest/mark-read?t=${MARK_READ_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=mark-all-read&utm_term=${SEND_ID}`,
-					"The article above is attached as an EPUB.",
-				].join("\n\n"),
 			);
 		});
 

@@ -275,7 +275,7 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 	{
 		slug: "queue-digest--default",
 		widths: [DESKTOP, MOBILE],
-		buttons: 2,
+		buttons: 1,
 		html: () =>
 			QueueDigestEmail({
 				kind: "regular",
@@ -304,13 +304,12 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 					sendId: "b6e3f0a2-5c1d-4e7f-9a83-2d4c6e8f1a57",
 					unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.db6e0c9463396e7e6143ec80076a062a3ca046dd6838dc5ba87abf7f7af7e7cc",
 				},
-				markReadToken: "eyJ1c2VySWQiOiI0ZjlhMWM3ZTJiM2Q0OGU2YTBjNWQ5ZjFlN2IyYTZjMyIsImFydGljbGVJZHMiOlsiMmNlNWQwNTg5NWRmMDlhNzhmNmY0MGIyODQ1MjRiMDUiLCI3YzM2OGVmZmJkY2E0NmEwZjUyYzJlZmMwMjQ3OGI0YyIsIjJiMGVkODFjZTJjNjNiYmM3MGJjOTAyZTU4YjgzZmNmIl19.3e29653bc13b1de7cd70048916a139b43e9dd421ff22d71f185b153a1fd0abc8",
 			}).to("text/html"),
 	},
 	{
 		slug: "queue-digest--single-article",
 		widths: [DESKTOP],
-		buttons: 2,
+		buttons: 1,
 		html: () =>
 			QueueDigestEmail({
 				kind: "regular",
@@ -327,7 +326,6 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 					sendId: "e41a7b39-6d02-4c85-b1f3-7a9e2c5d0b68",
 					unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.db6e0c9463396e7e6143ec80076a062a3ca046dd6838dc5ba87abf7f7af7e7cc",
 				},
-				markReadToken: "eyJ1c2VySWQiOiI0ZjlhMWM3ZTJiM2Q0OGU2YTBjNWQ5ZjFlN2IyYTZjMyIsImFydGljbGVJZHMiOlsiZWQ5ZDZjNWIzYjIyZmI5ZmUxZGJiMTMwMjFmNTM2OGYiXX0.4096df2c23e0f123f29a24baba2b74a0fed46f9a2b155b2940b9c2fab97e25fe",
 			}).to("text/html"),
 	},
 	{

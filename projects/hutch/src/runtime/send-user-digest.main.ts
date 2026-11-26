@@ -32,7 +32,6 @@ import { initDynamoDbSubscriptionProviders } from "./providers/subscription-prov
 import { initDynamoDbGeneratedSummary } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
-import { initQueueDigestMarkReadToken } from "./domain/email/queue-digest-mark-read-token";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
 import { QUEUE_DIGEST_MIN_GAP_MS, QUEUE_DIGEST_MIN_SAVE_AGE_MS } from "./domain/email/queue-digest-cadence";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./observability/queue-digest-events";
@@ -249,7 +248,6 @@ export const handler = initSendQueueDigestHandler({
 		now: () => new Date(),
 	}),
 	signUnsubscribeToken: initQueueDigestUnsubscribeToken(analyticsSalt).sign,
-	signMarkReadToken: initQueueDigestMarkReadToken(analyticsSalt).sign,
 	appOrigin,
 	cooldownMs: DIGEST_EMAIL_COOLDOWN_MS,
 	regularDigestMinGapMs: QUEUE_DIGEST_MIN_GAP_MS,

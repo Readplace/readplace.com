@@ -658,7 +658,7 @@ Not sent when:
 | Reply-To | `fayner@readplace.com` |
 | Subject | Waiting in your readlist |
 | Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}&kind=pay>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
-| Plain-text part | Yes: the readlist digest's plain-text layout with this version's one-line intro and footer reason and without the 'Mark all as read: {link}' line, plus the charge-terms paragraph, a 'Keep Readplace: {link}' line and the attachment line with 'How Send to Kindle works: {link}'. |
+| Plain-text part | Yes: the readlist digest's plain-text layout with this version's one-line intro and footer reason, plus the charge-terms paragraph, a 'Keep Readplace: {link}' line and the attachment line with 'How Send to Kindle works: {link}'. |
 | Attachment | One EPUB book, `readplace-readlist-YYYY-MM-DD.epub` (the UTC date of the check), application/epub+zip, titled 'Waiting in your readlist — {UTC date, e.g. Oct 12, 2026}'. It has one chapter per listed article, in email order, each opening with the title, site name, excerpt and 'Summary (TL;DR)' before the article body. Images are packed in article order under one 10 MB budget shared by the whole book; an image that would pass the budget is left out and the text kept. |
 | Idempotency key | none |
 
@@ -666,7 +666,7 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| pay | The trial-ending digest is due. Unlike the readlist digest, the intro is '{n} articles you saved are ready to read.' and the footer reason is 'You're getting this because you save articles to Readplace.'. Below a divider it adds 'Choose a plan before {trialEndsAt − 48h05m, e.g. Oct 7, 2026, 07:26 UTC} and nothing is charged until {trialEndsAt date, e.g. Oct 9, 2026}. After that, choosing a plan starts it the same day.' and an amber Keep Readplace button to /account/plans; Continue reading becomes a white button with a grey border, the readlist digest's Mark all as read button is left out, and every link carries utm_campaign=pay. Before the reply line it adds 'The {n} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.' followed by a How Send to Kindle works link to /blog/read-your-saved-articles-on-a-kindle-or-kobo tagged utm_content=kindle-guide; with one article it reads 'The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address.' |
+| pay | The trial-ending digest is due. Unlike the readlist digest, the intro is '{n} articles you saved are ready to read.' and the footer reason is 'You're getting this because you save articles to Readplace.'. Below a divider it adds 'Choose a plan before {trialEndsAt − 48h05m, e.g. Oct 7, 2026, 07:26 UTC} and nothing is charged until {trialEndsAt date, e.g. Oct 9, 2026}. After that, choosing a plan starts it the same day.' and an amber Keep Readplace button to /account/plans; Continue reading becomes a white button with a grey border, and every link carries utm_campaign=pay. Before the reply line it adds 'The {n} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.' followed by a How Send to Kindle works link to /blog/read-your-saved-articles-on-a-kindle-or-kobo tagged utm_content=kindle-guide; with one article it reads 'The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address.' |
 | pay-single-article | Exactly one ready unread save: intro '1 article you saved is ready to read.'. Not captured for this version. |
 | pay-summary-fallback-preview | Card previews follow the readlist digest's rules: the excerpt, or for a summary that predates excerpts, the summary cut to 200 characters with '…'. Not captured for this version. |
 
@@ -782,7 +782,7 @@ Exact HTML body: [`html/trial-ending-digest--pay.html`](html/trial-ending-digest
 - `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:44` — isPayDigestDue: trialing, window, once per window
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:311` — pay plan: no age floor, any emailed state, pay claim and release
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:143` — pay intro '{n} articles you saved are ready to read.' (pay footer reason at :29)
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:178` — charge-terms paragraph, Keep Readplace link at :219, and at :165 the neutral Continue reading button with no Mark all as read
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:178` — charge-terms paragraph, Keep Readplace link at :219, and at :165 the neutral Continue reading button
 - `projects/hutch/src/runtime/web/queue-digest-email.template.html:63` — pay block template
 - `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:189` — pay marker claim (release at :223)
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191` — EPUB built before the claim (readable-body filter at :394)
@@ -2328,10 +2328,9 @@ Trigger chain:
 5. The trial-ending digest is not due, so the regular plan applies `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:170`
 6. The regular plan holds if under 7 days less 30 minutes (167.5h) have passed since the last regular or trial-ending digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:298`
 7. It picks up to 10 qualifying saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:357`
-8. It signs a mark-read token over the user id and the ids of the listed saves for the Mark all as read button `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:306`
-9. It builds one EPUB of the listed saves before claiming anything `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
-10. It claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:198`
-11. It sends through Resend with the EPUB attached, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213`
+8. It builds one EPUB of the listed saves before claiming anything `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
+9. It claims the user's digest slot on the reader-ready-notifications row `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:198`
+10. It sends through Resend with the EPUB attached, then stamps emailSentAt on every listed save `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213`
 
 Sent only when:
 
@@ -2385,9 +2384,6 @@ Not sent when:
 - Every deployed stack, staging included, runs this Lambda and sends through Resend with that stack's APP_ORIGIN in the links; the local dev server has no wiring for this email `projects/hutch/src/infra/index.ts:806`
 - A failed per-user dispatch in the scan is logged and that user waits for the next 6h check; if the scan itself fails, the whole tick is retried after 120s and the cadence check and claim prevent duplicates `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:51`
 - An unverified or unsubscribed user whose access has ended still records queue_digest_skipped with tier free, because those gates run before the tier gate `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
-- Opening the Mark all as read link only shows a confirm page ('Mark these articles as read?'); nothing is marked until the reader presses that page's Mark all as read button, which posts the form, so a mail scanner that opens every link marks nothing `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:51` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:70`
-- Confirming marks each listed save read in the first readlist that still holds it (All first, then the reader's other readlists) and in every other readlist that holds the same save, so a save moved out of All since the email is still marked read. Only a save the reader deleted from every readlist is skipped, but the done page still says all {N} articles were marked as read, because it counts the ids in the link `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:43` `src/packages/article-store/src/dynamodb-saved-article-store.ts:1002` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:80` `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:57`
-- A changed or cut-off Mark all as read link shows 'Couldn't read this mark-as-read link' with status 400 and marks nothing `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.component.ts:59`
 
 </details>
 
@@ -2398,9 +2394,7 @@ Not sent when:
 > - Each weekly digest lists at most 10 saves, newest first `projects/hutch/src/runtime/send-user-digest.main.ts:50`, so when more than 10 unlisted saves turn 30 days old in a week, the rest are listed only in a later week when fewer than 10 newer ones qualify; a reader who keeps leaving more than 10 saves a week unread is never reminded about the older ones `src/packages/article-store/src/dynamodb-saved-article-store.ts:653`.
 > - Accounts pending deletion keep getting the digest: deleting an account only stamps deletedAt `projects/hutch/src/runtime/web/pages/account/account.page.ts:625` and the contact lookup does not check it `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:468`, so mail continues until the deletion job removes the saves, and longer if that job is stuck in its DLQ.
 > - There is no way to opt back in: the opt-out's clear branch has no caller `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:518`, and the done page says Readplace won't send this email again `projects/hutch/src/runtime/web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.component.ts:41`.
-> - Unsubscribe tokens (an HMAC of the userId) and Mark all as read tokens (an HMAC of the userId and the listed article ids) are keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe and Mark all as read link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:222` `projects/hutch/src/runtime/send-user-digest.main.ts:223`.
-> - The Mark all as read link works without signing in: the page is mounted without the sign-in gate `projects/hutch/src/runtime/server.ts:1601` and marks the saves of the userId inside the token, whoever is signed in `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:76`, so anyone the email is forwarded to can mark those articles read, and an old email's button marks them read again after the reader marked them unread.
-> - Articles marked read from the email record no article_read analytics event, unlike marking one read in the readlist `projects/hutch/src/runtime/web/pages/readlist/readlist.page.ts:2867`; the mark-read page has no analytics dependency `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:21`.
+> - Unsubscribe tokens (an HMAC of the userId) are keyed by ANALYTICS_SALT and never expire, so rotating the analytics salt breaks every unsubscribe link already sent `projects/hutch/src/runtime/send-user-digest.main.ts:222` `projects/hutch/src/runtime/send-user-digest.main.ts:223`.
 > - A Resend 4xx removes the user's last-digest time along with the claim `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:104`, so an address Resend keeps refusing is retried on every 6h check (3 receives each) and every check ends in the DLQ alarm.
 > - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:224`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:40` says this is deliberate.
 > - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:18`.
@@ -2426,15 +2420,15 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | Two or more qualifying saves: the intro paragraph 'These {n} articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.', an amber Continue reading button (#AD6225) to /queue beside a white Mark all as read button (#FFFFFF with a #E2E5EA edge) to /email/queue-digest/mark-read?t={token signed over the userId and the ids of the listed saves}, no pay block, then 'The {n} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.' with a How Send to Kindle works link to /blog/read-your-saved-articles-on-a-kindle-or-kobo (utm_content=kindle-guide) before the reply line, the footer 'You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days. Stop these emails.', and every link tagged utm_campaign=regular. |
-| single-article | Exactly one qualifying save: the intro paragraph 'This article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it.' and the attachment line 'The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address.'; the Mark all as read button still shows and covers that one save. |
+| default | Two or more qualifying saves: the intro paragraph 'These {n} articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.', an amber Continue reading button (#AD6225) to /queue, no pay block, then 'The {n} articles above are attached as one EPUB book. To read them on a Kindle, forward this email to your Send to Kindle address.' with a How Send to Kindle works link to /blog/read-your-saved-articles-on-a-kindle-or-kobo (utm_content=kindle-guide) before the reply line, the footer 'You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for 30 days. Stop these emails.', and every link tagged utm_campaign=regular. |
+| single-article | Exactly one qualifying save: the intro paragraph 'This article is ready and has been in your readlist for some time but is still unread. This is a one-time reminder about it.' and the attachment line 'The article above is attached as an EPUB. To read it on a Kindle, forward this email to your Send to Kindle address.'. |
 | excerpt-preview | The article's ready summary has an excerpt, as all current summaries do: the card preview is the excerpt with whitespace collapsed and no length cap, so a model excerpt longer than the prompt's 100 characters shows in full. Captured in default. |
 | summary-fallback-preview | The summary predates excerpts: the preview is the summary text with whitespace collapsed, cut at a word boundary to 200 characters with '…' only when longer. Captured in single-article. |
 | no-preview | The template drops the preview line when the preview is empty; unreachable because only ready summaries, which always carry text, are listed. Not captured. |
 
 ### Example
 
-#### `default` — A paying member whose last readlist digest went out exactly 7 days earlier (the check 6 hours before was held by cadence) gets three unread saves that are 36, 44 and 84 days old, each previewed by its excerpt, under the one-paragraph intro with the amber Continue reading button beside a white Mark all as read button whose link covers those three saves; a 15-day-old save, a save whose summary was skipped, a save already listed in the previous digest and the consent-seed article are left out.
+#### `default` — A paying member whose last readlist digest went out exactly 7 days earlier (the check 6 hours before was held by cadence) gets three unread saves that are 36, 44 and 84 days old, each previewed by its excerpt, under the one-paragraph intro with the amber Continue reading button; a 15-day-old save, a save whose summary was skipped, a save already listed in the previous digest and the consent-seed article are left out.
 
 Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
@@ -2585,7 +2579,7 @@ Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
 Exact HTML body: [`html/queue-digest--default.html`](html/queue-digest--default.html)
 
-#### `single-article` — A paying member with exactly one qualifying save, 62 days old, gets the singular intro paragraph and a Mark all as read link for that one save, and because that article's summary predates excerpts, its preview is the summary cut at a word boundary to 200 characters with an ellipsis.
+#### `single-article` — A paying member with exactly one qualifying save, 62 days old, gets the singular intro paragraph, and because that article's summary predates excerpts, its preview is the summary cut at a word boundary to 200 characters with an ellipsis.
 
 Subject: **Waiting in your readlist** · To: `sam.reader@gmail.com`
 
@@ -2677,7 +2671,7 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:182` — renderer: subject, unsubscribe headers, tracked links, HTML and text parts
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:138` — intro paragraph: one for the readlist digest, one for the trial-ending digest
-- `projects/hutch/src/runtime/web/queue-digest-email.ts:154` — buttons: amber Continue reading and white Mark all as read for the readlist digest, a white Continue reading alone for the trial-ending digest
+- `projects/hutch/src/runtime/web/queue-digest-email.ts:154` — buttons: amber Continue reading for the readlist digest, a white Continue reading alone for the trial-ending digest
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:27` — footer reason for each kind
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:148` — attachment paragraph, singular and plural; How Send to Kindle works link at :204
 - `projects/hutch/src/runtime/web/queue-digest-book.ts:12` — EPUB attachment: filename, content type, book title
@@ -2689,9 +2683,7 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:283` — regular plan: 7-day gap less 30 minutes, 30-day floor, not-emailed filter, slot claim
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191` — EPUB built before the claim (readable-body filter at :394)
 - `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:213` — sender (sendEmail call with the EPUB attached)
-- `projects/hutch/src/runtime/send-user-digest.main.ts:201` — composition root: constants (10 MB image budget at :54), unsubscribe and mark-read token signers, Resend wrapped in the reserved-domain skip
-- `projects/hutch/src/runtime/domain/email/queue-digest-mark-read-token.ts:18` — Mark all as read token: the userId and the listed article ids, HMAC-signed
-- `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:51` — Mark all as read page: the GET shows a confirm form, the POST marks each listed save read in the readlist that still holds it
+- `projects/hutch/src/runtime/send-user-digest.main.ts:201` — composition root: constants (10 MB image budget at :54), unsubscribe token signer, Resend wrapped in the reserved-domain skip
 - `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:30` — 6-hourly fan-out to every trialist and member
 - `projects/hutch/src/infra/index.ts:941` — rate(6 hours) schedule, queues and Lambdas
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, shownSummary, type Viewer, viewerFor } from "@packages/domain/article";
+import { MinutesSchema, shownSummary, type Viewer, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderReadyEmailSentEvent } from "@packages/infra-components";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -18,7 +18,6 @@ import { initInMemoryReaderReadyState } from "@packages/test-fixtures/providers/
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import { initQueueDigestMarkReadToken } from "../domain/email/queue-digest-mark-read-token";
 import { initQueueDigestUnsubscribeToken } from "../domain/email/queue-digest-unsubscribe-token";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "../observability/queue-digest-events";
 import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
@@ -65,7 +64,6 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });
 	const email = initInMemoryEmail();
 	const token = initQueueDigestUnsubscribeToken(UNSUBSCRIBE_SECRET);
-	const markReadToken = initQueueDigestMarkReadToken(UNSUBSCRIBE_SECRET);
 	const published: Array<{ detailType: string; detail: unknown }> = [];
 	const pageReads: Array<{ limit: number; candidates: number }> = [];
 	const events: QueueDigestLogEvent[] = [];
@@ -116,7 +114,6 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 			now: () => clock.now,
 		}),
 		signUnsubscribeToken: token.sign,
-		signMarkReadToken: markReadToken.sign,
 		appOrigin: "https://readplace.com",
 		cooldownMs: COOLDOWN_MS,
 		regularDigestMinGapMs: REGULAR_DIGEST_MIN_GAP_MS,
@@ -147,7 +144,6 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 		subscriptions,
 		email,
 		token,
-		markReadToken,
 		published,
 		pageReads,
 		events,
@@ -434,15 +430,6 @@ describe("initSendQueueDigestHandler", () => {
 			expect(sent.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
 			const oneClick = new URL((sent.headers?.["List-Unsubscribe"] ?? "").replace(/^<|>$/g, ""));
 			expect(subject.token.verify(oneClick.searchParams.get("t") ?? "")).toBe(USER_ID);
-			const markAllRead = linkUrlsOf(sent.html).find((url) => url.pathname === "/email/queue-digest/mark-read");
-			assert(markAllRead, "a regular digest carries the mark-all-read link");
-			const marked = subject.markReadToken.verify(markAllRead.searchParams.get("t") ?? "");
-			assert(marked, "the mark-all-read link carries a token signed for this digest");
-			expect(marked.userId).toBe(USER_ID);
-			expect(marked.articleIds.map((id) => id.value)).toEqual([
-				ReaderArticleHashId.from("https://example.com/alpha").value,
-				ReaderArticleHashId.from("https://example.com/beta").value,
-			]);
 
 			expect(await subject.readerReady.findReaderReadyEmailState(USER_ID)).toEqual({
 				lastSentAt: SEND_INSTANT,
