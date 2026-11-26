@@ -55,6 +55,7 @@ export {
 } from "./analytics.middleware";
 export {
 	isBotUserAgent,
+	iosBuildNumberOf,
 	readplaceNativeClientOf,
 	classifyDeviceClass,
 	classifyBrowser,
