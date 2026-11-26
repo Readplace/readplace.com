@@ -887,13 +887,15 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
-	describe("createUser", () => {
+	describe("createUserWithPasswordHash", () => {
 		it("writes the user row and canonical claim in one transaction for Gmail", async () => {
 			const { client, commands } = createWriteFakeClient();
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "John.Doe+promo@gmail.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			assert(result.ok, "create should succeed");
@@ -923,9 +925,11 @@ describe("initDynamoDbAuth", () => {
 		it("writes a single conditional put (no transaction) for a non-Gmail address", async () => {
 			const { client, commands } = createWriteFakeClient();
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "user@example.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result.ok).toBe(true);
@@ -937,24 +941,14 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 
-		it("records the password as changed at the instant the account was registered", async () => {
-			const { client, commands } = createWriteFakeClient();
-
-			await initAuth(client).createUser({ email: "user@example.com", password: "password123" });
-
-			const item = commands.find((c) => c.name === "PutCommand")?.input.Item;
-			assert(item && typeof item === "object", "expected a PutCommand item");
-			const { registeredAt, passwordUpdatedAt } = Object.fromEntries(Object.entries(item));
-			expect(typeof registeredAt).toBe("string");
-			expect(passwordUpdatedAt).toBe(registeredAt);
-		});
-
 		it("maps a Gmail transaction cancelled on the delivery-email key to email-already-exists", async () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["ConditionalCheckFailed", "None"]) });
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "john.doe@gmail.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -963,9 +957,11 @@ describe("initDynamoDbAuth", () => {
 		it("maps a Gmail transaction cancelled on the canonical-claim key to email-already-exists", async () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["None", "ConditionalCheckFailed"]) });
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "john.doe@gmail.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -975,9 +971,11 @@ describe("initDynamoDbAuth", () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["ThrottlingError", "None"]) });
 
 			await expect(
-				initAuth(client).createUser({
+				initAuth(client).createUserWithPasswordHash({
 					email: "john.doe@gmail.com",
-					password: "password123",
+					passwordHash: "hashed",
+					attribution: undefined,
+					signupOAuthClientId: null,
 				}),
 			).rejects.toThrow(TransactionCanceledException);
 		});
@@ -987,16 +985,15 @@ describe("initDynamoDbAuth", () => {
 				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "exists" }),
 			});
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "user@example.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});
-	});
-
-	describe("createUserWithPasswordHash", () => {
 		it("records the password as changed at the instant the account was registered", async () => {
 			const { client, commands } = createWriteFakeClient();
 

@@ -214,7 +214,6 @@ function flattenFixtureToAppDependencies(
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,
 		hashPassword: fixture.auth.hashPassword,
-		createUser: fixture.auth.createUser,
 		createUserWithPasswordHash: fixture.auth.createUserWithPasswordHash,
 		createGoogleUser: fixture.auth.createGoogleUser,
 		createAppleUser: fixture.auth.createAppleUser,

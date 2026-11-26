@@ -26,7 +26,6 @@ import type {
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
-	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroyOAuthGrantSessions,
 	DestroySession,
@@ -453,7 +452,6 @@ export interface AppDependencies {
 	staticBaseUrl: string;
 	hashPassword: (password: string) => Promise<string>;
 	fetchFirefoxDownloadUrl: FetchFirefoxDownloadUrl;
-	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;

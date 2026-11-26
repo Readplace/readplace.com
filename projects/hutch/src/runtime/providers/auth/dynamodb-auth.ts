@@ -32,7 +32,6 @@ import type {
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
-	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroyOAuthGrantSessions,
 	DestroySession,
@@ -177,7 +176,6 @@ export function initDynamoDbAuth(deps: {
 	sessionsTableName: string;
 	observeSession: ObserveSession;
 }): {
-	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
@@ -290,30 +288,6 @@ export function initDynamoDbAuth(deps: {
 			}
 			throw error;
 		}
-	};
-
-	const createUser: CreateUser = async ({ email, password, attribution }) => {
-		const normalizedEmail = normalizeEmail(email);
-		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
-		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
-		const passwordHash = await hashPassword(password);
-		const at = new Date().toISOString();
-
-		const result = await writeNewUserRow({
-			userRow: {
-				email: normalizedEmail,
-				userId,
-				passwordHash,
-				passwordUpdatedAt: at,
-				emailVerified: false,
-				registeredAt: at,
-				canonicalEmail: canonicalizeEmail(email),
-				...(attribution ?? {}),
-			},
-			userId,
-			gmailClaimKey: gmailIdentityKey(email),
-		});
-		return result.ok ? { ok: true, userId } : result;
 	};
 
 	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution, signupOAuthClientId }) => {
@@ -883,7 +857,6 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	return {
-		createUser,
 		createUserWithPasswordHash,
 		createGoogleUser,
 		createAppleUser,
