@@ -19,7 +19,7 @@ export function initS3DeleteObjectsByPrefix(deps: {
 						Bucket: deps.bucketName,
 						// The trailing slash pins the boundary: prefix "content/email-images/ab"
 						// must never sweep up a sibling hash that merely starts with "ab".
-						Prefix: `${prefix}/`,
+						Prefix: prefix.endsWith("/") ? prefix : `${prefix}/`,
 						ContinuationToken: continuationToken,
 					}),
 				);
