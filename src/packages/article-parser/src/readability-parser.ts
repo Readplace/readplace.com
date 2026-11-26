@@ -5,11 +5,18 @@ import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt,
 import { type CrawlArticle, type YouTubeEmbed, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
+import type {
+	ActiveCoverageRules,
+	CoverageAlternative,
+	CoverageInspection,
+	SourceInspection,
+} from "./coverage-rules/coverage-rule.types";
 
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;
 	siteRules: readonly SiteRules[];
 	readabilityAdditions: ReadabilityAdditions;
+	coverageRules: ActiveCoverageRules;
 	logError: (message: string, error?: Error) => void;
 }): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
@@ -35,6 +42,7 @@ export function initReadabilityParser(deps: {
 			fetchedDocument: params.fetchedDocument,
 			logError: deps.logError,
 		});
+		const inspected = extracted === undefined ? inspectCoverage({ html, documentUrl: params.documentUrl }) : [];
 
 		const { document } = parseHTML(
 			extracted ? buildSyntheticHtml(extracted) : html,
@@ -102,6 +110,7 @@ export function initReadabilityParser(deps: {
 					content: "",
 					imageUrl: params.thumbnailUrl ?? undefined,
 				},
+				coverage: inspected.map((source) => toCoverageInspection({ source, url: params.url, documentUrl: params.documentUrl })),
 			};
 		}
 
@@ -121,8 +130,78 @@ export function initReadabilityParser(deps: {
 				imageUrl: params.thumbnailUrl ?? undefined,
 				publishedOn: deps.readabilityAdditions.publishedOnFrom(parsed.publishedTime),
 			},
+			coverage: inspected.map((source) => toCoverageInspection({ source, url: params.url, documentUrl: params.documentUrl })),
 		};
 	};
+
+	function inspectCoverage(source: { html: string; documentUrl: string }): readonly SourceInspection[] {
+		try {
+			return deps.coverageRules.inspect(source);
+		} catch (error) {
+			deps.logError(`[ReadabilityParser] Coverage inspection threw for ${source.documentUrl}`, toError(error));
+			return [];
+		}
+	}
+
+	function toCoverageInspection(params: { source: SourceInspection; url: string; documentUrl: string }): CoverageInspection {
+		const { source } = params;
+		if (source.kind === "abstained") {
+			return source;
+		}
+		const { recoveredBodyHtml, verify, ...assessed } = source;
+		return {
+			...assessed,
+			verify: (reader) => {
+				try {
+					return verify(reader);
+				} catch (error) {
+					deps.logError(`[ReadabilityParser] Coverage verify threw for ${params.documentUrl}`, toError(error));
+					return { outcome: "unknown", reasons: ["rule-failed"] };
+				}
+			},
+			alternative:
+				recoveredBodyHtml === undefined
+					? undefined
+					: () => {
+							try {
+								return materialiseAlternative({ bodyHtml: recoveredBodyHtml, url: params.url, documentUrl: params.documentUrl });
+							} catch (error) {
+								deps.logError(`[ReadabilityParser] Coverage alternative threw for ${params.documentUrl}`, toError(error));
+								return undefined;
+							}
+						},
+		};
+	}
+
+	function materialiseAlternative(params: { bodyHtml: string; url: string; documentUrl: string }): CoverageAlternative {
+		const { document } = parseHTML(`<!DOCTYPE html><html><head></head><body><article>${params.bodyHtml}</article></body></html>`);
+		deps.readabilityAdditions.unwrapArticleBodyTemplates(document);
+		deps.readabilityAdditions.replaceVideosWithPlaceholder({
+			document,
+			originalUrl: params.url,
+			renderPlaceholder: renderVideoPlaceholder,
+		});
+		deps.readabilityAdditions.replaceEmbedsWithFacade({ document, renderFacade: renderEmbedFacade });
+		applyTransforms({
+			siteRules: deps.siteRules,
+			document,
+			url: params.url,
+			documentUrl: params.documentUrl,
+			logError: deps.logError,
+		});
+		deps.readabilityAdditions.demoteBodyHeadings(document);
+		const article = document.querySelector("article");
+		assert(article, "the alternative document is built around an <article>");
+		const text = article.textContent;
+		assert(text !== null, "an element always has textContent");
+		return {
+			content: deps.readabilityAdditions.resolveRelativeUrls({
+				html: deps.readabilityAdditions.restoreRetaggedTables(article.innerHTML),
+				baseUrl: params.documentUrl,
+			}),
+			wordCount: Array.from(text.matchAll(/\S+/g)).length,
+		};
+	}
 
 	const parseArticle: ParseArticle = async (url) => {
 		try {

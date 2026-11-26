@@ -1,6 +1,8 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import {
+	activateCoverageRules,
+	initArticleCoverageRules,
 	initArticleSiteRules,
 	initReadabilityParser,
 	readabilityAdditions,
@@ -15,7 +17,7 @@ import {
 	initFetchThumbnailImage,
 	type ThumbnailNotDeliveredEvent,
 } from "@packages/crawl-article";
-import { isBlockedIpAddress } from "@packages/domain/article";
+import { ALL_COVERAGE_RULES_OFF, isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { initSqsChangeVisibility } from "@packages/infra-components/runtime";
 import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
@@ -73,6 +75,7 @@ const { parseHtml } = initReadabilityParser({
 	siteRules,
 	readabilityAdditions,
 	logError,
+	coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 });
 const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo, logThumbnailNotDelivered });
 const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });

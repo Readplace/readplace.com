@@ -1,3 +1,4 @@
+import { ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { S3Client } from "@aws-sdk/client-s3";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initArticleStoreDepBundle } from "./article-store";
@@ -7,7 +8,7 @@ import { initParserDepBundle } from "./parser";
 
 describe("initCrawlAndFinalizeDepBundle", () => {
 	it("returns a bundle with finalizeArticle and crawlAndFinalizeArticle fields", () => {
-		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {}, findAdoptedFetchUrl: async () => undefined });
+		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {}, findAdoptedFetchUrl: async () => undefined, coverageRuleModes: ALL_COVERAGE_RULES_OFF });
 		const articleStore = initArticleStoreDepBundle({
 			s3Client: new S3Client({ region: "us-east-1" }),
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),

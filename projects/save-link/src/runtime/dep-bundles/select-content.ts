@@ -7,6 +7,7 @@ import type { VerifyWrapperSource } from "@packages/save-article";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { CreateDeepseekChatCompletion, DeepseekCallFailedLogLine } from "@packages/ai-message";
 import type { Logger } from "@packages/logger";
+import type { CoverageRuleModes } from "@packages/domain/article";
 import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import {
 	initReadTierSource,
@@ -45,6 +46,7 @@ export type SelectContentDepBundle = {
 	fetchYouTubeVideoCard: FetchYouTubeVideoCard;
 	fetchRedditPostCard: FetchRedditPostCard;
 	putTierSource: PutTierSource;
+	coverageRuleModes: CoverageRuleModes;
 };
 
 export function initSelectContentDepBundle(deps: {
@@ -56,6 +58,7 @@ export function initSelectContentDepBundle(deps: {
 	logger: Logger;
 	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 	now: () => Date;
+	coverageRuleModes: CoverageRuleModes;
 }): SelectContentDepBundle {
 	const { readTierSource } = initReadTierSource({
 		client: deps.s3Client,
@@ -93,5 +96,6 @@ export function initSelectContentDepBundle(deps: {
 		fetchYouTubeVideoCard: initFetchYouTubeVideoCard({ fetch: globalThis.fetch, logError: deps.logger.error.bind(deps.logger) }),
 		fetchRedditPostCard: initFetchRedditPostCard({ fetch: globalThis.fetch, logError: deps.logger.error.bind(deps.logger) }),
 		putTierSource: initPutTierSource({ client: deps.s3Client, bucketName: deps.contentBucketName }).putTierSource,
+		coverageRuleModes: deps.coverageRuleModes,
 	};
 }

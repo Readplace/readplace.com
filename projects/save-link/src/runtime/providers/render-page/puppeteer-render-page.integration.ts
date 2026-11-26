@@ -3,7 +3,8 @@ import { createServer, request as forwardRequest, type IncomingMessage, type Ser
 import type { AddressInfo } from "node:net";
 import { after, before, describe, it } from "node:test";
 import chromium from "@sparticuz/chromium";
-import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { activateCoverageRules, initArticleCoverageRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { classifyRenderedDocument } from "./classify-rendered-document";
 import { initPuppeteerRenderPage } from "./puppeteer-render-page";
 import type { RenderOutcome, RenderProxy } from "../../domain/render-crawl/render-page.types";
@@ -120,6 +121,7 @@ const parser = initReadabilityParser({
 	siteRules: [],
 	readabilityAdditions,
 	logError: () => undefined,
+	coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 });
 
 function extractedText(outcome: RenderOutcome, url: string): string {

@@ -9,7 +9,7 @@ import { consoleLogger } from "@packages/logger";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { CRAWL_PERSONAS, defaultResolveAll, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch } from "@packages/crawl-article";
-import { isBlockedIpAddress } from "@packages/domain/article";
+import { isBlockedIpAddress, parseCoverageRuleModes } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { readEnv } from "@packages/require-env";
 import { z } from "zod";
@@ -36,6 +36,7 @@ import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { RENDER_CRAWL_COMMAND_ROOT_ENV } from "./render-crawl-command.env";
 
 const env = readEnv(RENDER_CRAWL_COMMAND_ROOT_ENV);
+const coverageRuleModes = parseCoverageRuleModes(env.COVERAGE_RULE_MODES);
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
@@ -61,6 +62,7 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+	coverageRuleModes,
 });
 const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });

@@ -12,6 +12,7 @@ import {
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { readEnv } from "@packages/require-env";
+import { parseCoverageRuleModes } from "@packages/domain/article";
 import { SELECT_ARTICLE_CONTENT_ENV } from "./select-article-content.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
@@ -19,6 +20,7 @@ import { initSelectArticleContentHandler } from "./domain/select-content/select-
 import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(SELECT_ARTICLE_CONTENT_ENV);
+const coverageRuleModes = parseCoverageRuleModes(env.COVERAGE_RULE_MODES);
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
@@ -42,6 +44,7 @@ const deepseekClient = initDeepseekClient({
 });
 
 const selectContent = initSelectContentDepBundle({
+	coverageRuleModes,
 	s3Client,
 	dynamoClient,
 	contentBucketName,

@@ -72,10 +72,11 @@ function policyPage(extra = "") {
 const noIo = () => { throw new Error("The policy parser only reads supplied HTML"); };
 const { siteRules } = initArticleSiteRules({ crawlFetch: noIo, logError: noIo });
 const stock = initReadabilityParser({
+	coverageRules: { inspect: () => [] },
 	crawlArticle: noIo, logError: noIo, readabilityAdditions,
 	siteRules: siteRules.filter((rule) => rule !== intuitPrivacySiteRules),
 });
-const parser = initReadabilityParser({ crawlArticle: noIo, logError: noIo, readabilityAdditions, siteRules });
+const parser = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: noIo, logError: noIo, readabilityAdditions, siteRules });
 
 function parseInput(html = policyPage(), documentUrl = DOCUMENT) {
 	return { html, url: "https://redirect.example/saved-policy", documentUrl, thumbnailUrl: null, fetchedDocument: true as const };
@@ -158,6 +159,7 @@ describe("public privacy statement disclosures", () => {
 	it.each([true, false])("uses an observed HTTP terminal URL through parseArticle (%s)", async (hasTerminal) => {
 		const input = parseInput();
 		const { parseArticle } = initReadabilityParser({
+			coverageRules: { inspect: () => [] },
 			crawlArticle: async () => ({ status: "fetched", html: input.html, bodyHash: "synthetic", finalUrl: hasTerminal ? DOCUMENT : undefined }),
 			logError: noIo,
 			readabilityAdditions,

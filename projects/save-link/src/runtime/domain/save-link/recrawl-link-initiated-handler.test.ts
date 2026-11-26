@@ -1,4 +1,6 @@
 import { noopLogger } from "@packages/logger";
+import type { ArticleCoverage } from "@packages/domain/article";
+import type { PutTierSource } from "@packages/tier-source";
 import { markCrawlExhausted, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { RecrawlContentExtractedEvent } from "@packages/infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
@@ -290,6 +292,41 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 				url: "https://example.com/article",
 				extractedAt: "2026-04-30T12:00:00.000Z",
 			}) });
+		});
+
+		it("stores the admin recrawl's live and archive candidates each with its own finalized coverage, and asks for one judgement over both", async () => {
+			const coverageOf = (params: { covered: number; digit: string }): ArticleCoverage => ({
+				schemaVersion: 1,
+				sourceDigest: params.digit.repeat(64),
+				outputDigest: params.digit.repeat(64),
+				assessments: [{ ruleId: "section-coverage", ruleVersion: 1, mode: "shadow", repair: "none", outcome: "known-partial", scope: { kind: "article", units: 14 }, covered: params.covered, unresolved: 14 - params.covered, reasons: ["missing-section"] }],
+			});
+			const liveCoverage = coverageOf({ covered: 1, digit: "a" });
+			const archiveCoverage = coverageOf({ covered: 9, digit: "b" });
+			const stored: Parameters<PutTierSource>[0][] = [];
+			const putTierSource: PutTierSource = async (params) => {
+				stored.push(params);
+				return params.metadata;
+			};
+			const { publishEvent, published } = initRecordingPublishEvent();
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => {
+					const coverage = params.fetchUrl === capture ? archiveCoverage : liveCoverage;
+					return { ...fetchedResult, article: { ...stubFinalizedArticle, metadata: { ...stubFinalizedArticle.metadata, coverage } } };
+				},
+				putTierSource,
+				publishEvent,
+				findContentSourceUrl: async () => capture,
+			});
+
+			await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+			const coverageByTier = Object.fromEntries(stored.map((params) => [params.tier, params.metadata.coverage]));
+			expect(coverageByTier).toEqual({ "tier-1": liveCoverage, "tier-2": archiveCoverage });
+			expect(published).toEqual([{ detailType: RecrawlContentExtractedEvent.detailType, detail: expect.objectContaining({
+				url: "https://example.com/article",
+				candidates: expect.arrayContaining(stored.map((params) => ({ id: params.metadata.id, tier: params.tier }))),
+			}) }]);
 		});
 
 		it("hands the capture to the deferred recrawl without a recrawl event when the live fetch is deferred, so the content judge runs once", async () => {

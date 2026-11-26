@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { type ArticleCoverage, SaveAttemptIdSchema } from "@packages/domain/article";
 import { candidateProvenance } from "@packages/tier-source";
 import { noopLogger } from "@packages/logger";
 import type { CaptureTrigger } from "@packages/domain/article";
@@ -123,6 +124,42 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 			documentUrl: "https://example.com/article",
 			html: rawHtml,
 		});
+	});
+
+	it("keeps the finalized coverage of a capture beside its author in the stored manifest, its source digest matching the manifest's content hash", async () => {
+		const rawHtml = "<html><body><article><h2>One</h2><p>Body</p></article></body></html>";
+		const sha256 = (html: string) => createHash("sha256").update(html).digest("hex");
+		const coverageOf = (sourceHtml: string): ArticleCoverage => ({
+			schemaVersion: 1,
+			sourceDigest: sha256(sourceHtml),
+			outputDigest: sha256(stubFinalizedArticle.html),
+			assessments: [{ ruleId: "section-coverage", ruleVersion: 1, mode: "shadow", repair: "none", outcome: "verified-for-scope", scope: { kind: "article", units: 1 }, covered: 1 }],
+		});
+		const finalizeArticle: FinalizeArticle = async (input) => ({ ok: true, article: { ...stubFinalizedArticle, metadata: { ...stubFinalizedArticle.metadata, coverage: coverageOf(input.html) } } });
+		const putTierSource = jest.fn().mockResolvedValue(undefined);
+		const { handler } = createHandler({
+			readPendingHtml: jest.fn().mockResolvedValue({ html: rawHtml, capturedAt: "2026-10-01T00:00:00.000Z" }),
+			finalizeArticle,
+			putTierSource,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
+
+		const coverage = coverageOf(rawHtml);
+		const metadata = candidateProvenance({
+			metadata: { ...stubFinalizedArticle.metadata, coverage, authorUserId: "user-1" },
+			html: stubFinalizedArticle.html,
+			evaluationHtml: rawHtml,
+			attemptId: SaveAttemptIdSchema.parse("attempt-1"),
+			originalUrl: "https://example.com/article",
+			sourceUrl: "https://example.com/article",
+			kind: "extension",
+			fetchedAt: "2026-10-01T00:00:00.000Z",
+			captureTrigger: "manual",
+		});
+		expect(putTierSource).toHaveBeenCalledWith({ url: "https://example.com/article", tier: "tier-0", html: stubFinalizedArticle.html, evaluationHtml: rawHtml, metadata });
+		assert.deepEqual([metadata.coverage, metadata.authorUserId], [coverage, "user-1"]);
+		assert.equal(metadata.contentHash, coverage.sourceDigest);
 	});
 
 	it("writes the tier-0 source before publishing TierContentExtractedEvent (selector relies on the source being listable)", async () => {

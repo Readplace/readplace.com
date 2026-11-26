@@ -2,7 +2,7 @@ import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
-import { isWrapperUrl } from "@packages/domain/article";
+import { isWrapperUrl, type CoverageRuleModes } from "@packages/domain/article";
 import type { Article, LoadArticle } from "@packages/domain/article-aggregate";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { Logger } from "@packages/logger";
@@ -17,6 +17,7 @@ import { refreshRefusalFor } from "./refresh-refusal";
 import { bodiesAreNearIdentical } from "./near-identical-bodies";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
+import { NO_SELECTION_COVERAGE, coverageLossesOf, coverageNoteOf, type SelectionCoverage } from "./coverage-losses";
 import type { FindArticleContent } from "../save-link/article-content.types";
 
 export type SelectionMode = "save" | "recrawl" | "refresh";
@@ -28,12 +29,13 @@ export interface PreparedContentSelection {
 	selected: VerifiedTierSource | undefined;
 	outcome: "selected" | "retained" | "no-readable" | "refused";
 	reason: string;
-	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "near-identical-refresh" | "judge-deferred" | "video-card-fallback" | "post-card-fallback" | "refresh-refused";
+	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "near-identical-refresh" | "judge-deferred" | "video-card-fallback" | "post-card-fallback" | "refresh-refused" | "coverage-loss-retained";
 	ownCaptureFailed: boolean;
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;
 	legacyCanonicalWithheld: boolean;
 	judgedBodies: number;
+	coverage: SelectionCoverage;
 }
 
 const EMPTY_TEXT_HASH = computeCanonicalContentHash("");
@@ -117,7 +119,7 @@ function groupByJudgedBody(params: { sources: readonly VerifiedTierSource[]; pro
 	return [...groups.values()];
 }
 
-export async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent; proseHashOf: (html: string) => string }) {
+export async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent; proseHashOf: (html: string) => string; coverageNoteOf: (source: VerifiedTierSource) => string | undefined }) {
 	const groups = groupByJudgedBody({ sources: params.sources, proseHashOf: params.proseHashOf });
 	const membersByRepresentative = new Map(groups.map((members) => [representativeOf(members).metadata.id, members]));
 	const membersOf = (candidateId: CandidateId): VerifiedTierSource[] => {
@@ -127,7 +129,10 @@ export async function judgeCandidates(params: { sources: readonly VerifiedTierSo
 	};
 	const judged = await params.selectMostCompleteContent({
 		url: params.originalUrl,
-		candidates: groups.map(representativeOf).map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
+		candidates: groups.map(representativeOf).map((source) => {
+			const coverage = params.coverageNoteOf(source);
+			return { id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus, ...(coverage === undefined ? {} : { coverage }) };
+		}),
 	});
 	const withReadableMembers = (candidateId: CandidateId) => {
 		const readable = membersOf(candidateId).filter(candidateIsReadable).map((member) => member.metadata.id);
@@ -148,6 +153,7 @@ export function initPrepareContentSelection(deps: {
 	judge: JudgeCandidates;
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
+	coverageRuleModes: CoverageRuleModes;
 }): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; mode: SelectionMode; candidates?: readonly CandidateReference[]; refresh?: { contentFetchedAt: string }; beforeProviderCall?: () => void }) => Promise<PreparedContentSelection> {
 	return async ({ url, saveAttemptId, claimId, mode, candidates, refresh, beforeProviderCall }) => {
 		const proseHashes = new Map<string, string>();
@@ -161,7 +167,7 @@ export function initPrepareContentSelection(deps: {
 		const article = await deps.loadArticle(url);
 		assert(article, `Article aggregate not found for url: ${url}`);
 		const refusal = refresh === undefined ? undefined : refreshRefusalFor({ article, messageFetchedAt: refresh.contentFetchedAt });
-		if (refusal !== undefined) return { article, originalUrl: url, sources: [], selected: undefined, outcome: "refused", reason: refusal, selectionRule: "refresh-refused", ownCaptureFailed: false, readableIds: new Set(), legacyCanonicalWithheld: false, judgedBodies: 0 };
+		if (refusal !== undefined) return { article, originalUrl: url, sources: [], selected: undefined, outcome: "refused", reason: refusal, selectionRule: "refresh-refused", ownCaptureFailed: false, readableIds: new Set(), legacyCanonicalWithheld: false, judgedBodies: 0, coverage: NO_SELECTION_COVERAGE };
 		const expected = article.contentSelection;
 		const originalUrl = await deps.resolveOriginalUrl(url);
 		const canonical = expected?.candidateId && expected.tier ? { id: expected.candidateId, tier: expected.tier } : undefined;
@@ -209,6 +215,10 @@ export function initPrepareContentSelection(deps: {
 			}
 		}
 		const previous = sources.find((source) => source.metadata.id === (canonical?.id ?? legacyCanonicalId) && candidateIsReadable(source));
+		const coverage = coverageLossesOf({ sources, modes: deps.coverageRuleModes, isReadable: candidateIsReadable, isWitness: (source) => isSuccessStatus(source.metadata.httpStatus), isTapCapture: (source) => isTapCapture(source.metadata) });
+		const excluded = new Set(coverage.excludedIds);
+		const eligible = excluded.size === 0 ? sources : sources.filter((source) => !excluded.has(source.metadata.id));
+		const coverageRetained = excluded.size > 0 && eligible.length === 1 && eligible[0] === previous ? previous : undefined;
 		const isFirstContent = article.freshness.canonicalContentHash === undefined ||
 			(article.freshness.canonicalContentHash === EMPTY_TEXT_HASH && previous === undefined);
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
@@ -218,15 +228,15 @@ export function initPrepareContentSelection(deps: {
 		const directResources = attemptResources.filter((source) => !supersededBy(source));
 		const considered = mode === "recrawl" ? sources.filter((source) => freshIds.has(source.metadata.id)) : attemptResources;
 		const superseded = considered.length > 0 && considered.every(supersededBy) ? previous : undefined;
-		const proseUnchanged = previous !== undefined && sources.length > 1 &&
+		const proseUnchanged = excluded.size === 0 && previous !== undefined && sources.length > 1 &&
 			sources.every((source) => proseHashOf(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
-		const loneBodyMembers = loneBodyOf({ isFirstContent, sources, proseHashOf });
+		const loneBodyMembers = loneBodyOf({ isFirstContent, sources: eligible, proseHashOf });
 		const loneBody = loneBodyMembers === undefined ? undefined : representativeOf(loneBodyMembers);
 		const loneBodyAnsweredWithError = loneBodyMembers?.some((member) => answeredWithError(member.metadata.httpStatus));
-		const loneErrorStatus = loneBodyAnsweredWithError && sources.length === 1;
+		const loneErrorStatus = loneBodyAnsweredWithError && eligible.length === 1;
 		const loneAccepted = loneBody !== undefined && !loneBodyAnsweredWithError && loneBody.metadata.wordCount >= LONE_BODY_MIN_WORDS && !isWrapperUrl(loneBody.metadata.sourceUrl);
 		const refreshed = sources.find((source) => source !== previous);
-		const nearIdenticalRefresh = mode === "refresh" && previous !== undefined && sources.length === 2 && refreshed !== undefined &&
+		const nearIdenticalRefresh = excluded.size === 0 && mode === "refresh" && previous !== undefined && sources.length === 2 && refreshed !== undefined &&
 			previous.tier === "tier-1" && refreshed.tier === "tier-1" &&
 			!isWrapperUrl(previous.metadata.sourceUrl) && !isWrapperUrl(refreshed.metadata.sourceUrl) &&
 			candidateIsReadable(refreshed) && bodiesAreNearIdentical({ fresh: refreshed.html, canonical: previous.html });
@@ -236,15 +246,17 @@ export function initPrepareContentSelection(deps: {
 			? { kind: "tie", candidateIds: [superseded.metadata.id], reason: "every considered candidate was fetched before the committed canonical", readability: [{ candidateId: superseded.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: directResources.length > 0
 			? { kind: "tie", candidateIds: directResources.map((source) => source.metadata.id), reason: "verified direct resource fetched in this save attempt", readability: directResources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
+			: coverageRetained !== undefined
+			? { kind: "tie", candidateIds: [coverageRetained.metadata.id], reason: "every other candidate lost sections its own source holds", readability: [{ candidateId: coverageRetained.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: proseUnchanged
 			? { kind: "tie", candidateIds: sources.map((source) => source.metadata.id), reason: "prose unchanged from the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: loneBody !== undefined && loneErrorStatus
 			? { kind: "none", reason: `the only candidate answered HTTP ${loneBody.metadata.httpStatus}`, readability: [{ candidateId: loneBody.metadata.id, readable: false }], judgedBodies: 0 } as const
 			: loneBody !== undefined && loneAccepted
-			? { kind: "winner", candidateId: loneBody.metadata.id, reason: `the only candidate holds ${LONE_BODY_MIN_WORDS} words or more and the article has no content yet`, readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
+			? { kind: "winner", candidateId: loneBody.metadata.id, reason: `the only candidate holds ${LONE_BODY_MIN_WORDS} words or more and the article has no content yet`, readability: eligible.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: nearIdenticalRefresh
 			? { kind: "winner", candidateId: refreshed.metadata.id, reason: "the refreshed body is near-identical to the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
-			: await deps.judge({ url, originalUrl, sources, proseHashOf, claimId, beforeProviderCall });
+			: await deps.judge({ url, originalUrl, sources: eligible, proseHashOf, claimId, beforeProviderCall, coverageNoteOf: (source) => coverageNoteOf({ coverage: coverage.byCandidate.get(source.metadata.id), modes: deps.coverageRuleModes }) });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
 			sources: tied,
@@ -253,11 +265,11 @@ export function initPrepareContentSelection(deps: {
 			canonicalNeedsRetry: article.summary.kind === "skipped" && article.summary.reason === "content-too-short",
 		});
 		let selected: VerifiedTierSource | undefined;
-		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : superseded !== undefined ? "superseded-by-canonical" : directResources.length > 0 ? "direct-resource" : proseUnchanged ? "unchanged-content" : loneErrorStatus ? "lone-error-status" : loneAccepted ? "lone-body" : nearIdenticalRefresh ? "near-identical-refresh" : decision.kind === "deferred" ? "judge-deferred" : "judge";
+		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : superseded !== undefined ? "superseded-by-canonical" : directResources.length > 0 ? "direct-resource" : coverageRetained !== undefined ? "coverage-loss-retained" : proseUnchanged ? "unchanged-content" : loneErrorStatus ? "lone-error-status" : loneAccepted ? "lone-body" : nearIdenticalRefresh ? "near-identical-refresh" : decision.kind === "deferred" ? "judge-deferred" : "judge";
 		if (decision.kind === "winner") selected = sources.find((source) => source.metadata.id === decision.candidateId);
-		if (decision.kind === "tie") selected = chooseAmong(sources.filter((source) => decision.candidateIds.includes(source.metadata.id)));
+		if (decision.kind === "tie") selected = chooseAmong(eligible.filter((source) => decision.candidateIds.includes(source.metadata.id)));
 		if (audit?.responseStatus === "rejected") {
-			selected = chooseAmong(sources.filter((source) => isSuccessStatus(source.metadata.httpStatus) && candidateIsReadable(source)));
+			selected = chooseAmong(eligible.filter((source) => isSuccessStatus(source.metadata.httpStatus) && candidateIsReadable(source)));
 			selectionRule = "provider-rejected-fallback";
 		}
 		if (selected !== undefined && !candidateIsReadable(selected)) selected = undefined;
@@ -272,7 +284,7 @@ export function initPrepareContentSelection(deps: {
 		const readableIds = new Set(decision.readability.filter((assessment) => assessment.readable).map((assessment) => assessment.candidateId));
 		return {
 			article, originalUrl, sources, selected: selected ?? previous, outcome, reason: decision.reason, selectionRule,
-			ownCaptureFailed: outcome === "no-readable" && decision.kind !== "deferred" && ownCaptures.length > 0, readableIds, audit, legacyCanonicalWithheld, judgedBodies: decision.judgedBodies,
+			ownCaptureFailed: outcome === "no-readable" && decision.kind !== "deferred" && ownCaptures.length > 0, readableIds, audit, legacyCanonicalWithheld, judgedBodies: decision.judgedBodies, coverage,
 		};
 	};
 }
@@ -301,6 +313,7 @@ export function initLogContentSelection(deps: { logger: Logger }): (params: {
 				fresh: source.metadata.attemptId === params.saveAttemptId,
 				fetchedAt: source.metadata.fetchedAt,
 				evaluationLocation: source.metadata.evaluationLocation,
+				coverage: selection.coverage.byCandidate.get(source.metadata.id),
 			})),
 			selectedCandidateId: selection.selected?.metadata.id,
 			outcome: selection.outcome,
@@ -308,6 +321,8 @@ export function initLogContentSelection(deps: { logger: Logger }): (params: {
 			judgedBodies: selection.judgedBodies,
 			reason: selection.reason,
 			ownCaptureFailed: selection.ownCaptureFailed,
+			coverageExcludedIds: selection.coverage.excludedIds.length > 0 ? selection.coverage.excludedIds : undefined,
+			coverageWouldExcludeIds: selection.coverage.wouldExcludeIds.length > 0 ? selection.coverage.wouldExcludeIds : undefined,
 			liveAttempt: params.liveAttempt,
 			audit: selection.audit,
 		})}`);

@@ -22,6 +22,7 @@ config:
   save-link:paidCrawlBudget: 200/3600
   save-link:renderCrawlBudget: 200/3600
   save-link:renderRequestDiagnostics: hosts
+  save-link:coverageRuleModes: '{"section-coverage":"shadow"}'
   save-link:contentBucketName: hutch-article-content-staging
   save-link:pendingHtmlBucketName: hutch-pending-html-staging
   save-link:pendingPdfBucketName: hutch-pending-pdf-staging

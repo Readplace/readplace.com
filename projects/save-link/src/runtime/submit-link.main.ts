@@ -8,7 +8,7 @@ import { ResolveArticleOnViewCommand, StaleCheckRequestedEvent, SubmitLinkComman
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { readEnv } from "@packages/require-env";
 import { SUBMIT_LINK_ENV } from "./submit-link.env";
-import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
+import { isBlockedIpAddress, validateSaveableUrl, parseCoverageRuleModes } from "@packages/domain/article";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initResolveThroughUnlocker } from "@packages/crawl-article";
 import {
 	initCanonicalAliasStore,
@@ -38,6 +38,7 @@ import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 
 const env = readEnv(SUBMIT_LINK_ENV);
+const coverageRuleModes = parseCoverageRuleModes(env.COVERAGE_RULE_MODES);
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
@@ -68,6 +69,7 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+	coverageRuleModes,
 });
 const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch,
 	resolveChallengedTracker: initResolveThroughUnlocker({
