@@ -1,8 +1,10 @@
 import type { ErrorRequestHandler } from "express";
+import type { SaveRefusalCode } from "@packages/web-analytics";
+import type { LogError } from "@packages/logger";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, type SirenAction, sirenError } from "../../api/siren";
+import { tagSaveRefusal } from "../../shared/save-refusal";
 import { megabytesLabel } from "../../shared/bytes-to-mb";
-import type { LogError } from "@packages/logger";
 import { READLIST_PATH } from "./readlist.url";
 
 export const SAVE_LINK_FALLBACK_ACTION: SirenAction = {
@@ -14,15 +16,16 @@ export const SAVE_LINK_FALLBACK_ACTION: SirenAction = {
 	fields: [{ name: "url", type: "url" }],
 };
 
-/**
- * Translates body-parser `entity.too.large` errors on the save-content route
- * into a Siren 422 carrying the `save-article` fallback action, so the
- * extension can drop the oversized content and degrade onto the URL-only crawl
- * path.
- */
-export function initSaveContentLimitHandler(deps: {
+export function initBodyTooLargeHandler(deps: {
 	logError: LogError;
 	maxBytes: number;
+	logLabel: string;
+	sirenError: {
+		code: string;
+		message: (label: string) => string;
+		actions?: SirenAction[];
+	};
+	refusalCode?: SaveRefusalCode;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;
 	const label = megabytesLabel(maxBytes);
@@ -37,14 +40,15 @@ export function initSaveContentLimitHandler(deps: {
 			wantsSiren(req)
 		) {
 			deps.logError(
-				`save-content request body exceeded ${label}`,
+				`${deps.logLabel} request body exceeded ${label}`,
 				err instanceof Error ? err : undefined,
 			);
+			if (deps.refusalCode !== undefined) tagSaveRefusal(res, deps.refusalCode);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				sirenError({
-					code: "content-too-large",
-					message: `Content upload exceeded ${label}`,
-					actions: [SAVE_LINK_FALLBACK_ACTION],
+					code: deps.sirenError.code,
+					message: deps.sirenError.message(label),
+					actions: deps.sirenError.actions,
 				}),
 			);
 			return;
