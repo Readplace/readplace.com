@@ -27,7 +27,7 @@ describe("account activity measurement", () => {
 		};
 		const emit = initEngagementEvents({ logger, now: () => now });
 		for (const event of ["assigned", "inserted", "suppressed", "failure", "sent"] as const)
-			emit({ userId, event, arm: "treatment", itemCount: 10 });
+			emit({ userId, event, campaignId: STARTER_CAMPAIGN_ID, arm: "treatment", itemCount: 10 });
 		emit({ userId, event: "failure", campaignId: "campaign", reason: "timeout" });
 		expect(events[0]).toMatchObject({
 			user_id: userId,
