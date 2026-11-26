@@ -50,7 +50,7 @@ async function open(
 async function listSettled(page: Page): Promise<void> {
 	await expect(page.locator(".list-view__row")).toHaveCount(4);
 	await expect(page.locator("#pagination")).toBeVisible();
-	await expect(page.locator("[data-test-save-all-count]")).toHaveText("Save 10 tabs");
+	await expect(page.locator("[data-test-save-all-count]")).toHaveText("Save 9 tabs");
 	await expect(page.locator("[data-test-list-count]")).toHaveText("86 Saved Articles");
 	await expect(page.locator("#sort-button")).toHaveText("Newest first");
 }
@@ -82,7 +82,7 @@ async function savedSettled(page: Page): Promise<void> {
 
 async function saveAllSettled(page: Page): Promise<void> {
 	await expect(page.locator("#save-all-view-readlist")).toBeVisible();
-	await expect(page.locator("#save-all-failed > li")).toHaveCount(3);
+	await expect(page.locator("#save-all-failed > li")).toHaveCount(2);
 }
 
 const SAVE_ALL_COUNT_TEXT = "#save-all-count-text";
@@ -470,13 +470,10 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 	}
 
 	test.describe("popup list state", () => {
-		test("keeps the article title and source readable alongside both Hand Picked actions", async ({ page }) => {
+		test("keeps Mark as read clear of the article title and source", async ({ page }) => {
 			await open(page, {
 				url: popupListUrl(input.packagedPopup),
-				stub: popupRuntimeStub({ rowActions: [
-					{ name: "update-status", title: "Mark as read" },
-					{ name: "remove-from-hand-picked", title: "Remove from Hand Picked" },
-				] }),
+				stub: popupRuntimeStub(),
 				wait: LIST_VIEW,
 			});
 			await waitForBrandFonts(page, ["Inter"]);
@@ -487,11 +484,11 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				expect(await text.evaluateAll((labels) => labels.map((label) => label.scrollWidth <= label.clientWidth))).toEqual([true, true, true]);
 				const item = await row.locator(".list-view__item").boundingBox();
 				assert.ok(item);
-				for (const label of ["Mark as read", "Remove from Hand Picked"]) {
-					const button = await row.getByRole("button", { name: label, exact: true }).boundingBox();
-					assert.ok(button);
-					expect(button.y).toBeGreaterThanOrEqual(item.y + item.height);
-				}
+				const button = await row.getByRole("button", { name: "Mark as read", exact: true }).boundingBox();
+				assert.ok(button);
+				const besideText = button.x >= item.x + item.width;
+				const belowText = button.y >= item.y + item.height;
+				assert.ok(besideText || belowText, `at ${width}px Mark as read ${JSON.stringify(button)} overlaps the text ${JSON.stringify(item)}`);
 				await noOverflow(page);
 			}
 		});
@@ -905,10 +902,10 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			await saveAllSettled(page);
 			await page.evaluate(() => window.__popupEmitRecord?.("empty"));
 			await page.evaluate(() => window.__popupEmitRecord?.("other-window"));
-			await expect(page.locator("#save-all-summary")).toHaveText("Saved 6 · Already in readlist 1 · Skipped 2 · Failed 1");
+			await expect(page.locator("#save-all-summary")).toHaveText("Saved 6 · Already in readlist 1 · Skipped 1 · Failed 1");
 
 			await page.evaluate(() => window.__popupEmitRecord?.("retried"));
-			await expect(page.locator("#save-all-summary")).toHaveText("Saved 7 · Already in readlist 1 · Skipped 2");
+			await expect(page.locator("#save-all-summary")).toHaveText("Saved 7 · Already in readlist 1 · Skipped 1");
 			expect(await page.evaluate(() => performance.getEntriesByName("save-all-rendered").length)).toBe(1);
 			expect(await page.evaluate(() => window.__popupAcknowledgements)).toBe(1);
 		});

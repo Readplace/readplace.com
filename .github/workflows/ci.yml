@@ -357,16 +357,12 @@ jobs:
             echo "chrome-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("chrome-extension")' > /dev/null 2>&1 && echo true || echo false)"
           } >> "$GITHUB_OUTPUT"
 
-  # Compare shipping paths and the tracked production rollout at the same
-  # affected-base revision so retries also pick up an unshipped activation.
   detect-clients:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     outputs:
-      publishing-enabled: ${{ steps.detect.outputs.publishing-enabled }}
-      activating: ${{ steps.detect.outputs.activating }}
       android-affected: ${{ steps.detect.outputs.android-affected }}
       android-test-affected: ${{ steps.detect.outputs.android-test-affected }}
       ios-affected: ${{ steps.detect.outputs.ios-affected }}
@@ -381,19 +377,6 @@ jobs:
 
       - id: detect
         run: |
-          home_enabled() {
-            git show "$1:projects/hutch/Pulumi.prod.yaml" |
-              ruby -ryaml -e 'puts YAML.safe_load(STDIN.read).fetch("config").fetch("hutch:handPickedHomeEnabled", false)'
-          }
-          previous=$(home_enabled "$NX_BASE")
-          current=$(home_enabled "$NX_HEAD")
-          echo "publishing-enabled=$current" >> "$GITHUB_OUTPUT"
-          activating=false
-          if [[ "$previous" != true && "$current" == true ]]; then activating=true; fi
-          echo "activating=$activating" >> "$GITHUB_OUTPUT"
-
-          # A test-only change exercises the native suite. Shipping code and
-          # activation also qualify a build for publication after deployment.
           ios_shipping=(projects/native-apps/ios/{App,Shared,ShareExtension,project.yml})
           android_shipping=(projects/native-apps/android/{app/src/main,app/build.gradle.kts,build.gradle.kts,settings.gradle.kts,gradle})
           changed() {
@@ -500,9 +483,8 @@ jobs:
     if: >-
       always()
       && needs.pipeline.result == 'success'
-      && needs.detect-clients.outputs.publishing-enabled == 'true'
-      && (needs.detect-projects.outputs.ff-affected == 'true' || needs.detect-clients.outputs.activating == 'true')
-    needs: [detect-projects, detect-clients, pipeline]
+      && needs.detect-projects.outputs.ff-affected == 'true'
+    needs: [detect-projects, pipeline]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-firefox-extension.yml
@@ -513,9 +495,8 @@ jobs:
     if: >-
       always()
       && needs.pipeline.result == 'success'
-      && needs.detect-clients.outputs.publishing-enabled == 'true'
-      && (needs.detect-projects.outputs.chrome-affected == 'true' || needs.detect-clients.outputs.activating == 'true')
-    needs: [detect-projects, detect-clients, pipeline]
+      && needs.detect-projects.outputs.chrome-affected == 'true'
+    needs: [detect-projects, pipeline]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-chrome-extension.yml
@@ -526,7 +507,7 @@ jobs:
   # That also makes the fork-PR split unnecessary: no self-hosted runner is
   # involved, so untrusted PR code has nothing to reach.
   android-tests:
-    if: needs.detect-clients.outputs.android-test-affected == 'true' || needs.detect-clients.outputs.activating == 'true'
+    if: needs.detect-clients.outputs.android-test-affected == 'true'
     needs: [detect-clients]
     runs-on: ubuntu-latest
     defaults:
@@ -563,8 +544,7 @@ jobs:
       && needs.web-tests.result == 'success'
       && needs.perf-tests.result == 'success'
       && needs.android-tests.result == 'success'
-      && needs.detect-clients.outputs.publishing-enabled == 'true'
-      && (needs.detect-clients.outputs.android-affected == 'true' || needs.detect-clients.outputs.activating == 'true')
+      && needs.detect-clients.outputs.android-affected == 'true'
       && needs.detect-projects.result == 'success'
       && (needs.detect-projects.outputs.platform-affected == 'false' || needs.deploy-platform.result == 'success')
       && (needs.detect-projects.outputs.save-link-affected == 'false' || needs.deploy-save-link.result == 'success')
@@ -578,7 +558,7 @@ jobs:
   # iOS code OR tests change; publish stays scoped to shipping code via
   # ios-affected (⊆ ios-test-affected), so this always runs when publish would.
   ios-tests:
-    if: needs.detect-clients.outputs.ios-test-affected == 'true' || needs.detect-clients.outputs.activating == 'true'
+    if: needs.detect-clients.outputs.ios-test-affected == 'true'
     needs: [detect-clients]
     # Fork PRs fall back to the free GitHub-hosted macOS runner: on a public repo,
     # untrusted PR code must never touch the self-hosted M5 (RCE + secret exposure).
@@ -626,8 +606,7 @@ jobs:
       && needs.perf-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.ios-tests.result == 'success'
-      && needs.detect-clients.outputs.publishing-enabled == 'true'
-      && (needs.detect-clients.outputs.ios-affected == 'true' || needs.detect-clients.outputs.activating == 'true')
+      && needs.detect-clients.outputs.ios-affected == 'true'
       && (needs.detect-projects.outputs.platform-affected == 'false' || needs.deploy-platform.result == 'success')
       && (needs.detect-projects.outputs.save-link-affected == 'false' || needs.deploy-save-link.result == 'success')
       && (needs.detect-projects.outputs.has-matrix-projects == 'false' || needs.pipeline.result == 'success')

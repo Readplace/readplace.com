@@ -2,6 +2,7 @@ import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readl
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
 import { READLIST_CREATE_PATH } from "./readlist.url";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 
 export const HOME_READLIST_SAVED = "home_saved";
 
@@ -12,7 +13,15 @@ export function homeReadlistOf(
 	if (preference && definitions.some((definition) =>
 		definition.slug === preference.slug && definition.createdAt.toISOString() === preference.createdAt,
 	)) return preference.slug;
-	return DEFAULT_READLIST_SLUG;
+	return HAND_PICKED_SCOPE;
+}
+
+export function homeEntryReadlistOf(
+	preference: HomeReadlistPreference | undefined,
+	definitions: readonly ReadlistDefinitionData[],
+): ReadlistSlug {
+	const home = homeReadlistOf(preference, definitions);
+	return home === preference?.slug ? home : DEFAULT_READLIST_SLUG;
 }
 
 export function homeReadlistTarget(

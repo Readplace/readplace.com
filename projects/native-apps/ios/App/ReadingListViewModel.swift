@@ -1,6 +1,12 @@
 import Combine
 import Foundation
 
+struct ReadlistHint: Equatable {
+	let text: String
+	let linkLabel: String
+	let url: URL
+}
+
 @MainActor
 final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var articles: [Article] = []
@@ -38,6 +44,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var readlists: [Readlist] = []
 	@Published private(set) var selectedReadlistHref: String?
 	@Published private(set) var appearance: String?
+	@Published private(set) var hint: ReadlistHint?
 	@Published private(set) var offlineDownload: OfflineDownloadProgress?
 	@Published private(set) var isOffline = false
 	@Published private(set) var processingReceivedAt: [String: Date] = [:]
@@ -786,6 +793,11 @@ final class ReadingListViewModel: ObservableObject {
 			readlists = page.browseReadlists
 			filingReadlists = page.readlists
 			appearance = page.appearance
+			hint = page.hint.flatMap { hint in
+				Href.resolve(hint.link.href, baseURL: api.baseURL).map {
+					ReadlistHint(text: hint.text, linkLabel: hint.link.label, url: $0)
+				}
+			}
 			if let current = page.currentTabHref {
 				currentTabHref = current
 				selectedTabHref = current

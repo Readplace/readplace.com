@@ -76,6 +76,7 @@ struct ReadlistPage {
 	let tabs: [ReadlistTab]
 	let readlists: [Readlist]
 	let appearance: String?
+	let hint: CollectionHint?
 	let isStoredCopy: Bool
 	let sirenBody: Data?
 	let redirectChain: [String]
@@ -97,6 +98,7 @@ struct ReadlistPage {
 		readlists = (collection.properties?.readlists ?? []).map(Readlist.init(entry:))
 		browseReadlists = collection.properties?.browseReadlists?.map(Readlist.init(entry:)) ?? readlists
 		appearance = collection.properties?.appearance
+		hint = collection.properties?.hint
 		self.isStoredCopy = isStoredCopy
 		self.sirenBody = sirenBody
 		self.redirectChain = redirectChain

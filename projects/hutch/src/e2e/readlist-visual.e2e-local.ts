@@ -59,8 +59,9 @@ const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const ACTIVE_READLIST_LINK = '[data-test-readlist][aria-current="page"]';
 const ACTIVE_READLIST_LABEL = `${ACTIVE_READLIST_LINK} [data-test-readlist-label]`;
 const READLIST_SWITCHER_TOGGLE = '[data-test-action="readlist-switcher"]';
-const READLIST_MENU_SUMMARY = '[data-test-action="readlist-menu"]';
-const READLIST_MENU_PANEL = "[data-test-readlist-menu]";
+const READLIST_MENU_TOGGLE = '[data-test-action="readlist-menu"]';
+const READLIST_MENU_PANEL = '[data-test-readlist-menu]:has([data-test-action="readlist-rename"])';
+const READLIST_MENU_SUMMARY = `${READLIST_MENU_PANEL} ${READLIST_MENU_TOGGLE}`;
 const READLIST_MENU_FLYOUT = `${READLIST_MENU_PANEL} .menu__panel`;
 const READLIST_MENU_RENAME = '[data-test-action="readlist-rename"]';
 const READLIST_MENU_DELETE = '[data-test-action="readlist-delete"]';
@@ -354,7 +355,7 @@ async function cardMenuGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: `${FIRST_CARD} .menu__panel`,
 		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-		rows: 3,
+		rows: 2,
 	});
 }
 
@@ -363,7 +364,7 @@ async function cardMenuPhoneGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: `${FIRST_CARD} .menu__panel`,
 		toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-		rows: 3,
+		rows: 2,
 	});
 	const viewport = page.viewportSize();
 	assert(viewport, "the phone menu needs a fixed viewport");
@@ -748,33 +749,35 @@ async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
 	await stackedDialogButtons(page, { panelSelector: OPEN_DELETE_ARTICLE_POPOVER, dismissSelector: DELETE_ARTICLE_NEVER, commitSelector: DELETE_ARTICLE_CONFIRM });
 }
 
-async function moveArticleDialogGeometry(page: Page): Promise<void> {
-	await railBesideMainBesideSide(page);
-	const panel = await measuredBox(page, OPEN_MOVE_ARTICLE_POPOVER);
-	const form = await measuredBox(page, MOVE_ARTICLE_FORM);
-	const cancel = await measuredBox(page, MOVE_ARTICLE_CANCEL);
-	const commit = await measuredBox(page, MOVE_ARTICLE_CONFIRM);
-	assertDialogMeasurement({ description: "the move dialog's width", actual: panel.width, expected: 600, tolerance: 1 });
-	const rows = page.locator(`${MOVE_ARTICLE_DESTINATION}, ${MOVE_ARTICLE_CREATE}`);
-	await expect(rows).toHaveCount(3);
-	for (const row of await rows.all()) {
-		const box = await row.boundingBox();
-		assert.ok(box, "a visible move-dialog row must have a box");
-		assertDialogMeasurement({ description: "a move-dialog row's height", actual: box.height, expected: 56, tolerance: 0.5 });
-	}
-	assertDialogMeasurement({ description: "Cancel's top", actual: cancel.y, expected: commit.y, tolerance: 0.5 });
-	assertDialogMeasurement({
-		description: "the commit button's left edge",
-		actual: commit.x,
-		expected: cancel.x + cancel.width + 8,
-		tolerance: 0.5,
-	});
-	assertDialogMeasurement({
-		description: "the commit button's right edge",
-		actual: commit.x + commit.width,
-		expected: form.x + form.width,
-		tolerance: 1,
-	});
+function moveArticleDialogGeometry(input: { rows: number }): (page: Page) => Promise<void> {
+	return async (page) => {
+		await railBesideMainBesideSide(page);
+		const panel = await measuredBox(page, OPEN_MOVE_ARTICLE_POPOVER);
+		const form = await measuredBox(page, MOVE_ARTICLE_FORM);
+		const cancel = await measuredBox(page, MOVE_ARTICLE_CANCEL);
+		const commit = await measuredBox(page, MOVE_ARTICLE_CONFIRM);
+		assertDialogMeasurement({ description: "the move dialog's width", actual: panel.width, expected: 600, tolerance: 1 });
+		const rows = page.locator(`${MOVE_ARTICLE_DESTINATION}, ${MOVE_ARTICLE_CREATE}`);
+		await expect(rows).toHaveCount(input.rows);
+		for (const row of await rows.all()) {
+			const box = await row.boundingBox();
+			assert.ok(box, "a visible move-dialog row must have a box");
+			assertDialogMeasurement({ description: "a move-dialog row's height", actual: box.height, expected: 56, tolerance: 0.5 });
+		}
+		assertDialogMeasurement({ description: "Cancel's top", actual: cancel.y, expected: commit.y, tolerance: 0.5 });
+		assertDialogMeasurement({
+			description: "the commit button's left edge",
+			actual: commit.x,
+			expected: cancel.x + cancel.width + 8,
+			tolerance: 0.5,
+		});
+		assertDialogMeasurement({
+			description: "the commit button's right edge",
+			actual: commit.x + commit.width,
+			expected: form.x + form.width,
+			tolerance: 1,
+		});
+	};
 }
 
 async function moveArticleDialogPhoneGeometry(page: Page): Promise<void> {
@@ -1187,7 +1190,7 @@ function moveOrDeleteDialog(input: {
 			await waitForBrandFonts(page, ["Inter"]);
 			await neutralise(page);
 			await input.openRail(page);
-			await page.click(`${menu} ${READLIST_MENU_SUMMARY}`);
+			await page.click(`${menu} ${READLIST_MENU_TOGGLE}`);
 			await expect(page.locator(menu)).toHaveAttribute("open", "");
 			await page.click(`${menu} ${READLIST_MENU_DELETE}`);
 			await page.waitForSelector(dialog);
@@ -1566,7 +1569,7 @@ const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
 const MOVE_ARTICLE_DIALOG: VisualCheckpoint = {
 	name: "readlist-move-article-dialog",
 	settled: moveArticleDialogSettled,
-	geometry: moveArticleDialogGeometry,
+	geometry: moveArticleDialogGeometry({ rows: 3 }),
 	target: OPEN_MOVE_ARTICLE_POPOVER,
 	capture: "element",
 	pinnedText: [],
@@ -1582,6 +1585,7 @@ const ADD_ARTICLE_DIALOG: VisualCheckpoint = {
 	...MOVE_ARTICLE_DIALOG,
 	name: "readlist-add-article-dialog",
 	settled: addArticleDialogSettled,
+	geometry: moveArticleDialogGeometry({ rows: 4 }),
 };
 
 const ALERT_LIMIT: VisualCheckpoint = {

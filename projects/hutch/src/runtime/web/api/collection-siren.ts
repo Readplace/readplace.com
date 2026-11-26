@@ -1,4 +1,4 @@
-import { HAND_PICKED, HAND_PICKED_SCOPE, builtInCaption, personalHomeEnabled, readerHomeHref } from "../pages/readlist/built-in-readlists";
+import { HAND_PICKED, HAND_PICKED_SCOPE, builtInCaption, READER_HOME_HREF } from "../pages/readlist/built-in-readlists";
 import assert from "node:assert";
 import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -44,6 +44,7 @@ export type CollectionProperties = {
 	appearance?: AppearancePreference;
 	warning?: CollectionWarning;
 	messages?: SirenMessage[];
+	hint?: { text: string; link: { label: string; href: string } };
 };
 
 const { t } = translator(hutchApi, DEFAULT_LOCALE);
@@ -112,7 +113,7 @@ export function toArticleCollectionEntity(
 	const accountHref = surfacePlatform
 		? `/account?${PLATFORM_QUERY}=${surfacePlatform}`
 		: "/account";
-	const homeHref = options.homeHref ?? readerHomeHref();
+	const homeHref = options.homeHref ?? READER_HOME_HREF;
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
 		{ rel: homeHref === "/queue" ? ["root", "home"] : ["root"], href: "/queue" },
@@ -157,10 +158,10 @@ export function toArticleCollectionEntity(
 	});
 	const properties: CollectionProperties = {
 		browseReadlists: [
-			...(personalHomeEnabled() ? [{
-				label: HAND_PICKED.label, href: readerHomeHref(), description: builtInCaption(HAND_PICKED_SCOPE),
+			{
+				label: HAND_PICKED.label, href: READER_HOME_HREF, description: builtInCaption(HAND_PICKED_SCOPE),
 				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "current" : "readlist",
-			}] : []),
+			},
 			...filingReadlists.map((entry, index) => ({
 				...entry,
 				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "readlist" : entry.rel,
@@ -190,6 +191,9 @@ export function toArticleCollectionEntity(
 	}
 	if (options.appearance) properties.appearance = options.appearance;
 	if (options.warning) properties.warning = options.warning;
+	if (surfacePlatform !== undefined && queryParams.readlist === HAND_PICKED_SCOPE) {
+		properties.hint = { text: t("handPickedHint.text"), link: { label: t("handPickedHint.link"), href: "/queue" } };
+	}
 	// Offered only to a native app's own requests (header-gated, never `?platform=`),
 	// so its share sheet can render "don't close this" beneath its spinner. Every
 	// other client — including those apps' in-app web surfaces — simply never

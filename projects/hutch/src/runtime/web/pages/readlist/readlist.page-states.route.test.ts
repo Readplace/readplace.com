@@ -482,7 +482,7 @@ describe("custom readlist chrome", () => {
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		const menu = doc.querySelector("[data-test-readlist-menu]");
+		const menu = doc.querySelector('[data-test-readlist-menu]:not([data-test-readlist-menu="default"])');
 		assert(menu, "the created readlist must render a rail menu");
 		const rename = menu.querySelector('[data-test-action="readlist-rename"]');
 		assert(rename, "the rail menu must offer rename");

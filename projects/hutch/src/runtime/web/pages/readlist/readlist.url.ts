@@ -1,4 +1,4 @@
-import { HAND_PICKED_SCOPE, personalHomeEnabled } from "./built-in-readlists";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { z } from "zod";
 import {
 	readlistFilterOf,
@@ -33,7 +33,6 @@ export type ManagedArticleSource = "picked" | "bulk" | "unknown" | "sender";
 export interface ReadlistUrlState {
 	managedSource?: ManagedArticleSource;
 	sender?: string;
-	reviewOlder?: true;
 	readlist: ReadlistSlug;
 	tab: TabId;
 	order?: SortOrder;
@@ -82,10 +81,9 @@ export function parseReadlistUrl(query: Record<string, unknown>): ReadlistUrlSta
 	const source = z.enum(["picked", "bulk", "unknown", "sender"]).safeParse(query.source);
 	const tab = parsed.tab ?? (parsed.status === "read" ? "done" : "queue");
 	return {
-		readlist: parsed.readlist ?? parsed.queue ?? (personalHomeEnabled() && query.scope === "hand-picked" ? HAND_PICKED_SCOPE : DEFAULT_READLIST_SLUG),
+		readlist: parsed.readlist ?? parsed.queue ?? (query.scope === "hand-picked" ? HAND_PICKED_SCOPE : DEFAULT_READLIST_SLUG),
 		tab,
-		...(source.success && !query.scope && !query.review && !(parsed.readlist ?? parsed.queue) ? { managedSource: source.data, ...(source.data === "sender" && typeof query.sender === "string" && query.sender.length <= 320 ? { sender: query.sender } : {}) } : {}),
-		...(personalHomeEnabled() && query.review === "older" && !query.scope && !(parsed.readlist ?? parsed.queue) ? { reviewOlder: true as const } : {}),
+		...(source.success && !query.scope && !(parsed.readlist ?? parsed.queue) ? { managedSource: source.data, ...(source.data === "sender" && typeof query.sender === "string" && query.sender.length <= 320 ? { sender: query.sender } : {}) } : {}),
 		order: parsed.order,
 		discovery: discoveryOf(parsed),
 		page: parsed.page ?? 1,
@@ -112,7 +110,6 @@ function readlistQueryString(state: Partial<ReadlistUrlState>, extraParams: Link
 
 	if (state.managedSource && state.readlist === DEFAULT_READLIST_SLUG) params.set("source", state.managedSource);
 	if (state.readlist === DEFAULT_READLIST_SLUG && state.managedSource === "sender" && state.sender) params.set("sender", state.sender);
-	if (state.reviewOlder && state.readlist === DEFAULT_READLIST_SLUG) params.set("review", "older");
 	if (state.readlist === HAND_PICKED_SCOPE) {
 		params.set("scope", "hand-picked");
 	} else if (state.readlist && state.readlist !== DEFAULT_READLIST_SLUG) {

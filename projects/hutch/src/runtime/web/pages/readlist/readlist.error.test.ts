@@ -15,6 +15,7 @@ import {
 	skippedLinkReasonLabel,
 	statusFlashMapping,
 } from "./readlist.error";
+import { HAND_PICKED, withHandPicked } from "./built-in-readlists";
 
 describe("READLIST_RENAME_REJECTIONS", () => {
 	it("carries copy the client can show the reader verbatim", () => {
@@ -269,6 +270,21 @@ describe("moveFlashMapping", () => {
 				readlists,
 			),
 		).toEqual({ articleId, message: "Added to 2 readlists", undoQueues: ["finance", "weekend"] });
+	});
+
+	it("confirms an add to Hand Picked with an Undo that names it", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "default", moved_to: "~hand-picked" }, withHandPicked(readlists)),
+		).toEqual({ articleId, message: "Added to Hand Picked", undoQueues: [HAND_PICKED.slug] });
+	});
+
+	it("names Hand Picked in the Undo of an add to several readlists", () => {
+		expect(
+			moveFlashMapping(
+				{ moved_article: articleId, moved_from: "default", moved_to: ["~hand-picked", "finance"] },
+				withHandPicked(readlists),
+			),
+		).toEqual({ articleId, message: "Added to 2 readlists", undoQueues: ["finance", HAND_PICKED.slug] });
 	});
 
 	it("confirms only the readlists the reader still owns when an add names one deleted since", () => {

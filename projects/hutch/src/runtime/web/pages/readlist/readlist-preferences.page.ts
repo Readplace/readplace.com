@@ -1,5 +1,5 @@
 import type { FindHomeReadlist } from "@packages/provider-contracts/auth";
-import { homeReadlistOf, homeReadlistTarget } from "./readlist-home";
+import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTarget } from "./readlist-home";
 import assert from "node:assert";
 import {
 	AliasNameSchema,
@@ -196,7 +196,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			return target && slug !== homeSlug ? [[slug, target] as const] : [];
 		}));
 		const context = {
-			home: { slug: homeSlug, targets },
+			home: { slug: homeSlug, entry: homeEntryReadlistOf(preference, definitions), targets },
 			definitions,
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
 			activeReadlist,

@@ -36,7 +36,6 @@ export interface ReadlistScopedStoreDependencies
 export function readlistScopedStore(
 	deps: ReadlistScopedStoreDependencies,
 	readlist: ReadlistSlug,
-	reviewOlder = false,
 	managedSource?: ManagedArticleSource,
 	sender?: string,
 ): ReadlistScopedStore {
@@ -53,22 +52,19 @@ export function readlistScopedStore(
 		findArticlesByUser: query => deps.findArticlesByUser({ ...query, managedOrigin: managedSource }),
 		countArticlesByUser: query => deps.countArticlesByUser({ ...query, managedOrigin: managedSource }),
 	};
-	if (readlist === DEFAULT_READLIST_SLUG && !reviewOlder && !managedSource) return mainline;
-	const uncertain = reviewOlder;
-	const personalScope = uncertain ? "uncertain" : "picked";
-	if (readlist === HAND_PICKED_SCOPE || uncertain || managedSource === "picked") return {
+	if (readlist === DEFAULT_READLIST_SLUG && !managedSource) return mainline;
+	if (readlist === HAND_PICKED_SCOPE || managedSource === "picked") return {
 		...mainline,
-		findArticlesByUser: query => deps.findArticlesByUser({ ...query, personalScope }),
+		findArticlesByUser: query => deps.findArticlesByUser({ ...query, personalScope: "picked" }),
 		countArticlesByUser: async query => {
-			if (query.status) return deps.countArticlesByUser({ ...query, personalScope });
-			const unread = await deps.countArticlesByUser({ ...query, personalScope, status: "unread" });
+			if (query.status) return deps.countArticlesByUser({ ...query, personalScope: "picked" });
+			const unread = await deps.countArticlesByUser({ ...query, personalScope: "picked", status: "unread" });
 			if (query.countLimit !== undefined && unread >= query.countLimit) return query.countLimit;
-			return unread + await deps.countArticlesByUser({ ...query, countLimit: query.countLimit === undefined ? undefined : query.countLimit - unread, personalScope, status: "read" });
+			return unread + await deps.countArticlesByUser({ ...query, countLimit: query.countLimit === undefined ? undefined : query.countLimit - unread, personalScope: "picked", status: "read" });
 		},
 		findArticleById: async (id, userId) => {
 			const article = await deps.findArticleById(id, userId);
-			const belongs = uncertain ? article?.personalReviewPending : article?.personalPickedAt;
-			return belongs ? article : null;
+			return article?.personalPickedAt ? article : null;
 		},
 	};
 	return {

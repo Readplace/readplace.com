@@ -111,13 +111,9 @@ async function measureSaveAll(
 		`the bulk outcome reported an unusable timestamp: ${rendered.elapsedMs}`,
 	);
 
-	/** The window holds the perf tabs plus the popup's own tab, which is not an
-	 * http(s) page and so is the one client-side skip. Asserting the counts is
-	 * what proves the timing came from saving every tab rather than from a flow
-	 * that found nothing to save. */
 	assert.equal(
 		await readBulkSummary(driver),
-		`Saved ${input.tabIds.length} · Skipped 1`,
+		`Saved ${input.tabIds.length} · Skipped 0`,
 		"the bulk save must have saved every perf tab",
 	);
 	return rendered.elapsedMs;

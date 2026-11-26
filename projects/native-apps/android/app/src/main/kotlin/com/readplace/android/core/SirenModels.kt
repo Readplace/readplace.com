@@ -166,7 +166,10 @@ data class CollectionProperties(
 	val tabs: List<CollectionReadlistEntry>?,
 	val readlists: List<CollectionReadlistEntry>?,
 	val browseReadlists: List<CollectionReadlistEntry>?,
+	val hint: CollectionHint?,
 )
+
+data class CollectionHint(val text: String, val linkLabel: String, val linkHref: String)
 
 data class SirenCollection(
 	val classes: List<String>?,
@@ -362,7 +365,17 @@ object SirenDecoding {
 			tabs = lossyList(obj["tabs"], ::readlistEntry),
 			readlists = lossyList(obj["readlists"], ::readlistEntry),
 			browseReadlists = lossyList(obj["browseReadlists"], ::readlistEntry),
+			hint = obj["hint"]?.let(::collectionHint),
 		)
+	}
+
+	fun collectionHint(element: JsonElement): CollectionHint? {
+		val obj = element as? JsonObject ?: return null
+		val text = string(obj["text"]) ?: return null
+		val link = obj["link"] as? JsonObject ?: return null
+		val label = string(link["label"]) ?: return null
+		val href = string(link["href"]) ?: return null
+		return CollectionHint(text = text, linkLabel = label, linkHref = href)
 	}
 
 	/** One `{label, rel, href}` entry from a collection's `tabs`/`readlists` array.

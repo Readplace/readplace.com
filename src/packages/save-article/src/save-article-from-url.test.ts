@@ -194,15 +194,16 @@ describe("saveArticleFromUrl", () => {
 		expect(saveArticle.mock.calls[0]?.[0].personalPick).toEqual({ requestedAt: personalPickAt, attemptId: saveAttemptId });
 	});
 
-	it("keeps a one-item batch identifiable as bulk when the client also supports individual saves", async () => {
+	it("requests the pick for a bulk save that carries one", async () => {
 		const tracker = makeTracker();
 		const saveArticle = jest.fn(tracker.deps.saveArticle);
+		const personalPickAt = operationSavedAt.toISOString();
 		await initSaveArticleFromUrl({ ...tracker.deps, saveArticle })({
-			userId, url: exampleUrl, provenance, saveTrigger: "manual", bulkSave: true, personalPickAt: operationSavedAt.toISOString(), savedAt: operationSavedAt,
+			userId, url: exampleUrl, provenance, saveTrigger: "manual", bulkSave: true, personalPickAt, savedAt: operationSavedAt,
 			saveAttemptId, freshness: { action: "new", identity: ownIdentity },
 		});
 		expect(saveArticle.mock.calls[0]?.[0]).toMatchObject({ bulkSave: true });
-		expect(saveArticle.mock.calls[0]?.[0].personalPick).toBeUndefined();
+		expect(saveArticle.mock.calls[0]?.[0].personalPick).toEqual({ requestedAt: personalPickAt, attemptId: saveAttemptId });
 	});
 
 	it("writes an import commit's row as a reader's choice while still deferring its metered legs", async () => {

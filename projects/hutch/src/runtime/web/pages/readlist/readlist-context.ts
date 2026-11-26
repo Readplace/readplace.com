@@ -11,7 +11,7 @@ import type { ListReadlistDefinitions } from "@packages/provider-contracts/artic
 import type { FindSessionReadlistFilter } from "@packages/provider-contracts/auth";
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
-import { homeReadlistOf, homeReadlistTarget } from "./readlist-home";
+import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTarget } from "./readlist-home";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
@@ -24,7 +24,7 @@ export interface ReadlistContext {
 	readlists: readonly Readlist[];
 	activePurpose: string | undefined;
 	pinnedReadlists: readonly ReadlistSlug[];
-	home?: { slug: ReadlistSlug; targets: ReadonlyMap<ReadlistSlug, HomeReadlistPreference> };
+	home?: { slug: ReadlistSlug; entry: ReadlistSlug; targets: ReadonlyMap<ReadlistSlug, HomeReadlistPreference> };
 }
 
 const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
@@ -83,7 +83,7 @@ export function initResolveReadlistContext(deps: {
 		const homeSlug = homeReadlistOf(home?.preference, definitions);
 		const { source: _source, sender: _sender, ...plainQuery } = req.query;
 		const parsed = parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query);
-		const requested = withRememberedFilter({ ...parsed, readlist: home?.open ? homeSlug : parsed.readlist }, remembered);
+		const requested = withRememberedFilter({ ...parsed, readlist: home?.open && homeSlug === home.preference?.slug ? homeSlug : parsed.readlist }, remembered);
 		const targets = new Map<ReadlistSlug, HomeReadlistPreference>();
 		if (home) {
 			for (const { slug } of readlists) {
@@ -99,7 +99,7 @@ export function initResolveReadlistContext(deps: {
 			readlists,
 			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
 			pinnedReadlists: pinnedReadlistSlugs(definitions),
-			...(home ? { home: { slug: homeSlug, targets } } : {}),
+			...(home ? { home: { slug: homeSlug, entry: homeEntryReadlistOf(home?.preference, definitions), targets } } : {}),
 		};
 	};
 }

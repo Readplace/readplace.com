@@ -280,7 +280,7 @@ function navItem(input: {
 		menuHtml: render(MENU_TEMPLATE, {
 			...menu,
 			hasMenu: menu.isDeletable || target !== undefined,
-			homeAction: target && withInternalTracking(setHomeReadlistPath(target), { source: NAV_SOURCE, content: "set-home-readlist" }),
+			homeAction: target && withInternalTracking(setHomeReadlistPath(target), { source: NAV_SOURCE, content: isBuiltInReadlist(readlist.slug) ? "set-home-built-in" : "set-home-readlist" }),
 			returnTo: nav.home?.returnTo,
 			name: readlist.slug,
 			title: readlist.label,

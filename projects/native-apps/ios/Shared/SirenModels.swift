@@ -318,6 +318,16 @@ struct CollectionReadlist: Decodable, Hashable {
 	let href: String
 }
 
+struct CollectionHintLink: Decodable, Hashable {
+	let label: String
+	let href: String
+}
+
+struct CollectionHint: Decodable, Hashable {
+	let text: String
+	let link: CollectionHintLink
+}
+
 struct CollectionProperties: Decodable {
 	let warning: SirenWarning?
 	/// Server-authored notices the client may render generically (e.g. the iOS
@@ -329,10 +339,11 @@ struct CollectionProperties: Decodable {
 	var browseReadlists: [CollectionReadlist]? = nil
 	let readlists: [CollectionReadlist]?
 	let appearance: String?
+	var hint: CollectionHint? = nil
 }
 
 extension CollectionProperties {
-	private enum CodingKeys: String, CodingKey { case warning, messages, tabs, browseReadlists, readlists, appearance }
+	private enum CodingKeys: String, CodingKey { case warning, messages, tabs, browseReadlists, readlists, appearance, hint }
 
 	/// Decodes the warning and messages leniently so an evolving or malformed value
 	/// degrades to no banner rather than failing the whole collection decode: both
@@ -346,6 +357,7 @@ extension CollectionProperties {
 		browseReadlists = try container.decodeLossyArrayIfPresent(CollectionReadlist.self, forKey: .browseReadlists)
 		readlists = try container.decodeLossyArrayIfPresent(CollectionReadlist.self, forKey: .readlists)
 		appearance = try container.decodeLossyIfPresent(String.self, forKey: .appearance)
+		hint = try container.decodeLossyIfPresent(CollectionHint.self, forKey: .hint)
 	}
 }
 

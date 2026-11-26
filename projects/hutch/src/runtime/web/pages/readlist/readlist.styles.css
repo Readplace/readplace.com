@@ -1629,6 +1629,10 @@
   line-height: 1.5;
 }
 
+.readlist__older-saves {
+  margin-block: 12px;
+}
+
 .readlist__manage {
   margin-block: 12px;
 }
