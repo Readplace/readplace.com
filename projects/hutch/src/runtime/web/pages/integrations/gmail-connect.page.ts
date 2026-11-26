@@ -25,7 +25,6 @@ export interface GmailConnectContext {
 	now: () => Date;
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;
-	requirePaidFeatures: RequestHandler;
 	getEffectiveAccess: GetEffectiveAccess;
 	consent: GmailOAuthConsent;
 }
@@ -42,7 +41,6 @@ export function registerGmailConnectRoutes(
 		trace.guard({ stage: "requireAuth", handler: context.requireAuth }),
 		trace.guard({ stage: "requireNotLocked", handler: context.requireNotLocked }),
 		trace.guard({ stage: "requireGmailConnectionAccess", handler: requireGmailConnectionAccess }),
-		trace.guard({ stage: "requirePaidFeatures", handler: context.requirePaidFeatures }),
 	];
 	const imports = initGmailImportActions({ gmail, now: context.now });
 

@@ -18,8 +18,7 @@ type GmailOAuthGuardStage =
 	| "returnSignedOutReader"
 	| "requireAuth"
 	| "requireNotLocked"
-	| "requireGmailConnectionAccess"
-	| "requirePaidFeatures";
+	| "requireGmailConnectionAccess";
 
 type GmailOAuthHandlerStage =
 	| "handler"

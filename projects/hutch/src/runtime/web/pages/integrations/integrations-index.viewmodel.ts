@@ -141,7 +141,6 @@ const GMAIL_ACTIONS: Record<
 };
 
 export const GMAIL_CONNECT_ERRORS: Record<string, string> = {
-	connect_failed: "I couldn't start the Gmail connection. Try again.",
 	oauth_denied: "You cancelled the Gmail connection, so nothing changed.",
 	oauth_state: "That Gmail connection link expired. Start again.",
 	oauth_scope:

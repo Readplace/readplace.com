@@ -396,31 +396,6 @@ describe("Gmail OAuth diagnostics", () => {
 				durationMs: expect.any(Number),
 			});
 		});
-
-		it("records a reader who moved to the free plan after the Gmail access check as stopped by requirePaidFeatures", async () => {
-			const { fixture, gmail } = fixtureWithGmail();
-			const findSubscription = fixture.subscriptionProviders.findByUserId;
-			let passGmailAccessCheck = false;
-			fixture.subscriptionProviders.findByUserId = async (userId) => {
-				if (!passGmailAccessCheck) return findSubscription(userId);
-				passGmailAccessCheck = false;
-				return undefined;
-			};
-			const harness = useApp(fixture);
-			const agent = await loginAgent(harness.server, harness.auth);
-			await harness.subscriptionProviders.upsertTrialing({
-				userId: await readerId(harness),
-				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
-			});
-			passGmailAccessCheck = true;
-
-			const { response, lines } = await traced(gmail, () => agent.post(CONNECT).set("Accept", "text/html").send());
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/account/plans");
-			expect(stateCookieWrites(response)).toEqual([]);
-			expect(only(lines, COMPLETED)).toMatchObject({ status: 303, stage: "requirePaidFeatures", redirect: "other" });
-		});
 	});
 
 	describe("a callback the state check refuses", () => {

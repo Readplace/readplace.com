@@ -3,7 +3,6 @@ export const GMAIL_CONNECT_PATH = "/newsletters/gmail/connect";
 export const GMAIL_CALLBACK_PATH = "/integrations/gmail/callback";
 
 export type GmailConnectError =
-	| "connect_failed"
 	| "oauth_denied"
 	| "oauth_state"
 	| "oauth_scope"

@@ -12,7 +12,6 @@ import { renderReadlistFilter } from "../../shared/readlist-filter/readlist-filt
 import {
 	renderGmailSenderResultsHtml,
 	renderGmailSenderSelectionHtml,
-	renderGmailSenderStatusHtml,
 } from "./gmail-sender-widget.component";
 
 function template(name: string): string {
@@ -72,10 +71,6 @@ const ACCOUNT_CLASSES = {
 
 export function renderGmailPoll(vm: GmailPollViewModel): string {
 	return render(GMAIL_POLL_TEMPLATE, vm);
-}
-
-export function renderGmailSenderStatus(vm: GmailPageViewModel, options: { outOfBandLoadButton: boolean }): string {
-	return renderGmailSenderStatusHtml(vm.status, options);
 }
 
 function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string {

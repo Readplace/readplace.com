@@ -54,7 +54,6 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			now: deps.now,
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
-			requirePaidFeatures: deps.requirePaidFeatures,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			consent,
 		};
