@@ -274,7 +274,7 @@ import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, OFFLINE_READER_WORKER_FI
 import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
-import { initResolveLogin } from "@packages/web-session";
+import { initResolveLogin, initResolveVerificationStatus } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
 import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
@@ -433,7 +433,6 @@ import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
 import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
-import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotAgeLocked } from "./web/middleware/require-not-age-locked.middleware";
 import { initAgeLockAccount } from "./web/pages/age-lock/age-lock-account";
 import { AGE_UNLOCK_PATH } from "./web/pages/age-lock/age-lock.url";
