@@ -9,7 +9,7 @@ import type {
 	GmailOAuthCorrelation,
 	GmailOAuthStateInspection,
 	RecordGmailDiagnostic,
-} from "../../../observability/gmail-diagnostics";
+} from "../../../domain/gmail/gmail-diagnostic.types";
 import { verifyState } from "../../auth/oauth-state";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import { GMAIL_PATH } from "./gmail.url";

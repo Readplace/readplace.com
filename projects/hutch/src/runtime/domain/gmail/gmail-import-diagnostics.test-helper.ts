@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { inspect } from "node:util";
 import { Logger, noopLogger } from "@packages/logger";
-import { initRecordGmailDiagnostic, type RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import { initRecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 
 export interface CapturedGmailDiagnostic {
 	version: number;

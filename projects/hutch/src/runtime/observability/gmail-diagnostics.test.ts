@@ -3,13 +3,13 @@ import type { Logger } from "@packages/logger";
 import type { GmailHttpRequestSettings, GmailHttpResponseHeaders } from "@packages/provider-contracts/gmail-history";
 import { classifyForwardedLine } from "../forward-analytics/forward-analytics-handler";
 import { FORWARDED_STREAMS } from "./events";
-import {
-	type GmailDiagnosticEvent,
-	type GmailImportRecordCorrelation,
-	type GmailOAuthCorrelation,
-	type GmailOAuthStateInspection,
-	initRecordGmailDiagnostic,
-} from "./gmail-diagnostics";
+import type {
+	GmailDiagnosticEvent,
+	GmailImportRecordCorrelation,
+	GmailOAuthCorrelation,
+	GmailOAuthStateInspection,
+} from "../domain/gmail/gmail-diagnostic.types";
+import { initRecordGmailDiagnostic } from "./gmail-diagnostics";
 
 const RECORDED_AT = "2026-10-05T03:04:05.678Z";
 const now = () => new Date(RECORDED_AT);

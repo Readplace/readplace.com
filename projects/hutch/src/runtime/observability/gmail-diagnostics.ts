@@ -1,8 +1,6 @@
 import type { Logger } from "@packages/logger";
 import type { RecordGmailDiagnostic } from "../domain/gmail/gmail-diagnostic.types";
 
-export type { GmailDiagnosticEvent, GmailImportRecordCorrelation, GmailOAuthCallbackDecision, GmailOAuthCorrelation, GmailOAuthStateInspection, RecordGmailDiagnostic } from "../domain/gmail/gmail-diagnostic.types";
-
 export const GMAIL_DIAGNOSTIC_VERSION = 1;
 
 export function initRecordGmailDiagnostic(deps: { logger: Logger; now: () => Date }): RecordGmailDiagnostic {
