@@ -63,7 +63,6 @@ import {
 	parseReadlistUrl,
 	READLIST_PATH,
 	readlistReturnQuery,
-	toArticleDiscoveryQuery,
 	type ReadlistUrlState,
 } from "./readlist.url";
 import {
@@ -115,7 +114,7 @@ import type { InstallableClientOnboarding, OnboardingContext, Platform } from ".
 import { type EffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { ArticleDiscoveryQuery, GeneratedContentAccess, ReadlistFilter, SavedArticle, ShownSummary, Viewer } from "@packages/domain/article";
 import { generatedContentOf } from "../../generated-content-of";
-import { ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
+import { ownedEnclosuresByUrl, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { ResolveOnViewSurface } from "@packages/provider-contracts/events";
 import { overlayResolution } from "../../../domain/resolve-on-view/request-resolution-on-view";
 import { requestCanCapture } from "../../onboarding/capture-capable-request";
@@ -127,7 +126,7 @@ import type { LogError } from "@packages/logger";
  * eligible for Gmail include it in that version; other accounts retain their
  * existing token. The no-client notice keeps its stable, independent token.
  * GET and POST use the same device and access predicates. */
-export function dismissTokenFor(hasClient: boolean, gmailEligible = false): string {
+export function dismissTokenFor({ hasClient, gmailEligible }: { hasClient: boolean; gmailEligible: boolean }): string {
 	if (!hasClient) return NO_CLIENT_ONBOARDING_VERSION;
 	return gmailEligible ? GMAIL_ONBOARDING_VERSION : ONBOARDING_VERSION;
 }
@@ -283,13 +282,6 @@ export const SAVE_INTENT_PATH = {
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
 } as const;
 
-/** True when the client wants an app's chromeless reader rather than the full web
- * shell — chosen by an explicit client signal, never a user-agent sniff. The app
- * appends `?platform=` to the `read` link it loads in its web view; the
- * `x-readplace-client` header is honoured alongside it so a store-reviewed build
- * predating the query param — which cannot deploy in lockstep with the server —
- * still resolves to its chromeless reader. */
-export const isAppPlatform = (req: Request): boolean => isNativeSurface(req);
 
 export const downloadsOwnerEpub = (req: Request): boolean =>
 	nativeSurfaceOf(req) !== "android";
@@ -384,7 +376,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	};
 
 	const storeDiscoveryOf = (state: ReadlistUrlState): ArticleDiscoveryQuery | undefined =>
-		state.discovery === undefined ? undefined : toArticleDiscoveryQuery(state.discovery, deps.now());
+		state.discovery === undefined ? undefined : resolveArticleDiscovery({ ...state.discovery, now: deps.now() });
 
 	const findNonEmptyReadlists = initFindNonEmptyReadlists({ countReadlistArticles: deps.countReadlistArticles });
 
@@ -485,7 +477,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		readerPathForReadlist(req)(articleId, requestReadlistContext(req).state.readlist === HAND_PICKED_SCOPE ? HAND_PICKED_SCOPE : undefined);
 
 	const epubGuideFor = (req: Request, article: SavedArticle): EpubDownloadGuide | undefined =>
-		isAppPlatform(req) || parseEmailIssueArticleUrl(article.url) !== undefined
+		isNativeSurface(req) || parseEmailIssueArticleUrl(article.url) !== undefined
 			? undefined
 			: epubDownloadGuideFor({
 					osFamily: classifyOsFamily(req.get("user-agent")),
@@ -592,7 +584,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const hasClient = advertisedPlatform !== undefined;
 		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
 		const gmailEligible = gmailEligibleFor(req, access);
-		const dismissTokenMatches = dismissCookie === dismissTokenFor(hasClient, gmailEligible);
+		const dismissTokenMatches = dismissCookie === dismissTokenFor({ hasClient, gmailEligible });
 		const onboardingCompletedBefore =
 			dismissCookie !== undefined && dismissCookie !== NO_CLIENT_ONBOARDING_VERSION;
 		const [signals, connection] = await Promise.all([

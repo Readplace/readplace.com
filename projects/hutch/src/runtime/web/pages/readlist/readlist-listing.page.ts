@@ -305,7 +305,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		const hasClient = hasInstallableClient(req);
 		const gmailEligible = hasClient && deps.findGmailConnectionByUserId !== undefined &&
 			gmailEligibleFor(req, await deps.getEffectiveAccess(req.userId));
-		const version = dismissTokenFor(hasClient, gmailEligible);
+		const version = dismissTokenFor({ hasClient, gmailEligible });
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true, secure: deps.secureCookies });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));
