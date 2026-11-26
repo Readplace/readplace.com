@@ -10,7 +10,7 @@ import type {
 } from "@packages/provider-contracts/hosted-checkout";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
-import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
+import type { AuthBundle, PendingSignupBundle } from "@packages/web-test-harness";
 
 interface HostedCheckoutLike {
 	createCheckoutSession: (input: {

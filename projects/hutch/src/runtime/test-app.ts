@@ -66,37 +66,6 @@ import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
 
-export type {
-	AdminBundle,
-	ArticleCrawlBundle,
-	ArticleStoreBundle,
-	AuthBundle,
-	BotDefenseBundle,
-	ConversionsBundle,
-	EmailBundle,
-	EmailVerificationBundle,
-	EventsBundle,
-	FreshnessBundle,
-	GoogleAuthBundle,
-	ImportSessionBundle,
-	OAuthBundle,
-	ParserBundle,
-	PasswordResetBundle,
-	BrowserHandoffBundle,
-	PaymentMethodsBundle,
-	PendingHtmlBundle,
-	PendingPdfBundle,
-	PendingSignupBundle,
-	SharedBundle,
-	HostedCheckoutBundle,
-	SubscriptionBillingBundle,
-	SubscriptionProvidersBundle,
-	RelatedArticlesBundle,
-	SummaryBundle,
-	TestAppFixture,
-	TrialSchedulerBundle,
-} from "@packages/web-test-harness";
-
 export const TEST_EDGE_SECRET = "test-edge-secret";
 export const TEST_KEEP_OFFER_COUPON_ID = "coupon_test_keep_offer";
 export { loginAgent } from "@packages/web-test-harness";
@@ -112,7 +81,6 @@ interface TestAppOverrides {
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
 	keepOfferEndsAt?: Date;
-	guestUploadKinds?: readonly MediaKindName[];
 	readerSectionThresholdBytes?: number;
 	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
