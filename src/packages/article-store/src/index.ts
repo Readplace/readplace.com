@@ -52,7 +52,7 @@ export { initReadCanonicalSnapshot } from "./read-canonical-snapshot";
 export { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 export { initRevokeContentCandidates, type RevokeContentCandidates } from "./revoke-content-candidates";
 export type { S3GetObject } from "./s3-read-content";
-export { initS3ReadArticleImage } from "./s3-read-image";
+export { initS3ReadArticleImage, readImageObject } from "./s3-read-image";
 export type { S3GetImageObject } from "./s3-read-image";
 export {
 	initDynamoDbEngagementActivity,
