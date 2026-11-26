@@ -10,7 +10,6 @@ import {
 export type NewsletterRecognition = {
 	from: ForwardableSender;
 	name: NewsletterName | undefined;
-	source: "catalog";
 	match: "exact" | "domain-wildcard";
 };
 
@@ -19,18 +18,6 @@ export type NewsletterDetection =
 	| { status: "unavailable" };
 
 export type DetectNewsletters = (senders: readonly ForwardableSender[]) => Promise<NewsletterDetection>;
-
-export function initNewsletterDetectorChain(deps: { detectors: readonly DetectNewsletters[] }): DetectNewsletters {
-	return async (senders) => {
-		const recognized = new Map<ForwardableSender, NewsletterRecognition>();
-		for (const detect of deps.detectors) {
-			const detection = await detect(senders.filter((sender) => !recognized.has(sender)));
-			if (detection.status === "unavailable") return detection;
-			for (const [sender, recognition] of detection.recognized) recognized.set(sender, recognition);
-		}
-		return { status: "available", recognized };
-	};
-}
 
 function decidingRecord(
 	verdicts: ReadonlyMap<NewsletterFrom, NewsletterCatalogRecord>,
@@ -57,7 +44,7 @@ export function initCatalogNewsletterDetector(deps: {
 		for (const sender of senders) {
 			const decided = decidingRecord(verdicts, sender);
 			if (decided?.record.status !== "approved") continue;
-			recognized.set(sender, { from: sender, name: decided.record.name, source: "catalog", match: decided.match });
+			recognized.set(sender, { from: sender, name: decided.record.name, match: decided.match });
 		}
 		return { status: "available", recognized };
 	};

@@ -429,7 +429,6 @@ import { initListConnectedOAuthClients } from "./domain/oauth/connected-oauth-cl
 import {
 	type NewsletterCatalogSeed,
 	initCatalogNewsletterDetector,
-	initNewsletterDetectorChain,
 } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { FindCanaryReport } from "@packages/provider-contracts/canary-report";
@@ -869,9 +868,7 @@ export function createApp(dependencies: AppDependencies): Express {
 						now: deps.now,
 					}),
 				},
-				detectNewsletters: initNewsletterDetectorChain({
-					detectors: [initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog })],
-				}),
+				detectNewsletters: initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog }),
 				upsertReadlist,
 				listReadlistDefinitions: deps.listReadlistDefinitions,
 			};
