@@ -1,5 +1,4 @@
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
-import { withInternalTracking } from "@packages/web-shell";
 import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	OCR_LANGUAGES_ANSWER,
@@ -9,12 +8,10 @@ import {
 	FREE_PLAN_CLOSE,
 	CREATE_FREE_ACCOUNT,
 	founderLine,
+	SIGNUP_NOTE,
+	bodyLink,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
-
-function track(path: string, content: string): string {
-	return withInternalTracking(path, { source: "lp-pdf-reflow-body", content });
-}
 
 export const PDF_REFLOW_CONTENT: LandingPageContent = {
 	lastModified: "2026-11-19",
@@ -68,7 +65,7 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 	mechanismParagraphs: [
 		"The two passes that touch the words are checked against the raw OCR output: the same runs of digits must come back, the length must stay within 30 percent, and the line structure must match. The pass that turns text into HTML is checked for how much text it dropped. A pass that fails is discarded and the rawer text is kept.",
 		`Scans are read in ${OCR_SCRIPT_PACKS.length} scripts, each tested with one language: ${OCR_TESTED_LANGUAGES}.`,
-		`<a href="${track("/blog/save-pdfs-straight-from-your-browser", "post-save-pdfs-from-browser")}">Saving a PDF from the open tab</a> keeps it in your readlist. <a href="${track("/pdf-ocr", "pdf-ocr")}">The PDF page</a> goes through each check, and <a href="${track("/article-to-epub", "article-to-epub")}">the EPUB page</a> covers sending the text to an e-reader.`,
+		`<a href="${bodyLink("pdf-reflow", "/blog/save-pdfs-straight-from-your-browser", "post-save-pdfs-from-browser")}">Saving a PDF from the open tab</a> keeps it in your readlist. <a href="${bodyLink("pdf-reflow", "/pdf-ocr", "pdf-ocr")}">The PDF page</a> goes through each check, and <a href="${bodyLink("pdf-reflow", "/article-to-epub", "article-to-epub")}">the EPUB page</a> covers sending the text to an e-reader.`,
 	],
 	comparisons: [],
 	limitsTitle: "What this does not do",
@@ -110,7 +107,7 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 			`Reading a PDF you paste here costs nothing. Keeping a library of them takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Try it on a PDF you'd rather not pinch and zoom",
 	closeSecondaryAction: CREATE_FREE_ACCOUNT,

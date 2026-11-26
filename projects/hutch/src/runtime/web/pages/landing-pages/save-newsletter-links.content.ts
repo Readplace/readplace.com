@@ -2,7 +2,7 @@ import { INBOX_ADDRESS_MAX_PER_USER, INBOX_TOKEN_LENGTH } from "@packages/domain
 import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, FREE_PLAN_CLOSE, founderLine } from "./landing-pages.copy";
+import { READLIST_SHOT, FREE_PLAN_CLOSE, founderLine, SIGNUP_NOTE } from "./landing-pages.copy";
 import type { LandingPageAction, LandingPageContent } from "./landing-pages.types";
 
 const GUIDE: LandingPageAction = {
@@ -113,7 +113,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 			`Newsletter addresses are part of the Inbox, which needs the paid plan. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Give one newsletter its own address",
 	closeSecondaryAction: GUIDE,

@@ -1,11 +1,7 @@
-import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
-import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { CREATE_FREE_ACCOUNT, founderLine, PLAN_CHOICES, FREE_PLAN_CLOSE } from "./landing-pages.copy";
+import { PRICING_PLANS } from "@packages/web-shell";
+import { FREE_PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { CREATE_FREE_ACCOUNT, founderLine, PLAN_CHOICES, FREE_PLAN_CLOSE, SIGNUP_NOTE, bodyLink, CREDIT_CARD_FAQ } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
-
-function track(path: string, content: string): string {
-	return withInternalTracking(path, { source: "lp-read-it-later-that-wont-die-body", content });
-}
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	lastModified: "2026-11-19",
@@ -88,10 +84,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 			answer:
 				"No. It is source-available: the code is on GitHub to read, but no licence grants rights to reuse it.",
 		},
-		{
-			question: "Do I need a credit card to start?",
-			answer: `No. An account is free, within daily limits on new saves, and no card is asked for. ${FIRST_DAYS_STATEMENT} If you never upgrade, nothing is charged.`,
-		},
+		CREDIT_CARD_FAQ,
 		{
 			question: "What does it cost?",
 			answer: `Nothing on the free plan, which limits new saves per day. The paid plan is ${PLAN_CHOICES}; both prices buy the same plan, and there is no tier above it.`,
@@ -100,11 +93,11 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	offer: {
 		title: `${PRICING_PLANS.yearly.periodDisplay}, and that's the whole business.`,
 		paragraphs: [
-			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same paid plan. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The comparison of 7 read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
+			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same paid plan. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${bodyLink("read-it-later-that-wont-die", "/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The comparison of 7 read-it-later apps</a> reads each app's price as a funding model, and <a href="${bodyLink("read-it-later-that-wont-die", "/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
 			`${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Somewhere your reading survives a cancelled card",
 	closeNote:
