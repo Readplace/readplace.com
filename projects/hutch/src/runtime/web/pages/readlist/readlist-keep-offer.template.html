@@ -8,7 +8,7 @@
       <input type="hidden" name="offer" value="{{offer}}">
       <button type="submit" class="btn btn--primary btn--m">Keep Readplace</button>
     </form>
-    <form method="POST" action="{{track '/queue/keep-offer/dismiss' source='keep-panel' content='not-now'}}">
+    <form method="POST" action="{{track dismissPath source='keep-panel' content='not-now'}}">
       <button type="submit" class="btn btn--secondary btn--m">Not now</button>
     </form>
   </div>

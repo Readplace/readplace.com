@@ -156,7 +156,7 @@ it("keys an unreachable archive short link on its own link from the web save bar
 	fixture.wrapperTarget.ownOriginals.add(short);
 	const agent = await loginAgent(harness.server, harness.auth);
 	const response = await agent.post("/queue/save").type("form").send({ url: short });
-	expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+	expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default#latest-saved"]);
 	expect(linkSaves).toEqual([{ url: short, userId: expect.any(String), saveAttemptId: expect.any(String) }]);
 	expect(await fixture.articleCrawl.findArticleCrawlStatus(short)).toEqual({ status: "pending", startedAt: expect.any(String) });
 	expect(fixture.submitLink.submitLinks).toEqual([]);

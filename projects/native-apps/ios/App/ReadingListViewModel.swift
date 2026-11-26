@@ -12,6 +12,9 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var articles: [Article] = []
 	@Published private(set) var isLoading = false
 	@Published private(set) var hasMore = false
+	@Published private(set) var setHomeAction: SirenAction?
+	@Published private(set) var homeStatus: String?
+	private var homeHref: String?
 	@Published var errorText: String?
 	@Published var warningText: String?
 	@Published var contentBannerText: String?
@@ -143,7 +146,35 @@ final class ReadingListViewModel: ObservableObject {
 
 	func loadIfNeeded() async {
 		guard !hasLoadedOnce, !isLoading else { return }
-		await openRememberedReadlist()
+		let generation = tabGeneration
+		let read = beginRead()
+		defer { endRead() }
+		do {
+			let entry = try await api.followReadlist()
+			guard tabUnchanged(since: generation) else { return }
+			snapshot.save(entry, href: nil, savedAt: Date())
+			if entry.homeHref == nil, lastViewed.href != nil {
+				return await openRememberedReadlist(fallback: entry)
+			}
+			let home = entry.homeHref
+			let page: ReadlistPage
+			if home == nil || home == entry.currentReadlistHref {
+				page = entry
+			} else {
+				page = try await loadList(path: home)
+			}
+			guard tabUnchanged(since: generation) else { return }
+			currentTabHref = page.currentTabHref ?? page.currentReadlistHref ?? home
+			reconcileShareTargets(against: page)
+			replace(with: page, deeperPages: [], read: read)
+		} catch {
+			guard tabUnchanged(since: generation) else { return }
+			if OfflineReading.isTransportFailure(error), let page = cachedLaunchPage() {
+				replace(with: page, deeperPages: [], read: read)
+			} else {
+				handle(error)
+			}
+		}
 	}
 
 	func refresh() async {
@@ -205,14 +236,32 @@ final class ReadingListViewModel: ObservableObject {
 			selectedHref: selectedReadlistHref,
 			mainlineHref: rootHref,
 			shareTargetHrefs: shareTargetHrefs,
-			baseURL: api.baseURL
+			baseURL: api.baseURL,
+			homeHref: homeHref
 		)
+	}
+
+	private func cachedLaunchPage() -> ReadlistPage? {
+		let now = Date()
+		let entry = snapshot.page(href: nil, now: now)
+		let last = [lastViewed.currentTabHref, lastViewed.landingTabHref, lastViewed.href]
+			.compactMap { $0 }
+			.lazy.compactMap { self.snapshot.page(href: $0, now: now) }
+			.first
+		if let home = lastViewed.homeHref ?? entry?.homeHref {
+			if let last, last.currentReadlistHref == home { return last }
+			if let page = snapshot.page(href: home, now: now) { return page }
+			if let entry, entry.currentReadlistHref == home { return entry }
+		}
+		return last ?? entry
 	}
 
 	private func restart(at href: String) {
 		processingRefresh?.cancel()
 		tabGeneration += 1
 		currentTabHref = href
+		setHomeAction = nil
+		homeStatus = nil
 		articles = []
 		nextHref = nil
 		hasMore = false
@@ -220,8 +269,8 @@ final class ReadingListViewModel: ObservableObject {
 		isLoadingMore = false
 	}
 
-	private func openRememberedReadlist() async {
-		guard let href = lastViewed.href else { return await fetchFirstPage(followHome: true) }
+	private func openRememberedReadlist(fallback: ReadlistPage) async {
+		guard let href = lastViewed.href else { return }
 		let landing = lastViewed.landingTabHref ?? href
 		selectedReadlistHref = href
 		restart(at: landing)
@@ -241,7 +290,7 @@ final class ReadingListViewModel: ObservableObject {
 			default:
 				currentTabHref = nil
 				selectedReadlistHref = nil
-				await fetchFirstPage(followHome: true)
+				replace(with: fallback, deeperPages: [], read: read)
 			}
 		}
 	}
@@ -298,7 +347,7 @@ final class ReadingListViewModel: ObservableObject {
 		readsInFlight -= 1
 	}
 
-	private func fetchFirstPage(followHome: Bool = false) async {
+	private func fetchFirstPage() async {
 		let generation = tabGeneration
 		let read = beginRead()
 		defer { endRead() }
@@ -310,7 +359,6 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await loadList(path: currentTabHref)
 			guard tabUnchanged(since: generation) else { return }
-			if followHome, let home = page.homeHref, home != page.currentReadlistHref { return await select(readlistHref: home) }
 			replace(with: page, deeperPages: [], read: read)
 		} catch {
 			guard tabUnchanged(since: generation) else { return }
@@ -348,6 +396,12 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await api.invoke(action: action)
 			guard tabUnchanged(since: generation) else { return }
+			if action.name == "set-home-readlist", let page {
+				snapshot.save(page, href: page.currentTabHref, savedAt: Date())
+				if let label = page.readlists.first(where: { $0.isCurrent && $0.href == page.homeHref })?.label {
+					homeStatus = "\(label) is now your home readlist."
+				}
+			}
 			await adopt(page, read: read)
 		} catch {
 			handle(error)
@@ -707,7 +761,10 @@ final class ReadingListViewModel: ObservableObject {
 			// The list now holds first-page server truth, so any share-sheet save
 			// recorded up to this point has been shown — including one saved before
 			// a cold launch, which the launch load itself surfaces.
-			if !page.isStoredCopy { unseenSave?.clear() }
+			if !page.isStoredCopy {
+				unseenSave?.clear()
+				lastViewed.remember(homeHref: page.homeHref, currentTabHref: page.currentTabHref)
+			}
 		} else {
 			let existing = Set(articles.map(\.id))
 			let added = page.articles.filter { !existing.contains($0.id) }
@@ -730,6 +787,8 @@ final class ReadingListViewModel: ObservableObject {
 			sessionAction = page.action(named: "create-session")
 			handoffAction = page.action(named: "create-browser-handoff")
 			rootHref = page.rootHref
+			homeHref = page.homeHref
+			setHomeAction = page.isStoredCopy ? nil : page.action(named: "set-home-readlist")
 			tabs = page.tabs
 			readlists = page.browseReadlists
 			filingReadlists = page.readlists

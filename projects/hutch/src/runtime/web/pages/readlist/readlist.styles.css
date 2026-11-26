@@ -303,6 +303,12 @@
   outline-offset: 2px;
 }
 
+.readlist-nav__home {
+  flex: none;
+  margin-inline-end: 6px;
+  color: var(--muted-foreground);
+}
+
 .readlist-nav__link,
 .readlist-nav__link .readlist-row__label {
   min-width: 0;

@@ -691,7 +691,7 @@ describe("a readlist the reader opened", () => {
 
 		const response = await saveFrom(agent, readlist, "https://example.com/only-here");
 
-		expect(response.headers.location).toBe("/queue#latest-saved");
+		expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		expect(articleIds(parse((await agent.get("/queue")).text))).toHaveLength(1);
 		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 	});

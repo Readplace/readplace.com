@@ -399,11 +399,16 @@ interface OfflineDownloadControl {
 	stateClass: string;
 }
 
-function offlineDownloadControl(input: { filters: ReadlistUrlState; isEmpty: boolean }): OfflineDownloadControl {
-	const offered = input.filters.tab === "queue" && !input.isEmpty;
+function offlineDownloadControl(input: { filters: ReadlistUrlState; isEmpty: boolean; homeSlug?: ReadlistUrlState["readlist"] }): OfflineDownloadControl {
+	const { filters, homeSlug } = input;
+	const offered = filters.tab === "queue" && !input.isEmpty;
+	const defaultOrder = tabQuery("queue").defaultOrder;
+	const order = filters.order ?? defaultOrder;
+	// Keep the offline copy at the Home entry URL when downloading Home's default view.
+	const readlist = filters.readlist === homeSlug && order === defaultOrder ? undefined : filters.readlist;
 	return {
 		href: withInternalTracking(
-			buildReadlistUrl({ readlist: input.filters.readlist, tab: "queue", order: input.filters.order }),
+			buildReadlistUrl({ readlist, tab: "queue", order }),
 			{ source: "queue-listing", content: "download-offline" },
 		),
 		stateClass: offered ? "readlist-listing__offline--offered" : "readlist-listing__offline--withheld",
@@ -508,6 +513,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			buildReadlistNav({
 				readlists: options.rail.readlists,
 				pinnedReadlists: options.rail.pinnedReadlists,
+				home: options.rail.home,
 				activeSlug: options.rail.activeReadlist.slug,
 				newReadlistAction: options.rail.newReadlistAction,
 				limitAlertHref: options.rail.limitAlertHref,
@@ -558,7 +564,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		),
 		sortLabel: sort.label,
 		sortIconName: sort.iconName,
-		offlineDownload: offlineDownloadControl({ filters, isEmpty: vm.isEmpty }),
+		offlineDownload: offlineDownloadControl({ filters, isEmpty: vm.isEmpty, homeSlug: options.rail.home?.entry }),
 		saveSkeletonHtml: renderReadlistSaveSkeleton(
 			toReadlistSaveSkeletonDisplayModel({ filters }),
 		),
@@ -596,7 +602,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			: undefined,
 		nextOfflinePrefetch: isOfflinePrefetchPage(vm.currentPage + 1),
 		currentPage: vm.currentPage,
-		keepOfferHtml: renderReadlistKeepOffer(toReadlistKeepOfferDisplayModel(options.keepOffer)),
+		keepOfferHtml: renderReadlistKeepOffer(toReadlistKeepOfferDisplayModel(options.keepOffer), readlistReturnQuery(filters)),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,

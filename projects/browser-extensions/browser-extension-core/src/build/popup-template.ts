@@ -8,19 +8,21 @@ export type PopupUtmSource = "chrome-extension" | "firefox-extension";
 const APP_ORIGIN = "https://readplace.com";
 
 function trackedHref(input: { path: string; utmSource: PopupUtmSource; utmContent: string }): string {
-	const query = new URLSearchParams({
+	const url = new URL(input.path, APP_ORIGIN);
+	const tracking = {
 		utm_source: input.utmSource,
 		utm_medium: "extension",
 		utm_content: input.utmContent,
-	});
-	return `${APP_ORIGIN}${input.path}?${query.toString()}`.replaceAll("&", "&amp;");
+	};
+	for (const [key, value] of Object.entries(tracking)) url.searchParams.set(key, value);
+	return url.href.replaceAll("&", "&amp;");
 }
 
 export function renderPopupTemplate(input: { template: string; utmSource: PopupUtmSource }): string {
 	const values: Record<string, string> = {
 		brandHomeHref: trackedHref({ path: "/", utmSource: input.utmSource, utmContent: "brand-home" }),
 		allReadlistHref: trackedHref({ path: "/queue", utmSource: input.utmSource, utmContent: "save-all-result" }),
-		openReadlistHref: trackedHref({ path: "/", utmSource: input.utmSource, utmContent: "open-readlist" }),
+		openReadlistHref: trackedHref({ path: "/queue?queue=default", utmSource: input.utmSource, utmContent: "open-readlist" }),
 		checkIcon: iconSvg("check"),
 		errorIcon: iconSvg("x-circle"),
 		warningIcon: iconSvg("alert-triangle"),

@@ -368,7 +368,7 @@ describe("POST /queue/:id/move", () => {
 			expect(undoFieldPairs(doc)).toEqual([
 				["queue", finance],
 				["queue", weekend],
-				["returnTo", "/queue"],
+				["returnTo", "/queue?queue=default"],
 			]);
 
 			const undone = await agent
@@ -1020,7 +1020,7 @@ describe("POST /queue/:id/move", () => {
 			);
 			expect(undoFieldPairs(doc)).toEqual([
 				["queue", "~hand-picked"],
-				["returnTo", "/queue"],
+				["returnTo", "/queue?queue=default"],
 			]);
 		});
 
@@ -1053,7 +1053,7 @@ describe("POST /queue/:id/move", () => {
 			expect(undoFieldPairs(doc)).toEqual([
 				["queue", finance],
 				["queue", "~hand-picked"],
-				["returnTo", "/queue"],
+				["returnTo", "/queue?queue=default"],
 			]);
 
 			const undone = await agent

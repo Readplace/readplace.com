@@ -14,6 +14,8 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import type { Readlist } from "./readlist.nav";
+import type { ReadlistRailViewModel } from "./readlist-rail";
+import { setHomeReadlistPath } from "./readlist-home";
 import { composeReadlistNav } from "./readlist-nav-layout";
 import {
 	buildReadlistUrl,
@@ -120,6 +122,7 @@ interface ReadlistNavMenu {
 
 export interface ReadlistNavItem {
 	menuHtml: string;
+	isHome: boolean;
 	autofocus: boolean;
 	href: string;
 	title: string;
@@ -146,6 +149,7 @@ export interface ReadlistNavDisplayModel {
 	items: readonly ReadlistNavItem[];
 	popovers: readonly ReadlistNavPopover[];
 	moreCount: number;
+	homeStatus?: string;
 	current: { title: string; iconName: IconName; smart: boolean };
 	createForms: readonly ReadlistCreateForm[];
 	limitForms: readonly ReadlistLimitForm[];
@@ -236,6 +240,7 @@ function limitFormsOf(input: {
 }
 
 interface ReadlistNavInput {
+	home?: ReadlistRailViewModel["home"];
 	readlists: readonly Readlist[];
 	pinnedReadlists: readonly ReadlistSlug[];
 	activeSlug: ReadlistSlug;
@@ -261,7 +266,9 @@ function navItem(input: {
 		pinState: input.pinState,
 		inputSuffix: classes.inputSuffix,
 	});
+	const target = nav.home?.targets.get(readlist.slug);
 	return {
+		isHome: nav.home?.slug === readlist.slug,
 		href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
 			source: NAV_SOURCE,
 			content: `queue-${readlist.slug}`,
@@ -274,10 +281,13 @@ function navItem(input: {
 		isActive,
 		smart: readlist.smart === true,
 		smartLabel: readlist.smart === true && isActive,
-		accessibleName: t("readlistSmart.accessibleName", { name: readlist.label }),
+		accessibleName: readlist.smart === true ? t("readlistSmart.accessibleName", { name: readlist.label }) : readlist.label,
 		autofocus: input.autofocus,
 		menuHtml: render(MENU_TEMPLATE, {
 			...menu,
+			hasMenu: menu.isDeletable || target !== undefined,
+			homeAction: target && withInternalTracking(setHomeReadlistPath(target), { source: NAV_SOURCE, content: isBuiltInReadlist(readlist.slug) ? "set-home-built-in" : "set-home-readlist" }),
+			returnTo: nav.home?.returnTo,
 			name: readlist.slug,
 			title: readlist.label,
 		}),
@@ -348,6 +358,7 @@ export function buildReadlistNav(
 					},
 				];
 	return {
+		homeStatus: input.home?.status,
 		mode: layout.mode,
 		items,
 		popovers,

@@ -1,3 +1,5 @@
+import type { FindHomeReadlist } from "@packages/provider-contracts/auth";
+import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTarget } from "./readlist-home";
 import assert from "node:assert";
 import {
 	AliasNameSchema,
@@ -119,6 +121,7 @@ const InboxRoutingBodySchema = z
 const InboxCreateBodySchema = z.object({ name: z.string().catch("") }).catch({ name: "" });
 
 export function initReadlistPreferencesRoutes(deps: {
+	findHomeReadlist: FindHomeReadlist;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
@@ -156,7 +159,10 @@ export function initReadlistPreferencesRoutes(deps: {
 			unknownReadlist(res);
 			return;
 		}
-		const definitions = await deps.listReadlistDefinitions(userId);
+		const [definitions, preference] = await Promise.all([
+			deps.listReadlistDefinitions(userId),
+			deps.findHomeReadlist(userId),
+		]);
 		const definition = definitions.find((owned) => owned.slug === requested.data);
 		if (!definition) {
 			unknownReadlist(res);
@@ -192,7 +198,13 @@ export function initReadlistPreferencesRoutes(deps: {
 		}
 		const paidFeaturesLocked = !hasPaidFeatures(access);
 		const activeReadlist = { slug: definition.slug, label: definition.label };
+		const homeSlug = homeReadlistOf(preference, definitions);
+		const targets = new Map(readlists.flatMap(({ slug }) => {
+			const target = homeReadlistTarget(slug, definitions);
+			return target && slug !== homeSlug ? [[slug, target] as const] : [];
+		}));
 		const context = {
+			home: { slug: homeSlug, entry: homeEntryReadlistOf(preference, definitions), targets },
 			definitions,
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
 			activeReadlist,
@@ -215,6 +227,7 @@ export function initReadlistPreferencesRoutes(deps: {
 					readlist: { ...activeReadlist, purpose: definition.purpose },
 					rail: buildReadlistRail({
 						context,
+						originalUrl: req.originalUrl,
 						offer,
 						nonEmptyReadlists,
 					}),

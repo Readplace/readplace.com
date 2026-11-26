@@ -28,7 +28,7 @@ describe("Readlist routes", () => {
 				.send({ url: "https://example.com/existing" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue#latest-saved");
+			expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		});
 
 		it("should save for unchanged content (304)", async () => {

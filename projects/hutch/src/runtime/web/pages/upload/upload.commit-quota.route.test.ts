@@ -168,7 +168,7 @@ describe("Metered upload commit", () => {
 		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
 
 		expect([first.received.status, second.received.status]).toEqual([303, 303]);
-		expect([first.received.headers.location, second.received.headers.location]).toEqual(["/queue", "/queue"]);
+		expect([first.received.headers.location, second.received.headers.location]).toEqual(["/queue?queue=default", "/queue?queue=default"]);
 		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(2);
 	});
 
@@ -190,7 +190,7 @@ describe("Metered upload commit", () => {
 		const first = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
 		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
 
-		expect([first.received.status, first.received.headers.location]).toEqual([303, "/queue"]);
+		expect([first.received.status, first.received.headers.location]).toEqual([303, "/queue?queue=default"]);
 		expect(second.received.status).toBe(303);
 		expect(second.received.headers.location).toMatch(/^\/upload\?features=transcripts&refused=book-quota&retry_at=/);
 		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);

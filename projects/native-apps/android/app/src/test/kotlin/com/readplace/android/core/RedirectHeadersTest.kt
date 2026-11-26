@@ -112,6 +112,7 @@ class RedirectHeadersTest {
 				"Accept",
 				"X-Readplace-Client",
 				"X-Readplace-Save-Continuity",
+				"X-Readplace-Home-Readlist",
 				"User-Agent",
 			),
 			RedirectHeaders.PRESERVED,

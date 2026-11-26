@@ -49,6 +49,8 @@ import type {
 	SaveAppleRefreshToken,
 	MarkActivationThresholdReached,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -485,6 +487,8 @@ export interface AppDependencies {
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	keepOfferCouponId: string;
 	keepOfferEndsAt: Date;
 	findUserPasswordStatus: FindUserPasswordStatus;

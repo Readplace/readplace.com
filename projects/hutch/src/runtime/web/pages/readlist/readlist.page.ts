@@ -150,6 +150,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(
 		initReadlistPreferencesRoutes({
+			findHomeReadlist: deps.findHomeReadlist,
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 			setSmartReadlistRule: deps.setSmartReadlistRule,
@@ -175,6 +176,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initReadlistListingRoutes(
 			{
+				findHomeReadlist: deps.findHomeReadlist,
+				setHomeReadlist: deps.setHomeReadlist,
+				listReadlistDefinitions: deps.listReadlistDefinitions,
 				resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 				now: deps.now,
 				setKeepOfferDismissed: deps.setKeepOfferDismissed,

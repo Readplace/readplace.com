@@ -5,6 +5,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { type EnclosureRead, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
+import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
+import { setHomeReadlistPath } from "../pages/readlist/readlist-home";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
@@ -64,6 +66,17 @@ export const SEARCH_FIELDS = [
 
 export type SearchFieldName = (typeof SEARCH_FIELDS)[number]["name"];
 
+function setHomeAction(input: { target: HomeReadlistPreference; label: string; returnTo: string }) {
+	const homePath = new URL(setHomeReadlistPath(input.target), "https://readlist.invalid");
+	homePath.searchParams.set("returnTo", input.returnTo);
+	return {
+		name: "set-home-readlist",
+		title: t("homeReadlist.setAction", { label: input.label }),
+		href: homePath.pathname + homePath.search,
+		method: "POST",
+	};
+}
+
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
@@ -77,6 +90,8 @@ export function toArticleCollectionEntity(
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
 		appearance?: AppearancePreference;
+		homeHref?: string;
+		setHome?: { target: HomeReadlistPreference; label: string };
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
@@ -98,10 +113,11 @@ export function toArticleCollectionEntity(
 	const accountHref = surfacePlatform
 		? `/account?${PLATFORM_QUERY}=${surfacePlatform}`
 		: "/account";
+	const homeHref = options.homeHref ?? READER_HOME_HREF;
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
-		{ rel: ["root"], href: "/queue" },
-		{ rel: ["home"], href: READER_HOME_HREF },
+		{ rel: homeHref === "/queue" ? ["root", "home"] : ["root"], href: "/queue" },
+		...(homeHref === "/queue" ? [] : [{ rel: ["home"], href: homeHref }]),
 		{ rel: ["account"], title: "Account", href: accountHref },
 	];
 
@@ -184,6 +200,7 @@ export function toArticleCollectionEntity(
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
+	const setHomeActions = options.setHome ? [setHomeAction({ ...options.setHome, returnTo: `/queue${buildQueryString(queryParams)}` })] : [];
 	const namedReadlist = (queryParams.readlist === DEFAULT_READLIST_SLUG || queryParams.readlist === HAND_PICKED_SCOPE) ? undefined : queryParams.readlist;
 	return {
 		class: ["collection", "articles"],
@@ -201,6 +218,7 @@ export function toArticleCollectionEntity(
 		),
 		links,
 		actions: [
+			...setHomeActions,
 			{
 				name: "save-article",
 				title: "Save a link",

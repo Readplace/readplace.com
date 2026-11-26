@@ -1,5 +1,6 @@
 import OSLog
 import SwiftUI
+import UIKit
 
 private let processingRefreshLogger = Logger(subsystem: "com.readplace.app", category: "processing-refresh")
 
@@ -107,6 +108,9 @@ struct ReadingListView: View {
 			}
 				.background(Color.brandSurface.ignoresSafeArea())
 				.navigationTitle("Reading List")
+				.onChange(of: viewModel.homeStatus) { status in
+					if let status { UIAccessibility.post(notification: .announcement, argument: status) }
+				}
 				.toolbar {
 					ToolbarItem(placement: .navigationBarLeading) {
 						Button("Sign out") { Task { await signOut() } }
@@ -116,9 +120,13 @@ struct ReadingListView: View {
 							Menu {
 								Picker("Readlist", selection: readlistSelection) {
 									ForEach(viewModel.readlistMenu) { item in
-										Label(item.label, systemImage: item.badgeSystemImage)
+										Label(item.displayedLabel, systemImage: item.badgeSystemImage)
 											.tag(Optional(item.href))
 									}
+								}
+								if let action = viewModel.setHomeAction, let title = action.title {
+									Divider()
+									Button(title) { Task { await viewModel.invoke(action) } }
 								}
 							} label: {
 								Image(systemName: "line.3.horizontal")
@@ -371,6 +379,10 @@ struct ReadingListView: View {
 		.background(Color.brandSurface.ignoresSafeArea())
 		.safeAreaInset(edge: .bottom) {
 			VStack(spacing: 0) {
+				if let status = viewModel.homeStatus {
+					Text(status)
+						.font(.footnote)
+				}
 				if !viewModel.messages.isEmpty {
 					ListBanner(
 						text: viewModel.messages.map(\.plainText).joined(separator: "\n"),

@@ -73,7 +73,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 		const response = await deleteReadlist(agent, slug);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["~hand-picked", "default"]);
 	});
 
@@ -97,7 +97,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		const response = await deleteReadlistViewing(agent, { slug, viewed: slug });
 
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 	});
 
 	it("takes the readlist's own rows with it, so nothing is left where no query can reach", async () => {
@@ -342,7 +342,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 		const response = await deleteReadlistMovingTo(agent, source, destination);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 		const landed = await harness.articleStore.findReadlistArticles({
 			userId,
 			readlist: ReadlistSlugSchema.parse(destination),

@@ -92,7 +92,7 @@ class AffordancePresentationTest {
 		// and item resolution; they are never rendered as user controls. `item` in
 		// particular: an `item` collection link resolves a member, not a tappable
 		// affordance, so it must be excluded structurally like the rest.
-		assertEquals(setOf("self", "root", "prev", "next", "item"), Affordance.structuralRels)
+		assertEquals(setOf("self", "root", "home", "prev", "next", "item"), Affordance.structuralRels)
 		for (rel in Affordance.structuralRels) {
 			val presentation = AffordancePresentation.of(rel)
 			assertFalse(presentation.isToolbarControl)

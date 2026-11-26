@@ -325,7 +325,7 @@ describe("Dismissing the free-plan banner", () => {
 		const dismissed = await agent.post("/queue/free-plan-banner/dismiss");
 
 		expect(dismissed.status).toBe(303);
-		expect(dismissed.headers.location).toBe("/queue");
+		expect(dismissed.headers.location).toBe("/queue?queue=default");
 		expect(String(dismissed.headers["set-cookie"])).toContain("hutch_free_plan_banner_dismissed=1");
 		const listing = bannerOf((await agent.get("/queue")).text);
 		expect(listing.classList.contains("readlist-subscription--none")).toBe(true);
@@ -354,7 +354,7 @@ describe("POST /queue/save on the free plan", () => {
 			.send({ url: "https://example.com/article" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue#latest-saved");
+		expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		const listing = await agent.get("/queue");
 		expect(listing.text).toContain("https://example.com/article");
 	});
@@ -376,6 +376,6 @@ describe("POST /queue/save on the free plan", () => {
 			.send({ url: "https://example.com/paid-article" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue#latest-saved");
+		expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 	});
 });

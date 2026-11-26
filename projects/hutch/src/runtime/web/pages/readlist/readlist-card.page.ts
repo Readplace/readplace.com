@@ -26,6 +26,7 @@ import { readlistsAtHrefs } from "../../api/readlist-href";
 import {
 	parseReadlistUrl,
 	buildReadlistUrl,
+	readlistReturnQuery,
 	READLIST_PATH,
 } from "./readlist.url";
 import {
@@ -405,7 +406,7 @@ export function initReadlistCardRoutes(
 			closeAppReader(req, res);
 			return;
 		}
-		res.redirect(303, buildReadlistUrl(context.state));
+		res.redirect(303, wantsSiren(req) ? `${READLIST_PATH}${readlistReturnQuery(context.state)}` : buildReadlistUrl(context.state));
 	});
 
 	router.post(

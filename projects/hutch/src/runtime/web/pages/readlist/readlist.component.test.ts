@@ -721,6 +721,7 @@ describe("ReadlistPage", () => {
 		assert(form, "the save form must render");
 		expect([...urlParams(form.getAttribute("action")).keys()]).toEqual(["utm_source", "utm_medium", "utm_content"]);
 		expect([...urlParams(offlineDownload(doc).getAttribute("data-offline-download")).keys()]).toEqual([
+			"queue",
 			"utm_source",
 			"utm_medium",
 			"utm_content",

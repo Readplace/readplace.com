@@ -97,7 +97,7 @@ describe("Readlist save through submit freshness", () => {
 
 		const response = await agent.post("/queue/save").type("form").send({ url: articleUrl });
 
-		expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+		expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default#latest-saved"]);
 		expect(staleChecks).toEqual([]);
 	});
 });

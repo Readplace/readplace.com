@@ -846,7 +846,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, offer: upgradeOffer, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), purpose: input.context.activePurpose };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, offer: upgradeOffer, nonEmptyReadlists, originalUrl: req.originalUrl }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), purpose: input.context.activePurpose };
 		const libraryHoldsArticles = input.context.state.readlist !== HAND_PICKED_SCOPE || readlistHoldsArticles
 			|| await storeFor(DEFAULT_READLIST_SLUG).countArticlesByUser({ userId: input.userId, countLimit: 1 }) > 0;
 		const senders = input.context.state.managedSource === "sender" ? await deps.listReceivedSenders(input.userId) : [];

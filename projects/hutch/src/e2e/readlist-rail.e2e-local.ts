@@ -26,7 +26,7 @@ const SWITCHER = `${MAIN} [data-test-readlist-switcher]`;
 const SWITCHER_TOGGLE = `${MAIN} [data-test-action="readlist-switcher"]`;
 const NEW_READLIST = '[data-test-action="new-readlist"]';
 const PHONE = { width: 390, height: 844 };
-const READLIST_MENU = "[data-test-readlist-menu]";
+const READLIST_MENU = '[data-test-readlist-menu]:has([data-test-action="readlist-rename"])';
 const READLIST_MENU_TOGGLE = '[data-test-action="readlist-menu"]';
 const RENAME_TRIGGER = '[data-test-action="readlist-rename"]';
 const DELETE_TRIGGER = '[data-test-action="readlist-delete"]';
@@ -137,7 +137,7 @@ async function makeReadlist(page: Page, name: string): Promise<void> {
 }
 
 async function openRenameDialog(page: Page): Promise<void> {
-	await page.locator(READLIST_MENU_TOGGLE).first().click();
+	await page.locator(`${READLIST_MENU} ${READLIST_MENU_TOGGLE}`).first().click();
 	await page.locator(RENAME_TRIGGER).first().click();
 	await page.waitForSelector(`${RENAME_POPOVER}:popover-open`);
 	await expect(page.locator(`${RENAME_POPOVER}:popover-open ${RENAME_INPUT}`)).toBeFocused();
@@ -383,7 +383,7 @@ test.describe("The readlists rail on a desktop", () => {
 
 		await page.locator(ACTIVE_RAIL_LINK).focus();
 		await page.keyboard.press("Tab");
-		await expect(page.locator(`${MAIN} ${READLIST_MENU_TOGGLE}`).first()).toBeFocused();
+		await expect(page.locator(`${MAIN} ${READLIST_MENU} ${READLIST_MENU_TOGGLE}`).first()).toBeFocused();
 	});
 
 	test("keeps the selected row's tint and on-tint ink when the pointer rests on it", async ({

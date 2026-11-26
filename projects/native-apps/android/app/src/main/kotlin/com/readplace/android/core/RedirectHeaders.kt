@@ -18,6 +18,7 @@ object RedirectHeaders {
 		"Accept",
 		AppConfig.CLIENT_HEADER,
 		AppConfig.SAVE_CONTINUITY_HEADER,
+		AppConfig.HOME_READLIST_HEADER,
 		"User-Agent",
 	)
 

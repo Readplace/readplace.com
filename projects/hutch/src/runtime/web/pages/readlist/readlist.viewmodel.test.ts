@@ -269,7 +269,7 @@ describe("toReadlistViewModel", () => {
 		};
 		const vm = toReadlistViewModel(result, { ...DEFAULT_FILTERS, page: 2 }, { now: NOW });
 
-		expect(vm.paginationUrls.prev).toBe("/queue");
+		expect(vm.paginationUrls.prev).toBe("/queue?queue=default");
 	});
 
 	it("should not generate next pagination URL when no more rows exist", () => {

@@ -152,6 +152,12 @@ export const enUS = {
 			create: "Create a readlist",
 			createSubmit: "Create readlist",
 		},
+		home: {
+			badge: "Home",
+			linkLabel: "{title}, Home",
+			set: "Set as home readlist",
+			saved: "{label} is now your home readlist.",
+		},
 		pin: {
 			pin: "Pin",
 			unpin: "Unpin",

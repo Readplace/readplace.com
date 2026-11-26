@@ -136,6 +136,8 @@ import type {
 	CountEarlyIntentionalSave,
 	MarkActivationThresholdReached,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
@@ -370,6 +372,8 @@ export interface AuthBundle {
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	markEmailVerified: MarkEmailVerified;
 	markAgeLocked: MarkAgeLocked;
 	clearAgeLock: ClearAgeLock;

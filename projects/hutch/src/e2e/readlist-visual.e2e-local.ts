@@ -59,8 +59,9 @@ const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const ACTIVE_READLIST_LINK = '[data-test-readlist][aria-current="page"]';
 const ACTIVE_READLIST_LABEL = `${ACTIVE_READLIST_LINK} [data-test-readlist-label]`;
 const READLIST_SWITCHER_TOGGLE = '[data-test-action="readlist-switcher"]';
-const READLIST_MENU_SUMMARY = '[data-test-action="readlist-menu"]';
-const READLIST_MENU_PANEL = "[data-test-readlist-menu]";
+const READLIST_MENU_TOGGLE = '[data-test-action="readlist-menu"]';
+const READLIST_MENU_PANEL = '[data-test-readlist-menu]:has([data-test-action="readlist-rename"])';
+const READLIST_MENU_SUMMARY = `${READLIST_MENU_PANEL} ${READLIST_MENU_TOGGLE}`;
 const READLIST_MENU_FLYOUT = `${READLIST_MENU_PANEL} .menu__panel`;
 const READLIST_MENU_RENAME = '[data-test-action="readlist-rename"]';
 const READLIST_MENU_DELETE = '[data-test-action="readlist-delete"]';
@@ -345,7 +346,7 @@ async function railMenuGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: READLIST_MENU_FLYOUT,
 		toggle: READLIST_MENU_SUMMARY,
-		rows: 2,
+		rows: 3,
 	});
 }
 
@@ -1189,7 +1190,7 @@ function moveOrDeleteDialog(input: {
 			await waitForBrandFonts(page, ["Inter"]);
 			await neutralise(page);
 			await input.openRail(page);
-			await page.click(`${menu} ${READLIST_MENU_SUMMARY}`);
+			await page.click(`${menu} ${READLIST_MENU_TOGGLE}`);
 			await expect(page.locator(menu)).toHaveAttribute("open", "");
 			await page.click(`${menu} ${READLIST_MENU_DELETE}`);
 			await page.waitForSelector(dialog);

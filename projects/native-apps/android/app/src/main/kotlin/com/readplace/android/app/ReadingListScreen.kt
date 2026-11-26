@@ -32,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,6 +72,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -226,6 +229,8 @@ fun ReadingListScreen(
 					if (state.offersReadlistSwitching) {
 						ReadlistSwitcher(
 							menu = state.readlistMenu,
+							setHomeTitle = state.setHomeAction?.title,
+							onSetHome = { state.setHomeAction?.let { action -> scope.launch { viewModel.invoke(action) } } },
 							onSelect = { href -> scope.launch { viewModel.select(href) } },
 						)
 					}
@@ -315,6 +320,9 @@ fun ReadingListScreen(
 			val offlineDownloadFailureText = state.offlineDownloadFailureText
 			val warningText = state.warningText
 			val bottom = Modifier.align(Alignment.BottomCenter)
+			state.homeStatus?.let {
+				Text(text = it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+			}
 			if (messages.isNotEmpty()) {
 				Banner(
 					text = messages.joinToString(separator = "\n") { it.plainText },
@@ -525,6 +533,8 @@ private fun OfflineDownloadRow(status: OfflineDownloadStatus, onDismiss: () -> U
 @Composable
 private fun ReadlistSwitcher(
 	menu: List<ReadlistMenuItem>,
+	setHomeTitle: String?,
+	onSetHome: () -> Unit,
 	onSelect: (String) -> Unit,
 ) {
 	var open by remember { mutableStateOf(false) }
@@ -534,7 +544,7 @@ private fun ReadlistSwitcher(
 	DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
 		for (item in menu) {
 			DropdownMenuItem(
-				text = { Text(text = item.label) },
+				text = { Text(text = if (item.isHome) "${item.label} · Home" else item.label) },
 				onClick = {
 					open = false
 					onSelect(item.href)
@@ -549,6 +559,16 @@ private fun ReadlistSwitcher(
 					{ Icon(imageVector = Glyph.CHECK, contentDescription = null) }
 				} else {
 					null
+				},
+			)
+		}
+		if (setHomeTitle != null) {
+			HorizontalDivider()
+			DropdownMenuItem(
+				text = { Text(setHomeTitle) },
+				onClick = {
+					open = false
+					onSetHome()
 				},
 			)
 		}
