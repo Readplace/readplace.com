@@ -102,12 +102,11 @@ describe("buildQueryInputs", () => {
 		);
 	});
 
-	it("age-gates the crawl-pending query on crawlPendingSince with a legacy contentFetchedAt/savedAt fallback", () => {
-		const filter = crawlInput.FilterExpression;
-		assert.match(filter, /^\(attribute_not_exists\(ownerUserId\) AND \(crawlPendingSince < :crawlMinAge OR /);
-		assert.match(
-			filter,
-			/attribute_not_exists\(crawlPendingSince\) AND attribute_not_exists\(summaryPendingSince\) AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\)\)/,
+	it("age-gates the crawl-pending query on crawlPendingSince alone", () => {
+		assert.equal(
+			crawlInput.FilterExpression,
+			"(attribute_not_exists(ownerUserId) AND crawlPendingSince < :crawlMinAge) " +
+				"OR (attribute_exists(ownerUserId) AND crawlPendingSince < :privateCrawlMinAge)",
 		);
 	});
 
@@ -119,17 +118,12 @@ describe("buildQueryInputs", () => {
 		);
 		assert.match(
 			crawlInput.FilterExpression,
-			/OR \(attribute_exists\(ownerUserId\) AND \(crawlPendingSince < :privateCrawlMinAge OR \(attribute_not_exists\(crawlPendingSince\) AND attribute_not_exists\(summaryPendingSince\) AND \(contentFetchedAt < :privateCrawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :privateCrawlMinAge\)\)\)\)\)$/,
+			/OR \(attribute_exists\(ownerUserId\) AND crawlPendingSince < :privateCrawlMinAge\)$/,
 		);
 	});
 
-	it("age-gates the summary-pending query on summaryPendingSince with a legacy contentFetchedAt/savedAt fallback", () => {
-		const filter = summaryInput.FilterExpression;
-		assert.match(filter, /^summaryPendingSince < :summaryMinAge OR /);
-		assert.match(
-			filter,
-			/attribute_not_exists\(crawlPendingSince\) AND attribute_not_exists\(summaryPendingSince\) AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\)\)/,
-		);
+	it("age-gates the summary-pending query on summaryPendingSince alone", () => {
+		assert.equal(summaryInput.FilterExpression, "summaryPendingSince < :summaryMinAge");
 	});
 
 	it("only filters on pending age — no skipped, legacy-stub or writer-contract clauses", () => {
@@ -151,9 +145,9 @@ describe("buildQueryInputs", () => {
 		}
 	});
 
-	it("projects the pendingSince and legacy age attributes so the canary can diagnose age-gate decisions", () => {
+	it("projects the pendingSince attributes so the canary can diagnose age-gate decisions", () => {
 		for (const input of buildQueryInputs(NOW)) {
-			for (const attr of ["crawlPendingSince", "summaryPendingSince", "savedAt"]) {
+			for (const attr of ["crawlPendingSince", "summaryPendingSince"]) {
 				assert.ok(input.ProjectionExpression.includes(attr), `${attr} must be projected`);
 			}
 		}
@@ -206,7 +200,6 @@ describe("collectStuckRows", () => {
 				"contentFetchedAt",
 				"crawlPendingSince",
 				"summaryPendingSince",
-				"savedAt",
 				"ownerUserId",
 			]) {
 				assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
@@ -236,7 +229,6 @@ describe("collectStuckRows", () => {
 					crawlStatus: "pending",
 					summaryStatus: "ready",
 					crawlPendingSince: OLD,
-					savedAt: OLD,
 				},
 			],
 		});
@@ -260,7 +252,6 @@ describe("collectStuckRows", () => {
 					crawlStatus: "ready",
 					summaryStatus: "pending",
 					summaryPendingSince: OLD,
-					savedAt: OLD,
 				},
 			],
 		});
@@ -281,7 +272,6 @@ describe("collectStuckRows", () => {
 			summaryStatus: "pending",
 			crawlPendingSince: OLD,
 			summaryPendingSince: OLD,
-			savedAt: OLD,
 		};
 		const { client } = createIndexedFakeClient({
 			[SUMMARY_STATUS_INDEX]: [row],
@@ -305,7 +295,6 @@ describe("collectStuckRows", () => {
 					originalUrl: "https://example.test/done",
 					summaryStatus: "ready",
 					crawlStatus: "ready",
-					savedAt: OLD,
 				},
 			],
 		});
@@ -327,7 +316,6 @@ describe("collectStuckRows", () => {
 							url: "page1.test/a",
 							originalUrl: "https://page1.test/a",
 							summaryStatus: "pending",
-							savedAt: OLD,
 						},
 					],
 					Count: 1,
@@ -340,7 +328,6 @@ describe("collectStuckRows", () => {
 						url: "page2.test/b",
 						originalUrl: "https://page2.test/b",
 						summaryStatus: "pending",
-						savedAt: OLD,
 					},
 				],
 				Count: 1,
@@ -372,7 +359,6 @@ describe("collectStuckRows", () => {
 					url: "example.test/legacy",
 					crawlStatus: "pending",
 					summaryStatus: "pending",
-					savedAt: OLD,
 				},
 			],
 		});
@@ -395,7 +381,6 @@ describe("collectStuckRows", () => {
 					summarySkippedReason: "content-too-short",
 					crawlStatus: "ready",
 					contentFetchedAt: OLD,
-					savedAt: OLD,
 				},
 			],
 		});
