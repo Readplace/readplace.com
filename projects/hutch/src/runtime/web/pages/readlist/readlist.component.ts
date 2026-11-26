@@ -122,10 +122,10 @@ export interface ReadlistOnboarding {
 export interface ReadlistPageOptions {
 	senders?: string[];
 	bulkEnabled?: boolean;
-	reviewOlderHref?: string;
 	cspNonce: CspNonce;
 	deviceClass: DeviceClass;
 	readlistHoldsArticles: boolean;
+	libraryHoldsArticles: boolean;
 	tabHoldsRows: boolean;
 	rail: ReadlistRailViewModel;
 	saveTip: SaveTip;
@@ -439,8 +439,10 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		onboarding: options.onboarding,
 		returnQuery: readlistReturnQuery(filters),
 	});
-	const empty = filters.readlist === HAND_PICKED_SCOPE && !filters.discovery ? {
-		title: t("handPicked.empty"), text: "", ...PLAIN_COPY,
+	const client = installClientOf(options.onboarding.context);
+	const handPickedEmpty = filters.readlist === HAND_PICKED_SCOPE && !filters.discovery && !options.readlistHoldsArticles;
+	const empty = handPickedEmpty && !options.libraryHoldsArticles ? nothingSaved(client) : handPickedEmpty ? {
+		title: t("handPicked.empty"), text: t("handPicked.emptyText"), ...PLAIN_COPY,
 		actions: [navigateAction({ key: "browse-all", href: withInternalTracking("/queue", { source: "queue-empty", content: "browse-all" }), label: t("handPicked.browse") })],
 	} : emptyState({
 		tab: filters.tab,
@@ -462,7 +464,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			source: "queue-empty",
 			content: "preferences",
 		}),
-		client: installClientOf(options.onboarding.context),
+		client,
 	});
 
 	const purpose = renderReadlistPurpose({
@@ -481,9 +483,8 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		: NO_ADD_LINK;
 
 	const content = render(TEMPLATE, {
-		reviewOlderHref: options.reviewOlderHref,
-		reviewingOlder: filters.reviewOlder,
-		manageArticles: options.bulkEnabled && filters.readlist === DEFAULT_READLIST.slug && !filters.reviewOlder ? {
+		addOlderSavesHref: filters.readlist === HAND_PICKED_SCOPE && vm.articles.length > 0 ? withInternalTracking("/queue", { source: "queue-heading", content: "add-older-saves" }) : undefined,
+		manageArticles: options.bulkEnabled && filters.readlist === DEFAULT_READLIST.slug ? {
 			open: filters.managedSource !== undefined,
 			bulkForm: vm.articles.length > 0 ? {
 				href: withInternalTracking(`/queue/manage/preview${readlistReturnQuery(filters)}`, { source: "manage-articles", content: "preview" }),

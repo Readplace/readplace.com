@@ -455,7 +455,7 @@ describe("GET /queue/:id/card — the move item", () => {
 
 		const polled = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
 
-		expect(menuControls(polled)).toEqual(["remove-from-hand-picked", "move-fallback", "move", "delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
 	});
 
 	it("builds the move item from the memberships the article holds now", async () => {
@@ -472,6 +472,6 @@ describe("GET /queue/:id/card — the move item", () => {
 			`readlist-move-${articleId}`,
 			`readlist-create-move-${articleId}`,
 		]);
-		expect(menuControls(polled)).toEqual(["remove-from-hand-picked", "move", "delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["move", "delete-fallback", "delete"]);
 	});
 });

@@ -122,6 +122,29 @@ describe("POST /queue/save-articles", () => {
 		expect(provenances).toEqual([{ kind: "client", clientName: "firefox" }]);
 	});
 
+	it("a Save all tabs page joins Hand Picked and stays a bulk save", async () => {
+		const testApp = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(testApp);
+		const url = "https://example.com/bulk-hand-picked";
+
+		await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url }]))
+			.expect(200);
+
+		for (const query of [{ scope: "hand-picked" }, { source: "bulk" }]) {
+			const listing = await request(testApp.server)
+				.get("/queue")
+				.query(query)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.expect(200);
+			expect(listing.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toEqual([url]);
+		}
+	});
+
 	it.each([
 		{ pages: MAX_PAGES_PER_BULK_SAVE, saving: "works", recorded: ["personal-save"] },
 		{ pages: 2, saving: "fails", recorded: [] },
@@ -1215,8 +1238,11 @@ describe("POST /queue/save-articles with an archive.today short id", () => {
 			],
 		}));
 		expect(fixture.submitLink.submitLinks).toEqual([
-			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, bulkSave: true, requestedAt: expect.any(String), saveTrigger: "manual", readlist: "default", saveAttemptId: expect.any(String) },
+			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, bulkSave: true, requestedAt: expect.any(String), personalPickAt: expect.any(String), saveTrigger: "manual", readlist: "default", saveAttemptId: expect.any(String) },
 		]);
+		const [submitted] = fixture.submitLink.submitLinks;
+		assert(submitted);
+		expect(submitted.personalPickAt).toBe(submitted.requestedAt);
 		expect(await testApp.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
 		expect(await testApp.articleStore.findArticleByUrl("https://example.com/inline")).not.toBeNull();
 	});

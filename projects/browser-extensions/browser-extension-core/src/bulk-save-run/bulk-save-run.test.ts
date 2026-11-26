@@ -206,10 +206,10 @@ describe("newRun and joinRun", () => {
 			windowId: WINDOW,
 			tabs,
 			skipped: [
-				{ tabId: 9, reason: "Only http and https URLs can be saved" },
-				{ tabId: 9, reason: "Only http and https URLs can be saved" },
-				{ tabId: null, reason: "Only http and https URLs can be saved" },
-				{ tabId: null, reason: "Only http and https URLs can be saved" },
+				{ tabId: 9, reason: "Already open in another tab" },
+				{ tabId: 9, reason: "Already open in another tab" },
+				{ tabId: null, reason: "Already open in another tab" },
+				{ tabId: null, reason: "Already open in another tab" },
 			],
 		});
 
@@ -219,8 +219,8 @@ describe("newRun and joinRun", () => {
 			["https://example.com/b", "capturing"],
 		]);
 		expect(run.clientSkips).toEqual([
-			{ tabId: 9, reason: "Only http and https URLs can be saved" },
-			{ tabId: null, reason: "Only http and https URLs can be saved" },
+			{ tabId: 9, reason: "Already open in another tab" },
+			{ tabId: null, reason: "Already open in another tab" },
 		]);
 	});
 
@@ -313,17 +313,14 @@ describe("resultOf and the outcome strings", () => {
 			],
 			{
 				phase: "finished",
-				clientSkips: [
-					{ tabId: 9, reason: "Only http and https URLs can be saved" },
-					{ tabId: 10, reason: "Readplace's own pages aren't saved" },
-				],
+				clientSkips: [{ tabId: 10, reason: "Readplace's own pages aren't saved" }],
 			},
 		);
 
 		expect(summarizeBulkSave({ result: resultOf(run), tabCount: tabCountOf(run), saveableCount: run.links.length }).summary).toBe(
-			"Saved 6 · Already in readlist 1 · Skipped 2 · Failed 1",
+			"Saved 6 · Already in readlist 1 · Skipped 1 · Failed 1",
 		);
-		expect(clientSkipReasons(run)).toEqual(["Only http and https URLs can be saved", "Readplace's own pages aren't saved"]);
+		expect(clientSkipReasons(run)).toEqual(["Readplace's own pages aren't saved"]);
 	});
 
 	it("counts queued, skipped, retrying and oversized links", () => {
@@ -355,13 +352,13 @@ describe("resultOf and the outcome strings", () => {
 		});
 	});
 
-	it("reads 'Saved 100 · Skipped 1' for the perf run", () => {
+	it("reads 'Saved 100 · Skipped 0' for the perf run", () => {
 		const run = runWith(
 			Array.from({ length: 100 }, (_v, index) => link(`https://example.com/${index}`, "saved")),
-			{ phase: "finished", clientSkips: [{ tabId: 1, reason: "Only http and https URLs can be saved" }] },
+			{ phase: "finished", clientSkips: [] },
 		);
 
-		expect(notificationOf(run)).toEqual({ title: "Tabs saved", message: "Saved 100 · Skipped 1" });
+		expect(notificationOf(run)).toEqual({ title: "Tabs saved", message: "Saved 100 · Skipped 0" });
 	});
 });
 

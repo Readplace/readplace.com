@@ -77,7 +77,7 @@ describe("buildSaveAllView once finished", () => {
 	it("paints today's outcome, its detail lines and the readlist control", () => {
 		const run = runWith(
 			[link("https://example.com/pinned", "already-saved"), ...many(6, "saved", "open-tab"), failed("https://example.com/open-tab-6", false)],
-			{ phase: "finished", clientSkips: [{ tabId: 9, reason: "Only http and https URLs can be saved" }, { tabId: 10, reason: "Readplace's own pages aren't saved" }] },
+			{ phase: "finished", clientSkips: [{ tabId: 10, reason: "Readplace's own pages aren't saved" }] },
 		);
 
 		expect(buildSaveAllView({ provisionalCount: 8, run })).toEqual({
@@ -86,11 +86,10 @@ describe("buildSaveAllView once finished", () => {
 			countLine: "",
 			ariaBusy: false,
 			revealPending: false,
-			summary: "Saved 6 · Already in readlist 1 · Skipped 2 · Failed 1",
+			summary: "Saved 6 · Already in readlist 1 · Skipped 1 · Failed 1",
 			tooBig: null,
 			detailLines: [
 				{ kind: "failed", text: "Couldn't save https://example.com/open-tab-6" },
-				{ kind: "skipped", text: "Only http and https URLs can be saved" },
 				{ kind: "skipped", text: "Readplace's own pages aren't saved" },
 			],
 			showReadlist: true,
@@ -126,7 +125,15 @@ describe("routeToolbarOpen", () => {
 
 	it("shows the live run for a tab it holds as a link or as a skipped tab", () => {
 		expect(route({ runs: [active], url: "https://example.com/a", tabId: 1 })).toBe("follow");
-		expect(route({ runs: [active], url: "chrome://settings", tabId: 5 })).toBe("follow");
+		expect(route({ runs: [active], url: "https://readplace.com/queue", tabId: 5 })).toBe("follow");
+	});
+
+	it("shows the live run from a tab that is not a web page", () => {
+		expect(route({ runs: [{ ...active, clientSkips: [] }], url: "chrome://settings", tabId: 5 })).toBe("follow");
+	});
+
+	it("saves singly from a web tab the run does not hold", () => {
+		expect(route({ runs: [{ ...active, clientSkips: [] }], url: "https://example.com/elsewhere", tabId: 5 })).toBe("single-save");
 	});
 
 	it("saves any other tab, a tab in another window's run, or a tab once its run has finished", () => {

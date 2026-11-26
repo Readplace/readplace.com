@@ -88,6 +88,18 @@ async function createReadlistAndOpen(agent: TestAgent, label: string): Promise<s
 	return openedSlug(response.headers.location);
 }
 
+function emptyActionKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-empty-action]"), (action) =>
+		action.getAttribute("data-test-empty-action"),
+	);
+}
+
+function olderSavesActionKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll(".readlist__older-saves [data-test-action]"), (action) =>
+		action.getAttribute("data-test-action"),
+	);
+}
+
 function queueLabels(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-readlist]"), (el) => el.textContent);
 }
@@ -161,11 +173,42 @@ describe("POST /queue/queues", () => {
 		const named = parse((await agent.get(custom.headers.location)).text);
 		expect(queueLabels(named)).toEqual(["Hand Picked", "All", "Hand Picked"]);
 		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
-		expect(picked.querySelector(".readlist__heading p")?.textContent).toBe("All your manual saves are added here");
-		expect(picked.querySelector('[data-test-empty-action="browse-all"]')?.textContent).toContain("Browse All");
+		expect(picked.querySelector(".readlist__heading p")?.textContent).toBe("Everything you save yourself is added here");
+		expect(picked.querySelector(".readlist-empty__title")?.textContent).toBe("Nothing saved yet");
+		expect(emptyActionKeys(picked)).toEqual(["install"]);
 		const all = parse((await agent.get("/queue")).text);
-		expect(all.querySelector(".readlist__heading p")?.textContent).toBe("All your saves, manual or in bulk, are added here");
+		expect(all.querySelector(".readlist__heading p")?.textContent).toBe("Every save is here, including newsletter links and imports");
 		expect(named.querySelector(".readlist__heading")).toBeNull();
+	});
+
+	it("offers Browse All on an empty Hand Picked when All holds an older save", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await save(agent, "https://example.com/older");
+		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
+		assert(articleId, "the saved article must render a card");
+		await agent.post(`/queue/${articleId}/delete?scope=hand-picked`).expect(303);
+
+		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
+
+		expect(picked.querySelector(".readlist-empty__title")?.textContent).toBe("No hand-picked articles here yet");
+		expect(emptyActionKeys(picked)).toEqual(["browse-all"]);
+		expect(olderSavesActionKeys(picked)).toEqual([]);
+	});
+
+	it("offers Add older saves from All on a Hand Picked page that lists a save", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await save(agent, "https://example.com/picked");
+
+		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
+
+		expect(articleIds(picked)).toHaveLength(1);
+		const button = picked.querySelector('a.btn.btn--neutral[data-test-action="add-older-saves"]');
+		assert(button, "Hand Picked must offer Add older saves from All");
+		expect(button.textContent).toBe("Add older saves from All");
+		expect(new URL(button.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname).toBe("/queue");
+		expect(olderSavesActionKeys(picked)).toEqual(["add-older-saves"]);
 	});
 
 	it("creates the readlist under the name the reader typed and lands them on it", async () => {

@@ -62,7 +62,7 @@ struct RootView: View {
 			if let refusalText = ageGate.refusalText {
 				AgeRefusalView(text: refusalText)
 			} else if session.isLoggedIn {
-				ReadingListView(session: session, onSignedOut: { intro.replay() })
+				ReadingListView(session: session, externalBrowser: .system, onSignedOut: { intro.replay() })
 			} else {
 				LoginView(
 					session: session,

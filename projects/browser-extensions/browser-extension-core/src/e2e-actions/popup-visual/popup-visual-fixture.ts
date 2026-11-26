@@ -42,7 +42,7 @@ const SORT = [
 	{ label: "Oldest first", rel: "sort", order: "asc" },
 ];
 
-function items(rowCount: number, actions: { name: string; title: string }[] = [MARK_AS_READ]): unknown[] {
+function items(rowCount: number): unknown[] {
 	return Array.from({ length: rowCount }, (_row, index) => {
 		const row = ROWS[index % ROWS.length];
 		return {
@@ -50,16 +50,13 @@ function items(rowCount: number, actions: { name: string; title: string }[] = [M
 			url: `https://${row.host}/article-${index}`,
 			title: row.title,
 			savedAt: new Date(FIXED_NOW - row.agoMs).toISOString(),
-			actions,
+			actions: [MARK_AS_READ],
 			links: [{ rel: "read", title: "Read", href: `https://${row.host}/article-${index}` }],
 			needsBrowserCapture: false,
 		};
 	});
 }
 
-/** Deliberately holds a pinned tab and two pages the save filters out, because
- * the control counts every tab present and the summary reports an outcome for
- * each — including the ones skipped before the request. */
 function openTabs(): unknown[] {
 	const ordinary = Array.from({ length: 7 }, (_tab, index) => ({
 		id: index + 2,
@@ -166,7 +163,6 @@ export function popupRuntimeStub(options?: {
 	listReply?: ListReply;
 	pendingBulkSave?: boolean;
 	rowCount?: number;
-	rowActions?: { name: string; title: string }[];
 	saveAllStart?: SaveAllStart;
 	saveAllFollows?: SaveAllFollow[];
 	seededRuns?: SeededRun[];
@@ -177,7 +173,7 @@ export function popupRuntimeStub(options?: {
 	const rowCount = options?.rowCount ?? DEFAULT_ROW_COUNT;
 	const itemsReply = listReplyScript(
 		options?.listReply ?? "items",
-		JSON.stringify({ ok: true, value: { items: items(rowCount, options?.rowActions), pages: pages(), total: TOTAL, sort: SORT } }),
+		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, sort: SORT } }),
 	);
 	const pendingBulkSave = options?.pendingBulkSave === true;
 	const saveAllStart = JSON.stringify(options?.saveAllStart ?? "acknowledge");

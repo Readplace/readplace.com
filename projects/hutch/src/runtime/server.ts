@@ -1,4 +1,4 @@
-import { readerHomeHref } from "./web/pages/readlist/built-in-readlists";
+import { READER_HOME_HREF } from "./web/pages/readlist/built-in-readlists";
 import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { initKeepOffer } from "./domain/engagement/keep-offer";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
@@ -1253,7 +1253,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	);
 	app.get("/", async (req: Request, res: Response) => {
 		if (req.userId) {
-			res.redirect(303, readerHomeHref());
+			res.redirect(303, READER_HOME_HREF);
 			return;
 		}
 

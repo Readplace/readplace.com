@@ -104,6 +104,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 	 * re-checking. Empty when the server offered none. */
 	val noticeMessages: List<ServerMessage>
 	val appearance: String?
+	val hint: CollectionHint?
 
 	init {
 		articles = collection.entities.orEmpty().mapNotNull { Article.of(it) }
@@ -119,6 +120,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 		warning = collection.properties?.warning
 		noticeMessages = collection.properties?.messages.orEmpty().filter { it.isRenderable }
 		appearance = collection.properties?.appearance
+		hint = collection.properties?.hint
 		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
 		readlists = collection.properties?.readlists.orEmpty().map { Readlist.of(it) }
 		browseReadlists = collection.properties?.browseReadlists?.map { Readlist.of(it) } ?: readlists

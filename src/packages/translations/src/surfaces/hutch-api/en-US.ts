@@ -18,4 +18,8 @@ export const enUS = {
 		preferences: "Preferences",
 		integrations: "Connectors",
 	},
+	handPickedHint: {
+		text: "Older saves stay in All. To add one to Hand Picked, use “Add to readlist” on the web.",
+		link: "Open All on the web",
+	},
 } as const;

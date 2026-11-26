@@ -10,6 +10,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { toArticleCollectionEntity } from "./collection-siren";
+import { HAND_PICKED_SCOPE } from "../pages/readlist/built-in-readlists";
 
 const tabs = [
 	{ label: "To Read", status: "unread" },
@@ -262,8 +263,8 @@ describe("toArticleCollectionEntity", () => {
 	});
 
 	it.each([
-		{ addToReadlist: "advertised", now: NOW, names: ["update-status", "add-to-hand-picked", "add-to-readlist"] },
-		{ addToReadlist: "withheld", now: NOW, names: ["update-status", "add-to-hand-picked"] },
+		{ addToReadlist: "advertised", now: NOW, names: ["update-status", "add-to-readlist"] },
+		{ addToReadlist: "withheld", now: NOW, names: ["update-status"] },
 	] as const)("gives every embedded article the item actions an add-to-readlist offer of $addToReadlist allows", ({ addToReadlist, names }) => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
@@ -931,6 +932,43 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
 		expect(entity.properties).not.toHaveProperty("warning");
+	});
+
+	describe("Hand Picked hint", () => {
+		const emptyResult: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
+
+		it("sends a native app the Hand Picked hint with its web link", () => {
+			const entity = toArticleCollectionEntity(
+				emptyResult,
+				{ readlistKey: "readlist", readlist: HAND_PICKED_SCOPE },
+				{ tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW, surfacePlatform: "ios" },
+			);
+
+			expect(entity.properties?.hint).toEqual({
+				text: "Older saves stay in All. To add one to Hand Picked, use “Add to readlist” on the web.",
+				link: { label: "Open All on the web", href: "/queue" },
+			});
+		});
+
+		it("sends no hint for the All readlist", () => {
+			const entity = toArticleCollectionEntity(
+				emptyResult,
+				{ readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG },
+				{ tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW, surfacePlatform: "android" },
+			);
+
+			expect(entity.properties?.hint).toBeUndefined();
+		});
+
+		it("sends no hint to a client that is not a native app", () => {
+			const entity = toArticleCollectionEntity(
+				emptyResult,
+				{ readlistKey: "readlist", readlist: HAND_PICKED_SCOPE },
+				{ tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW },
+			);
+
+			expect(entity.properties?.hint).toBeUndefined();
+		});
 	});
 
 	it("attaches the iOS save-in-progress notice to properties for a native-app request", () => {
