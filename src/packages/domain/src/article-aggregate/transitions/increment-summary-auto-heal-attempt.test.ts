@@ -56,7 +56,7 @@ describe("incrementSummaryAutoHealAttempt", () => {
 		assert.equal(article.summaryAutoHeal.lastAttemptAt, NOW);
 	});
 
-	it("emits dispatch-generate-summary-retry carrying url and the new attempt count", () => {
+	it("emits generate-summary for the article url", () => {
 		const before = buildArticle({
 			url: "https://example.com/post",
 			summaryAutoHeal: { attempts: 1, lastAttemptAt: NOW },
@@ -65,11 +65,7 @@ describe("incrementSummaryAutoHealAttempt", () => {
 		const { effects } = incrementSummaryAutoHealAttempt(before, { now: NOW });
 
 		assert.deepEqual(effects, [
-			{
-				kind: "dispatch-generate-summary-retry",
-				url: "https://example.com/post",
-				attempt: 2,
-			},
+			{ kind: "generate-summary", url: "https://example.com/post" },
 		]);
 	});
 

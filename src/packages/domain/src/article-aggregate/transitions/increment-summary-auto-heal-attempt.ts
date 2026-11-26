@@ -33,11 +33,7 @@ export function incrementSummaryAutoHealAttempt(
 		},
 	};
 	const effects: readonly Effect[] = [
-		{
-			kind: "dispatch-generate-summary-retry",
-			url: article.url,
-			attempt: nextAttempts,
-		},
+		{ kind: "generate-summary", url: article.url },
 	];
 	const writes: readonly AggregateField[] = ["summary", "summaryAutoHeal"];
 	return { article: next, effects, writes };
