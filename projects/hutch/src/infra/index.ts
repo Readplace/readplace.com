@@ -2769,10 +2769,9 @@ const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
 	entryPoint: "./src/runtime/evaluate-oauth-refresh.main.ts", outputDir: ".lib/evaluate-oauth-refresh", assetDir: "./src/runtime",
 	memorySize: 256, timeout: 30,
 	environmentNames: EVALUATE_OAUTH_REFRESH_ENV,
-	environment: { EVENT_BUS_NAME: eventBus.eventBusName, DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name, OAUTH_TEST_GRANTS: JSON.stringify(config.requireObject("oauthTestGrants")) },
+	environment: { DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name },
 	policies: [...evaluateRefreshRead.policies, { name: "oauth-refresh-metrics", policy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "cloudwatch:PutMetricData", Resource: "*", Condition: { StringEquals: { "cloudwatch:namespace": "Readplace/OAuth" } } }] }) }],
 });
-eventBus.grantPublish(evaluateRefreshLambda);
 new SqsBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
 const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
 	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
@@ -2784,11 +2783,6 @@ new aws.iam.RolePolicy("evaluate-oauth-refresh-scheduler-send", {
 new aws.scheduler.Schedule("evaluate-oauth-refresh", {
 	scheduleExpression: "rate(1 minute)", flexibleTimeWindow: { mode: "OFF" },
 	target: { arn: evaluateRefreshQueue.queueArn, roleArn: evaluateRefreshRole.arn, input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>) },
-});
-new aws.cloudwatch.MetricAlarm("oauth-refresh-unexpected-comparison", {
-	name: "oauth-refresh-unexpected-comparison", namespace: "Readplace/OAuth", metricName: "OAuthRefreshUnexpected24h",
-	comparisonOperator: "GreaterThanOrEqualToThreshold", threshold: 5, period: 60, evaluationPeriods: 1, statistic: "Maximum", treatMissingData: "missing",
-	alarmDescription: "Five qualifying refresh failures in the preceding 24 hours; comparison alarm before production cutover",
 });
 new aws.cloudwatch.MetricAlarm("oauth-refresh-monitoring-health", {
 	name: "oauth-refresh-monitoring-health",

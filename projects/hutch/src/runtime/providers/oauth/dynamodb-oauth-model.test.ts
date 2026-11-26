@@ -680,7 +680,7 @@ function tokenEndpoint(model: ReturnType<typeof setup>["model"]) {
 }
 
 async function evaluateAfterPendingWindow(refusal: RefreshRefusal) {
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [{ day: "day", order: "order", expiresAt: 0, refusal }], testGrants: [], publish: async () => {} });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [{ day: "day", order: "order", expiresAt: 0, refusal }], publish: async () => {} });
 	return evaluate(refusal.occurredAt + 360_000);
 }
 

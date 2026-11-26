@@ -1687,25 +1687,6 @@ export const EvaluateOAuthRefreshCommand = defineEvent({
 	detailSchema: z.object({ scheduledAt: z.iso.datetime() }),
 });
 
-export const OAuthRefreshEvaluatedEvent = defineEvent({
-	name: "oauth-refresh-evaluated",
-	source: "hutch.oauth-refresh",
-	detailType: "OAuthRefreshEvaluatedEvent",
-	detailSchema: z.object({
-		minute: z.number(),
-		counts: z.object({
-			raw: z.number(),
-			test: z.number(),
-			challenged: z.number(),
-			expected: z.number(),
-			recovered: z.number(),
-			unexpected: z.number(),
-			unknown: z.number(),
-			pending: z.number(),
-		}),
-	}),
-});
-
 export const CheckGmailNewslettersCommand = defineEvent({
 	name: "check-gmail-newsletters", source: "hutch.app", detailType: "CheckGmailNewsletters",
 	detailSchema: z.object({ accountsPageToken: z.string().optional() }),

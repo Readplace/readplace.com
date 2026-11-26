@@ -138,7 +138,7 @@ The scan's grant never expires while OpenAI keeps scanning: every refresh restar
 | Rotating `ANALYTICS_SALT`, which keys the HMAC that fingerprints refresh tokens: every rotated refresh token stops matching its grant, which signs out the scan and every app at once. A preview or deploy refuses a changed salt unless `hutch:analyticsSaltGeneration` is bumped past the deployed one | `superseded` |
 | Replacing or deleting the OAuth table. The table is `protect`ed, so a preview or deploy that plans either fails | `unknown` |
 
-`oauth-refresh-refused-alarm` counts only first-party clients, and `oauth-refresh-unexpected-comparison` has no alarm action. After its first refusals a dead scan logs no OAuth event at all, only the daily `missing_bearer` knock. `mcp-scan-listing-alarm` emails the alert address when prod has recorded no `mcp_tools_listed` with `ua_client` `openai` for 26 hours; the listing query in [Queries](#queries) is the manual check.
+`oauth-refresh-refused-alarm` counts only first-party clients. After its first refusals a dead scan logs no OAuth event at all, only the daily `missing_bearer` knock. `mcp-scan-listing-alarm` emails the alert address when prod has recorded no `mcp_tools_listed` with `ua_client` `openai` for 26 hours; the listing query in [Queries](#queries) is the manual check.
 
 ## Reconnecting the scan
 

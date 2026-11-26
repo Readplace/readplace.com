@@ -54,7 +54,7 @@ it("preserves recovery delivered before refusal and does not inflate duplicate o
 	const { store } = setup();
 	const attempt = RefreshAttempt.parse({ refusalId: "first", occurredAt: Date.parse("2026-09-11T12:00:00Z"), fingerprint: "fingerprint" });
 	const refusal = { ...attempt, reason: "unknown", status: 400 };
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: store.readDay, testGrants: [], publish: async () => {} });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: store.readDay, publish: async () => {} });
 	await store.recover(attempt, attempt.occurredAt + 1000);
 	expect(await evaluate(attempt.occurredAt + 360_000)).toMatchObject({ raw: 0, recovered: 0, unexpected: 0 });
 	await store.refuse(refusal);
@@ -94,7 +94,7 @@ it.each([1, 2])("propagates a failed query page %s and does not publish a partia
 	queries.length = 0;
 	controls.failQueryAt = page + 1;
 	const publish = jest.fn().mockResolvedValue(undefined);
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: store.readDay, testGrants: [], publish });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: store.readDay, publish });
 	await expect(evaluate(occurredAt + 360_000)).rejects.toThrow("query unavailable");
 	expect(publish.mock.calls).toEqual([]);
 });

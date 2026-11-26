@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { initEvaluateRefreshOutcomes, type RefreshOutcome, RefreshRefusal, TestGrantWindows } from "./outcomes";
+import { initEvaluateRefreshOutcomes, type RefreshOutcome, RefreshRefusal } from "./outcomes";
 
 type RefusalInput = Partial<z.input<typeof RefreshRefusal>>;
 
@@ -31,7 +31,7 @@ it.each([
 	[{ occurredAt: minute - 300_000 }, undefined, "unexpected"],
 ] satisfies [RefusalInput, number | undefined, string][])("classifies authoritative evidence %j", async (refusal, recovery, expected) => {
 	const publish = jest.fn();
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [outcome(refusal, recovery)], testGrants: [], publish });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [outcome(refusal, recovery)], publish });
 	const counts = await evaluate(minute);
 	expect(Object.entries(counts).find(([key]) => key === expected)?.[1]).toBe(1);
 	expect(counts.raw).toBe(1);
@@ -39,35 +39,29 @@ it.each([
 	expect(publish).toHaveBeenCalledWith({ minute, counts });
 });
 
-it("designates one connection only and uses its refusal-time window", async () => {
-	const rows = [outcome({ grantId: "test" }), outcome({ grantId: "ordinary", refusalId: "ordinary" }), outcome({ grantId: "test", occurredAt: minute - 800_000, refusalId: "before" })];
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => rows, testGrants: TestGrantWindows.parse([{ grantId: "test", from: minute - 700_000, until: minute }]), publish: jest.fn() });
-	expect(await evaluate(minute)).toEqual({ raw: 3, test: 1, challenged: 0, expected: 0, recovered: 0, unexpected: 2, unknown: 0, pending: 0 });
-});
-
 it("counts a nonce challenge as a protocol step rather than an unattributed refusal, because the token endpoint answers it before it looks the credential up and the client retries with the nonce at once", async () => {
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [outcome({ reason: "nonce_required" })], testGrants: [], publish: jest.fn() });
-	expect(await evaluate(minute)).toEqual({ raw: 1, test: 0, challenged: 1, expected: 0, recovered: 0, unexpected: 0, unknown: 0, pending: 0 });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [outcome({ reason: "nonce_required" })], publish: jest.fn() });
+	expect(await evaluate(minute)).toEqual({ raw: 1, challenged: 1, expected: 0, recovered: 0, unexpected: 0, unknown: 0, pending: 0 });
 });
 
 it("ignores recovery-only records, out-of-window failures and duplicate delivery", async () => {
 	const rows = [outcome(), outcome(), outcome({ occurredAt: minute - 86400_001, refusalId: "old" }), outcome({ occurredAt: minute + 1, refusalId: "future" }), { day: "2026-09-11", order: "recovery", expiresAt: 1, recoveredAt: minute }];
 	const readDay = jest.fn(async () => rows);
-	const evaluate = initEvaluateRefreshOutcomes({ readDay, testGrants: [], publish: jest.fn() });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay, publish: jest.fn() });
 	expect((await evaluate(minute)).unexpected).toBe(1);
 	expect(readDay.mock.calls).toHaveLength(2);
 });
 
 it("does not publish zero when a day query fails", async () => {
 	const publish = jest.fn();
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => { throw new Error("query failed"); }, testGrants: [], publish });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => { throw new Error("query failed"); }, publish });
 	await expect(evaluate(minute)).rejects.toThrow("query failed");
 	expect(publish.mock.calls).toEqual([]);
 });
 
 it("pins delayed evaluations to the scheduled minute", async () => {
 	const publish = jest.fn();
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [], testGrants: [], publish });
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [], publish });
 	await evaluate(minute + 12_345);
 	expect(publish.mock.calls[0][0].minute).toBe(minute);
 });
