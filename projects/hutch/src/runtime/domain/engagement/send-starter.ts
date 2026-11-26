@@ -16,12 +16,11 @@ import type {
 	FindReadlistArticleById,
 	FindArticleById,
 	FindArticleByUrl,
-	GlobalArticleData,
 	ListUserSavesForUrl,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, ReaderArticleHashId, type Viewer, viewerFor } from "@packages/domain/article";
-import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST, ReaderArticleHashId, type Viewer, viewerFor } from "@packages/domain/article";
+import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindReaderReadyEmailState } from "@packages/provider-contracts/reader-ready-state";
 import type { EmailAttachment, SendEmail } from "@packages/provider-contracts/email";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
@@ -31,6 +30,7 @@ import type {
 	QueueDigestEmailItem,
 	RenderStarterEmail,
 } from "./digest-email.types";
+import { bookChapterOf } from "../readlist/book-chapter";
 import type { BookChapter } from "../readlist/book-chapter.types";
 import {
 	PAY_DIGEST_WINDOW_CLOSES_LEAD_MS,
@@ -38,21 +38,6 @@ import {
 } from "../stripe/stripe-trial-config";
 import { STARTER_EMAIL_GAP_MS, STARTER_RETRY_WINDOW_MS } from "./starter-policy";
 import { reservedDomainOf } from "../email/reserved-domain";
-
-function toChapter(input: {
-	article: GlobalArticleData;
-	summary: GeneratedSummary | undefined;
-	contentHtml: ArticleBody;
-}): BookChapter {
-	return {
-		articleUrl: input.article.url,
-		title: input.article.metadata.title,
-		siteName: input.article.metadata.siteName,
-		excerpt: input.article.metadata.excerpt,
-		summary: input.summary,
-		contentHtml: input.contentHtml,
-	};
-}
 
 function holdsForPayment(input: { row: SubscriptionRecord | undefined; now: Date }): boolean {
 	const { row, now } = input;
@@ -120,7 +105,7 @@ export function initSendStarter(deps: {
 				]);
 				assert(article, `a claimed starter pick is a stored article: ${url}`);
 				assert(stored.kind === "article", `a claimed starter pick had a readable body: ${url}`);
-				return toChapter({ article, summary, contentHtml: stored.body });
+				return bookChapterOf({ article, summary, contentHtml: stored.body });
 			}),
 		);
 	const bookFor = async (input: { pack: StarterPack; message: FrozenStarterMessage; userId: UserId }) => {
@@ -238,7 +223,7 @@ export function initSendStarter(deps: {
 						siteName: article.metadata.siteName,
 						preview: deps.previewSummary(summary),
 					});
-					chapters.push(toChapter({ article, summary, contentHtml: stored.body }));
+					chapters.push(bookChapterOf({ article, summary, contentHtml: stored.body }));
 				}
 			}
 			if (items.length === 0) {
