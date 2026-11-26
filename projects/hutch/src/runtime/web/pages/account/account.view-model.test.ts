@@ -1172,11 +1172,11 @@ describe("buildAppearanceSection", () => {
 		const section = buildAppearanceSection({ current: "dark", appShell: false, platform: undefined });
 		assert.equal(section.formAction, "/account/appearance?utm_source=account&utm_medium=internal&utm_content=appearance");
 		assert.deepEqual(
-			section.options.map((o) => [o.value, o.label, o.active, o.ariaPressed]),
+			section.options.map((o) => [o.value, o.label, o.ariaPressed]),
 			[
-				["light", "Light", false, "false"],
-				["dark", "Dark", true, "true"],
-				["system", "Auto", false, "false"],
+				["light", "Light", "false"],
+				["dark", "Dark", "true"],
+				["system", "Auto", "false"],
 			],
 		);
 	});

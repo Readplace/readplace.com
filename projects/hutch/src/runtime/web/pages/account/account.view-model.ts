@@ -37,7 +37,6 @@ import {
 	ACCOUNT_CARDS_CONFIRM_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
-	ACCOUNT_IMPORT_URL,
 	ACCOUNT_INVOICES_URL,
 	ACCOUNT_PROFILE_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -880,7 +879,6 @@ function withoutPurchaseActions(actions: AccountAction[], options: AppSurfaceOpt
 export interface AppearanceOptionView {
 	value: AppearancePreference;
 	label: string;
-	active: boolean;
 	ariaPressed: "true" | "false";
 }
 
@@ -921,7 +919,6 @@ export function buildAppearanceSection(input: {
 				return {
 					value,
 					label: APPEARANCE_LABELS[value],
-					active,
 					ariaPressed: active ? "true" : "false",
 				};
 			}),
@@ -1001,24 +998,6 @@ export function buildSecuritySection(input: {
 		updated: updatedAt === undefined ? undefined : toRelativePhrase({ iso: updatedAt, now: input.now }),
 		changed: input.changed,
 	};
-}
-
-interface AccountImportLink {
-	href: string;
-}
-
-export interface AccountImportRow {
-	links: readonly AccountImportLink[];
-	locks: readonly string[];
-}
-
-const IMPORT_ROW: AccountImportRow = {
-	links: [{ href: withInternalTracking(ACCOUNT_IMPORT_URL, { source: ACCOUNT_SOURCE, content: "import" }) }],
-	locks: [],
-};
-
-export function buildImportLinks(): readonly AccountImportRow[] {
-	return [IMPORT_ROW];
 }
 
 /** Rewrites the account view model for the app's in-app web surface: strips

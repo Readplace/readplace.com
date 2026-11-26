@@ -17,11 +17,10 @@ import type { ConnectedAppsSectionViewModel } from "./account-connected-apps.vie
 import { renderAccountProfileEdit, renderAccountProfileFallbackForm } from "./account-profile.component";
 import { renderSecuritySection } from "./account-security.component";
 import { ACCOUNT_STYLES } from "./account.styles";
-import { ACCOUNT_EXPORT_URL } from "./account.url";
+import { ACCOUNT_EXPORT_URL, ACCOUNT_IMPORT_URL } from "./account.url";
 import type {
 	AccountAction,
 	AccountActionKey,
-	AccountImportRow,
 	AccountViewModel,
 	AppearanceSectionViewModel,
 	BillingHistoryViewModel,
@@ -55,6 +54,11 @@ export function accountPageScripts(surface: { appShell: boolean }): string {
 const EXPORT_HREF = withInternalTracking(ACCOUNT_EXPORT_URL, {
 	source: "account",
 	content: "export",
+});
+
+const IMPORT_HREF = withInternalTracking(ACCOUNT_IMPORT_URL, {
+	source: "account",
+	content: "import",
 });
 
 /** The app-shell rendering of this page: hosted in the iOS web sheet, so the web
@@ -313,7 +317,6 @@ export function AccountPage(
 		security: SecuritySectionViewModel;
 		appearance: AppearanceSectionViewModel;
 		connectedApps: ConnectedAppsSectionViewModel;
-		importLinks: readonly AccountImportRow[];
 		surface?: AccountSurface;
 	},
 ): PageBody {
@@ -342,7 +345,7 @@ export function AccountPage(
 				connectedAppsHtml: renderConnectedApps(page.connectedApps),
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
-				importLinks: page.importLinks,
+				importHref: IMPORT_HREF,
 				danger: buildDangerZone(vm),
 				backLink: surface?.backLink,
 			}),
