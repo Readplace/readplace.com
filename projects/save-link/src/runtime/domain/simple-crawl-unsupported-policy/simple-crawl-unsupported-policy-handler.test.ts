@@ -426,6 +426,52 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 	});
 });
 
+describe("MercadoLibre investor file viewer simple-to-comprehensive routing", () => {
+	it.each(["save", "recrawl"] as const)("extracts the PDF the viewer iframe declares after simple deferral (trigger=%s)", async (trigger) => {
+		const file = "aHR0cHM6Ly9maWxlcy5leGFtcGxlLmNvbS9hbm51YWwtcmVwb3J0LnBkZg==";
+		const url = `https://investor.mercadolibre.com/open-file?file=${file}&utm_source=newsletter`;
+		const pdfUrl = `https://investor.mercadolibre.com/open-file/pdf?file=${file}`;
+		const pdf = Buffer.from("%PDF-1.4\nSynthetic annual report PDF bytes for the injected extractor.");
+		const html = "<html><head><title>Annual report</title></head><body><p>The complete annual report body.</p></body></html>";
+		const viewer = `<!DOCTYPE html><html data-framework="nordic"><head><title>Open file</title></head><body>
+<main class="open-file-page"><iframe class="open-file-page__viewer" src="/open-file/pdf?file=${file}" title="annual-report.pdf"></iframe></main>
+<div class="cookie-consent-banner"><p>By browsing this site, you accept the cookies.</p></div></body></html>`;
+		const requests: string[] = [];
+		const crawlFetch: CrawlFetch = async (requestedUrl) => {
+			requests.push(requestedUrl);
+			const response = requestedUrl === pdfUrl
+				? new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } })
+				: new Response(viewer, { status: 200, headers: { "content-type": "text/html" } });
+			Object.defineProperty(response, "url", { value: requestedUrl });
+			return response;
+		};
+		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
+		const shared = { rejectDocumentLandingPage, crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
+		const simple = initCrawlArticle(shared);
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "Annual report", html }));
+		const comprehensive = initCrawlArticle({ ...shared, extractPdf });
+		const extracted: CrawlArticleResult[] = [];
+		const publishEvent: PublishEvent = async (_event, detail) => {
+			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
+			extracted.push(await comprehensive({ chargeOcrPages: allowOcrPages, url: command.url }));
+		};
+		const dispatch = jest.fn(publishEvent);
+		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
+
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf", finalUrl: pdfUrl });
+		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
+
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: pdfUrl, scope: { kind: "none" }, chargeOcrPages: allowOcrPages, onProgress: undefined });
+		const [result] = extracted;
+		assert(result?.status === "fetched");
+		expect(result.html).toBe(html);
+		expect(result.finalUrl).toBe(pdfUrl);
+		expect(result.bodyHash).toBe(createHash("sha256").update(pdf).digest("hex"));
+		expect(requests).toEqual([url, pdfUrl, url, pdfUrl]);
+	});
+});
+
 describe("Gallup document simple-to-comprehensive routing", () => {
 	it.each(["save", "recrawl"] as const)("extracts the declared report while preserving the original save attempt (trigger=%s)", async (trigger) => {
 		const url = "https://www.gallup.com/analytics/123/sample-report.aspx";
