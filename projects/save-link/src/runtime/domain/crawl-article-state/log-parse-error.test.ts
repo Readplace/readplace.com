@@ -62,7 +62,7 @@ describe("initLogParseError", () => {
 		const { logParseError } = initLogParseError({
 			logger,
 			now: () => new Date("2026-04-19T10:30:00.000Z"),
-			source: "hutch-handler",
+			source: "save-link",
 		});
 
 		logParseError({ url: null, reason: "payload-too-large" });
@@ -73,7 +73,7 @@ describe("initLogParseError", () => {
 			timestamp: "2026-04-19T10:30:00.000Z",
 			url: null,
 			reason: "payload-too-large",
-			source: "hutch-handler",
+			source: "save-link",
 		});
 	});
 });
