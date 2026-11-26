@@ -1,15 +1,10 @@
 import { z } from "zod";
+import { STRIPE_API, StripeErrorResponse, stripeErrorMessage, stripeHeaders } from "../stripe-api/stripe-api";
 import {
 	CheckoutSessionIdSchema,
 	type CreateCheckoutSession,
 	type RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
-
-const STRIPE_API = "https://api.stripe.com/v1";
-
-/** Pinned so Stripe advancing the account's default version cannot silently
- * reshape checkout-session responses under us (see stripe-subscriptions). */
-const STRIPE_API_VERSION = "2026-04-22.dahlia";
 
 const CreateSessionResponse = z.object({
 	id: CheckoutSessionIdSchema,
@@ -24,14 +19,6 @@ const RetrieveSessionResponse = z.object({
 	customer: z.string().nullish(),
 });
 
-const StripeErrorResponse = z.object({
-	error: z.object({
-		code: z.string().optional(),
-		message: z.string().optional(),
-		type: z.string().optional(),
-	}),
-});
-
 export function initStripeCheckout(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
@@ -39,10 +26,7 @@ export function initStripeCheckout(deps: {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 } {
-	const authHeader = {
-		Authorization: `Bearer ${deps.apiKey}`,
-		"Stripe-Version": STRIPE_API_VERSION,
-	};
+	const authHeader = stripeHeaders(deps.apiKey);
 
 	const createCheckoutSession: CreateCheckoutSession = async ({
 		customerEmail,
@@ -85,11 +69,7 @@ export function initStripeCheckout(deps: {
 
 		const json = await response.json();
 		if (!response.ok) {
-			const parsed = StripeErrorResponse.safeParse(json);
-			const message = parsed.success
-				? parsed.data.error.message ?? "Stripe error"
-				: "Stripe error";
-			throw new Error(`Stripe createCheckoutSession failed (${response.status}): ${message}`);
+			throw new Error(`Stripe createCheckoutSession failed (${response.status}): ${stripeErrorMessage(json)}`);
 		}
 
 		const parsed = CreateSessionResponse.parse(json);
@@ -111,8 +91,7 @@ export function initStripeCheckout(deps: {
 			const parsed = StripeErrorResponse.safeParse(json);
 			const code = parsed.success ? parsed.data.error.code : undefined;
 			if (code === "resource_missing") return { ok: false, reason: "not-found" };
-			const message = parsed.success ? parsed.data.error.message ?? "Stripe error" : "Stripe error";
-			throw new Error(`Stripe retrieveCheckoutSession failed (${response.status}): ${message}`);
+			throw new Error(`Stripe retrieveCheckoutSession failed (${response.status}): ${stripeErrorMessage(json)}`);
 		}
 
 		const parsed = RetrieveSessionResponse.parse(json);

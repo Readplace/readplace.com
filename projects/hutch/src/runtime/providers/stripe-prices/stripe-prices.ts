@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { z } from "zod";
+import { STRIPE_API, stripeErrorMessage, stripeHeaders } from "../stripe-api/stripe-api";
 import {
 	BILLING_PLANS,
 	type BillingPlan,
@@ -7,18 +8,8 @@ import {
 import type { ResolvePriceId } from "@packages/provider-contracts/subscription-billing";
 import { STRIPE_PRICE_LOOKUP_KEYS } from "../../domain/stripe/stripe-price-lookup-keys";
 
-const STRIPE_API = "https://api.stripe.com/v1";
-
-/** Pinned so Stripe advancing the account's default version cannot silently
- * reshape price responses under us (see stripe-subscriptions). */
-const STRIPE_API_VERSION = "2026-04-22.dahlia";
-
 const ListPricesResponse = z.object({
 	data: z.array(z.object({ id: z.string(), lookup_key: z.string().nullish() })),
-});
-
-const StripeErrorResponse = z.object({
-	error: z.object({ message: z.string().optional() }),
 });
 
 export function initStripePrices(deps: {
@@ -38,17 +29,12 @@ export function initStripePrices(deps: {
 
 		const response = await deps.fetch(`${STRIPE_API}/prices?${query.toString()}`, {
 			method: "GET",
-			headers: {
-				Authorization: `Bearer ${deps.apiKey}`,
-				"Stripe-Version": STRIPE_API_VERSION,
-			},
+			headers: stripeHeaders(deps.apiKey),
 		});
 
 		const json = await response.json();
 		if (!response.ok) {
-			const parsed = StripeErrorResponse.safeParse(json);
-			const message = parsed.success ? parsed.data.error.message ?? "Stripe error" : "Stripe error";
-			throw new Error(`Stripe listPrices failed (${response.status}): ${message}`);
+			throw new Error(`Stripe listPrices failed (${response.status}): ${stripeErrorMessage(json)}`);
 		}
 
 		const byLookupKey = new Map(

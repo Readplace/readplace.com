@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STRIPE_API, readStripeErrorMessage, stripeHeaders } from "../stripe-api/stripe-api";
 import type { Logger } from "@packages/logger";
 import {
 	type BeginAddCard,
@@ -11,20 +12,6 @@ import {
 	type SavedCard,
 	type SetPrimaryCard,
 } from "@packages/provider-contracts/payment-methods";
-
-const STRIPE_API = "https://api.stripe.com/v1";
-
-/** Pinned so the response shape cannot shift under us when Stripe advances the
- * account's default version. */
-const STRIPE_API_VERSION = "2026-04-22.dahlia";
-
-const StripeErrorResponse = z.object({
-	error: z.object({
-		code: z.string().optional(),
-		message: z.string().optional(),
-		type: z.string().optional(),
-	}),
-});
 
 const StripeCard = z.object({
 	id: z.string(),
@@ -90,21 +77,12 @@ export function initStripePaymentMethods(deps: {
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 } {
-	const stripeHeaders = {
-		Authorization: `Bearer ${deps.apiKey}`,
-		"Stripe-Version": STRIPE_API_VERSION,
-	};
+	const authHeaders = stripeHeaders(deps.apiKey);
 
 	const formHeaders = {
-		...stripeHeaders,
+		...authHeaders,
 		"Content-Type": "application/x-www-form-urlencoded",
 	};
-
-	async function readStripeErrorMessage(response: Response): Promise<string> {
-		const json = await response.json();
-		const parsed = StripeErrorResponse.safeParse(json);
-		return parsed.success ? parsed.data.error.message ?? "Stripe error" : "Stripe error";
-	}
 
 	async function failed(operation: string, response: Response): Promise<Error> {
 		const message = await readStripeErrorMessage(response);
@@ -114,7 +92,7 @@ export function initStripePaymentMethods(deps: {
 	async function readCards(customerIdEncoded: string) {
 		const response = await deps.fetch(
 			`${STRIPE_API}/customers/${customerIdEncoded}/payment_methods?type=card`,
-			{ headers: stripeHeaders },
+			{ headers: authHeaders },
 		);
 		if (!response.ok) {
 			throw await failed("listCards", response);
@@ -126,7 +104,7 @@ export function initStripePaymentMethods(deps: {
 		customerIdEncoded: string,
 	): Promise<string | null | undefined> {
 		const response = await deps.fetch(`${STRIPE_API}/customers/${customerIdEncoded}`, {
-			headers: stripeHeaders,
+			headers: authHeaders,
 		});
 		if (!response.ok) {
 			throw await failed("listCards", response);
@@ -139,7 +117,7 @@ export function initStripePaymentMethods(deps: {
 	): Promise<string | null | undefined> {
 		const response = await deps.fetch(
 			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
-			{ headers: stripeHeaders },
+			{ headers: authHeaders },
 		);
 		if (!response.ok) {
 			throw await failed("listCards", response);
@@ -212,7 +190,7 @@ export function initStripePaymentMethods(deps: {
 	const getCardSetupResult: GetCardSetupResult = async ({ setupId }) => {
 		const response = await deps.fetch(
 			`${STRIPE_API}/setup_intents/${encodeURIComponent(setupId)}`,
-			{ headers: stripeHeaders },
+			{ headers: authHeaders },
 		);
 
 		// An unknown setup id is a verification outcome (bad client input), not a
@@ -243,7 +221,7 @@ export function initStripePaymentMethods(deps: {
 	const removeCard: RemoveCard = async ({ cardId }) => {
 		const response = await deps.fetch(
 			`${STRIPE_API}/payment_methods/${encodeURIComponent(cardId)}/detach`,
-			{ method: "POST", headers: stripeHeaders },
+			{ method: "POST", headers: authHeaders },
 		);
 
 		// 404 means the card is already detached — the desired end state, so
