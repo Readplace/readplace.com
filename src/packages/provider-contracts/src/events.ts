@@ -179,11 +179,6 @@ export type PublishSubscriptionChargeSucceeded = (params: {
 	plan: BillingPlan;
 }) => Promise<void>;
 
-export type PublishSubscriptionReactivated = (params: {
-	userId: UserId;
-	subscriptionId?: string;
-}) => Promise<void>;
-
 export type PublishUpdateFetchTimestamp = (params: {
 	url: string;
 	contentFetchedAt: string;

@@ -970,25 +970,6 @@ export type SubscriptionCancellationScheduledDetail = z.infer<
 	typeof SubscriptionCancellationScheduledEvent.detailSchema
 >;
 
-/** Irreversible fact: a user reactivated a scheduled cancellation inside the
- * cancellation-effective-at window. Published by `POST /account/reactivate`
- * after the synchronous Stripe PATCH (paid) or upsertTrialing (trial) has
- * succeeded. No load-bearing handler today — the route does the row write
- * itself — but the event is wired so future analytics / email-reminder
- * handlers can subscribe without a schema change. */
-export const SubscriptionReactivatedEvent = defineEvent({
-	name: "subscription-reactivated",
-	source: "hutch.subscriptions",
-	detailType: "SubscriptionReactivated",
-	detailSchema: z.object({
-		userId: UserIdSchema,
-		subscriptionId: z.string().optional(),
-	}),
-});
-export type SubscriptionReactivatedDetail = z.infer<
-	typeof SubscriptionReactivatedEvent.detailSchema
->;
-
 /** Trial-end auto-conversion request. Published by the EventBridge Scheduler
  * one-shot rule created at trial signup (fires at `trialEndsAt`). Consumed by
  * the `subscription-start-request` Lambda which reads the row and decides:

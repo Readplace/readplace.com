@@ -55,7 +55,6 @@ import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
 import { initInMemoryDeleteAccountCommand } from "./providers/events/in-memory-delete-account-command";
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
-import { initInMemorySubscriptionReactivated } from "./providers/events/in-memory-subscription-reactivated";
 import {
 	createListUserOAuthClients,
 	createOAuthModel,
@@ -374,9 +373,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({
 		logger: noopLogger,
 	});
-	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
-		logger: noopLogger,
-	});
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
 	const oauthModelDeps = initInMemoryOAuthModel();
@@ -583,7 +579,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishExportUserDataCommand,
 			publishDeleteAccountCommand,
 			publishCancelSubscriptionCommand,
-			publishSubscriptionReactivated,
 		},
 		pendingHtml: {
 			putPendingHtml: pendingHtml.putPendingHtml,

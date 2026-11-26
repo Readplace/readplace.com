@@ -90,7 +90,6 @@ import { initEventBridgeUpdateFetchTimestamp } from "./events/eventbridge-update
 import { initEventBridgeExportUserDataCommand } from "./events/eventbridge-export-user-data-command";
 import { initEventBridgeDeleteAccountCommand } from "./events/eventbridge-delete-account-command";
 import { initEventBridgeCancelSubscriptionCommand } from "./events/eventbridge-cancel-subscription-command";
-import { initEventBridgeSubscriptionReactivated } from "./events/eventbridge-subscription-reactivated";
 import { initPutPendingHtml } from "./pending-html/put-pending-html";
 import { initPutPendingPdf } from "./pending-pdf/put-pending-pdf";
 import { initS3PendingUpload } from "./pending-upload/s3-pending-upload";
@@ -341,7 +340,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 	const { publishDeleteAccountCommand } = initEventBridgeDeleteAccountCommand({ publishEvent });
 	const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
-	const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 	const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 	const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
 	const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initS3PendingUpload({
@@ -717,7 +715,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishExportUserDataCommand,
 		publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand,
-		publishSubscriptionReactivated,
 		putPendingHtml,
 		putPendingPdf,
 		createUploadSlot,

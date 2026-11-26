@@ -96,7 +96,6 @@ import {
 	initInMemoryCancelSubscriptionCommand,
 	initInMemoryDeleteAccountCommand,
 	initInMemoryExportUserDataCommand,
-	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import {
 	initInMemoryComputeRelatedPastReads,
@@ -543,7 +542,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { publishDeleteAccountCommand } = initInMemoryDeleteAccountCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
-	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { publishSubmitLink } = initInMemorySubmitLink();
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { putPendingPdf } = initInMemoryPendingPdf();
@@ -727,7 +725,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		publishExportUserDataCommand,
 		publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand,
-		publishSubscriptionReactivated,
 		putPendingHtml,
 		putPendingPdf,
 		createUploadSlot,

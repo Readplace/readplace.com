@@ -280,7 +280,6 @@ import type {
 	PublishSaveLinkRawHtmlCommand,
 	PublishSaveLinkRawPdfCommand,
 	PublishStaleCheckRequested,
-	PublishSubscriptionReactivated,
 	PublishUpdateFetchTimestamp,
 	PutPendingHtml,
 	PutPendingPdf,
@@ -685,7 +684,6 @@ export interface EventsBundle {
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
-	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 }
 
 export interface PendingHtmlBundle {

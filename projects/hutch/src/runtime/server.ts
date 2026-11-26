@@ -91,7 +91,6 @@ import type {
 import type {
 	PublishCancelSubscriptionCommand,
 	PublishDeleteAccountCommand,
-	PublishSubscriptionReactivated,
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
@@ -687,7 +686,6 @@ export interface AppDependencies {
 	claimPendingSignup: ClaimPendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
-	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		recordFounderNote: RecordFounderNote;

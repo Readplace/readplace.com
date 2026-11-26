@@ -2547,12 +2547,8 @@ describe("GET /account (cancellation-scheduled state)", () => {
 });
 
 describe("POST /account/reactivate", () => {
-	it("paid happy path — Stripe reverseScheduledCancellation called, deferred-cancellation schedule deleted, row flipped to active, SubscriptionReactivated emitted, 303 /account", async () => {
+	it("paid happy path — Stripe reverseScheduledCancellation called, deferred-cancellation schedule deleted, row flipped to active, 303 /account", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const reactivatedEvents: Array<{ userId: string; subscriptionId?: string }> = [];
-		fixture.events.publishSubscriptionReactivated = async (params) => {
-			reactivatedEvents.push(params);
-		};
 		const harness = useApp(fixture);
 		const { subscriptionProviders, trialScheduler, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-paid@example.com");
@@ -2580,10 +2576,6 @@ describe("POST /account/reactivate", () => {
 		expect(row.status).toBe("active");
 		expect(row.subscriptionId).toBe("sub_to_reactivate");
 		expect(row.cancellationEffectiveAt).toBeUndefined();
-		// SubscriptionReactivated emitted with subscriptionId.
-		expect(reactivatedEvents).toEqual([
-			{ userId, subscriptionId: "sub_to_reactivate" },
-		]);
 		// A subscription Stripe already charges has no upcoming first charge.
 		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
 	});
@@ -2670,12 +2662,8 @@ describe("POST /account/reactivate", () => {
 		expect(row.status).toBe("active");
 	});
 
-	it("trial happy path — recreates trial-end schedule, deletes deferred-cancellation schedule, row flipped back to trialing with original trialEndsAt, SubscriptionReactivated emitted (no subscriptionId)", async () => {
+	it("trial happy path — recreates trial-end schedule, deletes deferred-cancellation schedule, row flipped back to trialing with original trialEndsAt", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const reactivatedEvents: Array<{ userId: string; subscriptionId?: string }> = [];
-		fixture.events.publishSubscriptionReactivated = async (params) => {
-			reactivatedEvents.push(params);
-		};
 		const harness = useApp(fixture);
 		const { subscriptionProviders, trialScheduler, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-trial@example.com");
@@ -2702,8 +2690,6 @@ describe("POST /account/reactivate", () => {
 		expect(row.status).toBe("trialing");
 		expect(row.trialEndsAt).toBe(trialEndsAt);
 		expect(row.subscriptionId).toBeUndefined();
-		// SubscriptionReactivated emitted without subscriptionId.
-		expect(reactivatedEvents).toEqual([{ userId }]);
 		// Trial-reminder schedule recreated at trialEndsAt minus 2 days (>2d remain).
 		const reminderFiresAt = trialScheduler.getTrialReminderSchedule(userId);
 		assert(reminderFiresAt, "reminder schedule must be recreated when >2d remain");
@@ -2714,7 +2700,6 @@ describe("POST /account/reactivate", () => {
 
 	it("trial reactivate — does NOT recreate the reminder when trialEndsAt is under two days away", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.events.publishSubscriptionReactivated = async () => {};
 		const harness = useApp(fixture);
 		const { subscriptionProviders, trialScheduler } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-trial-soon@example.com");
@@ -2738,12 +2723,8 @@ describe("POST /account/reactivate", () => {
 		expect(row.status).toBe("trialing");
 	});
 
-	it("noop for an already-active user (double-click race or stale form) — 303 /account, no Stripe call, no event, no schedule mutation", async () => {
+	it("noop for an already-active user (double-click race or stale form) — 303 /account, no Stripe call, no schedule mutation", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const reactivatedEvents: unknown[] = [];
-		fixture.events.publishSubscriptionReactivated = async (params) => {
-			reactivatedEvents.push(params);
-		};
 		const harness = useApp(fixture);
 		const { subscriptionProviders, trialScheduler, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-already-active@example.com");
@@ -2759,7 +2740,6 @@ describe("POST /account/reactivate", () => {
 		expect(response.headers.location).toBe("/account");
 		expect(subscriptionBilling.reversedCancellations()).toEqual([]);
 		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([]);
-		expect(reactivatedEvents).toEqual([]);
 	});
 
 	it("noop when no subscription row exists (founding member sending a stale form)", async () => {

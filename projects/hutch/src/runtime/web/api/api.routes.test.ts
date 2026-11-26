@@ -681,7 +681,6 @@ describe("POST /queue (Siren save article)", () => {
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
 		});
 		const accessToken = await createAccessToken(harness);

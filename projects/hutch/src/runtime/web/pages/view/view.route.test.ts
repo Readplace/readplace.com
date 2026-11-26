@@ -93,7 +93,6 @@ function buildReaderHarness(mountApp: typeof useApp = useApp, prepare: (fixture:
 			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 			publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 			publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-			publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		},
 	});
 }
@@ -161,7 +160,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -286,7 +284,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -461,7 +458,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -538,7 +534,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -586,7 +581,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -633,7 +627,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -682,7 +675,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -735,7 +727,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -789,7 +780,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -846,7 +836,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -1044,7 +1033,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 
@@ -1462,7 +1450,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -1517,7 +1504,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -1573,7 +1559,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -1634,7 +1619,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -1693,7 +1677,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -1932,7 +1915,6 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl: {
 					...fixture.articleCrawl,
@@ -2002,7 +1984,6 @@ describe("View routes", () => {
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 						publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 						publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 					},
 				}),
 			};

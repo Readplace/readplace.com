@@ -94,8 +94,6 @@ export {
 	type CancelSubscriptionDetail,
 	SubscriptionCancellationScheduledEvent,
 	type SubscriptionCancellationScheduledDetail,
-	SubscriptionReactivatedEvent,
-	type SubscriptionReactivatedDetail,
 	SubscriptionStartRequestCommand,
 	type SubscriptionStartRequestDetail,
 	SubscriptionChargeSucceededEvent,

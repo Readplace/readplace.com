@@ -343,7 +343,6 @@ function flattenFixtureToAppDependencies(
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 		publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		putPendingPdf: fixture.pendingPdf.putPendingPdf,
 		createUploadSlot: fixture.pendingUpload.createUploadSlot,

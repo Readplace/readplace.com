@@ -80,7 +80,6 @@ describe("POST /queue/save-content with PDF", () => {
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 				publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-				publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
 		});
 		return { testApp, publishedSavePdf };
@@ -255,7 +254,6 @@ describe("POST /queue/save-content with HTML", () => {
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 				publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-				publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
 		});
 		return { testApp, publishedSaveHtml };
