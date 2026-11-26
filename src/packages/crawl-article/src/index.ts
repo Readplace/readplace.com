@@ -10,6 +10,7 @@ export {
 } from "./crawl-article";
 export { isBlockClassStatus } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
+export { titleFromPathname } from "./parse-plain-text";
 export { measureImageDimensions } from "./measure-image-dimensions";
 export { describeRejection } from "./describe-rejection";
 export { initFetchYouTubeVideoCard } from "./youtube-video-card";

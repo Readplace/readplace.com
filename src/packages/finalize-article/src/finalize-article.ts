@@ -6,6 +6,7 @@ import {
 	type FetchThumbnailImage,
 	type ThumbnailCascade,
 	type ThumbnailImage,
+	titleFromPathname,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
@@ -278,7 +279,7 @@ function finalizePlainTextArticle(input: {
 		article: {
 			html: `<pre><code>${escapeHtmlText(text)}</code></pre>`,
 			metadata: {
-				title: imageTitleFromPathname(pathname) || articleFromHostTitle(hostname),
+				title: titleFromPathname(pathname) || articleFromHostTitle(hostname),
 				siteName: hostname,
 				excerpt: clipMetadataExcerpt(text.trim().replace(/\s+/g, " ")),
 				wordCount,
@@ -312,7 +313,7 @@ async function finalizeImageArticle(args: {
 }): Promise<{ ok: true; article: FinalizedArticle }> {
 	const { url, documentUrl, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = pageHostUrl({ savedUrl: url, documentUrl });
-	const title = imageTitleFromPathname(pathname) || hostname;
+	const title = titleFromPathname(pathname) || hostname;
 	const articleResourceUniqueId = ArticleResourceUniqueId.parse(args.writeContext?.url ?? url);
 
 	const thumbnail = resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: documentUrl }));
@@ -340,14 +341,6 @@ async function finalizeImageArticle(args: {
 
 function firstUsableCandidate(thumbnail: ThumbnailCascade): string | undefined {
 	return thumbnail.fetched.find((candidate) => !thumbnail.provenUnusable.includes(candidate));
-}
-
-/** Filename of the URL's last path segment, extension dropped and separators
- * spaced, as a human-readable image title. Empty when the URL has no usable
- * segment, in which case the caller falls back to the hostname. */
-function imageTitleFromPathname(pathname: string): string {
-	const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
-	return lastSegment.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
 }
 
 async function uploadThumbnail(args: {
