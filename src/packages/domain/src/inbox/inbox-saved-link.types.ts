@@ -7,17 +7,6 @@ import type { UserId } from "../user";
  * distinguish "never submitted" from "row missing". */
 export type InboxLinkSaveState = "saved" | "failed";
 
-/** A moment-in-time record that a save was accepted (or refused) for one URL.
- * Retracted when the reader deletes the article from their queue, which is the
- * one fact that ends the row's claim. Marking it read is not that fact — a read
- * article is still in the queue, and still reads as saved here. */
-export interface InboxSavedLinkEntry {
-	userId: UserId;
-	linkKey: string;
-	state: InboxLinkSaveState;
-	updatedAt: string;
-}
-
 /** The lookup key both sides derive: the subscriber from the event's submitted
  * URL, the card renderer from the link row's stored URL. Two different
  * normalizations would miss silently — one row written, none ever found — so

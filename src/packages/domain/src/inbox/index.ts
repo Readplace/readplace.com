@@ -127,7 +127,6 @@ export {
 	inboxSavedLinkKey,
 	inboxSavedLinkLookupKeys,
 	type InboxLinkSaveState,
-	type InboxSavedLinkEntry,
 	type InboxSavedLinkStore,
 	type MarkLinkSavedWhileQueued,
 } from "./inbox-saved-link.types";
