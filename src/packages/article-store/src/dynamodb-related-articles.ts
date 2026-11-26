@@ -178,24 +178,27 @@ export function initDynamoDbRelatedArticles(deps: {
 		};
 	};
 
-	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (
-		params,
-	) => {
+	const collectSavedUrls = async (params: {
+		userId: UserId;
+		excludeUrl: string;
+		limit: number;
+		query: {
+			IndexName: "userId-savedAt-index" | "userId-readAt-index";
+			FilterExpression?: string;
+			ExpressionAttributeNames?: Record<string, string>;
+			ExpressionAttributeValues?: Record<string, unknown>;
+		};
+	}): Promise<string[]> => {
 		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
 		const savedUrls: string[] = [];
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 
 		do {
 			const { items, lastEvaluatedKey } = await userArticles.query({
-				IndexName: "userId-savedAt-index",
+				...params.query,
 				KeyConditionExpression: "userId = :userId",
-				FilterExpression: "#status = :status",
 				/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
-				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: {
-					":userId": params.userId,
-					":status": "unread",
-				},
+				ExpressionAttributeValues: { ...params.query.ExpressionAttributeValues, ":userId": params.userId },
 				ScanIndexForward: false,
 				ExclusiveStartKey: exclusiveStartKey,
 			});
@@ -207,32 +210,31 @@ export function initDynamoDbRelatedArticles(deps: {
 			exclusiveStartKey = lastEvaluatedKey;
 		} while (exclusiveStartKey && savedUrls.length < params.limit);
 
+		return savedUrls;
+	};
+
+	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (params) => {
+		const savedUrls = await collectSavedUrls({
+			userId: params.userId,
+			excludeUrl: params.excludeUrl,
+			limit: params.limit,
+			query: {
+				IndexName: "userId-savedAt-index",
+				FilterExpression: "#status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": "unread" },
+			},
+		});
 		return hydrateCandidates({ savedUrls, viewer: viewerFor(params.userId) });
 	};
 
-	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (
-		params,
-	) => {
-		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
-		const savedUrls: string[] = [];
-		let exclusiveStartKey: Record<string, unknown> | undefined;
-
-		do {
-			const { items, lastEvaluatedKey } = await userArticles.query({
-				IndexName: "userId-readAt-index",
-				KeyConditionExpression: "userId = :userId",
-				ExpressionAttributeValues: { ":userId": params.userId },
-				ScanIndexForward: false,
-				ExclusiveStartKey: exclusiveStartKey,
-			});
-			for (const item of items) {
-				if (item.url === excludeKey) continue;
-				if (savedUrls.length >= params.limit) break;
-				savedUrls.push(item.url);
-			}
-			exclusiveStartKey = lastEvaluatedKey;
-		} while (exclusiveStartKey && savedUrls.length < params.limit);
-
+	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (params) => {
+		const savedUrls = await collectSavedUrls({
+			userId: params.userId,
+			excludeUrl: params.excludeUrl,
+			limit: params.limit,
+			query: { IndexName: "userId-readAt-index" },
+		});
 		return hydrateCandidates({ savedUrls, viewer: viewerFor(params.userId) });
 	};
 
