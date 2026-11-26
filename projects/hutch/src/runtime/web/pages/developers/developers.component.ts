@@ -87,6 +87,7 @@ const COLLECTION_PROPERTY_DOCS = {
 	appearance: "presentation.",
 	warning: "appears only on a <code>422</code> answer to <code>save-article</code>.",
 	messages: "on a listing, these are only for Readplace's own apps.",
+	hint: "for Readplace's own apps only, on the Hand Picked collection: a <code>{text, link: {label, href}}</code> note the app shows with its link. Skip it.",
 } satisfies Record<keyof CollectionProperties, string>;
 
 const SEARCH_FIELD_DOCS = {

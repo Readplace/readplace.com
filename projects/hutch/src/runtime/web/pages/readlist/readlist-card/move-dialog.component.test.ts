@@ -10,6 +10,7 @@ import {
 	renderMoveDialogs,
 	renderMoveMenuItems,
 } from "./move-dialog.component";
+import { HAND_PICKED } from "../built-in-readlists";
 
 const IDEAS = ReadlistSlugSchema.parse("ideas-inspiration");
 const FINANCE = ReadlistSlugSchema.parse("finance");
@@ -52,7 +53,7 @@ function createDialogOf(doc: Document): Element {
 	return panel;
 }
 
-function glyph(name: "folder" | "folder-input" | "plus"): string {
+function glyph(name: "file" | "folder" | "folder-input" | "plus"): string {
 	const svg = parse(iconSvg(name)).querySelector("svg");
 	assert(svg, `the ${name} icon must be an svg drawing`);
 	return svg.innerHTML;
@@ -236,6 +237,16 @@ describe("renderMoveDialogs", () => {
 
 		expect(rows.map((row) => row.querySelector(".readlist-row__main > svg")?.innerHTML)).toEqual([
 			glyph("folder"),
+			glyph("folder"),
+		]);
+	});
+
+	it("draws Hand Picked with the built-in readlist glyph and a custom readlist with the folder", () => {
+		const move = moveFromIdeas({ destinations: [HAND_PICKED, { slug: FINANCE, label: "Finance & Tax" }] });
+		const rows = Array.from(moveDialogOf(dialogsFor(move)).querySelectorAll("[data-test-move-destination]"));
+
+		expect(rows.map((row) => row.querySelector(".readlist-row__main > svg")?.innerHTML)).toEqual([
+			glyph("file"),
 			glyph("folder"),
 		]);
 	});

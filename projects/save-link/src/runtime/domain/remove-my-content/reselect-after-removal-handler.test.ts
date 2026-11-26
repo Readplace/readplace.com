@@ -1,4 +1,4 @@
-import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { CandidateIdSchema, SaveAttemptIdSchema, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
@@ -28,6 +28,7 @@ function setup(overrides: Partial<Parameters<typeof initReselectAfterRemovalHand
 		if (transition === markCrawlExhausted) exhaustedMarks.push(params);
 	};
 	const handler = initReselectAfterRemovalHandler({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "surviving original", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent: async () => ({ contentLocation: "s3://content/survivor.html", candidateId: source.metadata.id, tier: source.tier }),

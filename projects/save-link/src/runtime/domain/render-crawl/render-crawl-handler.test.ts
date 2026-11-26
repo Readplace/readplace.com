@@ -1,3 +1,4 @@
+import { ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { initFetchRedditPostCard } from "@packages/crawl-article";
 import { initTransitionAndPersist, recrawlPromoteTier, type TransitionAndPersist } from "@packages/domain/article-aggregate";
@@ -1370,7 +1371,7 @@ describe("initRenderCrawlHandler", () => {
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const article = `<p>${"A readable publisher paragraph with plenty of words in it. ".repeat(20)}<a href="/next">Next</a></p><img src="/photo.jpg">`;
 			const html = `<html><head><title>Story</title></head><body><article>${article}</article></body></html>`;
-			const { parseHtml } = initReadabilityParser({ crawlArticle: unusedCrawl, siteRules: [], readabilityAdditions, logError: () => {} });
+			const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: unusedCrawl, siteRules: [], readabilityAdditions, logError: () => {} });
 			const finalizeArticle = initFinalizeArticle({
 				parseHtml,
 				downloadMedia: async () => [],
@@ -1738,6 +1739,7 @@ describe("a blocked Reddit recrawl reaching content selection", () => {
 		});
 		const info = jest.fn();
 		const select = initRecrawlContentExtractedHandler({
+			coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 			listAvailableTierSources: async () => [], selectMostCompleteContent: async () => { throw new Error("empty candidates need no judge"); },
 			runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => now }), logger: noopLogger, now: () => now }),
 			writeCanonicalContent, putTierSource, recordCrawlVersion: async () => {}, loadArticle: store.load, readCanonicalContent: async () => undefined,

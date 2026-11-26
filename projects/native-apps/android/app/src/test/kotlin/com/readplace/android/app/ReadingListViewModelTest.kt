@@ -3361,6 +3361,46 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `shows the hint of the readlist on screen and clears it on a readlist without one`() = runTest {
+		server.handle { record ->
+			val picked = record.request.url.query == "scope=hand-picked"
+			val hint = if (picked) ""","hint":{"text":"Older saves stay elsewhere.","link":{"label":"Open it","href":"/queue"}}""" else ""
+			Stub.json(200, """
+				{"class":["collection","articles"],"entities":[],"properties":{
+				"readlists":[{"rel":"${if (picked) "current" else "readlist"}","label":"Hand Picked","href":"/queue?scope=hand-picked"},
+				{"rel":"${if (picked) "readlist" else "current"}","label":"All","href":"/queue"}]$hint}}
+			""".trimIndent())
+		}
+		val model = viewModel(lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?scope=hand-picked") })
+		model.loadIfNeeded()
+		val shown = model.state.value.readlistHint
+
+		model.select("/queue")
+
+		assertEquals(
+			listOf(ReadlistHintContent(text = "Older saves stay elsewhere.", linkLabel = "Open it", url = "${server.baseUrl}/queue"), null),
+			listOf(shown, model.state.value.readlistHint),
+		)
+	}
+
+	@Test
+	fun `shows no hint when its link cannot be resolved`() = runTest {
+		server.handle {
+			Stub.json(200, """
+				{"class":["collection","articles"],"entities":[],"properties":{
+				"readlists":[{"rel":"current","label":"Hand Picked","href":"/queue?scope=hand-picked"},
+				{"rel":"readlist","label":"All","href":"/queue"}],
+				"hint":{"text":"Older saves stay elsewhere.","link":{"label":"Open it","href":"mailto:help@example.com"}}}}
+			""".trimIndent())
+		}
+		val model = viewModel(lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?scope=hand-picked") })
+		model.loadIfNeeded()
+
+		assertEquals("Hand Picked", model.state.value.currentReadlistLabel)
+		assertNull(model.state.value.readlistHint)
+	}
+
+	@Test
 	fun `an older server without Home uses the remembered readlist after discovery`() = runTest {
 		server.handle(readlistedHandler())
 		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") }

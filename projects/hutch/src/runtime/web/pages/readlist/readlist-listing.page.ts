@@ -41,6 +41,7 @@ import { readlistTotalLabel } from "./readlist-tab-total.component";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
 import { READLIST_ERROR_UNKNOWN_READLIST, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, } from "./readlist.error";
+import { withHandPicked } from "./built-in-readlists";
 import { initRequireGmailConnectionAccess } from "../integrations/require-gmail-connection-access";
 import {
 	hasInstallableClient,
@@ -107,7 +108,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		} : undefined;
 		const context = await resolveReadlistContext(req, userId, home);
 		const urlState = context.state;
-		const store = storeFor(urlState.readlist, urlState.reviewOlder, urlState.managedSource, urlState.sender);
+		const store = storeFor(urlState.readlist, urlState.managedSource, urlState.sender);
 		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
 		const readlistKey = readlistQueryKeyOf(req);
@@ -223,7 +224,7 @@ export function initReadlistListingRoutes(deps: Pick<
 			: deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
-		const moveFlash = moveFlashMapping(req.query, context.readlists);
+		const moveFlash = moveFlashMapping(req.query, withHandPicked(context.readlists));
 		const importSkipped = readImportSkippedFlash(req, res);
 		await renderReadlistListing(req, res, {
 			userId,
@@ -267,7 +268,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
 		const urlState = context.state;
-		const store = storeFor(urlState.readlist, urlState.reviewOlder, urlState.managedSource, urlState.sender);
+		const store = storeFor(urlState.readlist, urlState.managedSource, urlState.sender);
 		const tab = tabQuery(urlState.tab);
 		const tabTotal = await store.countArticlesByUser({
 			userId,

@@ -1,3 +1,4 @@
+import { ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { initCrawlArticle, initCrawlFetch, rejectDocumentLandingPage, DEFAULT_CRAWL_HEADERS } from "@packages/crawl-article";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
@@ -50,7 +51,7 @@ function setup(target: string) {
 	};
 	const crawlFetch = initCrawlFetch({ fetch: fetchOrigin, personas: [{ name: "synthetic", headers: { ...DEFAULT_CRAWL_HEADERS } }], isBlocked: () => false, logInfo: () => {}, egress: { kind: "direct" }, fetchCurl: async () => { throw new Error("unexpected curl fallback"); }, fetchH2: async () => { throw new Error("unexpected h2 fallback"); } });
 	const cheap = initCrawlArticle({ crawlFetch, rejectDocumentLandingPage, siteRules: [], logInfo: () => {}, logError: () => {}, logThumbnailNotDelivered: () => {} });
-	const { parseHtml } = initReadabilityParser({ crawlArticle: cheap, siteRules: [], readabilityAdditions, logError: () => {} });
+	const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: cheap, siteRules: [], readabilityAdditions, logError: () => {} });
 	const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, fetched: candidates, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://images.example.test" });
 	const prepareArticleIdentity = initPrepareArticleIdentity({ findIdentityRow: async () => ({ kind: "article", originalUrl: pinned ?? SOURCE }), resolveWrapperTarget: async () => undefined, repairWrapperIdentity: async () => false });
 	const resolveOriginalUrl = async () => { const identity = await prepareArticleIdentity(SOURCE); assert(identity.status === "resolved"); return identity.originalUrl; };
@@ -71,7 +72,7 @@ function setup(target: string) {
 	const recrawl = initRecrawlLinkInitiatedHandler(shared);
 	const onView = initResolveArticleOnViewHandler({ loadArticle: store.load, transitionAndPersist, runCrawlFromTier1: initRunCrawlFromTier1({ ...shared, logPrefix: "[synthetic]" }), publishEvent, now: () => NOW, logger: noopLogger });
 	const runMeteredLeg = initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), now: () => NOW, logger: noopLogger });
-	const selectorDeps = { ...initListAvailableTierSources({ readTierSource: async ({ candidateId }) => candidateId === undefined ? undefined : sources.get(candidateId) }), loadArticle: store.load, transitionAndPersist, resolveOriginalUrl, verifyWrapperSource: shared.verifyWrapperSource, runMeteredLeg, selectMostCompleteContent: async () => { throw new Error("a lone substantial public body needs no judge"); }, writeCanonicalContent: initWriteCanonicalContent({ bucketName: "synthetic-content", s3Client: { send: async () => { throw new Error("persisted candidate must not be rewritten"); } } }).writeCanonicalContent, readCanonicalContent: async () => undefined, recordCrawlVersion: async () => {}, fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource, now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger };
+	const selectorDeps = { ...initListAvailableTierSources({ readTierSource: async ({ candidateId }) => candidateId === undefined ? undefined : sources.get(candidateId) }), loadArticle: store.load, transitionAndPersist, resolveOriginalUrl, verifyWrapperSource: shared.verifyWrapperSource, runMeteredLeg, selectMostCompleteContent: async () => { throw new Error("a lone substantial public body needs no judge"); }, writeCanonicalContent: initWriteCanonicalContent({ bucketName: "synthetic-content", s3Client: { send: async () => { throw new Error("persisted candidate must not be rewritten"); } } }).writeCanonicalContent, readCanonicalContent: async () => undefined, recordCrawlVersion: async () => {}, fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource, now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger, coverageRuleModes: ALL_COVERAGE_RULES_OFF };
 	return { recrawl, onView, selectorDeps, store, sources, published, requested, adoptDestination, transitions, effects, changeNotice: (next: string) => { mutableTarget = next; } };
 }
 

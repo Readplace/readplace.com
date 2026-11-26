@@ -3,6 +3,7 @@ import { render, renderConfirmPopover, withInternalTracking } from "@packages/we
 
 import { READLIST_KIND_ICON } from "../../../shared/readlist-kind-icon";
 import { renderReadlistFilter } from "../../../shared/readlist-filter/readlist-filter.component";
+import { isBuiltInReadlist } from "../built-in-readlists";
 import { renderReadlistCreate, renderReadlistCreateForm } from "../readlist-create.component";
 import { DEFAULT_READLIST } from "../readlist.nav";
 
@@ -141,7 +142,7 @@ function renderMoveDialog(move: ArticleMoveViewModel, title: string): string {
 			destinations: move.destinations.map((destination, index) => ({
 				slug: destination.slug,
 				label: destination.label,
-				iconName: READLIST_KIND_ICON.custom,
+				iconName: READLIST_KIND_ICON[isBuiltInReadlist(destination.slug) ? "default" : "custom"],
 				autofocus: index === 0,
 			})),
 			createRows: move.create === undefined ? [] : [move.create],

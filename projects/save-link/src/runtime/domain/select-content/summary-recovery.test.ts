@@ -1,4 +1,4 @@
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { SaveAttemptIdSchema, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type SelectMostCompleteContent } from "./select-content";
 import { initSelectContentWork } from "./select-content-work";
 import { noopLogger } from "@packages/logger";
@@ -130,6 +130,7 @@ describe("summary recovery on canonical content change", () => {
 		const judge = jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>();
 		const recordCrawlVersion = jest.fn(async () => {});
 		const work = initSelectContentWork({
+			coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 			listAvailableTierSources: async () => [historical, resource], selectMostCompleteContent: judge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => FIXED_NOW }), logger: noopLogger, now: () => FIXED_NOW }),
 			writeCanonicalContent: async ({ source }) => {
 				const contentLocation = `s3://content/${source.metadata.id}.html`;
@@ -223,6 +224,7 @@ describe("summary recovery on canonical content change", () => {
 		});
 
 		const selectHandler = initSelectMostCompleteContentHandler({
+			coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 			readCanonicalContent: async () => undefined,
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
 			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,

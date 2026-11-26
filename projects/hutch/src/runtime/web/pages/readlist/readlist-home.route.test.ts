@@ -7,7 +7,7 @@ import { loginAgent, useTestServer } from "../../../test-app";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { HOME_READLIST_HEADER, NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
-import { readerHomeHref } from "./built-in-readlists";
+import { READER_HOME_HREF } from "./built-in-readlists";
 
 const useApp = useTestServer();
 
@@ -50,7 +50,7 @@ describe("Home readlist", () => {
 			expect(followed.body.actions).not.toContainEqual(expect.objectContaining({ name: "set-home-readlist" }));
 		}
 		const extension = await siren("/queue");
-		expect(extension.body.links).toContainEqual({ rel: ["home"], href: readerHomeHref() });
+		expect(extension.body.links).toContainEqual({ rel: ["home"], href: READER_HOME_HREF });
 		expect(extension.body.properties.readlists[0]).toMatchObject({ label: "All", rel: "current" });
 
 		const allForm = view((await agent.get(`/queue?queue=${slug}`)).text)

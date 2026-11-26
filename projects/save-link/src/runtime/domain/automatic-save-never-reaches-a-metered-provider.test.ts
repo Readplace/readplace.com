@@ -1,4 +1,4 @@
-import { type SaveAttemptId, SaveAttemptIdSchema, validateSaveableUrl } from "@packages/domain/article";
+import { type SaveAttemptId, SaveAttemptIdSchema, validateSaveableUrl, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import type { SaveTrigger } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { noopLogger } from "@packages/logger";
@@ -107,6 +107,7 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 	};
 	const sources: VerifiedTierSource[] = [];
 	const select = initSelectMostCompleteContentHandler({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => sources,
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion }).selectMostCompleteContent,
 		runMeteredLeg,

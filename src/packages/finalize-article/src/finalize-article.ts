@@ -1,4 +1,5 @@
-import type { ParseHtml } from "@packages/article-parser";
+import assert from "node:assert";
+import { planCoverageRepair, type ParseHtml } from "@packages/article-parser";
 import {
 	escapeHtmlText,
 	extractThumbnailCandidates,
@@ -7,7 +8,17 @@ import {
 	type ThumbnailImage,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { articleFromHostTitle, clipMetadataExcerpt, imageSavedFromHostExcerpt, pageHostUrl } from "@packages/domain/article";
+import {
+	type ArticleCoverage,
+	articleFromHostTitle,
+	certifiesArticle,
+	clipMetadataExcerpt,
+	type CoverageOutcome,
+	imageSavedFromHostExcerpt,
+	isWorseOutcome,
+	pageHostUrl,
+} from "@packages/domain/article";
+import { buildArticleCoverage, type CoverageRepairStatus } from "./article-coverage-report";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import { mediaFilename } from "./media-filename";
 import type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
@@ -29,6 +40,7 @@ export type FinalizedArticle = {
 		imageUrl?: string;
 		publishedOn?: string;
 		directResourceKind?: "image" | "plain-text";
+		coverage?: ArticleCoverage;
 	};
 };
 
@@ -136,22 +148,54 @@ export function initFinalizeArticle(deps: {
 		});
 		if (!parseResult.ok) return { ok: false, reason: parseResult.reason };
 
-		const { article } = parseResult;
+		const { article, coverage: inspections } = parseResult;
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(input.writeContext?.url ?? input.url);
+		const plan = planCoverageRepair({ baselineContent: article.content, inspections });
 
+		const runMedia = async (body: string): Promise<FinalizedBody> => {
 			/* Drop multi-MB inline base64 images before the body is persisted as the
-	 * tier source; downstream finalize handlers re-load the whole source and
-	 * OOM on pages that inline tens of MB of images. http(s) <img>
-	 * sources are untouched, so they are still mirrored to the CDN. */
-		const content = stripOversizedInlineImages(article.content);
+			 * tier source; downstream finalize handlers re-load the whole source and
+			 * OOM on pages that inline tens of MB of images. http(s) <img>
+			 * sources are untouched, so they are still mirrored to the CDN. */
+			const content = stripOversizedInlineImages(body);
+			const media = await downloadMedia({
+				html: content,
+				writeContext: input.writeContext,
+				referer: input.documentUrl,
+				articleResourceUniqueId,
+			});
+			return { html: await processContent({ html: content, media }), media };
+		};
+		const verifyAll = (finalized: FinalizedBody): CoverageOutcome[] => {
+			const mediaUrls = new Map(finalized.media.map((item) => [item.originalUrl, item.cdnUrl]));
+			return plan.entries.map((entry) =>
+				entry.inspection.kind === "inspected"
+					? entry.inspection.verify({ readerHtml: finalized.html, media: mediaUrls })
+					: entry.baseline,
+			);
+		};
 
-		const media = await downloadMedia({
-			html: content,
-			writeContext: input.writeContext,
-			referer: input.documentUrl,
-			articleResourceUniqueId,
+		const attempt =
+			plan.repair === undefined
+				? undefined
+				: await attemptCoverageRepair({
+						repair: plan.repair,
+						baselines: plan.entries.map((entry) => entry.baseline),
+						runMedia,
+						verifyAll,
+					});
+		const applied = attempt?.status === "applied" ? attempt : undefined;
+		const chosen = applied ? applied.finalized : await runMedia(article.content);
+		const finals = applied ? applied.finals : verifyAll(chosen);
+		const wordCount = applied ? applied.wordCount : article.wordCount;
+		const coverage = buildArticleCoverage({
+			sourceHtml: input.html,
+			html: chosen.html,
+			plan,
+			finals,
+			repairStatus: attempt ? attempt.status : "none",
 		});
-		const html = await processContent({ html: content, media });
+		const { html } = chosen;
 
 		const thumbnailImage = thumbnail.image;
 		const imageUrl = thumbnailImage
@@ -172,14 +216,45 @@ export function initFinalizeArticle(deps: {
 					title: article.title,
 					siteName: article.siteName,
 					excerpt: article.excerpt,
-					wordCount: article.wordCount,
-					estimatedReadTime: estimatedReadTimeFromWordCount(article.wordCount),
+					wordCount,
+					estimatedReadTime: estimatedReadTimeFromWordCount(wordCount),
 					imageUrl,
 					publishedOn: article.publishedOn,
+					...(coverage && { coverage }),
 				},
 			},
 		};
 	};
+}
+
+type FinalizedBody = { html: string; media: DownloadedMedia[] };
+
+async function attemptCoverageRepair(params: {
+	repair: { index: number; alternative: { content: string; wordCount: number } };
+	baselines: readonly CoverageOutcome[];
+	runMedia: (body: string) => Promise<FinalizedBody>;
+	verifyAll: (finalized: FinalizedBody) => CoverageOutcome[];
+}): Promise<
+	| { status: Exclude<CoverageRepairStatus, "none" | "applied"> }
+	| { status: "applied"; finalized: FinalizedBody; finals: CoverageOutcome[]; wordCount: number }
+> {
+	let finalized: FinalizedBody;
+	try {
+		finalized = await params.runMedia(params.repair.alternative.content);
+	} catch {
+		return { status: "media-failed" };
+	}
+	const finals = params.verifyAll(finalized);
+	const repairedOutcome = finals[params.repair.index];
+	assert(repairedOutcome, "the repairing rule has a final outcome");
+	const regressed =
+		!certifiesArticle(repairedOutcome) ||
+		finals.some((next, index) => {
+			const previous = params.baselines[index];
+			assert(previous, "every final outcome has a baseline");
+			return isWorseOutcome({ next, previous });
+		});
+	return regressed ? { status: "regressed" } : { status: "applied", finalized, finals, wordCount: params.repair.alternative.wordCount };
 }
 
 function finalizePlainTextArticle(input: {

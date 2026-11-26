@@ -7,6 +7,7 @@ private let processingRefreshLogger = Logger(subsystem: "com.readplace.app", cat
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
 	let onSignedOut: () -> Void
+	let externalBrowser: ExternalBrowser
 	@StateObject private var viewModel: ReadingListViewModel
 	@Environment(\.scenePhase) private var scenePhase
 
@@ -23,8 +24,9 @@ struct ReadingListView: View {
 		var id: String { affordance.id }
 	}
 
-	init(session: AppSession, onSignedOut: @escaping () -> Void) {
+	init(session: AppSession, externalBrowser: ExternalBrowser, onSignedOut: @escaping () -> Void) {
 		self.session = session
+		self.externalBrowser = externalBrowser
 		self.onSignedOut = onSignedOut
 		let api = session.makeAPI()
 		let group = TokenStore.resolvedAppGroupId
@@ -65,6 +67,9 @@ struct ReadingListView: View {
 							Text(readlist).font(.subheadline)
 							if let description = viewModel.currentReadlistDescription {
 								Text(description).font(.caption)
+							}
+							if let hint = viewModel.hint {
+								ReadlistHintRow(hint: hint) { Task { await openHint(hint) } }
 							}
 						}
 						.foregroundStyle(Color.brandTextSecondary)
@@ -309,6 +314,11 @@ struct ReadingListView: View {
 		.padding(.bottom, 8)
 		.accessibilityLabel(SharedArticlesDropPresentation.title(for: drop))
 		.accessibilityAddTraits(SharedArticlesDropPresentation.accessibilityTraits(for: drop))
+	}
+
+	@MainActor
+	func openHint(_ hint: ReadlistHint) async {
+		await openURLWithHandoff(hint.url, browser: externalBrowser, mint: { try await viewModel.mintBrowserHandoff() })
 	}
 
 	@MainActor
@@ -564,6 +574,21 @@ struct OfflineDownloadRow: View {
 		switch state {
 		case .running: return "Cancel download"
 		case .resumable: return "Dismiss download"
+		}
+	}
+}
+
+struct ReadlistHintRow: View {
+	let hint: ReadlistHint
+	let open: () -> Void
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 2) {
+			Text(hint.text).font(.caption)
+			Button(hint.linkLabel, action: open)
+				.font(.caption)
+				.foregroundStyle(Color.brandAppTint)
+				.accessibilityAddTraits(.isLink)
 		}
 	}
 }

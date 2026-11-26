@@ -1,4 +1,4 @@
-import { HAND_PICKED, HAND_PICKED_SCOPE, personalHomeEnabled } from "./built-in-readlists";
+import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
@@ -42,7 +42,7 @@ export function buildReadlistRail(input: {
 	const label = saved === home?.slug ? input.context.readlists.find(({ slug }) => slug === saved)?.label : undefined;
 	return {
 		home: home && { ...home, returnTo: landing.pathname + landing.search, status: label && t("readlistNav.home.saved", { label }) },
-		readlists: personalHomeEnabled() ? [HAND_PICKED, ...input.context.readlists] : input.context.readlists,
+		readlists: [HAND_PICKED, ...input.context.readlists],
 		activeReadlist: input.context.activeReadlist,
 		newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(input.context.state)}`,
 		limitAlertHref: buildReadlistUrl(input.context.state, [["queue_error", READLIST_ERROR_LIMIT]]),

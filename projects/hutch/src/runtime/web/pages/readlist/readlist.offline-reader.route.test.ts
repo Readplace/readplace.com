@@ -50,6 +50,7 @@ function buildFixture(now: () => Date): TestAppFixture {
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,

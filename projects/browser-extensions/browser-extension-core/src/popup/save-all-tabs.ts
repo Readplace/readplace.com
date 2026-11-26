@@ -7,17 +7,14 @@ import type { BulkSaveResult } from "../reading-list/reading-list.types";
  * the tab's content script to capture its DOM; `title` seeds the page entry. */
 export type SaveableTab = { url: string; title: string; tabId?: number };
 
-/** Mirrors the server's unsupported_scheme wording so a chrome:// tab dropped
- * here and one the server refused collapse into one reason bullet. */
-const SKIP_REASON_NOT_A_WEB_PAGE = "Only http and https URLs can be saved";
 const SKIP_REASON_APP_PAGE = "Readplace's own pages aren't saved";
 const SKIP_REASON_DUPLICATE = "Already open in another tab";
 
-/** The saveable subset of a window's tabs. Tabs with no URL, non-http(s) schemes
- * (chrome://, about:, file:, moz-extension://) and the app's own pages are
- * dropped here — they are client-side skips the bulk route never sees. Duplicate
- * URLs collapse to the first tab seen (the save is idempotent on userId:url
- * server-side), so two tabs on one URL save, count, and capture once. */
+export const isWebPageUrl = (url: string | undefined): url is string => typeof url === "string" && /^https?:/i.test(url);
+
+/** The saveable subset of a window's tabs. Duplicate URLs collapse to the
+ * first tab seen (the save is idempotent on userId:url server-side), so two
+ * tabs on one URL save, count, and capture once. */
 export function classifyTabs(
 	tabs: readonly { id?: number; url?: string; title?: string; pendingUrl?: string }[],
 	appDomains: readonly string[],
@@ -28,10 +25,7 @@ export function classifyTabs(
 	for (const tab of tabs) {
 		const tabId = tab.id ?? null;
 		const url = tab.url || tab.pendingUrl;
-		if (typeof url !== "string" || !/^https?:/i.test(url)) {
-			skipped.push({ tabId, reason: SKIP_REASON_NOT_A_WEB_PAGE });
-			continue;
-		}
+		if (!isWebPageUrl(url)) continue;
 		if (isAppUrl({ tabUrl: url, appDomains })) {
 			skipped.push({ tabId, reason: SKIP_REASON_APP_PAGE });
 			continue;

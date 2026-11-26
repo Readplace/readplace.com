@@ -125,6 +125,20 @@ describe("buildSelectContentUserMessage", () => {
 		const estimatedInputTokens = message.length / CHARS_PER_INPUT_TOKEN;
 		expect(estimatedInputTokens).toBeLessThan(INPUT_TOKEN_BUDGET);
 	});
+
+	it("adds the coverage token to a candidate's header only when the candidate carries one", () => {
+		const message = buildSelectContentUserMessage({
+			url: "https://example.com/a",
+			candidates: [
+				{ id: cid("lossy"), tier: "tier-1", title: "T", wordCount: 3, html: "<p>one</p>", coverage: "section-coverage@1 known-partial 1/14" },
+				{ id: cid("plain"), tier: "tier-1", title: "T", wordCount: 3, html: "<p>two</p>" },
+			],
+			logger: noopLogger,
+		});
+
+		expect(message).toContain(`--- candidate ${labelForIndex(0)} (tier=tier-1, HTTP=unknown, title "T", words 3, coverage section-coverage@1 known-partial 1/14) ---`);
+		expect(message).toContain(`--- candidate ${labelForIndex(1)} (tier=tier-1, HTTP=unknown, title "T", words 3) ---`);
+	});
 });
 
 describe("labelForIndex", () => {

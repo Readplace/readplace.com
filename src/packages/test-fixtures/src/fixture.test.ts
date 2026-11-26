@@ -269,7 +269,7 @@ describe("createFakeApplyParseResult", () => {
 		const articleStore = initInMemoryArticleStore();
 		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({
-			ok: true,
+			ok: true, coverage: [],
 			article: {
 				title: "Title",
 				siteName: "Site",
@@ -309,7 +309,7 @@ describe("createFakeApplyParseResult", () => {
 		const articleStore = initInMemoryArticleStore();
 		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({
-			ok: true,
+			ok: true, coverage: [],
 			article: {
 				title: "Title",
 				siteName: "Site",
@@ -335,7 +335,7 @@ describe("createFakeApplyParseResult", () => {
 		const articleStore = initInMemoryArticleStore();
 		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({
-			ok: true,
+			ok: true, coverage: [],
 			article: {
 				title: "Title",
 				siteName: "Site",

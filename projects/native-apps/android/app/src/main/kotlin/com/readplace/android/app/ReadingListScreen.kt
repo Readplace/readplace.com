@@ -113,6 +113,12 @@ private data class PendingDestructive(
 )
 
 @Composable
+internal fun ReadlistHint(hint: ReadlistHintContent, onOpen: (String) -> Unit) {
+	Text(text = hint.text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
+	TextButton(onClick = { onOpen(hint.url) }, colors = brandTextButtonColors()) { Text(text = hint.linkLabel) }
+}
+
+@Composable
 fun ReadingListScreen(
 	viewModel: ReadingListViewModel,
 	now: Instant,
@@ -249,6 +255,7 @@ fun ReadingListScreen(
 				state.currentReadlistDescription?.let { description ->
 					Text(text = description, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
 				}
+				state.readlistHint?.let { hint -> ReadlistHint(hint = hint, onOpen = onOpenExternally) }
 				if (state.tabs.isNotEmpty()) {
 					TabStrip(
 						tabs = state.tabs,

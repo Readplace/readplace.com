@@ -11,6 +11,7 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
+import { HAND_PICKED_SCOPE } from "../pages/readlist/built-in-readlists";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { MAX_POLLS } from "@packages/web-shell";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
@@ -103,14 +104,6 @@ describe("toArticleSubEntity", () => {
 					method: "POST",
 					type: "application/x-www-form-urlencoded",
 					fields: [{ name: "status", type: "hidden", value: "read" }],
-				},
-				{
-					name: "add-to-hand-picked",
-					title: "Add to Hand Picked",
-					href: `/queue/${ARTICLE_ID}/hand-picked`,
-					method: "POST",
-					type: "application/x-www-form-urlencoded",
-					fields: [{ name: "membership", type: "hidden", value: "add" }],
 				},
 				{
 					name: "add-to-readlist",
@@ -337,17 +330,17 @@ describe("toArticleSubEntity", () => {
 			{
 				where: "outside any collection",
 				options: { addToReadlist: "advertised", now: NOW },
-				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
+				names: ["update-status", "add-to-readlist"],
 			},
 			{
 				where: "in a collection that names no readlist",
 				options: { addToReadlist: "advertised", now: NOW, collectionQuery: { readlistKey: "readlist", status: "unread" } },
-				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
+				names: ["update-status", "add-to-readlist"],
 			},
 			{
 				where: "in the default readlist",
 				options: { addToReadlist: "advertised", now: NOW, collectionQuery: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
-				names: ["update-status", "add-to-hand-picked", "add-to-readlist"],
+				names: ["update-status", "add-to-readlist"],
 			},
 			{
 				where: "in one of the reader's own readlists",
@@ -357,17 +350,17 @@ describe("toArticleSubEntity", () => {
 			{
 				where: "outside any collection when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW },
-				names: ["update-status", "add-to-hand-picked"],
+				names: ["update-status"],
 			},
 			{
 				where: "in a collection that names no readlist when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW, collectionQuery: { readlistKey: "readlist", status: "unread" } },
-				names: ["update-status", "add-to-hand-picked"],
+				names: ["update-status"],
 			},
 			{
 				where: "in the default readlist when add-to-readlist is withheld",
 				options: { addToReadlist: "withheld", now: NOW, collectionQuery: { readlistKey: "readlist", readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
-				names: ["update-status", "add-to-hand-picked"],
+				names: ["update-status"],
 			},
 			{
 				where: "in one of the reader's own readlists when add-to-readlist is withheld",
@@ -376,6 +369,19 @@ describe("toArticleSubEntity", () => {
 			},
 		] as const)("advertises exactly these item actions $where", ({ options, names }) => {
 			expect(toArticleSubEntity(makeArticle(), options).actions?.map((action) => action.name)).toEqual(names);
+		});
+
+		it.each([
+			{ where: "All", readlist: DEFAULT_READLIST_SLUG },
+			{ where: "Hand Picked", readlist: HAND_PICKED_SCOPE },
+		])("offers update-status as an article's only titled action in $where", ({ readlist }) => {
+			const actions = toArticleSubEntity(makeArticle(), {
+				addToReadlist: "advertised",
+				now: NOW,
+				collectionQuery: { readlistKey: "readlist", readlist, status: "unread" },
+			}).actions ?? [];
+
+			expect(actions.filter((action) => action.title !== undefined).map((action) => action.name)).toEqual(["update-status"]);
 		});
 	});
 
@@ -816,7 +822,6 @@ describe("toSavedArticleEntity", () => {
 
 		expect(entity.actions?.map(({ name, href }) => ({ name, href }))).toEqual([
 			{ name: "update-status", href: `/queue/${ARTICLE_ID}/status` },
-			{ name: "add-to-hand-picked", href: `/queue/${ARTICLE_ID}/hand-picked` },
 			{ name: "add-to-readlist", href: `/queue/${ARTICLE_ID}/assign` },
 		]);
 	});

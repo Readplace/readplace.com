@@ -60,7 +60,6 @@ import { wantsSiren } from "../../content-negotiation";
 import { FreshForComponent } from "../../conditional-get";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import {
-	buildReadlistUrl,
 	parseReadlistUrl,
 	READLIST_PATH,
 	readlistReturnQuery,
@@ -376,7 +375,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	 * The default readlist answers with the untouched mainline dependencies, so every
 	 * handler below runs today's code path byte for byte unless a reader addressed
 	 * one of their own readlists. */
-	const storeFor = (readlist: ReadlistSlug, reviewOlder = false, source?: ReadlistUrlState["managedSource"], sender?: string) => readlistScopedStore(deps, readlist, reviewOlder, source, sender);
+	const storeFor = (readlist: ReadlistSlug, source?: ReadlistUrlState["managedSource"], sender?: string) => readlistScopedStore(deps, readlist, source, sender);
 
 	const rememberReadlistFilter = async (req: Request, filter: ReadlistFilter): Promise<void> => {
 		const sessionId = sessionIdOf(req);
@@ -723,7 +722,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	}): Promise<boolean> => {
 		if (params.result.articles.length > 0) return true;
 		if (params.state.discovery === undefined) return false;
-		const held = await storeFor(params.state.readlist, params.state.reviewOlder, params.state.managedSource, params.state.sender).countArticlesByUser({
+		const held = await storeFor(params.state.readlist, params.state.managedSource, params.state.sender).countArticlesByUser({
 			userId: params.userId,
 			status: tabQuery(params.state.tab).status,
 			countLimit: 1,
@@ -848,17 +847,10 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
 		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, offer: upgradeOffer, nonEmptyReadlists, originalUrl: req.originalUrl }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), purpose: input.context.activePurpose };
-		let reviewOlderHref: string | undefined;
-		if (input.context.state.readlist === HAND_PICKED_SCOPE) {
-			for (const [tab, status] of [["queue", "unread"], ["done", "read"]] as const) {
-				if (await deps.countArticlesByUser({ userId: input.userId, status, personalScope: "uncertain", countLimit: 1 })) {
-					reviewOlderHref = buildReadlistUrl({ readlist: DEFAULT_READLIST_SLUG, tab, reviewOlder: true });
-					break;
-				}
-			}
-		}
+		const libraryHoldsArticles = input.context.state.readlist !== HAND_PICKED_SCOPE || readlistHoldsArticles
+			|| await storeFor(DEFAULT_READLIST_SLUG).countArticlesByUser({ userId: input.userId, countLimit: 1 }) > 0;
 		const senders = input.context.state.managedSource === "sender" ? await deps.listReceivedSenders(input.userId) : [];
-		const page = ReadlistPage(vm, { ...pageOptions, bulkEnabled: Boolean(deps.bulkArticles), senders, reviewOlderHref, keepOffer, query: req.query });
+		const page = ReadlistPage(vm, { ...pageOptions, bulkEnabled: Boolean(deps.bulkArticles), senders, libraryHoldsArticles, keepOffer, query: req.query });
 		if (keepOffer.shown) {
 			deps.recordAnalyticsEvent(
 				req,
