@@ -292,11 +292,11 @@ const [legacyPrimaryDomain, ...additionalDomains] = domains;
 const canonicalDomain: string | undefined = domains[domains.length - 1];
 
 const legacyDomainRegistration = new DomainRegistration("hutch-domain", {
-	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
+	domain: legacyPrimaryDomain,
 });
 
 const additionalDomainRegistrations = additionalDomains.map((domain) =>
-	new DomainRegistration(`hutch-domain-${domain.replace(/\./g, "-")}`, { domains: [domain] }),
+	new DomainRegistration(`hutch-domain-${domain.replace(/\./g, "-")}`, { domain }),
 );
 
 const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainRegistrations];
