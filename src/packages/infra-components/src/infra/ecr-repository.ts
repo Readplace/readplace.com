@@ -1,5 +1,5 @@
 import * as aws from "@pulumi/aws";
-import * as pulumi from "@pulumi/pulumi";
+import type * as pulumi from "@pulumi/pulumi";
 
 /**
  * ECR repository for Lambda container images, scoped to image-based Lambdas
