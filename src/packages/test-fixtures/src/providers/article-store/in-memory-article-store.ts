@@ -1161,11 +1161,11 @@ export function initInMemoryArticleStore(): {
 		return found;
 	};
 
-	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async ({ userId, jobId, storedKey, cutoff, senders, readlists, now }) => {
+	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async ({ userId, jobId, storedKey, cutoff, senders, readlists, kind, now }) => {
 		const allKey = userArticleKey(userId, storedKey);
 		const row = userArticles.get(allKey);
 		if (row === undefined) return { outcome: "not-selected" };
-		const decision = decideHold({ row: { ...row, storedKey }, userId, cutoff, senders });
+		const decision = decideHold({ row: { ...row, storedKey }, userId, cutoff, senders, kind });
 		if (decision.kind === "not-selected") return { outcome: "not-selected" };
 		if (decision.kind === "skipped") return { outcome: "skipped", reason: decision.reason };
 		assert(row.provenance?.kind === "email", "a held link carries email provenance");

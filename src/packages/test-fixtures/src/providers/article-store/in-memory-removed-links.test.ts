@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { HighlightIdSchema, MinutesSchema, SavedLinksJobIdSchema, type Highlight } from "@packages/domain/article";
-import { emailIssueArticleUrl, emailIssueKeyPrefix } from "@packages/domain/inbox";
+import { emailIssueArticleUrl, emailIssueKeyPrefix, emailIssueStoredKey } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SaveArticleParams } from "./article-store.types";
@@ -64,6 +64,7 @@ async function seededStore() {
 		cutoff: SAVED_AT,
 		senders: { kind: "all" },
 		readlists: [],
+		kind: "link",
 		now: SAVED_AT,
 	});
 	const held = await store.findHeldLink({ userId: READER, storedKey: "a.com/restored", now: SAVED_AT });
@@ -100,11 +101,14 @@ describe("initInMemoryRemovedLinks", () => {
 		assert.equal(await removedLinks.hasNewsletterLink({ userId: UserIdSchema.parse("reader-3") }), false);
 	});
 
-	it("counts the reader's newsletter issues", async () => {
+	it("classifies the reader's newsletter issues", async () => {
 		const removedLinks = await seededStore();
+		const issueKey = emailIssueStoredKey({ userId: READER, receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>" });
 
-		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 1);
-		assert.equal(await removedLinks.countNewsletterIssues({ userId: OTHER }), 0);
+		assert.deepEqual(Object.fromEntries(await removedLinks.findNewsletterIssueStates({ userId: READER, cutoff: CUTOFF })), {
+			[issueKey]: { kind: "selected" },
+		});
+		assert.equal((await removedLinks.findNewsletterIssueStates({ userId: OTHER, cutoff: CUTOFF })).size, 0);
 	});
 
 	it("hands every All row but the reader's issues to one removal-candidate page", async () => {

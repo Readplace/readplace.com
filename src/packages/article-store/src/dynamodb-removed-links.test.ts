@@ -131,26 +131,37 @@ describe("summariseNewsletterLinks", () => {
 	});
 });
 
-describe("countNewsletterIssues", () => {
-	it("counts the reader's issue keys across pages without reading their items", async () => {
-		const otherIssue = ArticleResourceUniqueId.parse(
+describe("findNewsletterIssueStates", () => {
+	it("reads the reader's highlights and issue rows by prefix and classifies each issue", async () => {
+		const readIssue = ArticleResourceUniqueId.parse(
 			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-25T09:00:00.000Z#<n@x>" }),
 		).value;
-		const thirdIssue = ArticleResourceUniqueId.parse(
+		const highlightedIssue = ArticleResourceUniqueId.parse(
 			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-26T09:00:00.000Z#<o@x>" }),
+		).value;
+		const unreadableIssue = ArticleResourceUniqueId.parse(
+			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-27T09:00:00.000Z#<p@x>" }),
 		).value;
 		const { removedLinks, sent } = createFakeTable([
 			emailLink(ISSUE_KEY),
-			emailLink(otherIssue),
-			emailLink(thirdIssue),
+			emailLink(readIssue, { status: "read" }),
+			emailLink(highlightedIssue),
+			emailLink(unreadableIssue, { savedAt: 7 }),
 			emailLink("a.com/1"),
+			{ userId: READER, url: "readplace:highlight/h1", highlightOf: highlightedIssue },
 		]);
 
-		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 3);
-		assert.equal(sent.length, 2);
-		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :issueKeyPrefix)");
-		assert.equal(sent[0].Select, "COUNT");
-		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":issueKeyPrefix": "inbox/reader-1/" });
+		const states = await removedLinks.findNewsletterIssueStates({ userId: READER, cutoff: CUTOFF });
+
+		assert.deepEqual(Object.fromEntries(states), {
+			[ISSUE_KEY]: { kind: "selected" },
+			[readIssue]: { kind: "skipped", reason: "read" },
+			[highlightedIssue]: { kind: "skipped", reason: "highlighted" },
+			[unreadableIssue]: { kind: "skipped", reason: "unreadable" },
+		});
+		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "readplace:highlight/" });
+		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :keyPrefix)");
+		assert.deepEqual(sent.at(-1)?.ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "inbox/reader-1/" });
 	});
 });
 

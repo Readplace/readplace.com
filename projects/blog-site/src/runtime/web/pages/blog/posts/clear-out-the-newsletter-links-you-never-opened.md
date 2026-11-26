@@ -1,8 +1,8 @@
 ---
 title: "Clear out the newsletter links you never opened"
-description: "All keeps every link a newsletter saves, and the unread ones pile up. The Newsletter Links Removal page counts them, shows which newsletters sent the most, and removes them from All and every readlist in one pass. Read and highlighted links stay, issues stay, and each removed link can be restored for 30 days."
+description: "All keeps every link a newsletter saves, and the unread ones pile up. The Newsletter Links Removal page counts them, shows which newsletters sent the most, and removes them and their issues from All and every readlist in one pass. Read and highlighted links and issues stay, and each removed one can be restored for 30 days."
 excerpt: "On the paid plan, one pass clears the unread newsletter links, and each can come back for 30 days."
-tldr: "Every newsletter issue saves its links to All, and the unread ones outnumber the read. Readplace now clears them in one pass: the Newsletter Links Removal page behind the Inbox counts them first, removes the links that were not read, highlighted or changed from All and from every readlist they were filed in, keeps every issue, and holds each removed link for 30 days with a Restore that puts it back."
+tldr: "Every newsletter issue saves its links to All, and the unread ones outnumber the read. Readplace now clears them in one pass: the Newsletter Links Removal page behind the Inbox counts them first, removes the links and issues that were not read, highlighted or changed from All and from every readlist they were filed in, and holds each removed one for 30 days with a Restore that puts it back."
 slug: "clear-out-the-newsletter-links-you-never-opened"
 date: "2026-11-21"
 author: "Fayner Brack"
@@ -21,7 +21,7 @@ A year of that and the list stops looking chosen. Scrolling All turns up row aft
 
 The Inbox shows a line whenever All holds newsletter links. The button on it, Newsletter Links Removal, opens the page that runs the cleanup.
 
-The pass takes every newsletter link that was not marked read or highlighted. A link marked read stays in All. So does one carrying a highlight, one saved again or changed by hand, and one the crawler could not read. A link that was only opened goes with the rest, and so does one added to Hand Picked. The newsletter issues themselves stay, every one of them.
+The pass takes every newsletter link that was not marked read or highlighted. A link marked read stays in All. So does one carrying a highlight, one saved again or changed by hand, and one the crawler could not read. A link that was only opened goes with the rest, and so does one added to Hand Picked. The newsletter issues go by the same rule: an issue marked read or highlighted stays, and every other one leaves All, its readlists and the Inbox.
 
 A link that was [filed into another readlist](/blog/newsletter-articles-land-in-the-readlist-they-belong-to?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=post-newsletter-articles-land-in-the-readlist-they-belong-to) leaves that readlist too. A cleared newsletter leaves no copy behind in any readlist.
 
@@ -35,11 +35,11 @@ TBH, a link saved by hand counts too when a newsletter also saved it. Nothing te
 
 ## Held for 30 days, not deleted
 
-A removed link moves into a hold, and for 30 days the Inbox line offers Restore removed links. A plan that ends inside those 30 days has to be upgraded again before Restore works, or the held links expire. Restore writes each held link back into All and into every readlist it was in that still exists, and leaves out any that already made it back, so running it twice can't double a row. A held link whose article is no longer stored can't be restored. The page lists it with its URL instead, ready to be saved again.
+A removed link moves into a hold, and for 30 days the Inbox line offers Restore removed links. A plan that ends inside those 30 days has to be upgraded again before Restore works, or the held links expire. Restore writes each held link and issue back into All and into every readlist it was in that still exists, puts each issue's email back in the Inbox, and leaves out any that already made it back, so running it twice can't double a row. A held link whose article is no longer stored can't be restored. The page lists it with its URL instead, ready to be saved again.
 
 A removal that fails partway strands nothing either. The line says it couldn't finish, and whatever was already removed sits in the same hold, restorable like the rest.
 
-Held links stay the account's data while they wait. A data export lists each one with its URL, its sender, when it was removed and when its hold ends. Once the 30 days pass, the hold ends on its own and the link is gone.
+Held links stay the account's data while they wait. A data export lists each one with its URL, its sender, when it was removed and when its hold ends. Once the 30 days pass, the hold ends on its own and the link is gone. A removed issue goes further: its email and everything stored for it are deleted.
 
 ## Next week's issue still saves its links
 

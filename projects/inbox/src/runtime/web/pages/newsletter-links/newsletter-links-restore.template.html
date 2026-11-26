@@ -25,6 +25,9 @@
       {{/if}}
       {{#if counted}}
       <p class="newsletter-links-page__lede" id="newsletter-links-total" data-test-newsletter-links-total>{{counted.total}}</p>
+      {{#if counted.issues}}
+      <p data-test-newsletter-links-restore-issues>{{counted.issues}}</p>
+      {{/if}}
       {{#if counted.unrestorable}}
       <div class="newsletter-links-page__unrestorable">
         <p data-test-newsletter-links-unrestorable>{{counted.unrestorable.sentence}}</p>

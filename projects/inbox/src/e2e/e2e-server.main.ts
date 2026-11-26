@@ -276,7 +276,10 @@ const finishSavedLinksJobSchema = z.object({
 	counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
 	issues: z.number().int().nonnegative().default(0),
 	held: z
-		.object({ bySender: z.array(senderCountSchema), unrestorable: z.array(z.string()) })
+		.object({
+			bySender: z.array(senderCountSchema.extend({ issues: z.number().int().nonnegative().default(0) })),
+			unrestorable: z.array(z.string()),
+		})
 		.default({ bySender: [], unrestorable: [] }),
 	skipped: z
 		.object({
@@ -300,6 +303,7 @@ server.post("/e2e/hold-newsletter-link", async (req, res) => {
 		cutoff: now,
 		senders: { kind: "all" },
 		readlists: (await fixture.articleStore.listReadlistDefinitions(userId)).map((definition) => definition.slug),
+		kind: "link",
 		now,
 	});
 	res.json(outcome);
@@ -319,7 +323,11 @@ server.post("/e2e/finish-saved-links-job", async (req, res) => {
 			jobId: job.jobId,
 			counted: {
 				cutoff: job.requestedAt,
-				issues: input.issues,
+				issues: {
+					selected: input.issues,
+					bySender: input.issues > 0 ? [{ senderEmail: input.senderEmail, count: input.issues }] : [],
+					skipped: { read: 0, highlighted: 0 },
+				},
 				held: input.held,
 				summary: {
 					selected: input.selected,

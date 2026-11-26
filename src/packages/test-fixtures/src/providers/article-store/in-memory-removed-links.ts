@@ -1,12 +1,13 @@
 import {
 	type NewsletterLinkRow,
+	classifyForRemoval,
+	isNewsletterIssueKey,
 	isNewsletterLink,
 	summariseNewsletterLinkRows,
 } from "@packages/domain/article";
-import { emailIssueKeyPrefix } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
-	CountNewsletterIssues,
+	FindNewsletterIssueStates,
 	ForEachRemovalCandidatePage,
 	HasNewsletterLink,
 	SummariseNewsletterLinks,
@@ -19,7 +20,7 @@ export function initInMemoryRemovedLinks(deps: {
 }): {
 	hasNewsletterLink: HasNewsletterLink;
 	summariseNewsletterLinks: SummariseNewsletterLinks;
-	countNewsletterIssues: CountNewsletterIssues;
+	findNewsletterIssueStates: FindNewsletterIssueStates;
 	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
 } {
 	const hasNewsletterLink: HasNewsletterLink = async ({ userId }) =>
@@ -35,14 +36,22 @@ export function initInMemoryRemovedLinks(deps: {
 		});
 	};
 
-	const countNewsletterIssues: CountNewsletterIssues = async ({ userId }) =>
-		deps.readNewsletterLinkRows(userId).filter((row) => row.storedKey.startsWith(emailIssueKeyPrefix(userId))).length;
+	const findNewsletterIssueStates: FindNewsletterIssueStates = async ({ userId, cutoff }) => {
+		const highlights = await deps.listAllUserHighlights(userId);
+		const highlighted = new Set(highlights.map((highlight) => highlight.highlightOf));
+		return new Map(
+			deps
+				.readNewsletterLinkRows(userId)
+				.filter((row) => isNewsletterIssueKey({ storedKey: row.storedKey, userId }))
+				.map((row) => [row.storedKey, classifyForRemoval({ row, userId, highlighted, cutoff, kind: "issue" })]),
+		);
+	};
 
 	const forEachRemovalCandidatePage: ForEachRemovalCandidatePage = async ({ userId, onPage }) => {
 		await onPage(
 			deps
 				.readNewsletterLinkRows(userId)
-				.filter((row) => !row.storedKey.startsWith(emailIssueKeyPrefix(userId)))
+				.filter((row) => !isNewsletterIssueKey({ storedKey: row.storedKey, userId }))
 				.map((row) => ({ kind: "row", row })),
 		);
 	};
@@ -50,7 +59,7 @@ export function initInMemoryRemovedLinks(deps: {
 	return {
 		hasNewsletterLink,
 		summariseNewsletterLinks,
-		countNewsletterIssues,
+		findNewsletterIssueStates,
 		forEachRemovalCandidatePage,
 	};
 }

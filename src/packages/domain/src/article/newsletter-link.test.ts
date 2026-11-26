@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { emailIssueArticleUrl } from "../inbox/email-issue-url";
+import { emailIssueArticleUrl, emailIssueStoredKey } from "../inbox/email-issue-url";
 import { UserIdSchema } from "../user";
 import {
 	type NewsletterLinkRow,
 	classifyForRemoval,
 	isNewsletterLink,
+	summariseNewsletterIssues,
 	summariseNewsletterLinkRows,
 } from "./newsletter-link";
 
@@ -59,6 +60,7 @@ describe("classifyForRemoval", () => {
 			userId: READER,
 			highlighted: sets.highlighted ?? NONE,
 			cutoff: CUTOFF,
+			kind: "link",
 		});
 
 	it("selects an unread, unhighlighted newsletter link", () => {
@@ -90,6 +92,19 @@ describe("classifyForRemoval", () => {
 
 	it("selects a link restored before the cutoff", () => {
 		assert.deepEqual(classify(link({ restoredAt: new Date("2026-11-25T00:00:00.000Z") })), { kind: "selected" });
+	});
+
+	it("classifies an issue only when asked for issues, by the same skip rules", () => {
+		const issue = link({ storedKey: emailIssueStoredKey({ userId: READER, receivedAtMessageId: "2026-11-20T00:00:00.000Z#<m@x>" }) });
+		const asIssue = (row: NewsletterLinkRow, highlighted: ReadonlySet<string> = NONE) =>
+			classifyForRemoval({ row, userId: READER, highlighted, cutoff: CUTOFF, kind: "issue" });
+
+		assert.deepEqual(classify(issue), { kind: "not-a-newsletter-link" });
+		assert.deepEqual(asIssue(issue), { kind: "selected" });
+		assert.deepEqual(asIssue({ ...issue, status: "read" }), { kind: "skipped", reason: "read" });
+		assert.deepEqual(asIssue(issue, new Set([issue.storedKey])), { kind: "skipped", reason: "highlighted" });
+		assert.deepEqual(asIssue(link()), { kind: "not-a-newsletter-link" });
+		assert.deepEqual(asIssue({ ...issue, provenance: { kind: "web" } }), { kind: "not-a-newsletter-link" });
 	});
 
 	it("skips a link the reader highlighted", () => {
@@ -136,6 +151,32 @@ describe("summariseNewsletterLinkRows", () => {
 			],
 			skipped: { read: 1, highlighted: 1, changed: 0, unreadable: 1 },
 			earliestEmailSave: earliest,
+		});
+	});
+});
+
+describe("summariseNewsletterIssues", () => {
+	it("counts the issues received by the cutoff by sender, and the read and highlighted ones apart", () => {
+		const summary = summariseNewsletterIssues({
+			cutoff: CUTOFF,
+			emails: [
+				{ senderEmail: "a@x", receivedAt: "2026-11-20T00:00:00.000Z", issueState: { kind: "selected" } },
+				{ senderEmail: "a@x", receivedAt: "2026-11-21T00:00:00.000Z", issueState: undefined },
+				{ senderEmail: "b@x", receivedAt: "2026-11-21T00:00:00.000Z", issueState: undefined },
+				{ senderEmail: "b@x", receivedAt: "2026-11-22T00:00:00.000Z", issueState: { kind: "skipped", reason: "read" } },
+				{ senderEmail: "b@x", receivedAt: "2026-11-22T00:00:00.000Z", issueState: { kind: "skipped", reason: "highlighted" } },
+				{ senderEmail: "b@x", receivedAt: "2026-11-22T00:00:00.000Z", issueState: { kind: "skipped", reason: "changed" } },
+				{ senderEmail: "c@x", receivedAt: "2026-12-02T00:00:00.000Z", issueState: undefined },
+			],
+		});
+
+		assert.deepEqual(summary, {
+			selected: 3,
+			bySender: [
+				{ senderEmail: "a@x", count: 2 },
+				{ senderEmail: "b@x", count: 1 },
+			],
+			skipped: { read: 1, highlighted: 1 },
 		});
 	});
 });

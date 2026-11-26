@@ -76,7 +76,7 @@ const cancelled =
 const WORK = ReadlistSlugSchema.parse("work");
 const LATER = ReadlistSlugSchema.parse("later");
 
-const moveParams = { userId: READER, jobId: JOB, storedKey: STORED_KEY, cutoff: CUTOFF, senders: { kind: "all" as const }, readlists: [], now: NOW };
+const moveParams = { userId: READER, jobId: JOB, storedKey: STORED_KEY, cutoff: CUTOFF, senders: { kind: "all" as const }, readlists: [], kind: "link" as const, now: NOW };
 
 function readlistCopy(readlist: string): Item {
 	return { ...emailLink(), userId: `${READER}#queue/${readlist}` };
@@ -182,6 +182,17 @@ describe("moveNewsletterLinkToHold", () => {
 		const chosen = { ...moveParams, senders: { kind: "chosen" as const, senderEmails: ["other@news.com"] } };
 		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(chosen), { outcome: "not-selected" });
 		assert.equal(sent.length, 2);
+	});
+
+	it("holds an issue row only when asked to hold an issue", async () => {
+		const issueKey = "inbox/reader-1/2026-11-20T00%3A00%3A00.000Z%23%3Cm%40x%3E";
+		const { removedLinks } = createScriptedClient({
+			GetCommand: [found(emailLink({ url: issueKey })), found(emailLink({ url: issueKey }))],
+			TransactWriteCommand: [written],
+		});
+
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold({ ...moveParams, storedKey: issueKey }), { outcome: "not-selected" });
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold({ ...moveParams, storedKey: issueKey, kind: "issue" }), { outcome: "held" });
 	});
 
 	it("skips an unreadable row without writing", async () => {

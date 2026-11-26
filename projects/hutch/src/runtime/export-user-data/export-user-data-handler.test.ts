@@ -550,6 +550,7 @@ describe("initExportUserDataHandler", () => {
 			cutoff: new Date("2026-04-29T00:00:00.000Z"),
 			senders: { kind: "all" },
 			readlists: [],
+			kind: "link",
 			now: new Date("2026-04-29T00:00:00.000Z"),
 		});
 

@@ -24,6 +24,16 @@ export interface InboxEmailEntry {
 	rawEmailS3Key: string;
 	bodyS3Key: string | undefined;
 	linkCounts: InboxEmailLinkCounts | undefined;
+	removedAt?: string;
+}
+
+export interface RemovableInboxEmail {
+	receivedAtMessageId: string;
+	senderEmail: string;
+	receivedAt: string;
+	rawEmailS3Key: string;
+	bodyS3Key: string | undefined;
+	removal: { removedAt: Date; jobId: string } | undefined;
 }
 
 export interface InboxEmailLinkCounts {
@@ -89,6 +99,13 @@ export interface InboxEmailStore {
 	 * the S3 objects and link rows those rows point at are gone. Idempotent —
 	 * already-absent rows are a no-op — so a redrive converges, never throws. */
 	deleteAllEmailsByUserId: (userId: UserId) => Promise<void>;
+	forEachRemovableEmailPage: (input: {
+		userId: UserId;
+		onPage: (emails: RemovableInboxEmail[]) => Promise<void>;
+	}) => Promise<void>;
+	markEmailRemoved: (input: { userId: UserId; receivedAtMessageId: string; jobId: string; at: Date }) => Promise<void>;
+	clearEmailRemoval: (input: { userId: UserId; receivedAtMessageId: string }) => Promise<void>;
+	deleteEmail: (input: { userId: UserId; receivedAtMessageId: string }) => Promise<void>;
 	findReceivedByMessageId: (input: {
 		userId: UserId;
 		messageId: MessageId;

@@ -843,6 +843,25 @@ export const SavedLinksJobFailedEvent = defineEvent({
 });
 export type SavedLinksJobFailedDetail = z.infer<typeof SavedLinksJobFailedEvent.detailSchema>;
 
+export const PurgeRemovedNewsletterIssuesCommand = defineEvent({
+	name: "purge-removed-newsletter-issues-command",
+	source: "hutch.saved-links-job",
+	detailType: "PurgeRemovedNewsletterIssuesCommand",
+	detailSchema: z.object({ userId: UserIdSchema }),
+});
+
+export const RemovedNewsletterIssuesPurgedEvent = defineEvent({
+	name: "removed-newsletter-issues-purged",
+	source: "hutch.saved-links-job",
+	detailType: "RemovedNewsletterIssuesPurged",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		deleted: z.number().int().nonnegative(),
+		restored: z.number().int().nonnegative(),
+		purgedAt: z.string(),
+	}),
+});
+
 export const AgeLockDeletionDueCommand = defineEvent({
 	name: "age-lock-deletion-due-command",
 	source: "hutch.api",

@@ -259,6 +259,7 @@ describe("initFileArticleIntoReadlistCommandHandler for a link held after a news
 			cutoff: HELD_AT,
 			senders: { kind: "all" },
 			readlists: [],
+			kind: "link",
 			now: HELD_AT,
 		});
 		assert.equal(outcome.outcome, "held");

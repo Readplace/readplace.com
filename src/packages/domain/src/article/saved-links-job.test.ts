@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emailIssueStoredKey } from "../inbox/email-issue-url";
 import { UserIdSchema } from "../user";
 import type { NewsletterLinkRow } from "./newsletter-link";
 import {
@@ -35,8 +36,7 @@ function emailLink(
 describe("decideHold", () => {
 	it("holds an unread newsletter link saved before the cutoff", () => {
 		assert.deepEqual(
-			decideHold({
-				row: emailLink(),
+			decideHold({ kind: "link", row: emailLink(),
 				userId: READER,
 				cutoff: CUTOFF,
 				senders: { kind: "all" },
@@ -50,8 +50,7 @@ describe("decideHold", () => {
 	it("does not select a row that is not a newsletter link", () => {
 		const row = emailLink({ provenance: { kind: "web" } });
 		assert.deepEqual(
-			decideHold({
-				row,
+			decideHold({ kind: "link", row,
 				userId: READER,
 				cutoff: CUTOFF,
 				senders: { kind: "all" },
@@ -69,7 +68,7 @@ describe("decideHold", () => {
 			senderEmails: ["other@news.com"],
 		};
 		assert.deepEqual(
-			decideHold({ row, userId: READER, cutoff: CUTOFF, senders }),
+			decideHold({ kind: "link", row, userId: READER, cutoff: CUTOFF, senders }),
 			{ kind: "not-selected" },
 		);
 	});
@@ -80,7 +79,7 @@ describe("decideHold", () => {
 			senderEmails: ["dan@tldr.tech"],
 		};
 		assert.deepEqual(
-			decideHold({ row: emailLink(), userId: READER, cutoff: CUTOFF, senders }),
+			decideHold({ kind: "link", row: emailLink(), userId: READER, cutoff: CUTOFF, senders }),
 			{ kind: "hold" },
 		);
 	});
@@ -88,8 +87,7 @@ describe("decideHold", () => {
 	it("skips a read link with the classifier's reason", () => {
 		const row = emailLink({ status: "read" });
 		assert.deepEqual(
-			decideHold({
-				row,
+			decideHold({ kind: "link", row,
 				userId: READER,
 				cutoff: CUTOFF,
 				senders: { kind: "all" },
@@ -309,7 +307,7 @@ function job(overrides: Partial<SavedLinksJob> = {}): SavedLinksJob {
 
 const COUNTED = {
 	cutoff: CUTOFF,
-	issues: 3,
+	issues: { selected: 3, bySender: [{ senderEmail: "dan@tldr.tech", count: 3 }], skipped: { read: 0, highlighted: 0 } },
 	summary: {
 		selected: 12,
 		bySender: [{ senderEmail: "dan@tldr.tech", count: 12 }],
@@ -454,11 +452,11 @@ describe("summariseHeldLinks", () => {
 			held({ heldKey: "h6", storedKey: "later.com/1", removedAt: new Date("2026-12-10T00:00:01.000Z") }),
 		];
 		assert.deepEqual(
-			summariseHeldLinks({ links, cutoff, now, unrestorable: new Set(["gone.com/1"]), inAll: new Set() }),
+			summariseHeldLinks({ userId: READER, links, cutoff, now, unrestorable: new Set(["gone.com/1"]), inAll: new Set() }),
 			{
 				bySender: [
-					{ senderEmail: "news@morning.com", count: 2 },
-					{ senderEmail: "dan@tldr.tech", count: 1 },
+					{ senderEmail: "news@morning.com", count: 2, issues: 0 },
+					{ senderEmail: "dan@tldr.tech", count: 1, issues: 0 },
 				],
 				unrestorable: ["gone.com/1"],
 			},
@@ -472,13 +470,33 @@ describe("summariseHeldLinks", () => {
 			held({ heldKey: "h3", storedKey: "b.com/1", senderEmail: "news@morning.com" }),
 		];
 		assert.deepEqual(
-			summariseHeldLinks({ links, cutoff, now, unrestorable: new Set(), inAll: new Set(["a.com/2", "b.com/1"]) }),
-			{ bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }], unrestorable: [] },
+			summariseHeldLinks({ userId: READER, links, cutoff, now, unrestorable: new Set(), inAll: new Set(["a.com/2", "b.com/1"]) }),
+			{ bySender: [{ senderEmail: "dan@tldr.tech", count: 1, issues: 0 }], unrestorable: [] },
+		);
+	});
+
+	it("counts held issues apart from links and never lists an issue as unrestorable", () => {
+		const issueKey = (id: string) => emailIssueStoredKey({ userId: READER, receivedAtMessageId: `2026-11-20T00:00:00.000Z#<${id}@x>` });
+		const links = [
+			held({ heldKey: "h1", storedKey: "a.com/1" }),
+			held({ heldKey: "h2", storedKey: issueKey("a") }),
+			held({ heldKey: "h3", storedKey: issueKey("b"), senderEmail: "news@morning.com" }),
+			held({ heldKey: "h4", storedKey: issueKey("gone") }),
+		];
+		assert.deepEqual(
+			summariseHeldLinks({ userId: READER, links, cutoff, now, unrestorable: new Set([issueKey("gone")]), inAll: new Set() }),
+			{
+				bySender: [
+					{ senderEmail: "dan@tldr.tech", count: 1, issues: 1 },
+					{ senderEmail: "news@morning.com", count: 0, issues: 1 },
+				],
+				unrestorable: [],
+			},
 		);
 	});
 
 	it("is empty when nothing is held", () => {
-		assert.deepEqual(summariseHeldLinks({ links: [], cutoff, now, unrestorable: new Set(), inAll: new Set() }), {
+		assert.deepEqual(summariseHeldLinks({ userId: READER, links: [], cutoff, now, unrestorable: new Set(), inAll: new Set() }), {
 			bySender: [],
 			unrestorable: [],
 		});

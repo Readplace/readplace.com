@@ -3183,7 +3183,7 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 	const JOB = SavedLinksJobIdSchema.parse("2026-12-02T00:00:00.000Z-job");
 	const KEY = ArticleResourceUniqueId.parse(URL).value;
 	const email = { kind: "email", senderEmail: "news@example.com" } as const;
-	const hold = { userId: USER_A, jobId: JOB, storedKey: KEY, cutoff: CUTOFF, senders: { kind: "all" } as const, readlists: [], now: NOW };
+	const hold = { userId: USER_A, jobId: JOB, storedKey: KEY, cutoff: CUTOFF, senders: { kind: "all" } as const, readlists: [], kind: "link" as const, now: NOW };
 
 	async function storeWithEmailLink() {
 		const store = initInMemoryArticleStore();
@@ -3319,13 +3319,12 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 		const count = SavedLinksJobIdSchema.parse("job-count");
 		const counted = {
 			cutoff: NOW,
-			issues: 1,
+			issues: { selected: 1, bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }], skipped: { read: 0, highlighted: 0 } },
 			summary: {
 				selected: 2,
 				bySender: [{ senderEmail: "dan@tldr.tech", count: 2 }],
-				skipped: { read: 0, opened: 0, highlighted: 0, changed: 0, unreadable: 0 },
+				skipped: { read: 0, highlighted: 0, changed: 0, unreadable: 0 },
 				earliestEmailSave: undefined,
-				savedBeforeMarker: 0,
 			},
 			held: { bySender: [], unrestorable: [] },
 		};
@@ -3553,6 +3552,7 @@ describe("initInMemoryArticleStore smart readlists", () => {
 			cutoff: new Date("2026-12-01T00:00:00.000Z"),
 			senders: { kind: "all" },
 			readlists: [],
+			kind: "link",
 			now: new Date("2026-12-02T00:00:00.000Z"),
 		});
 		await store.saveArticle(makeArticleParams());

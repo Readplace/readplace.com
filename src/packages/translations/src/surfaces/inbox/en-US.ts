@@ -40,17 +40,21 @@ export const enUS = {
 	},
 	newsletterLinks: {
 		line: {
-			offerHeld: "Newsletter links you removed can be restored to All and their readlists for 30 days.",
+			offerHeld: "Newsletter links and issues you removed can be restored for 30 days.",
 			removeButton: "Newsletter Links Removal",
 			restoreButton: "Restore removed links",
 			working: {
-				remove: "Removing newsletter links from All and your readlists…",
-				restore: "Restoring removed links to All and their readlists…",
+				remove: "Removing newsletter links and issues from All, your readlists and the Inbox…",
+				restore: "Restoring removed links and issues…",
 			},
 			result: {
 				removed: {
 					one: "Removed {count} newsletter link from All and your readlists.",
 					other: "Removed {count} newsletter links from All and your readlists.",
+				},
+				removedIssues: {
+					one: "Removed {count} newsletter issue from the Inbox, All and your readlists.",
+					other: "Removed {count} newsletter issues from the Inbox, All and your readlists.",
 				},
 				skipped: {
 					one: "{count} link stayed, because you read, highlighted or saved it again, or it couldn't be read.",
@@ -60,13 +64,17 @@ export const enUS = {
 					one: "Restored {count} link to All and its readlists.",
 					other: "Restored {count} links to All and their readlists.",
 				},
+				restoredIssues: {
+					one: "Restored {count} issue to the Inbox, All and its readlists.",
+					other: "Restored {count} issues to the Inbox, All and their readlists.",
+				},
 				unrestorable: {
 					one: "{count} link couldn't be restored, because its article is no longer stored.",
 					other: "{count} links couldn't be restored, because their articles are no longer stored.",
 				},
 			},
 			failed: {
-				remove: "Couldn't finish removing newsletter links. Links already removed can be restored for 30 days.",
+				remove: "Couldn't finish removing newsletter links and issues. What was already removed can be restored for 30 days.",
 				restore: "Couldn't finish restoring removed links. Restore again to finish the rest.",
 			},
 			laterEmails:
@@ -76,7 +84,7 @@ export const enUS = {
 			title: "Newsletter Links Removal",
 			counting: "Counting the newsletter links in All…",
 			countingLink: "Check again",
-			none: "Count the newsletter links in All to see what would be removed.",
+			none: "Count the newsletter links and issues to see what would be removed.",
 			failed: "Couldn't count the newsletter links in All.",
 			countButton: "Count newsletter links",
 			tryAgain: "Try again",
@@ -84,37 +92,61 @@ export const enUS = {
 				one: "{count} newsletter link will be removed.",
 				other: "{count} newsletter links will be removed.",
 			},
-			decision: "Remove these links from every readlist?",
-			scopeLegend: "Which links to remove:",
-			sendersLegend: "Newsletters with the most links",
+			decision: "Remove these links and issues from every readlist?",
+			scopeLegend: "Which links and issues to remove:",
+			sendersLegend: "Newsletters with the most links and issues",
 			allSenders: "From every newsletter",
 			chosenSenders: "Only from the newsletters selected below",
 			senderCount: {
 				one: "{count} link",
 				other: "{count} links",
 			},
-			skipped: {
-				one: "{count} link will stay:",
-				other: "{count} links will stay:",
+			senderIssueCount: {
+				one: "{count} issue",
+				other: "{count} issues",
+			},
+			senderLinksAndIssues: "{links}, {issues}",
+			skipped: "These stay:",
+			skippedIssueReason: {
+				read: {
+					one: "{count} issue you marked as read",
+					other: "{count} issues you marked as read",
+				},
+				highlighted: {
+					one: "{count} issue you highlighted",
+					other: "{count} issues you highlighted",
+				},
 			},
 			skippedReason: {
-				read: "{count} you marked as read",
-				highlighted: "{count} you highlighted",
-				changed: "{count} saved again or changed",
-				unreadable: "{count} that couldn't be read",
+				read: {
+					one: "{count} link you marked as read",
+					other: "{count} links you marked as read",
+				},
+				highlighted: {
+					one: "{count} link you highlighted",
+					other: "{count} links you highlighted",
+				},
+				changed: {
+					one: "{count} link saved again or changed",
+					other: "{count} links saved again or changed",
+				},
+				unreadable: {
+					one: "{count} link that couldn't be read",
+					other: "{count} links that couldn't be read",
+				},
 			},
 			issues: {
-				one: "All holds {count} newsletter issue. It stays.",
-				other: "All holds {count} newsletter issues. Every one stays.",
+				one: "{count} newsletter issue will be removed from the Inbox, All and every readlist.",
+				other: "{count} newsletter issues will be removed from the Inbox, All and every readlist.",
 			},
 			everyReadlist: "They are removed from All and from every readlist they were saved to.",
-			keptStay: "Links you marked as read or highlighted stay.",
+			keptStay: "Links and issues you marked as read or highlighted stay.",
 			restoreWindow: "Removed links can be restored for 30 days.",
 			restoreReadlists: "Restore puts each one back in All and in the readlists it was in.",
 			submit: "Remove newsletter links",
 			popover: {
 				title: "Remove from every readlist?",
-				body: "This removes these newsletter links from All and from every readlist they were saved to. Links you marked as read or highlighted stay. You can restore what was removed for 30 days.",
+				body: "This removes these newsletter links and issues from All and from every readlist they were saved to. Links and issues you marked as read or highlighted stay. You can restore what was removed for 30 days.",
 				cancel: "Cancel",
 			},
 			back: "Inbox",
@@ -129,7 +161,11 @@ export const enUS = {
 				one: "{count} removed link can be restored to All and to the readlists it was in.",
 				other: "{count} removed links can be restored to All and to the readlists they were in.",
 			},
-			sendersLegend: "Newsletters the links came from",
+			sendersLegend: "Newsletters the links and issues came from",
+			issues: {
+				one: "{count} removed issue can be restored to the Inbox, All and the readlists it was in.",
+				other: "{count} removed issues can be restored to the Inbox, All and the readlists they were in.",
+			},
 			unrestorable: {
 				one: "{count} removed link can't be restored, because its article is no longer stored. To keep it, save it again:",
 				other: "{count} removed links can't be restored, because their articles are no longer stored. To keep one, save it again:",

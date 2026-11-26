@@ -166,7 +166,7 @@ describe("GET /privacy", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const paragraphs = Array.from(doc.querySelectorAll(".legal-page__section p"), (paragraph) => paragraph.textContent);
-		expect(paragraphs.some((text) => text?.includes("Messages already imported or forwarded stay in your Readplace inbox after you disconnect, until you delete your account. To disconnect, open the From Gmail page and press Disconnect Gmail."))).toBe(true);
+		expect(paragraphs.some((text) => text?.includes("Messages already imported or forwarded stay in your Readplace inbox after you disconnect, until you remove them with Newsletter Links Removal or delete your account. To disconnect, open the From Gmail page and press Disconnect Gmail."))).toBe(true);
 	});
 
 	it("points the retention section at the Gmail section and states the backup window", async () => {
@@ -255,7 +255,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Newsletter links you remove from your saved articles are held for 30 days, so you can restore them, and are then deleted.");
+		expect(response.text).toContain("Newsletter links and issues you remove from your saved articles are held for 30 days, so you can restore them, and are then deleted. A removed issue's email leaves your Readplace inbox at once, and 30 days later it is deleted with everything stored for it: the original message, its rendered copy and images, its links and the issue saved from it.");
 	});
 
 	it("says what held mail Readplace stores, and that it outlives a disconnect but not the account", async () => {

@@ -5,9 +5,12 @@ import {
 	type HoldOutcome,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
+	type NewsletterRowKind,
+	type RemovalClassification,
 	type RemovalSenders,
 	SaveProvenanceSchema,
 	SavedLinksJobIdSchema,
+	classifyForRemoval,
 	decideHold,
 	heldLinkExpiresAt,
 	isHeldLinkLive,
@@ -17,10 +20,10 @@ import {
 import { emailIssueKeyPrefix } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
-	CountNewsletterIssues,
 	FindHeldLink,
 	FindOriginalUrls,
 	FindKeysInAll,
+	FindNewsletterIssueStates,
 	FindUnrestorableArticles,
 	ForEachHeldLinkPage,
 	ForEachRemovalCandidatePage,
@@ -142,6 +145,7 @@ function holdOutcomeOf(params: {
 	userId: UserId;
 	cutoff: Date;
 	senders: RemovalSenders;
+	kind: NewsletterRowKind;
 }): HoldOutcome {
 	if (params.item === undefined) return { outcome: "not-selected" };
 	const parsed = NewsletterLinkItem.safeParse(params.item);
@@ -185,7 +189,7 @@ export function initDynamoDbRemovedLinks(deps: {
 }): {
 	hasNewsletterLink: HasNewsletterLink;
 	summariseNewsletterLinks: SummariseNewsletterLinks;
-	countNewsletterIssues: CountNewsletterIssues;
+	findNewsletterIssueStates: FindNewsletterIssueStates;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	restoreHeldLink: RestoreHeldLink;
 	forEachHeldLinkPage: ForEachHeldLinkPage;
@@ -259,25 +263,42 @@ export function initDynamoDbRemovedLinks(deps: {
 		});
 	};
 
-	const countNewsletterIssues: CountNewsletterIssues = async ({ userId }) => {
-		let total = 0;
+	const prefixQuery = (params: { userId: UserId; prefix: string; attributes: readonly string[] }) => {
+		const projection = projectionOf(params.attributes);
+		return {
+			KeyConditionExpression: "userId = :userId AND begins_with(#url, :keyPrefix)",
+			ExpressionAttributeNames: projection.ExpressionAttributeNames,
+			ExpressionAttributeValues: { ":userId": params.userId, ":keyPrefix": params.prefix },
+			ProjectionExpression: projection.ProjectionExpression,
+		};
+	};
+
+	const findNewsletterIssueStates: FindNewsletterIssueStates = async ({ userId, cutoff }) => {
+		const highlighted = new Set<string>();
 		await forEachQueryPage(
-			{
-				query: async (input) => {
-					const page = await userArticles.query(input);
-					total += page.count;
-					return page;
-				},
+			userArticles,
+			prefixQuery({ userId, prefix: HIGHLIGHT_KEY_PREFIX, attributes: ["url", "highlightOf"] }),
+			async (items) => {
+				for (const item of items) highlighted.add(HighlightItem.parse(item).highlightOf);
 			},
-			{
-				KeyConditionExpression: "userId = :userId AND begins_with(#url, :issueKeyPrefix)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: { ":userId": userId, ":issueKeyPrefix": emailIssueKeyPrefix(userId) },
-				Select: "COUNT",
-			},
-			async () => {},
 		);
-		return total;
+		const states = new Map<string, RemovalClassification>();
+		await forEachQueryPage(
+			userArticles,
+			prefixQuery({ userId, prefix: emailIssueKeyPrefix(userId), attributes: LINK_ATTRIBUTES }),
+			async (items) => {
+				for (const item of items) {
+					const candidate = candidateOf(item);
+					states.set(
+						item.url,
+						candidate.kind === "unreadable"
+							? { kind: "skipped", reason: "unreadable" }
+							: classifyForRemoval({ row: candidate.row, userId, highlighted, cutoff, kind: "issue" }),
+					);
+				}
+			},
+		);
+		return states;
 	};
 
 	const sharedArticles = defineDynamoTable({
@@ -505,7 +526,7 @@ export function initDynamoDbRemovedLinks(deps: {
 	return {
 		hasNewsletterLink,
 		summariseNewsletterLinks,
-		countNewsletterIssues,
+		findNewsletterIssueStates,
 		moveNewsletterLinkToHold,
 		restoreHeldLink,
 		forEachHeldLinkPage,

@@ -21,7 +21,11 @@ import { savedLinksJobKey } from "./user-readlist-partition";
 
 const CountedItem = z.object({
 	cutoff: z.string(),
-	issues: z.number().int().nonnegative(),
+	issues: z.object({
+		selected: z.number().int().nonnegative(),
+		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
+		skipped: z.strictObject({ read: z.number().int().nonnegative(), highlighted: z.number().int().nonnegative() }),
+	}),
 	summary: z.object({
 		selected: z.number().int().nonnegative(),
 		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
@@ -34,7 +38,13 @@ const CountedItem = z.object({
 		earliestEmailSave: dynamoField(z.string()),
 	}),
 	held: z.object({
-		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
+		bySender: z.array(
+			z.object({
+				senderEmail: z.string(),
+				count: z.number().int().nonnegative(),
+				issues: z.number().int().nonnegative(),
+			}),
+		),
 		unrestorable: z.array(z.string()),
 	}),
 });

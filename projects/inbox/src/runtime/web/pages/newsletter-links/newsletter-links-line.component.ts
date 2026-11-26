@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type NewsletterLinksLine,
-	REMOVAL_SKIP_REASONS,
+	SKIPPED_COUNT_CODES,
 	type SavedLinksJobBulkAction,
 	type SavedLinksJobCounts,
 } from "@packages/domain/article";
@@ -36,10 +36,14 @@ function resultSentences(params: {
 	const { action, counts } = params;
 	if (action === "restore") {
 		const unrestorable = counts.unrestorable ?? 0;
+		const restoredIssues = counts["restored-issue"] ?? 0;
 		return [
 			tPlural("newsletterLinks.line.result.restored", {
 				count: counts.restored ?? 0,
 			}),
+			...(restoredIssues > 0
+				? [tPlural("newsletterLinks.line.result.restoredIssues", { count: restoredIssues })]
+				: []),
 			...(unrestorable > 0
 				? [
 						tPlural("newsletterLinks.line.result.unrestorable", {
@@ -49,12 +53,14 @@ function resultSentences(params: {
 				: []),
 		];
 	}
-	const skipped = REMOVAL_SKIP_REASONS.reduce(
+	const skipped = SKIPPED_COUNT_CODES.reduce(
 		(total, reason) => total + (counts[reason] ?? 0),
 		0,
 	);
+	const removedIssues = counts["held-issue"] ?? 0;
 	return [
 		tPlural("newsletterLinks.line.result.removed", { count: counts.held ?? 0 }),
+		...(removedIssues > 0 ? [tPlural("newsletterLinks.line.result.removedIssues", { count: removedIssues })] : []),
 		...(skipped > 0
 			? [tPlural("newsletterLinks.line.result.skipped", { count: skipped })]
 			: []),

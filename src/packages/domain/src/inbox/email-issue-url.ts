@@ -17,6 +17,10 @@ export function emailIssueKeyPrefix(userId: UserId): string {
 	return storedKey.slice(0, storedKey.lastIndexOf("/") + 1);
 }
 
+export function emailIssueStoredKey(ref: EmailIssueRef): string {
+	return ArticleResourceUniqueId.parse(emailIssueArticleUrl(ref)).value;
+}
+
 export function emailIssueReceivedAt(receivedAtMessageId: string): string {
 	const [receivedAt] = receivedAtMessageId.split("#", 1);
 	return receivedAt;

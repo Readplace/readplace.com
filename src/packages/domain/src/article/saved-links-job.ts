@@ -3,6 +3,9 @@ import { z } from "zod";
 import type { UserId } from "../user";
 import {
 	classifyForRemoval,
+	isNewsletterIssueKey,
+	type NewsletterIssueSummary,
+	type NewsletterRowKind,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
 	type NewsletterLinkSummary,
@@ -39,6 +42,8 @@ const SavedLinksJobCountCodeSchema = z.enum([
 	"restored",
 	"already-in-all",
 	"unrestorable",
+	"held-issue",
+	"restored-issue",
 ]);
 export type SavedLinksJobCountCode = z.infer<
 	typeof SavedLinksJobCountCodeSchema
@@ -63,12 +68,12 @@ export interface SavedLinksJob {
 export interface CountedNewsletterLinks {
 	cutoff: Date;
 	summary: NewsletterLinkSummary;
-	issues: number;
+	issues: NewsletterIssueSummary;
 	held: HeldNewsletterLinks;
 }
 
 export interface HeldNewsletterLinks {
-	bySender: Array<{ senderEmail: string; count: number }>;
+	bySender: Array<{ senderEmail: string; count: number; issues: number }>;
 	unrestorable: string[];
 }
 
@@ -158,6 +163,7 @@ export function decideHold(params: {
 	userId: UserId;
 	cutoff: Date;
 	senders: RemovalSenders;
+	kind: NewsletterRowKind;
 }): HoldDecision {
 	const { row, senders } = params;
 	const classification = classifyForRemoval({
@@ -223,6 +229,7 @@ export function selectRemovalPage(params: {
 		const classification = classifyForRemoval({
 			...params,
 			row: candidate.row,
+			kind: "link",
 		});
 		if (classification.kind === "not-a-newsletter-link") continue;
 		assert(
@@ -277,6 +284,7 @@ export function selectHeldLinksToRestore(params: {
 }
 
 export function summariseHeldLinks(params: {
+	userId: UserId;
 	links: readonly HeldLink[];
 	cutoff: Date;
 	now: Date;
@@ -289,20 +297,22 @@ export function summariseHeldLinks(params: {
 		senders: { kind: "all" },
 		now: params.now,
 	});
-	const bySender = new Map<string, number>();
+	const bySender = new Map<string, { count: number; issues: number }>();
 	const unrestorable: string[] = [];
 	for (const link of restorable) {
+		const issue = isNewsletterIssueKey({ storedKey: link.storedKey, userId: params.userId });
 		if (params.unrestorable.has(link.storedKey)) {
-			unrestorable.push(link.storedKey);
+			if (!issue) unrestorable.push(link.storedKey);
 			continue;
 		}
 		if (params.inAll.has(link.storedKey)) continue;
-		bySender.set(link.senderEmail, (bySender.get(link.senderEmail) ?? 0) + 1);
+		const sender = bySender.get(link.senderEmail) ?? { count: 0, issues: 0 };
+		bySender.set(link.senderEmail, issue ? { ...sender, issues: sender.issues + 1 } : { ...sender, count: sender.count + 1 });
 	}
 	return {
 		bySender: [...bySender]
-			.map(([senderEmail, count]) => ({ senderEmail, count }))
-			.sort((a, b) => b.count - a.count),
+			.map(([senderEmail, held]) => ({ senderEmail, ...held }))
+			.sort((a, b) => b.count + b.issues - (a.count + a.issues)),
 		unrestorable,
 	};
 }

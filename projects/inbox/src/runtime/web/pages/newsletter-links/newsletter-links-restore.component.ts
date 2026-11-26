@@ -6,7 +6,7 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
 import type { PageBody } from "@packages/web-shell";
 import { render, renderAlert, withInternalTracking } from "@packages/web-shell";
-import type { NewsletterLinksConfirmState } from "./newsletter-links-confirm.component";
+import { type NewsletterLinksConfirmState, senderCountLabel } from "./newsletter-links-confirm.component";
 import { NEWSLETTER_LINKS_STYLES } from "./newsletter-links.styles";
 import {
 	NEWSLETTER_LINKS_COUNT_PATH,
@@ -36,15 +36,15 @@ const CHECK_AGAIN_HREF = withInternalTracking(NEWSLETTER_LINKS_RESTORE_PATH, {
 function countedView(state: Extract<NewsletterLinkCount, { kind: "counted" }>) {
 	const { bySender, unrestorable } = state.counted.held;
 	const total = bySender.reduce((sum, sender) => sum + sender.count, 0);
+	const issues = bySender.reduce((sum, sender) => sum + sender.issues, 0);
 	return {
 		jobId: state.jobId,
 		total: tPlural("newsletterLinks.restore.total", { count: total }),
-		restoreAction: total > 0 ? RESTORE_ACTION : undefined,
+		issues: issues > 0 ? tPlural("newsletterLinks.restore.issues", { count: issues }) : undefined,
+		restoreAction: total + issues > 0 ? RESTORE_ACTION : undefined,
 		senders: bySender.map((sender) => ({
 			senderEmail: sender.senderEmail,
-			countLabel: tPlural("newsletterLinks.confirm.senderCount", {
-				count: sender.count,
-			}),
+			countLabel: senderCountLabel({ links: sender.count, issues: sender.issues }),
 		})),
 		unrestorable:
 			unrestorable.length > 0

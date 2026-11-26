@@ -16,10 +16,10 @@ import type {
 import { USER_DATA_JOBS_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { RunSavedLinksJobAction } from "./saved-links-job.types";
 
-const KEPT_ON_RESUME: Record<SavedLinksJobAction, SavedLinksJobCountCode | undefined> = {
-	remove: "held",
-	restore: "restored",
-	count: undefined,
+const KEPT_ON_RESUME: Record<SavedLinksJobAction, readonly SavedLinksJobCountCode[]> = {
+	remove: ["held", "held-issue"],
+	restore: ["restored", "restored-issue"],
+	count: [],
 };
 
 export function initSavedLinksJobHandler(deps: {
@@ -51,9 +51,10 @@ export function initSavedLinksJobHandler(deps: {
 					deps.logger.info("[saved-links-job] stale job", { jobId, state: job?.state });
 					return;
 				}
-				const kept = KEPT_ON_RESUME[action];
-				const prior = kept === undefined ? undefined : job.counts[kept];
-				const started = await recordProgress(kept === undefined || prior === undefined ? {} : { [kept]: prior });
+				const prior = Object.fromEntries(
+					KEPT_ON_RESUME[action].flatMap((code) => (job.counts[code] === undefined ? [] : [[code, job.counts[code]]])),
+				);
+				const started = await recordProgress(prior);
 				const resumed = job.state !== "requested";
 				const run =
 					started.outcome === "stale"

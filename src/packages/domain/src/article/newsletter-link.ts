@@ -32,13 +32,21 @@ export interface NewsletterLinkSummary {
 	earliestEmailSave: Date | undefined;
 }
 
-export function isNewsletterLink(params: { row: NewsletterLinkRow; userId: UserId }): boolean {
+export type NewsletterRowKind = "link" | "issue";
+
+export function isNewsletterIssueKey(params: { storedKey: string; userId: UserId }): boolean {
+	return params.storedKey.startsWith(emailIssueKeyPrefix(params.userId));
+}
+
+function newsletterRowKindOf(params: { row: NewsletterLinkRow; userId: UserId }): NewsletterRowKind | undefined {
 	const { row, userId } = params;
-	return (
-		row.provenance?.kind === "email" &&
-		!row.storedKey.startsWith(RESERVED_KEY_PREFIX) &&
-		!row.storedKey.startsWith(emailIssueKeyPrefix(userId))
-	);
+	if (row.provenance?.kind !== "email") return undefined;
+	if (isNewsletterIssueKey({ storedKey: row.storedKey, userId })) return "issue";
+	return row.storedKey.startsWith(RESERVED_KEY_PREFIX) ? undefined : "link";
+}
+
+export function isNewsletterLink(params: { row: NewsletterLinkRow; userId: UserId }): boolean {
+	return newsletterRowKindOf(params) === "link";
 }
 
 export function classifyForRemoval(params: {
@@ -46,9 +54,10 @@ export function classifyForRemoval(params: {
 	userId: UserId;
 	highlighted: ReadonlySet<string>;
 	cutoff: Date;
+	kind: NewsletterRowKind;
 }): RemovalClassification {
 	const { row, highlighted, cutoff } = params;
-	if (!isNewsletterLink(params)) return { kind: "not-a-newsletter-link" };
+	if (newsletterRowKindOf(params) !== params.kind) return { kind: "not-a-newsletter-link" };
 	if (row.savedAt.getTime() > cutoff.getTime()) return { kind: "skipped", reason: "changed" };
 	if (row.restoredAt !== undefined && row.restoredAt.getTime() >= cutoff.getTime()) {
 		return { kind: "skipped", reason: "changed" };
@@ -74,7 +83,7 @@ export function summariseNewsletterLinkRows(params: {
 			continue;
 		}
 		const { row } = candidate;
-		const classification = classifyForRemoval({ ...params, row });
+		const classification = classifyForRemoval({ ...params, row, kind: "link" });
 		if (classification.kind === "skipped") skipped[classification.reason] += 1;
 		if (classification.kind !== "selected") continue;
 		assert(row.provenance?.kind === "email", "a selected newsletter link carries email provenance");
@@ -88,4 +97,38 @@ export function summariseNewsletterLinkRows(params: {
 		.map(([senderEmail, count]) => ({ senderEmail, count }))
 		.sort((a, b) => b.count - a.count || a.senderEmail.localeCompare(b.senderEmail));
 	return { selected, bySender, skipped, earliestEmailSave };
+}
+
+export const ISSUE_SKIP_REASONS = ["read", "highlighted"] as const;
+
+type IssueSkipReason = (typeof ISSUE_SKIP_REASONS)[number];
+
+export interface NewsletterIssueSummary {
+	selected: number;
+	bySender: Array<{ senderEmail: string; count: number }>;
+	skipped: Record<IssueSkipReason, number>;
+}
+
+export function summariseNewsletterIssues(params: {
+	emails: readonly { senderEmail: string; receivedAt: string; issueState: RemovalClassification | undefined }[];
+	cutoff: Date;
+}): NewsletterIssueSummary {
+	const skipped: Record<IssueSkipReason, number> = { read: 0, highlighted: 0 };
+	const senders = new Map<string, number>();
+	let selected = 0;
+	for (const email of params.emails) {
+		if (email.receivedAt > params.cutoff.toISOString()) continue;
+		const reason = email.issueState?.kind === "skipped" ? email.issueState.reason : undefined;
+		if (reason === "read" || reason === "highlighted") {
+			skipped[reason] += 1;
+			continue;
+		}
+		if (reason !== undefined) continue;
+		selected += 1;
+		senders.set(email.senderEmail, (senders.get(email.senderEmail) ?? 0) + 1);
+	}
+	const bySender = [...senders.entries()]
+		.map(([senderEmail, count]) => ({ senderEmail, count }))
+		.sort((a, b) => b.count - a.count || a.senderEmail.localeCompare(b.senderEmail));
+	return { selected, bySender, skipped };
 }

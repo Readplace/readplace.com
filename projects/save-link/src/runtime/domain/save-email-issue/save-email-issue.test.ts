@@ -513,6 +513,6 @@ describe("an issue saved to All beside the links it carried", () => {
 
 		assert.equal(summary.selected, 1);
 		assert.deepEqual(summary.bySender, [{ senderEmail: "dan@tldr.tech", count: 1 }]);
-		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 1);
+		assert.equal((await removedLinks.findNewsletterIssueStates({ userId: READER, cutoff: new Date(Date.now() + 60_000) })).size, 1);
 	});
 });

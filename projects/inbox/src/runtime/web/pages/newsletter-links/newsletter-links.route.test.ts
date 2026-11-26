@@ -40,7 +40,7 @@ const REMOVE_PATH = "/inbox/newsletter-links/remove";
 const COUNT_PATH = "/inbox/newsletter-links/count";
 const RESTORE_PATH = "/inbox/newsletter-links/restore";
 const EVERY_READLIST = "They are removed from All and from every readlist they were saved to.";
-const KEPT_STAY = "Links you marked as read or highlighted stay.";
+const KEPT_STAY = "Links and issues you marked as read or highlighted stay.";
 const RESTORE_WINDOW = "Removed links can be restored for 30 days. Restore puts each one back in All and in the readlists it was in.";
 
 async function readerId(fixture: Fixture): Promise<UserId> {
@@ -127,14 +127,17 @@ async function seedJob(
 
 function counted(
 	overrides: Partial<CountedNewsletterLinks["summary"]> & {
-		issues?: number;
+		issues?: number | CountedNewsletterLinks["issues"];
 		held?: CountedNewsletterLinks["held"];
 	} = {},
 ): CountedNewsletterLinks {
-	const { issues, held, ...summary } = overrides;
+	const { issues = 2, held, ...summary } = overrides;
 	return {
 		cutoff: COUNT_CUTOFF,
-		issues: issues ?? 2,
+		issues:
+			typeof issues === "number"
+				? { selected: issues, bySender: [], skipped: { read: 0, highlighted: 0 } }
+				: issues,
 		held: held ?? { bySender: [], unrestorable: [] },
 		summary: {
 			selected: 5,
@@ -179,6 +182,7 @@ async function seedHeld(
 		cutoff: fixture.shared.now(),
 		senders: { kind: "all" },
 		readlists: [],
+		kind: "link",
 		now: fixture.shared.now(),
 	});
 	assert.deepEqual(outcome, { outcome: "held" });
@@ -293,18 +297,18 @@ describe("Newsletter links line on the inbox", () => {
 		expect(lineOf(doc)).toBeNull();
 	});
 
-	it("is hidden when the inbox holds mail but All holds no newsletter link", async () => {
+	it("offers removal on a sender's page that lists no email while All holds a newsletter link", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		await seedEmail(fixture, await readerId(fixture));
+		const userId = await readerId(fixture);
+		await seedEmailSave(fixture, { userId, url: "https://a.com/later" });
 
-		const doc = documentOf((await agent.get("/inbox")).text);
-
-		expect(lineOf(doc)).toBeNull();
+		const offered = lineOf(documentOf((await agent.get("/inbox?sender=gone%40example.com")).text));
+		expect(offered?.getAttribute("data-newsletter-links-state")).toBe("offer");
 	});
 
-	it("is hidden when All holds only newsletter issues", async () => {
+	it("offers removal while the Inbox lists an email, even when All holds only its issue", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -320,7 +324,7 @@ describe("Newsletter links line on the inbox", () => {
 
 		const doc = documentOf((await agent.get("/inbox")).text);
 
-		expect(lineOf(doc)).toBeNull();
+		expect(lineOf(doc)?.getAttribute("data-newsletter-links-state")).toBe("offer");
 	});
 
 	it("is hidden on a later inbox page, even when it holds mail and All holds a newsletter link", async () => {
@@ -382,7 +386,7 @@ describe("Newsletter links line on the inbox", () => {
 		const line = lineOf(doc);
 		assert(line, "the working line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("working");
-		expect(sentencesOf(line)).toEqual(["Removing newsletter links from All and your readlists…"]);
+		expect(sentencesOf(line)).toEqual(["Removing newsletter links and issues from All, your readlists and the Inbox…"]);
 		expect(
 			line
 				.querySelector("[data-test-newsletter-links-working] svg")
@@ -399,7 +403,6 @@ describe("Newsletter links line on the inbox", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await readerId(fixture);
-		await seedEmail(fixture, userId);
 		await seedJob(fixture, {
 			userId,
 			action: "remove",
@@ -465,6 +468,47 @@ describe("Newsletter links line on the inbox", () => {
 		expect(sentencesOf(line)[0]).toBe("Removed 0 newsletter links from All and your readlists.");
 	});
 
+	it("names the removed issues and the issues a restore brought back", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedEmail(fixture, userId);
+		await seedJob(fixture, { userId, action: "remove", finish: { state: "completed", counts: { held: 2, "held-issue": 1, opened: 1 } } });
+
+		const removed = lineOf(documentOf((await agent.get("/inbox")).text));
+		assert(removed, "the result line must render");
+		expect(sentencesOf(removed).slice(0, 3)).toEqual([
+			"Removed 2 newsletter links from All and your readlists.",
+			"Removed 1 newsletter issue from the Inbox, All and your readlists.",
+			"1 link stayed, because you read, highlighted or saved it again, or it couldn't be read.",
+		]);
+
+		await seedJob(fixture, { userId, action: "restore", finish: { state: "completed", counts: { restored: 0, "restored-issue": 3 } } });
+		const restored = lineOf(documentOf((await agent.get("/inbox")).text));
+		assert(restored, "the result line must render");
+		expect(sentencesOf(restored)).toEqual([
+			"Restored 0 links to All and their readlists.",
+			"Restored 3 issues to the Inbox, All and their readlists.",
+		]);
+	});
+
+	it("answers not-found for the page of an email whose issue was removed", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedEmail(fixture, userId);
+		const receivedAtMessageId = "2026-11-19T00:00:00.000Z#msg-1";
+		const path = `/inbox/${encodeURIComponent(receivedAtMessageId)}`;
+		expect((await agent.get(path)).status).toBe(200);
+
+		await fixture.inboxEmail.inboxEmailStore.markEmailRemoved({ userId, receivedAtMessageId, jobId: "job-1", at: REQUESTED_AT });
+
+		expect((await agent.get(path)).status).toBe(404);
+		expect(documentOf((await agent.get("/inbox")).text).querySelector("[data-test-inbox-item]")).toBeNull();
+	});
+
 	it("reports a restore with the links that could not be restored", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -523,7 +567,7 @@ describe("Newsletter links line on the inbox", () => {
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("failed");
 		expect(failedLineOf(line)).toEqual({
 			alert:
-				"Couldn't finish removing newsletter links. Links already removed can be restored for 30 days.",
+				"Couldn't finish removing newsletter links and issues. What was already removed can be restored for 30 days.",
 			alertBeforeActions: true,
 			sentences: [],
 		});
@@ -537,7 +581,6 @@ describe("Newsletter links line on the inbox", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await readerId(fixture);
-		await seedEmail(fixture, userId);
 		await seedJob(fixture, {
 			userId,
 			action: "restore",
@@ -586,7 +629,7 @@ describe("Newsletter links confirm page", () => {
 				?.getAttribute("data-newsletter-links-count"),
 		).toBe("none");
 		expect(textsOf(doc, "[data-test-newsletter-links-count-message]")).toEqual([
-			"Count the newsletter links in All to see what would be removed.",
+			"Count the newsletter links and issues to see what would be removed.",
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-count-button]")).toEqual([
 			"Count newsletter links",
@@ -666,7 +709,7 @@ describe("Newsletter links confirm page", () => {
 			"5 newsletter links will be removed.",
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-skipped]")).toEqual([
-			"4 links will stay:",
+			"These stay:",
 		]);
 		const reasons = Array.from(
 			doc.querySelectorAll("[data-test-newsletter-links-skipped-reason]"),
@@ -678,16 +721,16 @@ describe("Newsletter links confirm page", () => {
 				reason.textContent,
 			]),
 		).toEqual([
-			["LI", "UL", "2 you marked as read"],
-			["LI", "UL", "1 you highlighted"],
-			["LI", "UL", "1 that couldn't be read"],
+			["LI", "UL", "2 links you marked as read"],
+			["LI", "UL", "1 link you highlighted"],
+			["LI", "UL", "1 link that couldn't be read"],
 		]);
 		const details = doc.querySelector("[data-test-newsletter-links-details]");
 		assert(details, "the details group must render");
 		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
 			EVERY_READLIST,
 			KEPT_STAY,
-			"All holds 2 newsletter issues. Every one stays.",
+			"2 newsletter issues will be removed from the Inbox, All and every readlist.",
 			RESTORE_WINDOW,
 		]);
 		const lead = section.querySelector("[data-test-newsletter-links-lead]");
@@ -696,7 +739,7 @@ describe("Newsletter links confirm page", () => {
 		expect(
 			Array.from(lead.children).map((el) => [el.tagName, el.textContent]),
 		).toEqual([
-			["H2", "Remove these links from every readlist?"],
+			["H2", "Remove these links and issues from every readlist?"],
 			["P", "5 newsletter links will be removed."],
 		]);
 		expect(
@@ -712,7 +755,7 @@ describe("Newsletter links confirm page", () => {
 			["checkbox", true],
 			["checkbox", true],
 		]);
-		expect(scopeLegendOf(form)).toBe("Which links to remove:");
+		expect(scopeLegendOf(form)).toBe("Which links and issues to remove:");
 		expect(
 			Array.from(
 				form.querySelectorAll(".newsletter-links-page__scope > label"),
@@ -727,6 +770,52 @@ describe("Newsletter links confirm page", () => {
 		const action = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
 		expect(action.pathname).toBe(REMOVE_PATH);
 		expect(action.searchParams.get("utm_content")).toBe("remove");
+	});
+
+	it("lists each newsletter with its links and issues, and the read and highlighted issues that stay", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(
+			fixture,
+			await readerId(fixture),
+			counted({
+				issues: {
+					selected: 3,
+					bySender: [
+						{ senderEmail: "small@example.com", count: 1 },
+						{ senderEmail: "issues@example.com", count: 2 },
+					],
+					skipped: { read: 1, highlighted: 2 },
+				},
+			}),
+		);
+
+		const doc = documentOf((await agent.get(REMOVE_PATH)).text);
+
+		expect(
+			Array.from(doc.querySelectorAll(".newsletter-links-page__sender")).map((sender) => sender.textContent?.replace(/\s+/g, " ").trim()),
+		).toEqual([
+			"big@example.com (4 links)",
+			"issues@example.com (2 issues)",
+			"small@example.com (1 link, 1 issue)",
+		]);
+		expect(textsOf(doc, "[data-test-newsletter-links-skipped]")).toEqual(["These stay:"]);
+		expect(textsOf(doc, "[data-test-newsletter-links-skipped-reason]")).toEqual([
+			"1 issue you marked as read",
+			"2 issues you highlighted",
+		]);
+	});
+
+	it("offers the removal when only issues would be removed", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(fixture, await readerId(fixture), counted({ selected: 0, bySender: [], issues: 1 }));
+
+		const doc = documentOf((await agent.get(REMOVE_PATH)).text);
+
+		expect(doc.querySelector("[data-test-newsletter-links-remove-form]")).not.toBeNull();
 	});
 
 	it("asks in a popup inside the form before removing, with a plain submit where popups are unsupported", async () => {
@@ -745,7 +834,7 @@ describe("Newsletter links confirm page", () => {
 		expect(popover.getAttribute("popover")).toBe("auto");
 		expect(popover.querySelector(".confirm-popover__title")?.textContent).toBe("Remove from every readlist?");
 		expect(popover.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"This removes these newsletter links from All and from every readlist they were saved to. Links you marked as read or highlighted stay. You can restore what was removed for 30 days.",
+			"This removes these newsletter links and issues from All and from every readlist they were saved to. Links and issues you marked as read or highlighted stay. You can restore what was removed for 30 days.",
 		);
 		const buttons = Array.from(popover.querySelectorAll(".confirm-popover__buttons button"));
 		expect(buttons.map((button) => [button.textContent, button.getAttribute("type")])).toEqual([
@@ -769,7 +858,7 @@ describe("Newsletter links confirm page", () => {
 		await seedCounted(
 			fixture,
 			await readerId(fixture),
-			counted({ selected: 0, bySender: [], issues: 1 }),
+			counted({ selected: 0, bySender: [], issues: 0 }),
 		);
 
 		const doc = documentOf((await agent.get(REMOVE_PATH)).text);
@@ -780,7 +869,7 @@ describe("Newsletter links confirm page", () => {
 		const details = doc.querySelector("[data-test-newsletter-links-details]");
 		assert(details, "the details group must render");
 		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
-			"All holds 1 newsletter issue. It stays.",
+			"0 newsletter issues will be removed from the Inbox, All and every readlist.",
 		]);
 		const lead = doc.querySelector("[data-test-newsletter-links-lead]");
 		assert(lead, "the counted section must open with its lead");
@@ -1125,7 +1214,7 @@ describe("Restore on the newsletter links line", () => {
 		assert(line, "the offer line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("offer");
 		expect(sentencesOf(line)).toEqual([
-			"Newsletter links you removed can be restored to All and their readlists for 30 days.",
+			"Newsletter links and issues you removed can be restored for 30 days.",
 		]);
 		expect(line.querySelector("[data-test-newsletter-links-remove]")).toBeNull();
 		const button = line.querySelector("[data-test-newsletter-links-restore]");
@@ -1291,6 +1380,35 @@ describe("Newsletter links restore page", () => {
 		).toBe(RESTORE_PATH);
 	});
 
+	it("names the held issues beside the held links, per newsletter and in total", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(
+			fixture,
+			await readerId(fixture),
+			counted({
+				held: {
+					bySender: [
+						{ senderEmail: "big@example.com", count: 0, issues: 2 },
+						{ senderEmail: "small@example.com", count: 1, issues: 1 },
+					],
+					unrestorable: [],
+				},
+			}),
+		);
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		expect(textsOf(doc, "[data-test-newsletter-links-restore-issues]")).toEqual([
+			"3 removed issues can be restored to the Inbox, All and the readlists they were in.",
+		]);
+		expect(
+			Array.from(doc.querySelectorAll(".newsletter-links-page__sender-count")).map((label) => label.textContent),
+		).toEqual(["(2 issues)", "(1 link, 1 issue)"]);
+		expect(doc.querySelector("[data-test-newsletter-links-restore-form]")).not.toBeNull();
+	});
+
 	it("lists the held links by newsletter and the links that cannot be restored by URL", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -1301,8 +1419,8 @@ describe("Newsletter links restore page", () => {
 			counted({
 				held: {
 					bySender: [
-						{ senderEmail: "big@example.com", count: 3 },
-						{ senderEmail: "small@example.com", count: 1 },
+						{ senderEmail: "big@example.com", count: 3, issues: 0 },
+						{ senderEmail: "small@example.com", count: 1, issues: 0 },
 					],
 					unrestorable: ["gone.com/one", "gone.com/two"],
 				},
@@ -1384,7 +1502,7 @@ describe("Newsletter links restore page", () => {
 			await readerId(fixture),
 			counted({
 				held: {
-					bySender: [{ senderEmail: "big@example.com", count: 1 }],
+					bySender: [{ senderEmail: "big@example.com", count: 1, issues: 0 }],
 					unrestorable: ["gone.com/one"],
 				},
 			}),
@@ -1436,8 +1554,8 @@ describe("Restoring removed links", () => {
 	const HELD = counted({
 		held: {
 			bySender: [
-				{ senderEmail: "big@example.com", count: 3 },
-				{ senderEmail: "small@example.com", count: 1 },
+				{ senderEmail: "big@example.com", count: 3, issues: 0 },
+				{ senderEmail: "small@example.com", count: 1, issues: 0 },
 			],
 			unrestorable: [],
 		},

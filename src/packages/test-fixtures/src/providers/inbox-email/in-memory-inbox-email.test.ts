@@ -430,4 +430,39 @@ describe("initInMemoryInboxEmail", () => {
 			{ receivedAtMessageId: imported.receivedAtMessageId, senderEmail: "News <news@example.com>" },
 		]);
 	});
+
+	it("hides a removed email from the listings, shows its removal by key, and brings it back when cleared", async () => {
+		const store = initInMemoryInboxEmail();
+		const entry = makeEntry();
+		const key = { userId: owner, receivedAtMessageId: entry.receivedAtMessageId };
+		await store.putEmail(entry);
+
+		await store.markEmailRemoved({ ...key, jobId: "job-1", at: new Date("2026-12-01T00:00:00.000Z") });
+		await store.markEmailRemoved({ ...key, jobId: "job-2", at: new Date("2026-12-02T00:00:00.000Z") });
+		await store.markEmailRemoved({ userId: owner, receivedAtMessageId: "absent", jobId: "job-1", at: new Date() });
+
+		expect((await store.listEmailsByUserId({ userId: owner, cursor: undefined, pageSize: 5 })).emails).toEqual([]);
+		expect(await store.listReceivedSenders(owner)).toEqual([]);
+		expect((await store.getEmail(key))?.removedAt).toBe("2026-12-01T00:00:00.000Z");
+		const pages: unknown[] = [];
+		await store.forEachRemovableEmailPage({ userId: owner, onPage: async (emails) => void pages.push(emails) });
+		expect(pages).toEqual([
+			[
+				{
+					receivedAtMessageId: entry.receivedAtMessageId,
+					senderEmail: entry.senderEmail,
+					receivedAt: entry.receivedAt,
+					rawEmailS3Key: entry.rawEmailS3Key,
+					bodyS3Key: entry.bodyS3Key,
+					removal: { removedAt: new Date("2026-12-01T00:00:00.000Z"), jobId: "job-1" },
+				},
+			],
+		]);
+
+		await store.clearEmailRemoval(key);
+		expect((await store.listEmailsByUserId({ userId: owner, cursor: undefined, pageSize: 5 })).emails).toEqual([entry]);
+
+		await store.deleteEmail(key);
+		expect(await store.getEmail(key)).toBeUndefined();
+	});
 });
