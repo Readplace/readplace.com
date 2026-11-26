@@ -4,8 +4,8 @@ import type { SaveHealthSource } from "./health-sources";
 
 const originalUrl = "https://example.com/article";
 const captureUrl = `https://web.archive.org/web/2008/${originalUrl}`;
-const source: SaveHealthSource = { label: "Wayback", url: captureUrl, expectedDestinationUrl: originalUrl, expectedContent: "article", save: { kind: "archive", captureUrl, requireFreshArchive: true } };
-const result: ArchiveHealthReport = { label: source.label, saveAttemptId: "attempt", originalUrl, captureUrl, captureHttpStatus: 200, captureContentHash: "hash", comparisonPromptHash: "prompt-hash", freshArchive: "article-confirmed", outcome: "selected", selected: { id: "candidate", kind: "wrapper", fresh: true, contentHash: "hash" } };
+const source: SaveHealthSource = { label: "Wayback", url: captureUrl, expectedDestinationUrl: originalUrl, expectedContent: "article", save: { kind: "archive", captureUrl } };
+const result: ArchiveHealthReport = { label: source.label, saveAttemptId: "attempt", originalUrl, captureUrl, captureHttpStatus: 200, captureContentHash: "hash", comparisonPromptHash: "prompt-hash", outcome: "selected", selected: { id: "candidate", kind: "wrapper", fresh: true, contentHash: "hash" } };
 
 it("saves sequentially, waits for its own completed comparison and checks direct-save deduplication", async () => {
 	let time = 0;

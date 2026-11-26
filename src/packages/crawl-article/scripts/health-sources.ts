@@ -30,11 +30,11 @@ export interface HealthSource {
 
 export type SaveHealthSource = HealthSource & {
 	expectedDestinationUrl: string;
-	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean } | { kind: "direct" } | { kind: "upload"; title: string; html: string };
+	save: { kind: "archive"; captureUrl: string} | { kind: "direct" } | { kind: "upload"; title: string; html: string };
 };
 
 export type ArchiveSaveHealthSource = SaveHealthSource & {
-	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean };
+	save: { kind: "archive"; captureUrl: string};
 };
 
 export type UploadHealthSource = SaveHealthSource & {
@@ -228,7 +228,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		save: {
 			kind: "archive",
 			captureUrl: "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-			requireFreshArchive: true,
 		},
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
@@ -239,7 +238,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		save: {
 			kind: "archive",
 			captureUrl: "https://web.archive.org/web/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-			requireFreshArchive: true,
 		},
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
@@ -256,7 +254,7 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 	// no Memento Link header) and the residential unlocker was refused with
 	// "429 status code" in every attempt since 2026-10-09 (it served the page
 	// on 2026-10-04); country targeting and HEAD changed nothing. Run locally
-	// on 2026-10-10 with requireFreshArchive true, the entry failed on save
+	// on 2026-10-10, the entry failed on save
 	// attempt 01b9a149 with the capture answered 429, so it asserts a fetch the
 	// crawler cannot make. Disabled rather than fixed — reaching archive.today
 	// is owned by separate work; restore it once a probe through some egress
@@ -267,7 +265,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 	// 	save: {
 	// 		kind: "archive",
 	// 		captureUrl: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
-	// 		requireFreshArchive: true,
 	// 	},
 	// 	expectedContent: "he had had to carry the ice and glassware",
 	// 	expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
