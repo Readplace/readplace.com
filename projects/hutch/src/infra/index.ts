@@ -245,6 +245,32 @@ const storage = new HutchStorage("hutch", {
 	tableNames,
 });
 
+function gmailConnectionUpdateAccess(lambdaName: string): DynamoDBAccess {
+	return new DynamoDBAccess(`hutch-${lambdaName}-connection-update`, {
+		tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
+		actions: ["dynamodb:UpdateItem"],
+	});
+}
+
+type GmailAccountEnvironment = {
+	DYNAMODB_GMAIL_CONNECTIONS_TABLE: pulumi.Output<string>;
+	DYNAMODB_GMAIL_CREDENTIALS_TABLE: pulumi.Output<string>;
+	GMAIL_INTEGRATION_CLIENT_ID: string;
+	GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.Output<string>;
+};
+type GmailAccountEnvironmentWithMappings = GmailAccountEnvironment & { DYNAMODB_GMAIL_MAPPINGS_TABLE: pulumi.Output<string> };
+function gmailAccountEnvironment(args: { mappings: true }): GmailAccountEnvironmentWithMappings;
+function gmailAccountEnvironment(args: { mappings: false }): GmailAccountEnvironment;
+function gmailAccountEnvironment({ mappings }: { mappings: boolean }): GmailAccountEnvironment | GmailAccountEnvironmentWithMappings {
+	const account: GmailAccountEnvironment = {
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+	};
+	return mappings ? { ...account, DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name } : account;
+}
+
 const newsletterCatalogBucket = new S3ReadWrite("newsletter-catalog-bucket", {
 	bucketName: newsletterCatalogBucketName,
 });
@@ -966,11 +992,8 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 	environment: {
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_GMAIL_HELD_MAIL_TABLE: tableNames.gmailHeldMail,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -1004,8 +1027,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [
 		...userDataJobsDynamodb.policies,
@@ -1872,15 +1894,11 @@ const rewriteGmailFilterLambda = new Lambda("rewrite-gmail-filter", {
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [...rewriteGmailFilterDynamodb.policies, ...rewriteGmailFilterGmailHistoryDynamodb.policies, ...rewriteGmailFilterGmailMonitoringDynamodb.policies],
 });
@@ -1956,10 +1974,7 @@ const gmailNewsletterAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-ac
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
-const gmailNewsletterConnectionUpdate = new DynamoDBAccess("hutch-gmail-newsletter-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
+const gmailNewsletterConnectionUpdate = gmailConnectionUpdateAccess("gmail-newsletter");
 const gmailNewsletterNoticeAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-notice-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
@@ -2022,13 +2037,9 @@ const gmailNewsletterMonitorLambda = new Lambda("gmail-newsletter-monitor", {
 		GMAIL_NEWSLETTER_NOTICE_QUEUE_URL: gmailNewsletterNoticeQueue.queueUrl,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [
 		...gmailNewsletterMonitoringAccess.policies,
@@ -2089,10 +2100,7 @@ const gmailDiscoveryAccountRead = new DynamoDBAccess("hutch-gmail-discovery-acco
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailDiscoveryConnectionUpdate = new DynamoDBAccess("hutch-gmail-discovery-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
+const gmailDiscoveryConnectionUpdate = gmailConnectionUpdateAccess("gmail-discovery");
 const gmailDiscoveryQueue = new Sqs("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
 const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 	entryPoint: "./src/runtime/gmail-discovery.main.ts",
@@ -2105,10 +2113,7 @@ const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_DISCOVERY_QUEUE_URL: gmailDiscoveryQueue.queueUrl,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: false }),
 	},
 	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryAccountRead.policies, ...gmailDiscoveryConnectionUpdate.policies, ...gmailDiscoveryQueue.policies],
 	recursiveLoop: "Allow",
@@ -2180,10 +2185,7 @@ const gmailHistoryImportAccountRead = new DynamoDBAccess("hutch-gmail-history-im
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailHistoryImportConnectionUpdate = new DynamoDBAccess("hutch-gmail-history-import-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
+const gmailHistoryImportConnectionUpdate = gmailConnectionUpdateAccess("gmail-history-import");
 const gmailHistoryImportRawWrite = {
 	name: "gmail-history-import-raw-write",
 	policy: JSON.stringify({
@@ -2207,12 +2209,8 @@ const gmailHistoryImportLambda = new Lambda("gmail-history-import", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_HISTORY_IMPORT_QUEUE_URL: gmailHistoryImportQueue.queueUrl,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [
 		...gmailHistoryImportAccess.policies,
@@ -2297,11 +2295,7 @@ const gmailMessageUpdatesLambda = new Lambda("gmail-message-updates", {
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies],
 });
