@@ -7,8 +7,6 @@ import type { UserId } from "@packages/domain/user";
 import { ENGAGEMENT_EVENTS } from "@packages/dashboard-widgets";
 import { STARTER_CAMPAIGN_ID } from "./starter-policy";
 
-export { ENGAGEMENT_EVENTS };
-
 export interface EngagementEvent {
 	stream: "analytics";
 	event: string;

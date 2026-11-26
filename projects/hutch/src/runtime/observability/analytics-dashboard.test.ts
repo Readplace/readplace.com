@@ -26,12 +26,12 @@ import {
 	ANALYTICS_LOG_GROUP,
 	buildAdminDashboards,
 	CONVERSION_EVENTS,
+	ENGAGEMENT_EVENTS,
 	type ExcludedIdentities,
 	LIFECYCLE_EMAIL_EVENTS,
 	SUBSCRIPTION_EVENTS,
 } from "@packages/dashboard-widgets";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
-import { ENGAGEMENT_EVENTS } from "../domain/engagement/engagement-events";
 
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
 const EXCLUDED_USER_ID = "22222222222222222222222222222222";

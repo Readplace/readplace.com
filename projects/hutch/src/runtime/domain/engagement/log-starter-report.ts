@@ -1,5 +1,5 @@
 import type { Logger } from "@packages/logger";
-import { ENGAGEMENT_EVENTS } from "./engagement-events";
+import { ENGAGEMENT_EVENTS } from "@packages/dashboard-widgets";
 import type { ArmCounts, StarterReport } from "./starter-report";
 
 export interface StarterReportLine {
