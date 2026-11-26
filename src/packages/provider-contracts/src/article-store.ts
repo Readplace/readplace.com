@@ -555,6 +555,12 @@ export type QueueRowKey = { userId: string; url: string };
 
 export type FindQueueRowKeys = (input: { userId: UserId; urls: readonly string[] }) => Promise<QueueRowKey[]>;
 
+/** Returns ten only after confirming the memberships and purposes in a single snapshot. */
+export type CountSmartReadlistArticles = (params: {
+	userId: UserId;
+	readlists: readonly ReadlistSlug[];
+}) => Promise<number>;
+
 export type ListUserSavesForUrls = (params: {
 	userId: UserId;
 	urls: readonly string[];

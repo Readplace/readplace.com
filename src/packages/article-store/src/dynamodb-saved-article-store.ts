@@ -7,6 +7,7 @@ import {
 	dynamoField,
 	forEachQueryPage,
 	TransactionCanceledException,
+	TransactGetCommand,
 	TransactWriteCommand,
 	transactIfConditions,
 	writeIfCondition,
@@ -64,6 +65,7 @@ import type {
 	PurgeReadlistArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -330,6 +332,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -1816,6 +1819,51 @@ export function initDynamoDbSavedArticleStore(deps: {
 		});
 	};
 
+	const smartMembershipKeys = defineDynamoTable({
+		client, tableName: userArticlesTableName, schema: z.object({ url: z.string() }),
+	});
+
+	const countSmartReadlistArticles: CountSmartReadlistArticles = async ({ userId, readlists }) => {
+		const witnesses = new Map<string, ReadlistSlug>();
+		for (const readlist of readlists) {
+			let cursor: Record<string, unknown> | undefined;
+			do {
+				const page = await smartMembershipKeys.query({
+					KeyConditionExpression: "userId = :partition",
+					ExpressionAttributeValues: { ":partition": readlistPartitionValue({ userId, readlist }) },
+					FilterExpression: "attribute_exists(savedAt)",
+					ProjectionExpression: "#url",
+					ExpressionAttributeNames: { "#url": "url" },
+					ConsistentRead: true, Limit: 100, ExclusiveStartKey: cursor,
+				});
+				for (const { url } of page.items) {
+					witnesses.set(url, readlist);
+					if (witnesses.size === 10) break;
+				}
+				cursor = page.lastEvaluatedKey;
+			} while (cursor && witnesses.size < 10);
+			if (witnesses.size === 10) break;
+		}
+		if (witnesses.size < 10) return witnesses.size;
+
+		const gets = [
+			...[...witnesses].map(([url, readlist]) => ({
+				Key: { userId: readlistPartitionValue({ userId, readlist }), url },
+				ProjectionExpression: "savedAt",
+			})),
+			...[...new Set(witnesses.values())].map((readlist) => ({
+				Key: { userId, url: readlistDefinitionKey(readlist) }, ProjectionExpression: "queuePurpose",
+			})),
+		];
+		const { Responses } = await client.send(new TransactGetCommand({
+			TransactItems: gets.map((get) => ({ Get: { TableName: userArticlesTableName, ...get } })),
+		}));
+		if (!gets.every((get, i) => z.string().min(1).safeParse(Responses?.[i]?.Item?.[get.ProjectionExpression]).success)) {
+			throw new Error("Smart Readlist memberships or purposes changed during counting");
+		}
+		return witnesses.size;
+	};
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const slugs = readlists ?? [DEFAULT_READLIST_SLUG, ...await listUserReadlistSlugs(userId)];
 		const partitions = slugs.map((readlist) => partitionFor({ userId, readlist }));
@@ -2053,6 +2101,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
+		countSmartReadlistArticles,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,

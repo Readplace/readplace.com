@@ -80,7 +80,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
+		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "recordSmartReadlistStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -316,6 +316,12 @@ export function initReadlistListingRoutes(deps: Pick<
 	router.post("/onboarding/email/done", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.recordEmailStepMarkedDone({ userId: req.userId });
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
+	});
+
+	router.post("/onboarding/smart-readlist/dismiss", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		await deps.recordSmartReadlistStepDismissed({ userId: req.userId });
 		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 

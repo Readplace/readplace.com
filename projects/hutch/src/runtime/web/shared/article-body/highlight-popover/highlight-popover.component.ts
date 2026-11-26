@@ -19,17 +19,28 @@ const TEMPLATE = readFileSync(join(__dirname, "highlight-popover.template.html")
 
 const PANEL_TEMPLATE = readFileSync(join(__dirname, "highlight-popover-panel.template.html"), "utf-8");
 
+const COPY_STATUS_TEMPLATE = readFileSync(join(__dirname, "highlight-copy-status.template.html"), "utf-8");
+
 const HINT_TEMPLATE = `<p id="manage-highlight-hint" hidden>{{t "articleBody.highlightPopover.hint"}}</p>`;
 
 export function renderHighlightPopoverHint(): string {
 	return render(HINT_TEMPLATE, {});
 }
 
-export function renderHighlightPopoverPanel(input: { highlightId: HighlightId; note: string | undefined }): string {
-	const { highlightId, note } = input;
+export function renderHighlightCopyStatus(): string {
+	return render(COPY_STATUS_TEMPLATE, {}).trim();
+}
+
+export function renderHighlightPopoverPanel(input: {
+	highlightId: HighlightId;
+	note: string | undefined;
+	quote: string;
+}): string {
+	const { highlightId, note, quote } = input;
 	return render(PANEL_TEMPLATE, {
 		highlightId,
 		note,
+		quote,
 		noteLabel:
 			note === undefined ? t("articleBody.highlightsRail.addNote") : t("articleBody.highlightsRail.editNote"),
 		notePopoverId: highlightNoteEditPopoverId(highlightId),
@@ -40,8 +51,8 @@ export function renderHighlightPopoverPanel(input: { highlightId: HighlightId; n
 }
 
 export function renderHighlightPopovers(views: readonly HighlightsRailRowView[]): string {
-	const panelsHtml = views.flatMap(({ highlightId, note, marked, edit }) =>
-		marked && edit !== undefined ? [renderHighlightPopoverPanel({ highlightId, note })] : [],
+	const panelsHtml = views.flatMap(({ highlightId, note, quote, marked, edit }) =>
+		marked && edit !== undefined ? [renderHighlightPopoverPanel({ highlightId, note, quote })] : [],
 	);
 	return render(TEMPLATE, { panelsHtml, hintHtml: renderHighlightPopoverHint() }).trim();
 }

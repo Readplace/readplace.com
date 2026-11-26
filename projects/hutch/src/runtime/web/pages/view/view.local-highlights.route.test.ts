@@ -77,7 +77,19 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 		const markup = localHighlightsOf(response.text);
 		assert(markup.toolbar, "the local toolbar renders");
 		assert.equal(markup.toolbar.getAttribute("data-highlight-opened-url"), "/view/highlights/event");
+		assert.equal(markup.toolbar.getAttribute("data-highlight-copied-url"), "/view/highlights/event?action=copied");
 		const doc = new JSDOM(response.text).window.document;
+		const status = doc.querySelector("[data-highlight-copy-status]");
+		assert(status, "the copy status renders");
+		assert.deepEqual(
+			[status.getAttribute("data-copied-text"), status.getAttribute("data-copy-failed-text"), status.hasAttribute("hidden")],
+			["Highlight copied", "Couldn't copy the highlight. Select its text to copy it.", true],
+		);
+		const copyItems = Array.from(
+			doc.querySelectorAll<HTMLTemplateElement>("template[data-view-highlights-surface]"),
+			(template) => template.content.querySelector("[data-highlight-copy]")?.getAttribute("data-highlight-copy"),
+		);
+		assert.deepEqual(copyItems, ["", "", undefined, undefined]);
 		const forms = Array.from(doc.querySelectorAll("[data-highlight-create-form], #note-highlight-dialog form"));
 		assert.deepEqual(
 			forms.map((form) => [

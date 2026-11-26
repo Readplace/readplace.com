@@ -463,10 +463,12 @@ async function seedAccount(
 	assert(claim.claimed, "expected the reader-ready slot to seed as claimed");
 
 	await s.onboarding.recordNativeAppSavedArticle({ userId, platform: "ios" });
+	await s.onboarding.recordSmartReadlistMinimumReached({ userId });
 	await s.onboarding.recordNextReadMinimumReached({ userId });
 	await s.onboarding.recordInboxArticleQueued({ userId });
 	await s.onboarding.recordEmailStepMarkedDone({ userId });
 	await s.onboarding.recordGmailStepDismissed({ userId });
+	await s.onboarding.recordSmartReadlistStepDismissed({ userId });
 	await s.onboarding.recordOnboardingOutstandingVersion({ userId, version: "seeded-version" });
 
 	if (subscription === "active") {
@@ -664,10 +666,12 @@ describe("delete-account handler", () => {
 				ios: { installed: false, savedArticle: false },
 				android: { installed: false, savedArticle: false },
 			},
+			smartReadlistMinimumReachedAt: undefined,
 			nextReadMinimumReachedAt: undefined,
 			firstInboxArticleQueuedAt: undefined,
 			emailStepMarkedDoneAt: undefined,
 			gmailStepDismissedAt: undefined,
+			smartReadlistStepDismissedAt: undefined,
 			onboardingOutstandingVersion: undefined,
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,
@@ -753,10 +757,12 @@ describe("delete-account handler", () => {
 				ios: { installed: true, savedArticle: true },
 				android: { installed: false, savedArticle: false },
 			},
+			smartReadlistMinimumReachedAt: SEED_NOW,
 			nextReadMinimumReachedAt: SEED_NOW,
 			firstInboxArticleQueuedAt: SEED_NOW,
 			emailStepMarkedDoneAt: SEED_NOW,
 			gmailStepDismissedAt: SEED_NOW,
+			smartReadlistStepDismissedAt: SEED_NOW,
 			onboardingOutstandingVersion: "seeded-version",
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,

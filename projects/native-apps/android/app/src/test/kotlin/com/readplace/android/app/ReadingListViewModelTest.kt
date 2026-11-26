@@ -8,12 +8,14 @@ import com.readplace.android.core.AccessToken
 import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
+import com.readplace.android.core.ContentState
 import com.readplace.android.core.CrawlEstimate
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineCopy
 import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
@@ -209,13 +211,20 @@ class ReadingListViewModelTest {
 	private fun advertisedAction(article: Article, token: String): SirenAction =
 		checkNotNull(article.affordances.first { it.token == token }.action)
 
-	private fun article(readHref: String?, id: String = "a1", contentVersion: String? = null): Article =
+	private fun article(
+		readHref: String?,
+		id: String = "a1",
+		contentVersion: String? = null,
+		contentState: ContentState? = ContentState.Available,
+	): Article =
 		Article(
 			id = id, url = "https://example.com/x", title = "X", siteName = null, excerpt = null,
 			imageUrl = null, readTimeLabel = null, isRead = false, savedAt = null,
 			actions = emptyList(), links = emptyList(), readHref = readHref, processing = null, notice = null,
-			contentVersion = contentVersion,
+			contentVersion = contentVersion, contentState = contentState,
 		)
+
+	private fun keptReaderUrl(id: String): String = "${server.baseUrl}/queue/$id/view?platform=android"
 
 	private val purgeAction = SirenAction(
 		name = "purge-all", href = "/queue/purge", method = "POST", title = "Purge", type = null, fields = null,
@@ -324,21 +333,44 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `an article is available offline only at the version of the page kept on disk`() = runTest {
+	fun `a row is available offline only when the page kept for its own reader link is current and the row is ready`() = runTest {
 		val directory = folder.newFolder()
-		pagesOn(directory).keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
+		pagesOn(directory).keepPage(readerUrl = keptReaderUrl("a1"), articleId = "a1", contentVersion = "v1")
+		val viewModel = viewModel(readerPages = pagesOn(directory))
+		runCurrent()
+		val state = viewModel.state.value
+
+		assertEquals(
+			listOf(true, true, false, false, false, false, false, false),
+			listOf(
+				state.isAvailableOffline(article(readHref = "/queue/a1/view", contentVersion = "v1"), now = Instant.EPOCH),
+				state.isAvailableOffline(article(readHref = "/queue/a1/view", contentVersion = "v1"), now = Instant.EPOCH + OfflineCopy.MAXIMUM_AGE),
+				state.isAvailableOffline(
+					article(readHref = "/queue/a1/view", contentVersion = "v1"),
+					now = Instant.EPOCH + OfflineCopy.MAXIMUM_AGE + Duration.ofSeconds(1),
+				),
+				state.isAvailableOffline(article(readHref = "/queue/a1/view", contentVersion = "v2"), now = Instant.EPOCH),
+				state.isAvailableOffline(article(readHref = "/queue/a1/view?readlist=work", contentVersion = "v1"), now = Instant.EPOCH),
+				state.isAvailableOffline(article(readHref = null, contentVersion = "v1"), now = Instant.EPOCH),
+				state.isAvailableOffline(
+					article(readHref = "/queue/a1/view", contentVersion = "v1", contentState = ContentState.Processing),
+					now = Instant.EPOCH,
+				),
+				state.isAvailableOffline(article(readHref = "/queue/a1/view", contentVersion = "v1", contentState = null), now = Instant.EPOCH),
+			),
+		)
+	}
+
+	@Test
+	fun `a badged row opens the page kept for it`() = runTest {
+		val directory = folder.newFolder()
+		pagesOn(directory).keepPage(readerUrl = keptReaderUrl("a1"), articleId = "a1", contentVersion = "v1")
 		val viewModel = viewModel(readerPages = pagesOn(directory))
 		runCurrent()
 
-		assertEquals(
-			listOf(true, false, false, false),
-			listOf(
-				article(readHref = null, id = "a1", contentVersion = "v1"),
-				article(readHref = null, id = "a1", contentVersion = "v2"),
-				article(readHref = null, id = "a2", contentVersion = "v1"),
-				article(readHref = null, id = "a1"),
-			).map { viewModel.state.value.isAvailableOffline(it) },
-		)
+		val badged = viewModel.state.value.isAvailableOffline(article(readHref = "/queue/a1/view", contentVersion = "v1"), now = Instant.EPOCH)
+
+		assertEquals(listOf(true, true), listOf(badged, viewModel.offlineSource(keptReaderUrl("a1")) is ReaderOfflineSource.Kept))
 	}
 
 	@Test
@@ -355,15 +387,15 @@ class ReadingListViewModelTest {
 		viewModel.loadIfNeeded()
 		runCurrent()
 		val loaded = viewModel.state.value.articles.single()
-		val before = viewModel.state.value.isAvailableOffline(loaded)
+		val before = viewModel.state.value.isAvailableOffline(loaded, now = Instant.EPOCH)
 		val readsBefore = server.records("/queue").map { it.request.url.toString() }
 
-		pages.keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
+		pages.keepPage(readerUrl = keptReaderUrl("a1"), articleId = "a1", contentVersion = "v1")
 		runCurrent()
 
 		assertEquals(
 			listOf(false, true, readsBefore),
-			listOf(before, viewModel.state.value.isAvailableOffline(loaded), server.records("/queue").map { it.request.url.toString() }),
+			listOf(before, viewModel.state.value.isAvailableOffline(loaded, now = Instant.EPOCH), server.records("/queue").map { it.request.url.toString() }),
 		)
 	}
 
@@ -371,17 +403,17 @@ class ReadingListViewModelTest {
 	fun `a state holder built after the offline files were deleted marks nothing available offline`() = runTest {
 		val directory = folder.newFolder()
 		val pages = pagesOn(directory)
-		pages.keepPage(readerUrl = READER_A, articleId = "a1", contentVersion = "v1")
-		val stored = article(readHref = null, id = "a1", contentVersion = "v1")
+		pages.keepPage(readerUrl = keptReaderUrl("a1"), articleId = "a1", contentVersion = "v1")
+		val stored = article(readHref = "/queue/a1/view", contentVersion = "v1")
 		val first = viewModel(readerPages = pages)
 		runCurrent()
-		val firstAnswer = first.state.value.isAvailableOffline(stored)
+		val firstAnswer = first.state.value.isAvailableOffline(stored, now = Instant.EPOCH)
 		directory.deleteRecursively()
 
 		val second = viewModel(readerPages = pages)
 		runCurrent()
 
-		assertEquals(listOf(true, false), listOf(firstAnswer, second.state.value.isAvailableOffline(stored)))
+		assertEquals(listOf(true, false), listOf(firstAnswer, second.state.value.isAvailableOffline(stored, now = Instant.EPOCH)))
 	}
 
 	// region Add-links help (client-side)
@@ -5699,7 +5731,7 @@ class ReadingListViewModelTest {
 		server.handle(offlineDownloadHandler())
 		val partial = ScriptedDownload(
 			finish = CompletableDeferred(Unit),
-			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2),
+			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 0, total = 2),
 		)
 		val clean = ScriptedDownload(finish = CompletableDeferred(Unit))
 		val partialList = viewModel(downloadUnreadOffline = partial::run)
@@ -5727,7 +5759,7 @@ class ReadingListViewModelTest {
 		server.handle(offlineDownloadHandler())
 		val download = ScriptedDownload(
 			finish = CompletableDeferred(Unit),
-			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 21, total = 43),
+			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 21, notReady = 0, total = 43),
 		)
 		val viewModel = viewModel(downloadUnreadOffline = download::run)
 		viewModel.loadIfNeeded()
@@ -5748,7 +5780,7 @@ class ReadingListViewModelTest {
 		server.handle(offlineDownloadHandler())
 		val download = ScriptedDownload(
 			finish = CompletableDeferred(Unit),
-			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2),
+			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 0, total = 2),
 		)
 		val viewModel = viewModel(downloadUnreadOffline = download::run)
 		viewModel.loadIfNeeded()
@@ -5771,7 +5803,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(
 			downloadUnreadOffline = { _, _ ->
 				runs += 1
-				if (runs == 1) OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2) else awaitCancellation()
+				if (runs == 1) OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 0, total = 2) else awaitCancellation()
 			},
 		)
 		viewModel.loadIfNeeded()
@@ -5884,6 +5916,7 @@ class ReadingListViewModelTest {
 			title: String = "A Title",
 			processingJson: String? = null,
 			contentVersion: String? = null,
+			contentState: String = if (processingJson == null) "available" else "processing",
 		): String =
 			"""
 				{
@@ -5899,7 +5932,7 @@ class ReadingListViewModelTest {
 						"readTime": { "value": "6", "label": "~6 min read" },
 						"status": "unread",
 						"savedAt": "2026-05-30T10:00:00.000Z",
-						"readAt": null${if (processingJson != null) ", \"processing\": $processingJson" else ""}${if (contentVersion != null) ", \"contentVersion\": \"$contentVersion\"" else ""}
+						"readAt": null${if (processingJson != null) ", \"processing\": $processingJson" else ""}${if (contentVersion != null) ", \"contentVersion\": \"$contentVersion\"" else ""}, "contentState": "$contentState"
 					},
 					"links": [{ "rel": ["read"], "href": "/queue/$id/view" }],
 					"actions": [

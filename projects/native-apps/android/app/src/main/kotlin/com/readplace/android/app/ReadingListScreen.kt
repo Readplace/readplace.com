@@ -682,7 +682,7 @@ private fun ArticleList(
 				edge = PanelEdge(isFirst = index == 0, isLast = index == state.articles.lastIndex),
 				clock = clock,
 				processingReceivedAt = state.processingReceivedAt[article.id],
-				isAvailableOffline = state.isAvailableOffline(article),
+				isAvailableOffline = state.isAvailableOffline(article, now = clock.instant()),
 				onOpen = { onOpen(article) },
 				onOpenOriginal = onOpenOriginal,
 				onRecover = { article.uploadAgainLink?.let(onRecover) },

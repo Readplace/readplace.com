@@ -18,6 +18,7 @@ import {
 	decideReadlistPurposeClear,
 	pinnedReadlistSlugs,
 	type ReadlistPurposeRejection,
+	type ReadlistSlug,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { LogError } from "@packages/logger";
@@ -92,6 +93,7 @@ const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 };
 
 const PreferencesQuerySchema = z.object({
+	setup: z.literal("1").optional().catch(undefined),
 	purpose: z.string().optional().catch(undefined),
 	preferences_error: z.enum(PREFERENCES_ERROR_CODES).optional().catch(undefined),
 	preferences_saved: z.literal("1").optional().catch(undefined),
@@ -128,7 +130,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	requirePaidFeatures: RequestHandler;
 	findNonEmptyReadlists: FindNonEmptyReadlists;
 	now: () => Date;
-	resolveOnboarding: (req: Request, userId: UserId, access: EffectiveAccess) => Promise<ReadlistOnboarding>;
+	resolveOnboarding: (req: Request, userId: UserId, access: EffectiveAccess, definitions: Awaited<ReturnType<ListReadlistDefinitions>>, active: ReadlistSlug) => Promise<ReadlistOnboarding>;
 	loadGmailSenders: LoadReadlistGmailSenders | undefined;
 }): Router {
 	const router = express.Router();
@@ -165,7 +167,7 @@ export function initReadlistPreferencesRoutes(deps: {
 		const { loadGmailSenders } = deps;
 		const [access, onboarding, inboxes, nonEmptyReadlists, choices, gmailSenders] = await Promise.all([
 			accessPromise,
-			accessPromise.then((resolved) => deps.resolveOnboarding(req, userId, resolved)),
+			accessPromise.then((resolved) => deps.resolveOnboarding(req, userId, resolved, definitions, definition.slug)),
 			deps.listInboxAddresses(userId),
 			deps.findNonEmptyReadlists({ userId, readlists }),
 			deps.listReadlistFitOverrides({ userId, readlist: definition.slug }),
@@ -195,13 +197,15 @@ export function initReadlistPreferencesRoutes(deps: {
 		}));
 		const context = {
 			home: { slug: homeSlug, targets },
+			definitions,
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
 			activeReadlist,
 			readlists,
 			activePurpose: definition.purpose,
 			pinnedReadlists: pinnedReadlistSlugs(definitions),
 		};
-		const draft = parsed.purpose;
+		const setupRequested = parsed.setup !== undefined;
+		const draft = setupRequested ? undefined : parsed.purpose;
 		const error: PreferencesError =
 			parsed.preferences_error === undefined ? {} : PREFERENCES_ERRORS[parsed.preferences_error];
 
@@ -220,7 +224,8 @@ export function initReadlistPreferencesRoutes(deps: {
 						nonEmptyReadlists,
 					}),
 					values: { purpose: draft ?? definition.purpose },
-					wizardOpen: draft !== undefined || error.purposeError !== undefined,
+					wizardOpen: setupRequested ? definition.purpose === undefined
+						: draft !== undefined || error.purposeError !== undefined,
 					inboxes,
 					inboxCreate: { submittedName: parsed.inbox_name, error: error.inboxNameError },
 					inboxCreated,

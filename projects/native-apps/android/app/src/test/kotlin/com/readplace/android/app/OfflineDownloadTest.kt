@@ -49,15 +49,33 @@ class OfflineDownloadTest {
 
 	@Test
 	fun `a run with failures names how many articles were not stored`() {
-		val outcomes = listOf(OfflineDownloadOutcome.of(failed = 0, total = 3), OfflineDownloadOutcome.of(failed = 1, total = 3))
+		val outcomes = listOf(OfflineDownloadOutcome.of(failed = 0, notReady = 0, total = 3), OfflineDownloadOutcome.of(failed = 1, notReady = 0, total = 3))
 
 		assertEquals(
-			listOf(OfflineDownloadOutcome.Downloaded, OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 3)),
+			listOf(OfflineDownloadOutcome.Downloaded, OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, notReady = 0, total = 3)),
 			outcomes,
 		)
 		assertEquals(
 			listOf(null, "1 of 3 articles couldn't be downloaded for offline reading"),
 			outcomes.map { it.failureText },
+		)
+	}
+
+	@Test
+	fun `articles not ready to read are named apart from the ones that failed`() {
+		val texts = listOf(
+			OfflineDownloadOutcome.of(failed = 0, notReady = 1, total = 3),
+			OfflineDownloadOutcome.of(failed = 0, notReady = 2, total = 3),
+			OfflineDownloadOutcome.of(failed = 1, notReady = 2, total = 3),
+		).map { it.failureText }
+
+		assertEquals(
+			listOf(
+				"1 article isn't ready to read yet, so it wasn't downloaded",
+				"2 articles aren't ready to read yet, so they weren't downloaded",
+				"1 of 3 articles couldn't be downloaded for offline reading. 2 articles aren't ready to read yet, so they weren't downloaded",
+			),
+			texts,
 		)
 	}
 }

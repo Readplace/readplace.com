@@ -1,4 +1,18 @@
 export const enUS = {
+	smartReadlist: {
+		title: "Create a Smart Readlist",
+		create: "Create a readlist",
+		name: "Readlist name",
+		preferences: "Set preferences",
+		open: "Open Smart Readlist",
+		all: "Open All",
+		start: "Create a readlist, then open Preferences and set its purpose.",
+		configure: "Set a custom readlist’s purpose in Preferences to make it a Smart Readlist.",
+		file: "Open the “All” readlist, choose an article, and use Add to file it in your Smart Readlist. If your library is empty, save a link there first.",
+		progress: "{count}/10 articles saved to Smart Readlists",
+		unavailable: "Progress unavailable",
+		dismiss: "I don't want to do this",
+	},
 	manage: {
 		title: "Manage articles",
 		source: "Source",
