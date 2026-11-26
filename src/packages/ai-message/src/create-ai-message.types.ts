@@ -1,26 +1,13 @@
 import type { DeepseekFeature } from "./deepseek-feature";
 
-export type DocumentBlock = {
-	type: "document";
-	source: { type: "text"; media_type: "text/plain"; data: string };
-	title: string;
-	citations: { enabled: boolean };
-};
-
 export type CreateAiMessage = (params: {
 	feature: DeepseekFeature;
 	max_tokens: number;
 	system: string;
 	messages: Array<{
 		role: "user" | "assistant";
-		content: string | Array<DocumentBlock>;
+		content: string;
 	}>;
-	output_config?: {
-		format: {
-			type: "json_schema";
-			schema: Record<string, unknown>;
-		};
-	};
 }) => Promise<{
 	content: Array<{ type: string; text?: string }>;
 	usage: {

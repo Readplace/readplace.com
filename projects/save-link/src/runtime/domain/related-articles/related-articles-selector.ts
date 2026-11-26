@@ -194,51 +194,9 @@ export function buildRelatedArticlesRequest(input: {
 		messages: [
 			{
 				role: "user",
-				content: [
-					{
-						type: "document",
-						source: {
-							type: "text",
-							media_type: "text/plain",
-							data: buildRelatedArticlesMessage(input.params),
-						},
-						title: "Saved article and candidate earlier saves",
-						citations: { enabled: false },
-					},
-				],
+				content: buildRelatedArticlesMessage(input.params),
 			},
 		],
-		output_config: {
-			format: {
-				type: "json_schema",
-				schema: {
-					type: "object",
-					properties: {
-						related: {
-							type: "array",
-							maxItems: RELATED_RESULTS_MAX,
-							items: {
-								type: "object",
-								properties: {
-									index: {
-										type: "integer",
-										description: "The candidate number from the list",
-									},
-									reason: {
-										type: "string",
-										description: `One short sentence, max ${RELATED_REASON_MAX_CHARS} characters`,
-									},
-								},
-								required: ["index", "reason"],
-								additionalProperties: false,
-							},
-						},
-					},
-					required: ["related"],
-					additionalProperties: false,
-				},
-			},
-		},
 	};
 }
 

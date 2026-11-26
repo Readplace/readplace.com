@@ -128,7 +128,7 @@ describe("initCreateDeepseekMessage", () => {
 		});
 	});
 
-	it("should extract text from document content blocks", async () => {
+	it("should send string content as the user message", async () => {
 		const deepseek = deepseekAnswering({
 			model: "deepseek-flash",
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
@@ -142,12 +142,7 @@ describe("initCreateDeepseekMessage", () => {
 			system: "You are a summarizer.",
 			messages: [{
 				role: "user",
-				content: [{
-					type: "document",
-					source: { type: "text", media_type: "text/plain", data: "Article text about quantum computing" },
-					title: "Article to summarize",
-					citations: { enabled: true },
-				}],
+				content: "Article text about quantum computing",
 			}],
 		});
 
@@ -155,45 +150,6 @@ describe("initCreateDeepseekMessage", () => {
 			messages: [
 				{ role: "system", content: "You are a summarizer." },
 				{ role: "user", content: "Article text about quantum computing" },
-			],
-		});
-	});
-
-	it("should join multiple document blocks with newline", async () => {
-		const deepseek = deepseekAnswering({
-			model: "deepseek-flash",
-			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
-			usage: { prompt_tokens: 80, completion_tokens: 10, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 80 },
-		});
-
-		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
-		await createMessage({
-			feature: DEEPSEEK_FEATURES.summary,
-			max_tokens: 1024,
-			system: "You are a summarizer.",
-			messages: [{
-				role: "user",
-				content: [
-					{
-						type: "document",
-						source: { type: "text", media_type: "text/plain", data: "First section of the article" },
-						title: "Part 1",
-						citations: { enabled: true },
-					},
-					{
-						type: "document",
-						source: { type: "text", media_type: "text/plain", data: "Second section of the article" },
-						title: "Part 2",
-						citations: { enabled: true },
-					},
-				],
-			}],
-		});
-
-		expect(deepseek.sentBody()).toMatchObject({
-			messages: [
-				{ role: "system", content: "You are a summarizer." },
-				{ role: "user", content: "First section of the article\nSecond section of the article" },
 			],
 		});
 	});
