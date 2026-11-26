@@ -18,13 +18,12 @@ export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker
 
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
 const READLISTS_SLOT_TEMPLATE = readFileSync(join(__dirname, "reader-readlists-slot.template.html"), "utf-8");
-const BOTTOM_TEMPLATE = readFileSync(join(__dirname, "reader-actions-bottom.template.html"), "utf-8");
 const DOWNLOADS_TEMPLATE = readFileSync(join(__dirname, "reader-downloads.template.html"), "utf-8");
 const SHARE_TEMPLATE = readFileSync(join(__dirname, "reader-share.template.html"), "utf-8");
 const MARK_READ_LOADER = renderInFlightDots("article-body__mark-read-loader in-flight-dots");
 
 export interface MarkReadAction {
-	position: "top" | "bottom";
+	position: "top";
 	postUrl: string;
 	label: string;
 	iconName: IconName;
@@ -83,7 +82,7 @@ interface ShareWithheldSharing {
 export type ReaderSharing = OfferedSharing | WithheldSharing | ShareWithheldSharing;
 
 export type ActionButtons = {
-	backLink?: { topHref: string; bottomHref?: string; label: string };
+	backLink?: { topHref: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
 	menu?: { deleteItemsHtml: string };
@@ -244,23 +243,6 @@ function topBar(actionBtns: ActionButtons): string {
 function toolbar(actionBtns: ActionButtons): string {
 	return `<div class="article-body__toolbar">${topBar(actionBtns)}</div>`;
 }
-
-function bottomBar(actionBtns: ActionButtons, markRead: MarkReadAction | undefined): string {
-	return render(BOTTOM_TEMPLATE, {
-		backLink: actionBtns.backLink
-			? { href: actionBtns.backLink.bottomHref, label: actionBtns.backLink.label }
-			: undefined,
-		markRead: markReadFields(markRead),
-	});
-}
-
-export const RegularReader: RenderReaderActions = ({ actionBtns }) => ({
-	top: HtmlPage(toolbar(actionBtns)),
-	bottom: HtmlPage(
-		bottomBar(actionBtns, actionBtns.markReadActions?.find((action) => action.position === "bottom")),
-	),
-	bodyClass: `page-reader ${DISTRACTION_FREE_BODY_CLASS}`,
-});
 
 function toolbarOnlyActions(actionBtns: ActionButtons): { top: Component; bottom: Component } {
 	return {

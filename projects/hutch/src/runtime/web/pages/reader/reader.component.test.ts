@@ -655,7 +655,7 @@ describe("ReaderPage", () => {
 		assert.equal(saved.getAttribute("datetime"), "2026-08-05T06:00:00.000Z");
 	});
 
-	it("points the toolbar back link at the supplied backLink href and renders no bottom bar", () => {
+	it("points the toolbar back link at the supplied backLink href", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { ...OWNER_READER_OPTIONS, readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
@@ -670,8 +670,6 @@ describe("ReaderPage", () => {
 			doc.querySelector("[data-test-back-link]")?.getAttribute("href"),
 			TEST_BACK_LINK.topHref,
 		);
-		assert.equal(doc.querySelector(".article-body__actions--bottom"), null);
-		assert.equal(doc.querySelector("[data-test-back-bottom-link]"), null);
 	});
 
 	it("stamps the reader's <main> with the article's content state, from the same classifier as the card", () => {

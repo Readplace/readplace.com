@@ -89,7 +89,6 @@ describe("Readlist routes", () => {
 			expect(readerContent.textContent).toContain("archived content");
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Saved Post");
 			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-top");
-			expect(doc.querySelector("[data-test-back-bottom-link]")).toBe(null);
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
@@ -496,7 +495,6 @@ describe("Readlist routes", () => {
 				doc.querySelector(".article-body__toolbar [data-test-mark-read-form]"),
 				"the mark-read form must live inside the toolbar row",
 			);
-			expect(doc.querySelector("[data-test-mark-read-bottom-form]")).toBe(null);
 			expect(topForm.getAttribute("action")).toBe(
 				`/queue/${articleId}/status?utm_source=reader&utm_medium=internal&utm_content=mark-read-top`,
 			);
@@ -569,7 +567,6 @@ describe("Readlist routes", () => {
 
 			const topButton = doc.querySelector("[data-test-mark-read-btn]");
 			assert(topButton, "the sticky mark-read button must be rendered");
-			expect(doc.querySelector("[data-test-mark-read-bottom-btn]")).toBe(null);
 			expect(topButton.querySelector(".article-body__action-label")?.textContent).toBe(
 				"Mark as unread",
 			);
