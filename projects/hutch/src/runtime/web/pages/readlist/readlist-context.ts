@@ -15,8 +15,6 @@ import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./read
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
-export { readerReadlists };
-
 export interface ReadlistContext {
 	definitions: Awaited<ReturnType<ListReadlistDefinitions>>;
 	state: ReadlistUrlState;

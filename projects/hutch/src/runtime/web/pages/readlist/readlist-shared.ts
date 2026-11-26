@@ -70,7 +70,6 @@ import {
 	type ReadlistContext,
 	initResolveReadlistContext,
 	mainlineReadlistContext,
-	readerReadlists,
 	sessionIdOf,
 } from "./readlist-context";
 import { composeReadlistNav } from "./readlist-nav-layout";
@@ -80,6 +79,7 @@ import {
 	type ReadlistSlug,
 	type ReadlistRef,
 	readlistsHoldingArticle,
+	readerReadlists,
 	DEFAULT_READLIST_SLUG,
 } from "@packages/domain/readlist";
 import {
