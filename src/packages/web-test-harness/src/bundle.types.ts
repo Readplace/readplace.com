@@ -219,7 +219,6 @@ import type {
 	TurnOffSmartReadlistMatching,
 	FindSmartMatchRevisions,
 	RecordSmartMatchRevision,
-	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
 	FindUserPasswordStatus,
@@ -563,7 +562,6 @@ export interface ArticleStoreBundle {
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	markOcrPagesHeld: MarkOcrPagesHeld;
-	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;

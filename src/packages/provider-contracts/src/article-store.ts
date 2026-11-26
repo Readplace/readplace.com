@@ -271,16 +271,6 @@ export type MarkRelatedDismissed = (params: {
 	suggestionId: ReaderArticleHashId | undefined;
 }) => Promise<void>;
 
-export interface UserArticleByUrl {
-	userId: UserId;
-	viewedAt?: Date;
-}
-
-/** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan). */
-export type FindUserArticlesByUrl = (
-	url: string,
-) => Promise<UserArticleByUrl[]>;
-
 /** Set-once stamp recording that a reader-ready email was sent for this
  * (user, url). Idempotent: a second call after the stamp exists is a no-op. */
 export type MarkReaderReadyEmailSent = (params: {

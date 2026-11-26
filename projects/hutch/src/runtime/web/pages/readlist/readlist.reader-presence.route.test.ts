@@ -11,6 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { ReaderArticleHashId } from "@packages/domain/article";
 import type { TestAppFixture } from "@packages/test-fixtures";
 
 const useApp = useTestServer();
@@ -76,11 +77,11 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 		const url = "https://example.com/presence-view";
 		const { agent, articleId, userId } = await saveAndResolve(harness, url);
 
-		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+		expect((await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId))?.viewedAt).toBeUndefined();
 
 		await agent.get(`/queue/${articleId}/view`);
 
-		const [after] = await harness.articleStore.findUserArticlesByUrl(url);
+		const after = await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId);
 		expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
@@ -92,7 +93,7 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 		const response = await agent.get(`/queue/${articleId}/view`).set("Purpose", "prefetch");
 
 		expect(response.status).toBe(200);
-		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+		expect((await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId))?.viewedAt).toBeUndefined();
 	});
 
 	it("does NOT stamp viewedAt when a Sec-Purpose: prefetch request fetches GET /queue/:id/view", async () => {
@@ -103,7 +104,7 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 		const response = await agent.get(`/queue/${articleId}/view`).set("Sec-Purpose", "prefetch");
 
 		expect(response.status).toBe(200);
-		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+		expect((await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId))?.viewedAt).toBeUndefined();
 	});
 
 	it("stamps viewedAt on the in-reader poll GET /queue/:id/summary", async () => {
@@ -113,9 +114,8 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 
 		await agent.get(`/queue/${articleId}/summary?poll=1`);
 
-		const [after] = await harness.articleStore.findUserArticlesByUrl(url);
-		expect(after?.userId).toBe(userId);
-		expect(after?.viewedAt).toBeInstanceOf(Date);
+		const after = await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId);
+				expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
 	it("stamps viewedAt on the in-reader poll GET /queue/:id/reader", async () => {
@@ -125,9 +125,8 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 
 		await agent.get(`/queue/${articleId}/reader?poll=1`);
 
-		const [after] = await harness.articleStore.findUserArticlesByUrl(url);
-		expect(after?.userId).toBe(userId);
-		expect(after?.viewedAt).toBeInstanceOf(Date);
+		const after = await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId);
+				expect(after?.viewedAt).toBeInstanceOf(Date);
 	});
 
 	it("does NOT stamp viewedAt on the readlist-list glance GET /queue/:id/card", async () => {
@@ -137,6 +136,6 @@ describe("Readlist reader-view presence (viewedAt)", () => {
 
 		await agent.get(`/queue/${articleId}/card`);
 
-		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+		expect((await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId))?.viewedAt).toBeUndefined();
 	});
 });

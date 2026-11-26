@@ -82,7 +82,6 @@ import type {
 	FindReadlistArticleById,
 	FindReadlistArticles,
 	FindUnreadSavesForDigest,
-	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
@@ -317,7 +316,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	markOcrPagesHeld: MarkOcrPagesHeld;
-	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	readContent: ContentProvider;
@@ -1786,31 +1784,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		});
 	};
 
-	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const rows: z.infer<typeof UserArticleRow>[] = [];
-		let exclusiveStartKey: Record<string, unknown> | undefined;
-		do {
-			const { items, lastEvaluatedKey } = await userArticles.query({
-				IndexName: "url-index",
-				KeyConditionExpression: "#url = :url",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: { ":url": articleResourceUniqueId.value },
-				ExclusiveStartKey: exclusiveStartKey,
-			});
-			rows.push(...items);
-			exclusiveStartKey = lastEvaluatedKey;
-		} while (exclusiveStartKey);
-
-		const savers: { userId: UserId; viewedAt?: Date }[] = [];
-		for (const row of rows) {
-			const { userId, readlist } = decodeUserArticlePartition(row.userId);
-			if (readlist !== undefined) continue;
-			savers.push({ userId, viewedAt: toOptionalDate(row.viewedAt) });
-		}
-		return savers;
-	};
-
 	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const slugs = await listUserReadlistSlugs(userId);
@@ -2101,7 +2074,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		markSummaryToggled,
 		markRelatedDismissed,
 		markOcrPagesHeld,
-		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUnreadSavesForDigest,
 		readContent,

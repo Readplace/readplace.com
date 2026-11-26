@@ -146,7 +146,7 @@ function inMemoryHarness(): StampHarness {
 		readDefaultRows: async () => {
 			const toggle = await twin.getSummaryToggleState({ userId: USER, url: URL });
 			if (toggle === null) return [];
-			const viewed = await twin.findUserArticlesByUrl(URL);
+			const viewed = await twin.findArticleById(ReaderArticleHashId.from(URL), USER);
 			const digest = await twin.findUnreadSavesForDigest({
 				userId: USER,
 				savedAtOrBefore: SECOND,
@@ -156,7 +156,7 @@ function inMemoryHarness(): StampHarness {
 			});
 			return [
 				{
-					viewedAt: iso(viewed.find((row) => row.userId === USER)?.viewedAt),
+					viewedAt: iso(viewed?.viewedAt),
 					lastSummaryOpenedAt: iso(toggle.lastSummaryOpenedAt),
 					lastSummaryClosedAt: iso(toggle.lastSummaryClosedAt),
 					emailSentAt: iso(digest.candidates.find((candidate) => candidate.article.url === URL)?.emailSentAt),

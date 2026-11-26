@@ -116,7 +116,6 @@ import type {
 	FindReadlistArticleById,
 	FindReadlistArticles,
 	FindUnreadSavesForDigest,
-	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
@@ -321,7 +320,6 @@ export function initInMemoryArticleStore(): {
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	markOcrPagesHeld: MarkOcrPagesHeld;
-	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
@@ -1606,17 +1604,6 @@ export function initInMemoryArticleStore(): {
 		ua.ocrPagesHold = hold;
 	};
 
-	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const result: { userId: UserId; viewedAt?: Date }[] = [];
-		for (const ua of userArticles.values()) {
-			if (ua.url === articleResourceUniqueId.value && ua.readlist === undefined) {
-				result.push({ userId: ua.userId, viewedAt: ua.viewedAt });
-			}
-		}
-		return result;
-	};
-
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
@@ -1981,7 +1968,6 @@ export function initInMemoryArticleStore(): {
 		markSummaryToggled,
 		markRelatedDismissed,
 		markOcrPagesHeld,
-		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUnreadSavesForDigest,
 		saveReadlistArticle,

@@ -1364,7 +1364,7 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.markArticleViewed({ userId: USER_A, url: URL, at });
 
-			expect(await store.findUserArticlesByUrl(URL)).toEqual([{ userId: USER_A, viewedAt: at }]);
+			expect((await store.findArticleById(ReaderArticleHashId.from(URL), USER_A))?.viewedAt).toEqual(at);
 		});
 
 		it("mark stamps on a missing row are no-ops so a delete race cannot resurrect the row", async () => {
@@ -1374,22 +1374,7 @@ describe("initInMemoryArticleStore", () => {
 			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
 			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
-			expect(await store.findUserArticlesByUrl(URL)).toEqual([]);
-		});
-
-		it("findUserArticlesByUrl returns every saver of the URL with their viewedAt, excluding savers of other URLs", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams({ userId: USER_A }));
-			await store.saveArticle(makeArticleParams({ userId: USER_B }));
-			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/other" }));
-			const viewedAt = new Date("2026-05-30T10:00:00.000Z");
-			await store.markArticleViewed({ userId: USER_A, url: URL, at: viewedAt });
-
-			const savers = await store.findUserArticlesByUrl(URL);
-
-			expect(savers).toHaveLength(2);
-			expect(savers).toContainEqual({ userId: USER_A, viewedAt });
-			expect(savers).toContainEqual({ userId: USER_B, viewedAt: undefined });
+			expect(await store.findArticleById(ReaderArticleHashId.from(URL), USER_A)).toBeNull();
 		});
 
 		it("markReaderReadyEmailSent is set-once: a later call does not overwrite the first send", async () => {
@@ -2075,17 +2060,8 @@ describe("initInMemoryArticleStore", () => {
 				at,
 			});
 
-			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([
-				{ userId: USER_A, viewedAt: undefined },
-			]);
 			assert.ok(saved.id);
-		});
-
-		it("keeps a readlist copy out of the savers found by URL", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
-
-			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([]);
+			expect((await store.findArticleById(saved.id, USER_A))?.viewedAt).toBeUndefined();
 		});
 
 		it("covers a readlist-only URL when listing everything the reader saved", async () => {
