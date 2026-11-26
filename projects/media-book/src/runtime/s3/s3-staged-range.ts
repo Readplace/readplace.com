@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import type { UploadId } from "@packages/media-contracts";
+import { stagedObjectKey, type UploadId } from "@packages/media-contracts";
 import type { ByteRange } from "../epub/ranged-zip-directory";
 import { isGone } from "./download-staged-object";
 
@@ -16,7 +16,7 @@ export function initReadStagedRange(deps: {
 }): ReadStagedRange {
 	return async ({ uploadId, etag, range }) => {
 		const response = await deps.client
-			.send(new GetObjectCommand({ Bucket: deps.bucketName, Key: `pending/${uploadId}/original`, IfMatch: etag, Range: rangeHeader(range) }))
+			.send(new GetObjectCommand({ Bucket: deps.bucketName, Key: stagedObjectKey(uploadId), IfMatch: etag, Range: rangeHeader(range) }))
 			.catch((error: unknown) => {
 				if (isGone(error)) return "staged-bytes-gone" as const;
 				throw error;
