@@ -1,5 +1,5 @@
 export type { CrawlUnsupportedReason } from "@packages/article-state-types";
-export { rejectDocumentLandingPage } from "./document-landing-page";
+export { isHtmlContentType, rejectDocumentLandingPage } from "./document-landing-page";
 export type { FetchFailureClassification } from "./classify-fetch-failure";
 export {
 	initCrawlArticle,

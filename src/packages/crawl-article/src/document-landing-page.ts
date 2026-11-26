@@ -24,8 +24,12 @@ function isDocumentLandingPage(url: string, response: Response): boolean {
 	if (terminal.origin !== requested.origin || terminal.search !== "" || terminal.hash !== "") return false;
 	const directory = terminal.pathname.endsWith("/") ? terminal.pathname : `${terminal.pathname}/`;
 	if (!requested.pathname.startsWith(directory)) return false;
-	const mediaType = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-	return response.ok && (mediaType === "text/html" || mediaType === "application/xhtml+xml");
+	return response.ok && isHtmlContentType(response.headers.get("content-type") ?? "");
+}
+
+export function isHtmlContentType(contentType: string): boolean {
+	const mediaType = contentType.split(";")[0].trim().toLowerCase();
+	return mediaType === "text/html" || mediaType === "application/xhtml+xml";
 }
 
 export async function rejectDocumentLandingPage(url: string, response: Response, bytes?: Buffer): Promise<void> {

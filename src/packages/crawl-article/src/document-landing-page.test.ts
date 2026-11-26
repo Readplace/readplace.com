@@ -1,4 +1,4 @@
-import { DocumentLandingPageError, documentLandingPageFailure, rejectDocumentLandingPage } from "./document-landing-page";
+import { DocumentLandingPageError, documentLandingPageFailure, isHtmlContentType, rejectDocumentLandingPage } from "./document-landing-page";
 import { withResolvedUrl } from "./follow-redirects";
 import { TransportLadderFailure } from "./transport-ladder-failure";
 
@@ -110,5 +110,22 @@ describe("CIA reading-room PDF", () => {
 		const answer = response("<html>Reading Room</html>", ciaHome, "text/html", 200);
 		await rejectDocumentLandingPage(ciaHome, answer);
 		expect(await answer.text()).toBe("<html>Reading Room</html>");
+	});
+});
+
+describe("isHtmlContentType", () => {
+	it.each([
+		"text/html",
+		"application/xhtml+xml",
+		"text/html; charset=utf-8",
+		"  text/html ;charset=utf-8",
+		"TEXT/HTML",
+		"Application/XHTML+XML; charset=UTF-8",
+	])("accepts %p", (contentType) => {
+		expect(isHtmlContentType(contentType)).toBe(true);
+	});
+
+	it.each(["", "application/pdf", "text/plain; charset=utf-8", "text/htmlx", "application/json"])("refuses %p", (contentType) => {
+		expect(isHtmlContentType(contentType)).toBe(false);
 	});
 });
