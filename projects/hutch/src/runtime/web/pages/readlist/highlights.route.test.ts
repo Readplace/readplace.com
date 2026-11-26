@@ -53,6 +53,7 @@ function parsedFixture(html = ARTICLE_HTML): TestAppFixture {
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
@@ -918,22 +919,25 @@ describe("Highlights (POST /queue/:id/highlights/copied)", () => {
 		`/queue/${articleId}/highlights/copied${query}`;
 
 	it.each([
-		["", "web"],
-		["?platform=ios&", "ios"],
-		["?platform=android&", "android"],
+		["", "web", "panel"],
+		["?platform=ios&", "ios", "panel"],
+		["?platform=android&", "android", "panel"],
+		["", "web", "rail"],
+		["?platform=ios&", "ios", "rail"],
+		["?platform=android&", "android", "rail"],
 	] as const)(
-		"records highlight_copied with no text for the query prefix %j as surface %s and answers 204",
-		async (platformPrefix, surface) => {
+		"records highlight_copied with no text for the query prefix %j as surface %s from the %s and answers 204",
+		async (platformPrefix, surface, origin) => {
 			const harness = useApp(parsedFixture());
 			const { agent, articleId } = await saveArticle(
 				harness,
-				`https://example.com/highlight-copied-${surface}`,
+				`https://example.com/highlight-copied-${surface}-${origin}`,
 			);
 			const highlightId = await createHighlight(agent, {
 				articleId,
 				exact: "readability parser",
 			});
-			const query = `${platformPrefix === "" ? "?" : platformPrefix}highlight=${highlightId}&origin=panel`;
+			const query = `${platformPrefix === "" ? "?" : platformPrefix}highlight=${highlightId}&origin=${origin}`;
 
 			const response = await agent.post(copiedPath(articleId, query));
 
@@ -947,7 +951,7 @@ describe("Highlights (POST /queue/:id/highlights/copied)", () => {
 					timestamp: expect.any(String),
 					user_id: expect.any(String),
 					visitor_hash: expect.any(String),
-					origin: "panel",
+					origin,
 					highlight_id: highlightId,
 					surface,
 				},
@@ -972,6 +976,31 @@ describe("Highlights (POST /queue/:id/highlights/copied)", () => {
 		expect(
 			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
 		).toEqual([]);
+	});
+
+	it("records the copy for a locked owner", async () => {
+		const fixture = parsedFixture();
+		let offsetMs = 0;
+		fixture.shared.now = () => new Date(Date.now() + offsetMs);
+		const harness = useApp(fixture);
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-copied-locked",
+		);
+		const highlightId = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		offsetMs = 8 * 24 * 60 * 60 * 1000;
+
+		const response = await agent.post(
+			copiedPath(articleId, `?platform=ios&highlight=${highlightId}&origin=rail`),
+		);
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toHaveLength(1);
 	});
 
 	it("answers 404 and records nothing for another owner's article", async () => {

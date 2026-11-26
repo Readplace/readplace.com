@@ -77,7 +77,26 @@ async function openEnclosingMenu(trigger: Locator): Promise<void> {
 	const menu = trigger.locator('xpath=ancestor::details[1]')
 	if ((await menu.count()) === 0) return
 	if (await menu.evaluate((element: HTMLDetailsElement) => element.open)) return
+	await waitForChangelogBannerAnswer(trigger.page())
 	await menu.locator('summary').click({ timeout: 15000 })
+}
+
+const CHANGELOG_BANNER = ['[data-test-changelog-banner][hx-get]', '/blog/changelog-banner'] as const
+const CHANGELOG_BANNER_WAIT = { timeout: 15000 }
+
+async function waitForChangelogBannerAnswer(page: Page): Promise<void> {
+	await page.waitForFunction(
+		([loader, endpoint]) => {
+			const pending = document.querySelector(loader)
+			if (pending === null) return true
+			const answered = performance
+				.getEntriesByType('resource')
+				.some((entry) => new URL(entry.name).pathname === endpoint)
+			return answered && !pending.classList.contains('htmx-request')
+		},
+		CHANGELOG_BANNER,
+		CHANGELOG_BANNER_WAIT,
+	)
 }
 
 export async function deleteArticleWithConfirmation(page: Page, trigger: Locator): Promise<void> {

@@ -16,6 +16,7 @@ import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
 import { readEnv } from "@packages/require-env";
+import { ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { SAVE_LINK_RAW_PDF_COMMAND_ENV } from "./save-link-raw-pdf-command.env";
 import { initReadPendingPdf } from "./providers/article-store/read-pending-pdf";
 import { initSaveLinkRawPdfCommandHandler } from "./domain/save-link-raw-pdf/save-link-raw-pdf-command-handler";
@@ -88,6 +89,7 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+	coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 });
 const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });

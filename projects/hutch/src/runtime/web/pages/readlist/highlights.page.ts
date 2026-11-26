@@ -70,7 +70,7 @@ const HighlightOpenedQuerySchema = z.object({
 
 const HighlightCopiedQuerySchema = z.object({
 	highlight: HighlightIdSchema,
-	origin: z.literal("panel"),
+	origin: z.enum(["panel", "rail"]),
 });
 
 const DIALOG_ERRORS: Record<HighlightRefusal, string> = {

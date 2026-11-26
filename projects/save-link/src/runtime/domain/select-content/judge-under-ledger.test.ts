@@ -38,7 +38,7 @@ function setup(params: { decision: ContentDecision; responseStatus?: "completed"
 	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg, claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 	return {
 		selectMostCompleteContent,
-		judge: (sources: readonly VerifiedTierSource[], claimId = "message-1") => judge({ url: URL, originalUrl: URL, sources, proseHashOf: computeCanonicalContentHash, claimId }),
+		judge: (sources: readonly VerifiedTierSource[], claimId = "message-1") => judge({ url: URL, originalUrl: URL, sources, proseHashOf: computeCanonicalContentHash, coverageNoteOf: () => undefined, claimId }),
 	};
 }
 
@@ -47,7 +47,7 @@ describe("initJudgeUnderLedger", () => {
 		const runMeteredLeg = jest.fn<ReturnType<RunMeteredLeg>, Parameters<RunMeteredLeg>>();
 		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg, claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 
-		const decision = await judge({ url: URL, originalUrl: URL, sources: [], proseHashOf: computeCanonicalContentHash, claimId: "message-1" });
+		const decision = await judge({ url: URL, originalUrl: URL, sources: [], proseHashOf: computeCanonicalContentHash, coverageNoteOf: () => undefined, claimId: "message-1" });
 
 		expect(decision).toEqual({ kind: "none", reason: "no verified candidates", readability: [], judgedBodies: 0 });
 		expect(runMeteredLeg).not.toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe("initJudgeUnderLedger", () => {
 	it("fails the delivery while another delivery holds the judge", async () => {
 		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 
-		await expect(judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, claimId: "message-2" }))
+		await expect(judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, coverageNoteOf: () => undefined, claimId: "message-2" }))
 			.rejects.toThrow(`another delivery holds the content judge for ${URL}`);
 	});
 
@@ -131,7 +131,7 @@ describe("initJudgeUnderLedger", () => {
 		const selectMostCompleteContent = jest.fn();
 		const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 360_000, heldClaim: "raise-ownership-anomaly" });
 
-		const raised = await judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, claimId: "message-2" }).catch((error: unknown) => error);
+		const raised = await judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, coverageNoteOf: () => undefined, claimId: "message-2" }).catch((error: unknown) => error);
 
 		assert(raised instanceof ContentJudgeClaimHeldError);
 		assert.equal(raised.url, URL);

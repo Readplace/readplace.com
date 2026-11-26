@@ -32,6 +32,7 @@ export const TierSourceMetadataSchema = z.object({
 	renderedThrough: z.enum(["direct-egress", "residential-proxy", "residential-per-gb", "web-unlocker-fetch", "web-unlocker-render"]).optional(),
 	htmlLocation: z.string().optional(),
 	evaluationLocation: z.string().optional(),
+	coverage: z.unknown().optional(),
 });
 
 export type TierSourceMetadata = z.infer<typeof TierSourceMetadataSchema>;

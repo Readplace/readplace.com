@@ -270,7 +270,7 @@ describe("ReadlistPreferencesPage", () => {
 
 		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
 		expect(empty.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Personalise this readlist by choosing what you want to read in it.",
+			"Readplace checks new article links from your Readplace inboxes and enabled Gmail newsletters against these preferences.",
 		);
 		expect(
 			Array.from(empty.querySelectorAll('[data-test-action="readlist-preferences-setup"]'), (cta) => ({

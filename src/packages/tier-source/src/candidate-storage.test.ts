@@ -87,6 +87,16 @@ describe("immutable candidate upload", () => {
 		expect(objects.get(second.htmlLocation ?? "")).toBe(html);
 		expect(second.contentHash).toBe(first.contentHash);
 	});
+	it("keeps the first manifest's coverage evidence when a redelivery of the same candidate carries different evidence", async () => {
+		const { client, objects } = storage();
+		const persist = initPersistCandidateArtifact({ client, bucketName: "content" });
+		const firstCoverage = { schemaVersion: 1, assessments: ["first"] };
+		await persist({ ...params, metadata: { ...params.metadata, coverage: firstCoverage } });
+		const redelivered = await persist({ ...params, metadata: { ...params.metadata, coverage: { schemaVersion: 1, assessments: ["second"] } } });
+		const key = candidateManifestKey({ url: URL, tier: params.tier, candidateId: params.metadata.id });
+		expect(redelivered.coverage).toEqual(firstCoverage);
+		expect(JSON.parse(objects.get(key) ?? "{}").coverage).toEqual(firstCoverage);
+	});
 	it("keeps the ownership manifest when a body upload fails", async () => {
 		const { client, objects } = storage((input) => { if (input.Key.endsWith("content.html")) throw new Error("body upload interrupted"); });
 		await expect(initPersistCandidateArtifact({ client, bucketName: "content" })(params)).rejects.toThrow("body upload interrupted");

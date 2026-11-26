@@ -113,7 +113,7 @@ export function initRefreshArticleIfStale(deps: {
 
 		return {
 			action: "refreshed",
-			article: { ok: true, article: {
+			article: { ok: true, coverage: [], article: {
 				title: metadata.title,
 				siteName: metadata.siteName,
 				excerpt: metadata.excerpt,

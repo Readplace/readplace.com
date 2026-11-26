@@ -15,6 +15,7 @@ const siteRules = initArticleSiteRules({ crawlFetch: noNetwork, logError: noNetw
 
 function parsePage(params: { html: string; url: string; useSiteRules?: boolean }) {
 	const { parseHtml } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle: noNetwork,
 		logError: noNetwork,
 		siteRules: params.useSiteRules === false ? [] : siteRules,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { SaveAttemptIdSchema, CandidateIdSchema, type SaveAttemptId } from "@packages/domain/article";
+import { SaveAttemptIdSchema, CandidateIdSchema, type SaveAttemptId, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
@@ -53,6 +53,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	const events: string[] = [];
 	const transitionAndPersist: TransitionAndPersist = jest.fn(async () => { events.push("commit"); });
 	const deps: TestDependencies = {
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => [source()],
 		selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("tier-1"), reason: "Most complete" }),
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),

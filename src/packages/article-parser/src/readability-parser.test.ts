@@ -50,6 +50,7 @@ function initParser(overrides: {
 	logError?: (message: string, error?: Error) => void;
 } = {}) {
 	return initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle:
 			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
 		siteRules: (overrides.siteRules ?? []).map(toSiteRules),
@@ -1547,6 +1548,7 @@ describe("a Quora shared post, through the registered site rules", () => {
 
 	function parseWith(params: { html: string; siteRules: readonly SiteRules[] }) {
 		const { parseHtml } = initReadabilityParser({
+			coverageRules: { inspect: () => [] },
 			crawlArticle: async () => ({ status: "fetched" as const, html: params.html, bodyHash: "a".repeat(64) }),
 			siteRules: params.siteRules,
 			readabilityAdditions,

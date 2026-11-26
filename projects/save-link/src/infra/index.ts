@@ -146,6 +146,7 @@ const inboxEmailLinksTableArn = config.require("inboxEmailLinksTableArn");
 const paidCrawlBudget = config.require("paidCrawlBudget");
 const renderCrawlBudget = config.require("renderCrawlBudget");
 const renderRequestDiagnostics = config.require("renderRequestDiagnostics");
+const coverageRuleModes = config.require("coverageRuleModes");
 const readlistFitEngine = config.require("readlistFitEngine");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
@@ -470,6 +471,7 @@ const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand,
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SAVE_LINK_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -557,6 +559,7 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SUBMIT_LINK_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
@@ -679,6 +682,7 @@ const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkR
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SAVE_LINK_RAW_HTML_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
@@ -728,6 +732,7 @@ const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAno
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SAVE_ANONYMOUS_LINK_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1030,6 +1035,7 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environmentNames: COMPREHENSIVE_CRAWL_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
@@ -1098,6 +1104,7 @@ const renderCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCo
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
 	environmentNames: RENDER_CRAWL_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		...crawlEgressProxyEnvironment,
 		CRAWL_RESIDENTIAL_PROXY_URL: pulumi.secret(requireEnv("CRAWL_RESIDENTIAL_PROXY_URL")),
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1283,6 +1290,7 @@ const staleCheckRequestedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRe
 	layers: [curlImpersonateLayerArn],
 	environmentNames: STALE_CHECK_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1346,6 +1354,7 @@ const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.select
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...SELECT_MOST_COMPLETE_CONTENT_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1390,6 +1399,7 @@ const selectArticleContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.selectArtic
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: SELECT_ARTICLE_CONTENT_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1564,6 +1574,7 @@ const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAft
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...RESELECT_AFTER_REMOVAL_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -2022,6 +2033,7 @@ const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLink
 	layers: [curlImpersonateLayerArn],
 	environmentNames: RECRAWL_LINK_INITIATED_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -2070,6 +2082,7 @@ const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...RECRAWL_CONTENT_EXTRACTED_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -2212,6 +2225,7 @@ const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...REFRESH_CONTENT_EXTRACTED_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,

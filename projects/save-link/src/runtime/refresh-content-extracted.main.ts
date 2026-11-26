@@ -11,9 +11,11 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { readEnv } from "@packages/require-env";
+import { parseCoverageRuleModes } from "@packages/domain/article";
 import { REFRESH_CONTENT_EXTRACTED_ENV } from "./refresh-content-extracted.env";
 
 const env = readEnv(REFRESH_CONTENT_EXTRACTED_ENV);
+const coverageRuleModes = parseCoverageRuleModes(env.COVERAGE_RULE_MODES);
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
@@ -41,6 +43,7 @@ const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient,
 const { logCrawlSettled } = initLogCrawlSettled({ logger: Logger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events, logCrawlSettled });
 const selectContent = initSelectContentDepBundle({
+	coverageRuleModes,
 	s3Client,
 	dynamoClient,
 	contentBucketName,

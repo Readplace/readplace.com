@@ -54,7 +54,7 @@ async function harnessWithArticle(
 	serve: typeof useApp = useApp,
 ): Promise<TestAppHarness> {
 	const parseArticle: ParseArticle = async () => ({
-		ok: true,
+		ok: true, coverage: [],
 		article: { title: "A readable post", siteName: "Example", excerpt: "An excerpt.", wordCount: 20, content: ARTICLE_HTML },
 	});
 	const applyParseResult = createFakeApplyParseResult({
@@ -201,6 +201,7 @@ describe("POST /view/highlights/event", () => {
 	it.each([
 		["action=kept", "kept"],
 		["action=limit-reached", "limit_reached"],
+		["action=copied", "copied"],
 		["highlight=local-1&origin=mark", "opened"],
 		["action=copied&highlight=local-1&origin=panel", "copied"],
 	])("records %s for a logged-out visitor, with no quote text", async (query, action) => {

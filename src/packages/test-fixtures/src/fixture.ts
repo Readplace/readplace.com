@@ -3,13 +3,13 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { Logger } from "@packages/logger";
 import { noopLogger } from "@packages/logger";
-import { calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
+import { ALL_COVERAGE_RULES_OFF, calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
 import type {
 	BotDefenseEvent,
 	ConversionEvent,
 } from "@packages/provider-contracts/auth";
 import type { ParseArticle } from "@packages/article-parser";
-import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { activateCoverageRules, initArticleCoverageRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
@@ -302,6 +302,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
+		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

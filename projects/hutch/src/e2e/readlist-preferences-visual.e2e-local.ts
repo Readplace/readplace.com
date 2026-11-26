@@ -185,6 +185,11 @@ async function savePurpose(page: Page, stamp: string): Promise<void> {
 	await page.locator(PANEL_FIELD).fill(PURPOSE);
 	await clickAndWaitForPageReload(page, page.locator(PANEL_SAVE));
 	await page.waitForSelector(PURPOSE_TEXT);
+	const confirmation = page.getByRole("dialog", { name: "Preferences saved" });
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toContainText("300 unique links");
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
 	await page.mouse.move(5, 5);
 }
 
@@ -511,8 +516,8 @@ async function unsetBodyWrapsOnAPhone(page: Page): Promise<void> {
 	await unsetCardComposition(page);
 	const text = await measuredBox(page, UNSET_TEXT);
 	assert.ok(
-		near({ actual: text.height / 22, expected: 2, within: 0.1 }),
-		`the setup copy must wrap to two 22px lines on a phone, measured ${text.height}px`,
+		near({ actual: text.height / 22, expected: 3, within: 0.1 }),
+		`the setup copy must wrap to three 22px lines on a phone, measured ${text.height}px`,
 	);
 }
 

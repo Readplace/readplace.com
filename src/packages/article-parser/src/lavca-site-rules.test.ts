@@ -28,7 +28,7 @@ describe("LAVCA funding briefs", () => {
 	it("uses the article's short text, citation, category and displayed and structured dates", () => {
 		const unavailable = () => { throw new Error("Already fetched"); };
 		const { siteRules } = initArticleSiteRules({ crawlFetch: unavailable, logError: unavailable });
-		const { parseHtml } = initReadabilityParser({ crawlArticle: unavailable, siteRules, readabilityAdditions, logError: unavailable });
+		const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: unavailable, siteRules, readabilityAdditions, logError: unavailable });
 
 		const result = parseHtml({ url, documentUrl, html: markup, thumbnailUrl: null });
 

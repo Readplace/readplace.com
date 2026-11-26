@@ -627,7 +627,7 @@ describe("InboxPage", () => {
 		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__subtitle")?.textContent,
-			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.",
+			"Subscribe with one of these custom emails or forward an issue to it. The issue stays in Inbox. Readplace saves its article links to All and checks them against your saved readlist preferences.",
 		);
 		assert.deepEqual(
 			Array.from(doc.querySelectorAll(".inbox__steps > li"), (step) => step.textContent),

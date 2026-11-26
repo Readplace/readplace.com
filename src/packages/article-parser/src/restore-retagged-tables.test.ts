@@ -187,6 +187,7 @@ describe("restoreRetaggedTables keeps every text node in order and leaves no tab
 
 describe("restoreRetaggedTables end-to-end through parseHtml", () => {
 	const { parseHtml } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle: async () => ({ status: "fetched" as const, html: "", bodyHash: "a".repeat(64) }),
 		siteRules: [],
 		readabilityAdditions,

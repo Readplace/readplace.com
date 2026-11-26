@@ -98,7 +98,7 @@ export { parseHttpUrl } from "./parse-http-url";
 export { sanitizeEmailHtml } from "./sanitize-email-html";
 export { deriveSanitizedBody } from "./derive-sanitized-body";
 export { emailImageCdnUrl, emailImageS3KeyPrefix } from "./email-image-keys";
-export { capEmailLinks } from "./cap-email-links";
+export { capEmailLinks, INBOX_MAX_LINKS_PER_EMAIL } from "./cap-email-links";
 export {
 	EmailLinkOrdinalSchema,
 	type EmailLinkOrdinal,
@@ -117,6 +117,8 @@ export { classifyForwardedEmailLink } from "./classify-forwarded-email-link";
 export type {
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
+	InboxArticleDestination,
+	InboxExtractionWindow,
 	InboxEmailLinkStore,
 	EmailLinkOutcome,
 } from "./inbox-email-link.types";
@@ -140,6 +142,8 @@ export {
 	type EmailImportCompletion,
 	type EmailImportCompletionStore,
 	isEmailSavedToAll,
+	amendEmailSelection,
+	emailMatchBatch,
 	uniqueGmailOrigins,
 } from "./email-output";
 export {

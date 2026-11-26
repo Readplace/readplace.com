@@ -1,10 +1,12 @@
 import type { HighlightCopiedEvent } from "@packages/web-analytics";
 
 export const COPY_STATUS_RESET_MS = 2000;
+export const RAIL_COPY_STATUS_CLEAR_MS = 4000;
 export const HAS_CLIPBOARD_CLASS = "has-clipboard";
 
 export const COPY_ATTRIBUTE = "data-highlight-copy";
 export const COPY_FAILED_CLASS = "highlight-copy-status--failed";
+export const RAIL_COPY_ATTRIBUTE = "data-highlight-rail-copy";
 
 const COPY_SELECTOR = `[${COPY_ATTRIBUTE}]`;
 const PANEL_ATTRIBUTE = "data-highlight-popover";
@@ -13,6 +15,11 @@ const LIVE_REGION_ID = "toast-live-region";
 const TOOLBAR_SELECTOR = "[data-highlight-toolbar]";
 const COPIED_URL_ATTRIBUTE = "data-highlight-copied-url";
 const COPY_ORIGIN: HighlightCopiedEvent["origin"] = "panel";
+const RAIL_COPY_SELECTOR = `[${RAIL_COPY_ATTRIBUTE}]`;
+const RAIL_ROW_SELECTOR = "[data-highlight-copy-source]";
+const RAIL_EXCERPT_SELECTOR = ".highlights-rail__excerpt";
+const RAIL_STATUS_SELECTOR = "[data-highlight-rail-copy-status]";
+const RAIL_HIGHLIGHT_ATTRIBUTE = "data-highlight-row";
 
 interface HighlightCopyNavigator {
 	clipboard?: { writeText(text: string): Promise<void> };
@@ -71,8 +78,61 @@ export function initHighlightCopy(deps: HighlightCopyDeps): void {
 		deps.sendBeacon(`${url.pathname}${url.search}`);
 	};
 
+	let railClearing: unknown;
+
+	const railStatusOf = (): Element => {
+		const status = document.querySelector(RAIL_STATUS_SELECTOR);
+		assert(status, "a page with Highlights rail copy buttons renders the rail copy status region");
+		return status;
+	};
+
+	const announceRail = (input: { status: Element; textAttribute: string }): void => {
+		deps.clearTimeoutFn(railClearing);
+		input.status.textContent = input.status.getAttribute(input.textAttribute);
+		railClearing = deps.setTimeoutFn(() => {
+			input.status.textContent = "";
+		}, RAIL_COPY_STATUS_CLEAR_MS);
+	};
+
+	const railBeacon = (input: { status: Element; row: Element }): void => {
+		const rendered = input.status.getAttribute("data-copied-url");
+		assert(rendered, "the rail copy status region names its copied beacon");
+		const url = new URL(rendered, document.baseURI);
+		const highlightId = input.row.getAttribute(RAIL_HIGHLIGHT_ATTRIBUTE);
+		if (highlightId !== null) url.searchParams.set("highlight", highlightId);
+		deps.sendBeacon(`${url.pathname}${url.search}`);
+	};
+
+	const copyRailRow = (button: Element): void => {
+		const row = button.closest(RAIL_ROW_SELECTOR);
+		assert(row, "a Highlights rail copy button sits in a highlight row");
+		const excerpt = row.querySelector(RAIL_EXCERPT_SELECTOR);
+		assert(excerpt, "a highlight row holds its excerpt");
+		const text = excerpt.textContent;
+		assert(text !== null, "an element always has text content");
+		clipboard.writeText(text).then(
+			() => {
+				const status = railStatusOf();
+				announceRail({ status, textAttribute: "data-copied-text" });
+				railBeacon({ status, row });
+			},
+			() => {
+				const selection = document.getSelection();
+				assert(selection, "a live document always has a selection");
+				selection.selectAllChildren(excerpt);
+				announceRail({ status: railStatusOf(), textAttribute: "data-copy-failed-text" });
+			},
+		);
+	};
+
 	document.addEventListener("click", (event) => {
-		const button = event.composedPath().filter(isElement).find((element) => element.matches(COPY_SELECTOR));
+		const path = event.composedPath().filter(isElement);
+		const railButton = path.find((element) => element.matches(RAIL_COPY_SELECTOR));
+		if (railButton !== undefined) {
+			copyRailRow(railButton);
+			return;
+		}
+		const button = path.find((element) => element.matches(COPY_SELECTOR));
 		if (button === undefined) return;
 		const text = button.getAttribute(COPY_ATTRIBUTE);
 		assert(text, "a Copy highlight item carries its highlight's text");

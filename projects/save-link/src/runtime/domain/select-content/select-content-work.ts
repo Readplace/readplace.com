@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { setTimeout } from "node:timers/promises";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import type { SelectionSourceKind } from "@packages/infra-components";
-import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
+import { type CoverageRuleModes, type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { type FetchRedditPostCard, type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
 import { estimatedReadTimeFromWordCount } from "@packages/finalize-article";
@@ -54,6 +54,7 @@ export interface SelectContentDependencies {
 	putTierSource: PutTierSource;
 	now: () => Date;
 	logger: Logger;
+	coverageRuleModes: CoverageRuleModes;
 }
 
 export type SelectContentRequest = {

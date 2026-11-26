@@ -141,6 +141,7 @@ function linkedinPostPage(bodyInner: string): string {
 
 describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 	const { parseHtml } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle: async () => ({
 			status: "fetched" as const,
 			html: "",

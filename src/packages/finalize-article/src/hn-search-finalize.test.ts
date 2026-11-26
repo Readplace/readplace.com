@@ -24,6 +24,7 @@ it("keeps all thirty search results and returned story bodies through the produc
 	const outcome = await rule.onCrawl({ url: SEARCH_URL });
 	if (outcome.kind !== "content") throw new Error("Expected search collection");
 	const { parseHtml } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle: async () => { throw new Error("Unexpected crawl"); },
 		siteRules: [rule],
 		readabilityAdditions,

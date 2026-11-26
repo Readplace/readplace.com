@@ -1,4 +1,5 @@
 import type { YouTubeEmbed } from "@packages/crawl-article";
+import type { CoverageInspection } from "./coverage-rules/coverage-rule.types";
 
 interface ParsedArticle {
 	title: string;
@@ -11,7 +12,7 @@ interface ParsedArticle {
 }
 
 export type ParseArticleResult =
-	| { ok: true; article: ParsedArticle }
+	| { ok: true; article: ParsedArticle; coverage: readonly CoverageInspection[] }
 	| { ok: false; reason: string };
 
 export type ParseArticle = (url: string) => Promise<ParseArticleResult>;

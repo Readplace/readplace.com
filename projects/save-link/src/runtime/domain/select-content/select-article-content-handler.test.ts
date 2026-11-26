@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { SaveAttemptIdSchema, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { noopLogger } from "@packages/logger";
 import { type Article, SelectionSnapshotChangedError, type TransitionAndPersist, markCrawlExhausted, promoteTier, recrawlPromoteTier, refreshContent } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -31,6 +31,7 @@ function selectionDeps(overrides: Partial<Parameters<typeof initSelectArticleCon
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { persisted.push({ transition, input: params.input }); };
 	const info = jest.fn();
 	const deps = {
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => [source],
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: judgeCalls }).selectMostCompleteContent,
 		runMeteredLeg: spiedMeteredLeg,

@@ -53,7 +53,7 @@ describe("Readlist routes", () => {
 			const refreshedFreshness: RefreshArticleIfStale = async () => ({
 				action: "refreshed",
 				article: {
-					ok: true as const,
+					ok: true as const, coverage: [],
 					article: {
 						title: "Refreshed",
 						siteName: "example.com",
