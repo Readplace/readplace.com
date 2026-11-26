@@ -52,8 +52,6 @@ import type {
 	ResolveReaderStateParams,
 } from "./article-reader.types";
 import { needsResolutionOnView } from "../../../domain/resolve-on-view/needs-resolution-on-view";
-import { isReaderContentUnavailable } from "../article-state/is-reader-content-unavailable";
-import { isReaderViewFailed } from "../article-state/is-reader-view-failed";
 import { MAX_POLLS } from "@packages/web-shell";
 import {
 	type CaptureResolution,
@@ -270,12 +268,9 @@ function settledFailureOob(input: {
 }): string {
 	const settled =
 		input.readerPollUrl === undefined && input.summaryPollUrl === undefined;
-	return settled &&
-		isReaderViewFailed({
-			crawlStatus: input.crawl?.status,
-			summaryStatus: input.summary?.status,
-		})
-		? input.render({ readerContentUnavailable: isReaderContentUnavailable({ crawlStatus: input.crawl?.status }) })
+	const view = readerViewOf({ crawlStatus: input.crawl?.status, summaryStatus: input.summary?.status });
+	return settled && view.kind === "failed"
+		? input.render({ readerContentUnavailable: view.contentUnavailable })
 		: "";
 }
 
@@ -353,7 +348,7 @@ function readerViewOf(input: {
 		summary: input.summaryStatus ?? "pending",
 	});
 	return status === "failed"
-		? { kind: "failed", contentUnavailable: isReaderContentUnavailable({ crawlStatus: input.crawlStatus }) }
+		? { kind: "failed", contentUnavailable: input.crawlStatus === "failed" || input.crawlStatus === "unsupported" }
 		: { kind: status };
 }
 
