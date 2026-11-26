@@ -3,7 +3,6 @@ import type { KnipConfig } from "knip";
 export default {
 	entry: [
 		"scripts/check-stuck-articles.ts",
-		"scripts/classify-row.ts",
 		"scripts/collect-stuck-rows.ts",
 		"scripts/stuck-articles-issue.ts",
 	],

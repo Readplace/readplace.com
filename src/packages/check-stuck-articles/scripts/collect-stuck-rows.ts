@@ -18,8 +18,7 @@ import {
 	SUMMARY_STATUS_INDEX,
 } from "@packages/provider-contracts/article-status-indexes";
 import { z } from "zod";
-import { checkTerminalState } from "./check-terminal-state";
-import type { StuckReason } from "./classify-row";
+import { type StuckReason, checkTerminalState } from "./check-terminal-state";
 
 /* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`. */
 const StuckArticleRow = z.object({
