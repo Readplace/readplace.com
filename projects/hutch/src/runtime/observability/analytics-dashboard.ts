@@ -9,7 +9,6 @@ import {
 } from "@packages/infra-components";
 import { CLICK_SURFACES } from "@packages/web-shell";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
-import { HOMEPAGE_EXPOSURE } from "../web/pages/home/home.version";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import { VIEW_CRAWL_LIMIT_SOURCE } from "../web/pages/view/view-crawl-limit.component";
@@ -784,19 +783,13 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Homepage ---
-	// The `/` render stamps experiment=<campaign> + experiment_variant=<version> on
-	// its own pageview. The retired A/B split's tag is matched alongside the current
-	// one so the arms stay beside the page that replaced them, which is what makes
-	// "did the new homepage beat the arms it replaced" answerable at all.
-	//
 	// The denominator is `visitor_id` (the sticky first-party cookie identity the
 	// conversion also carries), not `visitor_hash` (a salted IP hash that collapses
 	// people behind shared NAT and is not the id a signup joins on).
 
-	const RETIRED_SPLIT_CAMPAIGNS = ["homepage-split-e3", "homepage-ai-cost-e1", "homepage-ai-cost-e2"] as const;
-	const homepageExperiments = [HOMEPAGE_EXPOSURE.campaign, ...RETIRED_SPLIT_CAMPAIGNS, campaignTag(HOMEPAGE_SPLIT)]
+	const homepageExperiments = [campaignTag(HOMEPAGE_SPLIT)]
 		.map((experiment) => `"${experiment}"`).join(", ");
-	const homepageExposureFilter = `(experiment in [${homepageExperiments}] or utm_campaign = "homepage-split-e3")`;
+	const homepageExposureFilter = `(experiment in [${homepageExperiments}])`;
 	const homepageArmSlugs = HOMEPAGE_SPLIT.variants.map(({ slug }) => `"${slug}"`).join(", ");
 
 	widgets.push(
