@@ -16,7 +16,6 @@ import {
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
-	writeIfCondition,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
@@ -27,14 +26,13 @@ import type {
 	FindReadCandidatesAcrossReadlists,
 	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
-	MarkRelatedArticlesOutcome,
 	PastReadDisplay,
 	PastReads,
 	ReadPastReadsState,
 	ReadlistReadCandidate,
 } from "@packages/provider-contracts/related-articles";
 import { z } from "zod";
-import { ARTICLE_FIELDS, LinkableArticle, initArticleReads, readableBy, usable } from "./related-articles-rows";
+import { ARTICLE_FIELDS, LinkableArticle, initArticleReads, outcomeOf, readableBy, usable } from "./related-articles-rows";
 import { listOwnedReadlistSlugs } from "./readlist-definition-rows";
 import {
 	decodeUserArticlePartition,
@@ -71,12 +69,6 @@ const SavedStatusRow = z.looseObject({
  * order (source list, default, then owned in creation order) has no repeats. */
 function unique(slugs: readonly ReadlistSlug[]): ReadlistSlug[] {
 	return [...new Set(slugs)];
-}
-
-async function outcomeOf(write: Promise<unknown>): Promise<MarkRelatedArticlesOutcome> {
-	const outcome = await writeIfCondition(() => write);
-	if (outcome.kind === "condition-failed") return "superseded";
-	return "stored";
 }
 
 function notYetComputed(budgetBlockedUntil: string | undefined): PastReads {
@@ -250,7 +242,7 @@ export function initDynamoDbPastReads(deps: {
 	};
 
 	const markPastReadsReady: MarkPastReadsReady = (params) =>
-		outcomeOf(userArticles.update(readyUpdate(params)));
+		outcomeOf(() => userArticles.update(readyUpdate(params)));
 
 	const findPastReads: FindPastReads = (params) =>
 		params.generatedContent === "withheld"
@@ -258,7 +250,7 @@ export function initDynamoDbPastReads(deps: {
 			: findStoredPastReads(params);
 
 	const markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked = (params) =>
-		outcomeOf(userArticles.update(budgetBlockedUpdate(params)));
+		outcomeOf(() => userArticles.update(budgetBlockedUpdate(params)));
 
 	const findStoredPastReads: FindPastReads = async (params) => {
 		/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
