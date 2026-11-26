@@ -42,6 +42,7 @@ import {
 import { buildInboxLinkFitUrl } from "./inbox-link-fit-url";
 import { type InboxPanelStatus, panelStatusFor } from "./inbox-panel-status";
 import {
+	readlistOutcomeFor,
 	cardReadlistFits,
 	fitsReadlist,
 	type ReadlistFitOverridesByReadlist,
@@ -129,14 +130,15 @@ function readlistSaveNotices(input: {
 	selectedReadlists: NonNullable<InboxEmailLinksMeta["selectedReadlists"]>;
 	outcomes: InboxEmailLinksMeta["readlistOutcomes"];
 	articles: number;
+	issueOnly: boolean;
 	savesHeld: boolean;
 	withinPollBudget: boolean;
 }): PanelNotice[] {
 	const notices: PanelNotice[] =
-		input.articles > 0 && !input.savesHeld
+		input.articles > 0 && !input.savesHeld && !input.issueOnly
 			? [{ key: "decided", text: "Saved to All.", iconName: undefined }]
 			: [];
-	for (const { readlist, label } of input.selectedReadlists) {
+	for (const { readlist, label, qualification } of input.selectedReadlists) {
 		if (input.savesHeld) {
 			notices.push({
 				key: "decided",
@@ -145,9 +147,7 @@ function readlistSaveNotices(input: {
 			});
 			continue;
 		}
-		const outcome = input.outcomes?.find(
-			(entry) => entry.readlist === readlist,
-		);
+		const outcome = readlistOutcomeFor({ outcomes: input.outcomes ?? [], readlist });
 		if (outcome === undefined) {
 			notices.push({
 				key: "deciding",
@@ -156,7 +156,7 @@ function readlistSaveNotices(input: {
 					: `Still choosing articles for ${label}. Reload later to see the result.`,
 				iconName: input.withinPollBudget ? "loader" : undefined,
 			});
-		} else if (outcome.decision === "no-purpose") {
+		} else if (outcome.decision === "no-purpose" && qualification !== "preferences") {
 			const dropped = outcome.fit.filter(
 				({ verdict }) => verdict !== "keep",
 			).length;
@@ -236,9 +236,7 @@ function filteredOutcome(input: {
 	const routed = input.context.selectedReadlists.some(
 		({ readlist }) => readlist === input.readlist,
 	);
-	const outcome = input.context.outcomes.find(
-		(entry) => entry.readlist === input.readlist,
-	);
+	const outcome = readlistOutcomeFor({ outcomes: input.context.outcomes, readlist: input.readlist });
 	return routed && outcome?.decision === "filtered" ? outcome : undefined;
 }
 
@@ -297,9 +295,7 @@ function readlistLines(input: {
 }): ReadlistLineViewModel[] {
 	const lines: ReadlistLineViewModel[] = [];
 	for (const { readlist, label } of input.context.selectedReadlists) {
-		const outcome = input.context.outcomes.find(
-			(entry) => entry.readlist === readlist,
-		);
+		const outcome = readlistOutcomeFor({ outcomes: input.context.outcomes, readlist });
 		const line = {
 			readlist,
 			elementId: `inbox-readlist-line-${readlist}`,
@@ -829,7 +825,7 @@ export function toInboxEmailDetailViewModel(input: {
 		linksMeta?.selectedReadlists?.some(
 			({ readlist }) =>
 				!linksMeta.readlistOutcomes?.some(
-					(outcome) => outcome.readlist === readlist,
+					(outcome) => outcome.readlist === readlist && (outcome.startIndex ?? 0) === (linksMeta.extractionWindow?.start ?? 0),
 				),
 		) === true;
 	const isPolling =
@@ -854,6 +850,7 @@ export function toInboxEmailDetailViewModel(input: {
 				selectedReadlists: linksMeta.selectedReadlists,
 				outcomes: linksMeta.readlistOutcomes,
 				articles: linksMeta.eligibleArticleCount ?? totalCards,
+				issueOnly: input.entry.gmailDeliveryMode === "issue",
 				savesHeld: linksMeta.savesHeld === true,
 				withinPollBudget,
 			}),

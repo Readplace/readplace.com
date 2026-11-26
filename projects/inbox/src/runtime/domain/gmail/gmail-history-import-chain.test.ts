@@ -61,6 +61,7 @@ import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "../inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "../inbox/receive-email-handler";
 import { initSettleExtractedEmail } from "../inbox/settle-extracted-email";
+import { initDeliverIssueMatches } from "../inbox/deliver-issue-matches";
 import { initRecordEmailLinksFilteredHandler } from "../inbox/record-email-links-filtered-handler";
 import { initResolveEmailIdentity } from "../inbox/resolve-email-identity";
 import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
@@ -103,7 +104,7 @@ function tldrIssueEml(messageId: string): Buffer {
 	);
 }
 
-function makePipeline() {
+function makePipeline(preferences?: string) {
 	const now = () => NOW;
 	const logger = Logger.from(noopLogger);
 	const addresses = initInMemoryInboxAddress({ now });
@@ -196,6 +197,8 @@ function makePipeline() {
 		putLink: links.putLink,
 		getLink: links.getLink,
 		putLinksMeta: links.putLinksMeta,
+		findLinksMeta: links.findLinksMeta,
+		markWindowDispatched: links.markWindowDispatched,
 		setEmailLinkCounts: emails.setEmailLinkCounts,
 		publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 		publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
@@ -205,7 +208,9 @@ function makePipeline() {
 		findCompletion: completion.findCompletion,
 		selectOutputs: completion.selectOutputs,
 		publishEmailOutputsSelected: (input) => publishEvent(EmailOutputsSelectedEvent, input),
-		alertTruncated: async () => {},
+		amendSelection: completion.amendSelection,
+		enqueueContinuation: async () => {},
+		publishExtraction: (detail) => publishEvent(EmailReceivedEvent, detail),
 		publishSaveHeldNotice: ({ userId, receivedAtMessageId, inboxAddress }) =>
 			publishEvent(SendTrialFeedbackEmailCommand, {
 				userId,
@@ -219,7 +224,7 @@ function makePipeline() {
 		findInboxAddress: addresses.findByAddress,
 		listReadlistDefinitions: async () => [
 			{ slug: WORK, label: "Work", createdAt: NOW },
-			{ slug: LATER, label: "Later", createdAt: NOW },
+			{ slug: LATER, label: "Later", createdAt: NOW, purpose: preferences },
 			{
 				slug: ReadlistSlugSchema.parse("science"),
 				label: "Science",
@@ -365,6 +370,20 @@ function makePipeline() {
 		]);
 	};
 
+	const recordMatch = initRecordEmailLinksFilteredHandler({
+		putReadlistOutcome: links.putReadlistOutcome,
+		mergeReadlistOutcomeFit: links.mergeReadlistOutcomeFit,
+		listLinksByEmail: links.listLinksByEmail,
+		deliverIssueMatches: initDeliverIssueMatches({
+			findCompletion: completion.findCompletion,
+			amendSelection: completion.amendSelection,
+			getEmail: emails.getEmail,
+			getLink: links.getLink,
+			publishEvent,
+		}),
+		logger,
+	});
+
 	const extractEach = async (entries: Published[]) => {
 		for (const [index, entry] of entries.entries()) {
 			await run(extract, [
@@ -445,6 +464,28 @@ function makePipeline() {
 		emails,
 		completion,
 		confirmSavedToAll,
+		recordMatch: async (receivedAtMessageId: string) => {
+			await run(recordMatch, [{
+				messageId: "preference-match",
+				body: JSON.stringify({
+					"detail-type": "EmailLinksFiltered",
+					detail: {
+						scope: "email", userId: READER, receivedAtMessageId, readlist: LATER,
+						readlistLabel: "Later", decision: "filtered",
+						fit: [{ ordinal: "0000", verdict: "keep", reason: "Matches the saved preference" }],
+					},
+				}),
+			}]);
+		},
+		recordMatchFailed: async (receivedAtMessageId: string) => {
+			await run(recordMatch, [{
+				messageId: "preference-match-failed",
+				body: JSON.stringify({
+					"detail-type": "EmailLinksFilterFailed",
+					detail: { userId: READER, receivedAtMessageId, readlist: LATER, reason: "decision-retries-exhausted", receiveCount: 3 },
+				}),
+			}]);
+		},
 		published,
 		publishedOf,
 		readlistAddress,
@@ -702,6 +743,49 @@ describe("gmail history import chain (inbox half)", () => {
 		);
 	});
 
+	it("waits for the preference match on a newly imported issue and saves its matched article once", async () => {
+		const pipeline = makePipeline("News about building software");
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>", deliveryMode: "issue" });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+
+		expect(pipeline.publishedOf(EmailLinksTriagedEvent).map(({ detail }) =>
+			EmailLinksTriagedEvent.detailSchema.parse(detail).readlist,
+		)).toEqual([LATER]);
+		await pipeline.confirmSavedToAll();
+		expect(pipeline.publishedOf(MarkGmailEmailImportedCommand)).toHaveLength(0);
+		const [row] = await pipeline.rows();
+		await pipeline.recordMatch(row.receivedAtMessageId);
+		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(1);
+		await pipeline.confirmSavedToAll();
+		await pipeline.recordMatch(row.receivedAtMessageId);
+		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(1);
+		expect(pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail)).toContainEqual({
+			userId: READER, receivedAtMessageId: row.receivedAtMessageId, origin: HISTORY_ORIGIN,
+		});
+	});
+
+	it("finishes a newly imported issue when its preference match fails, and still saves a redriven match", async () => {
+		const pipeline = makePipeline("News about building software");
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>", deliveryMode: "issue" });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+		await pipeline.confirmSavedToAll();
+		const [row] = await pipeline.rows();
+
+		await pipeline.recordMatchFailed(row.receivedAtMessageId);
+		await pipeline.confirmSavedToAll();
+		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(0);
+		expect(pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail)).toContainEqual({
+			userId: READER, receivedAtMessageId: row.receivedAtMessageId, origin: HISTORY_ORIGIN,
+		});
+
+		await pipeline.recordMatch(row.receivedAtMessageId);
+		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(1);
+	});
+
 	it("marks an issue-mode import once the whole issue is confirmed in All", async () => {
 		const pipeline = makePipeline();
 		const destinationAddress = await pipeline.readlistAddress(WORK);
@@ -861,7 +945,7 @@ for (const delivery of ["forward", "import"] as const) {
 			[WORK, LATER, failed],
 		);
 		const row = (await pipeline.rows())[0];
-		const recordOutcome = initRecordEmailLinksFilteredHandler({
+		const recordOutcome = initRecordEmailLinksFilteredHandler({ deliverIssueMatches: async () => {},
 			putReadlistOutcome: pipeline.links.putReadlistOutcome,
 			mergeReadlistOutcomeFit: pipeline.links.mergeReadlistOutcomeFit,
 			listLinksByEmail: pipeline.links.listLinksByEmail,

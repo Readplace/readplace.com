@@ -642,6 +642,15 @@ describe("initFileArticleIntoReadlistCommandHandler on a redrive", () => {
 		await expectSkipped(h, await h.run(command(), { requestedAt }), "removed-after-request");
 	});
 
+	it("preserves a removal when a continuation restates the original request time", async () => {
+		const h = await harness();
+		const originalRequest = anHourBack().toISOString();
+		await h.saveToAll(URL);
+		await h.store.deleteReadlistArticleByUrl({ userId: USER, readlist: WORK, url: URL });
+		const replayed = await h.run(command({ requestedAt: originalRequest }), { requestedAt: new Date(Date.now() + 2_000) });
+		await expectSkipped(h, replayed, "removed-after-request");
+	});
+
 	it("a redrive after the reader read the row leaves it read and in place", async () => {
 		const h = await harness();
 		await h.saveToAll(URL);

@@ -76,7 +76,7 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 			const readlist = ReadlistSlugSchema.parse(detail.readlist);
 			assert(readlist !== DEFAULT_READLIST_SLUG, "All is never a filing target");
 			const provenance = SaveProvenanceSchema.parse(detail.provenance);
-			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
+			const requestedAt = new Date(detail.requestedAt ?? EventEnvelope.parse(JSON.parse(record.body)).time);
 			const skip = (reason: string) =>
 				deps.logger.info("[file-article-into-readlist] filing skipped", {
 					userId,

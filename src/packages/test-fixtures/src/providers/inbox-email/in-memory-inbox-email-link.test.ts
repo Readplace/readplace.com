@@ -501,6 +501,20 @@ it("preserves the first record of where a Gmail issue went when extraction retri
 	expect((await store.listLinksByEmail(key)).meta).toEqual(first);
 });
 
+it("advances the stored extraction window only once per continuation", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const first = { truncated: true, extractionFailed: false, extractionWindow: { start: 0, end: 300 } };
+	const next = { truncated: false, extractionFailed: false, extractionWindow: { start: 300, end: 301 }, eligibleArticleCount: 1 };
+	await store.putLinksMeta({ ...key, meta: first });
+	await store.markWindowDispatched({ ...key, end: 300 });
+	await store.putLinksMeta({ ...key, meta: next });
+	await store.putLinksMeta({ ...key, meta: next });
+	await store.markWindowDispatched({ ...key, end: 301 });
+	await store.markWindowDispatched({ ...key, end: 300 });
+	expect(await store.findLinksMeta(key)).toEqual({ ...next, dispatchedThrough: 301 });
+});
+
 describe("rescueSkippedLink", () => {
 	it("moves a skipped link to pending once, clearing its skip reason", async () => {
 		const store = initInMemoryInboxEmailLink();
@@ -572,6 +586,14 @@ describe("mergeReadlistOutcomeFit", () => {
 		const store = await seeded(filtered);
 		expect(await store.mergeReadlistOutcomeFit({ ...key, readlist: WORK, entry: rescued })).toBe("merged");
 		expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual([{ ...filtered, fit: [kept, rescued] }]);
+	});
+
+	it("merges a decision into the continuation without replacing the initial result", async () => {
+		const latest = { ...filtered, startIndex: 300, fit: [] };
+		const store = await seeded(filtered);
+		await store.putReadlistOutcome({ ...key, outcome: latest });
+		expect(await store.mergeReadlistOutcomeFit({ ...key, readlist: WORK, startIndex: 300, entry: rescued })).toBe("merged");
+		expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual([filtered, { ...latest, fit: [rescued] }]);
 	});
 
 	it("keeps an existing entry for the same link", async () => {

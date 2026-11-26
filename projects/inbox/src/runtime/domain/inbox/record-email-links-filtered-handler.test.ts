@@ -21,6 +21,7 @@ const PURPOSE_VERSION = readlistPurposeVersion("Engineering practice");
 
 function filteredBody(detail: {
 	scope?: "email" | "link";
+	startIndex?: number;
 	readlistLabel?: string;
 	decision?: "filtered" | "no-purpose" | "readlist-missing";
 	fit: { ordinal: string; verdict: string; reason: string }[];
@@ -32,6 +33,7 @@ function filteredBody(detail: {
 		"detail-type": "EmailLinksFiltered",
 		detail: {
 			scope: detail.scope ?? "email",
+			startIndex: detail.startIndex,
 			userId,
 			receivedAtMessageId: RAM,
 			readlist: WORK,
@@ -48,13 +50,14 @@ function filteredBody(detail: {
 	});
 }
 
-function filterFailedBody(reason = "decider-retries-exhausted"): string {
+function filterFailedBody(reason = "decider-retries-exhausted", startIndex?: number): string {
 	return JSON.stringify({
 		"detail-type": "EmailLinksFilterFailed",
 		detail: {
 			userId,
 			receivedAtMessageId: RAM,
 			readlist: WORK,
+			startIndex,
 			reason,
 			receiveCount: 3,
 		},
@@ -103,7 +106,7 @@ async function snapshotDestinations(
 
 function createHandler() {
 	const store = initInMemoryInboxEmailLink();
-	const handler = initRecordEmailLinksFilteredHandler({
+	const handler = initRecordEmailLinksFilteredHandler({ deliverIssueMatches: async () => {},
 		putReadlistOutcome: store.putReadlistOutcome,
 		mergeReadlistOutcomeFit: store.mergeReadlistOutcomeFit,
 		listLinksByEmail: store.listLinksByEmail,
@@ -123,6 +126,19 @@ function createHandler() {
 }
 
 describe("recordEmailLinksFilteredHandler", () => {
+	it("keeps initial outcomes when a later window fails or gains a saved link", async () => {
+		const { store, run, read } = createHandler();
+		await snapshotDestinations(store);
+		await run([filteredBody({ fit: [{ ordinal: "0000", verdict: "keep", reason: "Matches" }] })]);
+		await run([filterFailedBody("decision-retries-exhausted", 300)]);
+		await run([filteredBody({ startIndex: 300, fit: [{ ordinal: "0300", verdict: "drop", reason: "Outside the preferences" }] })]);
+		await run([filteredBody({ scope: "link", startIndex: 300, fit: [{ ordinal: "0301", verdict: "keep", reason: "Matches" }] })]);
+		expect((await read()).meta?.readlistOutcomes).toMatchObject([
+			{ fit: [{ ordinal: "0000" }] },
+			{ startIndex: 300, fit: [{ ordinal: "0300" }, { ordinal: "0301" }] },
+		]);
+	});
+
 	it("writes the readlist's outcome row and changes no link row", async () => {
 		const { store, run, read } = createHandler();
 		await seedLinks(store, [

@@ -1415,8 +1415,9 @@ export function initInMemoryArticleStore(): {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
 		if (!definition) return { updated: false };
+		const firstSetup = !definition.purpose?.trim();
 		definition.purpose = params.purpose;
-		return { updated: true };
+		return { updated: true, firstSetup };
 	};
 
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {

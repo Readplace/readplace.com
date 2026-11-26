@@ -106,7 +106,18 @@ export const enUS = {
 			unavailable: "Readplace couldn't get the content of some of these articles, so they can't be read offline.",
 		},
 	},
+	readlistPreferences: {
+		saved: "Preferences saved",
+		matching: "Readplace will check article links from every Readplace inbox you own and every Gmail newsletter sender you’ve enabled. Articles that match your preferences will appear in {readlist}.",
+		linkLimit: "Readplace checks the first {limit} unique links in each email for articles.",
+		dismiss: "Got it",
+		setup: "Readplace checks new article links from your Readplace inboxes and enabled Gmail newsletters against these preferences.",
+	},
+	readlistGmail: {
+		enabled: "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and {readlist}. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
+	},
 	readlistInboxes: {
+		delivery: "Each email stays in your Inbox. Readplace saves its article links to All and checks them against all your saved readlist preferences.",
 		locked: {
 			note: "Readlist inbox emails are part of a paid plan.",
 		},
@@ -184,7 +195,7 @@ export const enUS = {
 		info: {
 			button: "What are your choices?",
 			title: "About your choices",
-			body: "When a newsletter issue reaches this readlist, the AI decides which of its links fit the purpose. Each time you tap Keep or Doesn't fit on an email, Readplace saves your call here. The next time it sorts an issue, the AI reads your 20 newest choices as examples of what you keep and skip. Remove a choice to stop it counting.",
+			body: "Readplace checks article links from your inboxes and enabled Gmail newsletters against this readlist’s saved preferences. Each time you tap Keep or Doesn't fit on an email, Readplace saves your call here. The next time it sorts an issue, the AI reads your 20 newest choices as examples of what you keep and skip. Remove a choice to stop it counting.",
 		},
 	},
 	readlistKeepOffer: {

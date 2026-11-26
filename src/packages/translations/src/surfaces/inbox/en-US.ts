@@ -24,6 +24,10 @@ export const enUS = {
 			link: "View in Articles",
 		},
 	},
+	inboxDelivery: {
+		emails: "Newsletters sent to your Readplace inboxes or forwarded from enabled Gmail senders appear here. Readplace checks their article links against your saved readlist preferences. Your Gmail delivery choice controls whether it also saves the issue itself or every article link.",
+		addresses: "Subscribe with one of these custom emails or forward an issue to it. The issue stays in Inbox. Readplace saves its article links to All and checks them against your saved readlist preferences.",
+	},
 	customEmails: {
 		paidPlanLocked: {
 			title: "Custom emails are part of a paid plan",

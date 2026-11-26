@@ -78,6 +78,20 @@ function announce(document: Document, message: string): void {
 export function initReadlist(deps: ReadlistDeps): void {
 	initReadlistFilter({ document: deps.document });
 	initReadlistMore({ document: deps.document });
+	const showPreferencesSaved = () => {
+		const dialog = deps.document.querySelector<HTMLDialogElement>("dialog[data-preferences-saved]");
+		if (!dialog?.open || dialog.matches(":modal")) return;
+		dialog.removeAttribute("open");
+		dialog.showModal();
+		const window = deps.document.defaultView;
+		assert(window, "the readlist dialog is rendered in a browser window");
+		const url = new URL(window.location.href);
+		url.searchParams.delete("preferences_setup_saved");
+		window.history.replaceState(window.history.state, "", url);
+	};
+	showPreferencesSaved();
+	deps.document.addEventListener("htmx:afterSettle", showPreferencesSaved);
+
 	const openers = new Map<string, HTMLElement>();
 
 	const invokerOf = (popoverId: string): HTMLElement | null => {
