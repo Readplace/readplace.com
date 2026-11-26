@@ -321,6 +321,5 @@ export function buildHomePageFrame(params: { staticBaseUrl: string; styles: stri
 		seo: buildHomeSeo({ staticBaseUrl: params.staticBaseUrl, faq: faq.items }),
 		styles: `${HOME_PAGE_STYLES}\n${params.styles}\n${CONFIRM_POPOVER_STYLES}`,
 		scripts: `${SAVE_TIP_SCRIPT}${PAGE_DEPTH_SCRIPT}`,
-		bodyClass: "page-home",
 	};
 }

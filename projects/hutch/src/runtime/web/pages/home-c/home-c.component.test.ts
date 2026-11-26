@@ -28,6 +28,6 @@ describe("homepage arm C treatment", () => {
 		}
 		expect(treatment.seo).toEqual(armB.seo);
 		expect(treatment.scripts).toEqual(armB.scripts);
-		expect(treatment.bodyClass).toBe("page-home");
+		expect(treatment.bodyClass).toBe(armB.bodyClass);
 	});
 });
