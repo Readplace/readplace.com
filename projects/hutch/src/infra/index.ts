@@ -882,6 +882,10 @@ const userDataJobsS3Policy = {
 	}),
 };
 
+const mediaReleaseDeletableObjectArns = ["pending", "images", "objects", "transcripts"].map(
+	(prefix) => `arn:aws:s3:::${mediaBucketName}/${prefix}/*`,
+);
+
 const userDataJobsMediaPendingDeletePolicy = {
 	name: "user-data-jobs-media-pending-delete",
 	policy: JSON.stringify({
@@ -890,12 +894,7 @@ const userDataJobsMediaPendingDeletePolicy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [
-					`arn:aws:s3:::${mediaBucketName}/pending/*`,
-					`arn:aws:s3:::${mediaBucketName}/images/*`,
-					`arn:aws:s3:::${mediaBucketName}/objects/*`,
-					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
-				],
+				Resource: mediaReleaseDeletableObjectArns,
 			},
 			{
 				Effect: "Allow",
@@ -1553,13 +1552,7 @@ const mediaReleaseS3Policy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [
-					`arn:aws:s3:::${contentBucketName}/*`,
-					`arn:aws:s3:::${mediaBucketName}/pending/*`,
-					`arn:aws:s3:::${mediaBucketName}/images/*`,
-					`arn:aws:s3:::${mediaBucketName}/objects/*`,
-					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
-				],
+				Resource: [`arn:aws:s3:::${contentBucketName}/*`, ...mediaReleaseDeletableObjectArns],
 			},
 			{
 				Effect: "Allow",
