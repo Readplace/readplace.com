@@ -1,17 +1,25 @@
-import type { ImportSession } from "@packages/domain/import-session";
+import { dynamoField } from "@packages/storage-client";
+import { z } from "zod";
+import { UserIdSchema } from "@packages/domain/user";
+import { type ImportSession, ImportSessionIdSchema } from "@packages/domain/import-session";
 
-export interface ImportSessionRow {
-	sessionId: ImportSession["id"];
-	userId: ImportSession["userId"];
-	createdAt: string;
-	expiresAt: number;
-	totalUrls: number;
-	totalFoundInFile: number;
-	truncated: boolean;
-	urls: string[];
-	deselected?: number[];
-	allSelected?: boolean;
-}
+export const SessionRow = z.object({
+	sessionId: ImportSessionIdSchema,
+	userId: dynamoField(UserIdSchema),
+	createdAt: z.string(),
+	expiresAt: z.number(),
+	totalUrls: z.number().int().min(0),
+	totalFoundInFile: z.number().int().min(0),
+	truncated: z.boolean(),
+	urls: z.array(z.string()),
+	deselected: dynamoField(z.array(z.number().int())),
+	allSelected: dynamoField(z.boolean()),
+});
+
+type SessionRowOutput = z.infer<typeof SessionRow>;
+
+export type ImportSessionRow = Omit<SessionRowOutput, "deselected" | "allSelected"> &
+	Partial<Pick<SessionRowOutput, "deselected" | "allSelected">>;
 
 export function computeDeselected(params: {
 	allSelected?: boolean;

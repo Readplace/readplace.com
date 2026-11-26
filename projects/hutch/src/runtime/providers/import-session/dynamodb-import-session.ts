@@ -2,30 +2,15 @@ import { randomBytes } from "node:crypto";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-	dynamoField,
 } from "@packages/storage-client";
-import { z } from "zod";
-import { UserIdSchema, type UserId } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import {
 	IMPORT_SESSION_TTL_SECONDS,
 	type ImportSessionStore,
 	ImportSessionIdSchema,
 } from "@packages/domain/import-session";
-import { computeDeselected, toImportSession } from "./import-session-mapping";
+import { SessionRow, computeDeselected, toImportSession } from "./import-session-mapping";
 import { isAccessibleBy, ownershipCondition } from "./import-session-ownership";
-
-const SessionRow = z.object({
-	sessionId: ImportSessionIdSchema,
-	userId: dynamoField(UserIdSchema),
-	createdAt: z.string(),
-	expiresAt: z.number(),
-	totalUrls: z.number().int().min(0),
-	totalFoundInFile: z.number().int().min(0),
-	truncated: z.boolean(),
-	urls: z.array(z.string()),
-	deselected: dynamoField(z.array(z.number().int())),
-	allSelected: dynamoField(z.boolean()),
-});
 
 export function initDynamoDbImportSession(deps: {
 	client: DynamoDBDocumentClient;
