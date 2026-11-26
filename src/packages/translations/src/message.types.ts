@@ -1,8 +1,8 @@
-export type PluralForms = { readonly one: string; readonly other: string };
+type PluralForms = { readonly one: string; readonly other: string };
 
 export type MessageTree = { readonly [key: string]: string | MessageTree };
 
-export type Placeholders<S extends string> = S extends `${string}{${infer N}}${infer R}` ? N | Placeholders<R> : never;
+type Placeholders<S extends string> = S extends `${string}{${infer N}}${infer R}` ? N | Placeholders<R> : never;
 
 export type Params<S> = S extends string
 	? [Placeholders<S>] extends [never]
