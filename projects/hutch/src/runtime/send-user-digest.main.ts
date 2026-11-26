@@ -40,7 +40,8 @@ import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-re
 import { initEventBridgeResolveArticleOnView } from "./providers/events/eventbridge-resolve-article-on-view";
 import { initBuildQueueDigestBook } from "./web/queue-digest-book";
 import { initBuildBookEpub } from "./web/shared/epub/book-epub";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SEND_USER_DIGEST_ENV } from "./send-user-digest.env";
 import { initS3ReadMediaImage } from "./providers/media-image/s3-read-media-image";
 import { initReadArticleImageByIdentity } from "./providers/read-article-image-by-identity";
 
@@ -61,22 +62,23 @@ const MAX_CANDIDATES_READ = 50;
 const MAX_DIGEST_BOOK_IMAGE_BYTES = 10_000_000;
 
 const logger = Logger.from(consoleLogger);
-const appOrigin = requireEnv("APP_ORIGIN");
-const resendApiKey = requireEnv("RESEND_API_KEY");
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const usersTable = requireEnv("DYNAMODB_USERS_TABLE");
-const sessionsTable = requireEnv("DYNAMODB_SESSIONS_TABLE");
-const readerReadyNotificationsTable = requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE");
-const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
-const analyticsSalt = requireEnv("ANALYTICS_SALT");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
+const env = readEnv(SEND_USER_DIGEST_ENV);
+const appOrigin = env.APP_ORIGIN;
+const resendApiKey = env.RESEND_API_KEY;
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const usersTable = env.DYNAMODB_USERS_TABLE;
+const sessionsTable = env.DYNAMODB_SESSIONS_TABLE;
+const readerReadyNotificationsTable = env.DYNAMODB_READER_READY_NOTIFICATIONS_TABLE;
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
+const analyticsSalt = env.ANALYTICS_SALT;
+const eventBusName = env.EVENT_BUS_NAME;
 
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const onboardingTableName = requireEnv("DYNAMODB_ONBOARDING_TABLE");
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const onboardingTableName = env.DYNAMODB_ONBOARDING_TABLE;
 const excludedUserIds = z
 	.array(z.string())
-	.parse(JSON.parse(requireEnv("ENGAGEMENT_EXCLUDED_USER_IDS")));
+	.parse(JSON.parse(env.ENGAGEMENT_EXCLUDED_USER_IDS));
 
 const dynamoClient = createDynamoDocumentClient();
 
@@ -89,7 +91,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 });
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: env.ANALYTICS_SALT, now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,
@@ -157,7 +159,7 @@ const buildQueueDigestBook = initBuildQueueDigestBook({
 	buildBookEpub: initBuildBookEpub({
 		readArticleImage: initReadArticleImageByIdentity({
 			shared: initS3ReadArticleImage({ send: (command) => s3.send(command), bucketName: contentBucketName }),
-			private: initS3ReadMediaImage({ send: (command) => s3.send(command), bucketName: requireEnv("MEDIA_BUCKET_NAME") }),
+			private: initS3ReadMediaImage({ send: (command) => s3.send(command), bucketName: env.MEDIA_BUCKET_NAME }),
 		}),
 		maxImageBytes: MAX_DIGEST_BOOK_IMAGE_BYTES,
 	}),
