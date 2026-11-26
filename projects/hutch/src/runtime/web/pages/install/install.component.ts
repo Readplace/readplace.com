@@ -98,7 +98,7 @@ const NATIVE_APP_SEO = {
 >;
 const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
 
-const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer></script>`;
+const INSTALL_COPY_SCRIPT = `<script src="/client-dist/clipboard-copy.client.js" defer></script>`;
 
 /** The tab section each client CATEGORY renders as. `slug` is the stable value
  * behind `data-test-group` and the aria-labelledby id, so relabelling can't

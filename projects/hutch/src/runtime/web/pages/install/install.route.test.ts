@@ -17,7 +17,7 @@ import {
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import { initFetchFirefoxDownloadUrl } from "./install.component";
 
-const INSTALL_CLIENT_SCRIPT = "/client-dist/install.client.js";
+const INSTALL_CLIENT_SCRIPT = "/client-dist/clipboard-copy.client.js";
 
 const useApp = useTestServer();
 const useAppWithoutFirefoxBuild = useTestServer({
@@ -544,12 +544,12 @@ describe("GET /install", () => {
 			"Connect to readplace.com so you can save pages to and read my reading list.",
 		);
 
-		const copyButtons = Array.from(doc.querySelectorAll("[data-install-copy]"));
+		const copyButtons = Array.from(doc.querySelectorAll("[data-clipboard-copy]"));
 		expect(copyButtons).toHaveLength(2);
 		for (const button of copyButtons) {
 			expect(button.hasAttribute("hidden")).toBe(true);
 		}
-		const copyTargets = copyButtons.map((b) => b.getAttribute("data-install-text"));
+		const copyTargets = copyButtons.map((b) => b.getAttribute("data-clipboard-text"));
 		expect(copyTargets).toContain("https://readplace.com/mcp");
 	});
 
@@ -560,7 +560,7 @@ describe("GET /install", () => {
 
 		const fields = Array.from(doc.querySelectorAll(".install-page__copy-field")).map((field) => ({
 			value: field.querySelector(".install-page__copy-value")?.textContent,
-			copies: field.querySelector("[data-install-copy]")?.getAttribute("data-install-text"),
+			copies: field.querySelector("[data-clipboard-copy]")?.getAttribute("data-clipboard-text"),
 		}));
 		expect(fields).toEqual([
 			{ value: "https://readplace.com/mcp", copies: "https://readplace.com/mcp" },
@@ -580,7 +580,7 @@ describe("GET /install", () => {
 
 	it("should target the rendered AI copy buttons with the selectors its built bundle wires", async () => {
 		const bundleSource = readFileSync(
-			join(__dirname, "..", "..", "client-dist", "install.client.js"),
+			join(__dirname, "..", "..", "client-dist", "clipboard-copy.client.js"),
 			"utf-8",
 		);
 		const copySelector = bundleSource.match(/copySelector:\s*'([^']+)'/)?.[1];

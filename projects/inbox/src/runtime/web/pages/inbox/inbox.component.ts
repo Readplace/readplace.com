@@ -17,7 +17,7 @@ const PLANS_PATH = "/account/plans";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
 
-const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>`;
+const INBOX_SCRIPT = `<script src="/client-dist/clipboard-copy.client.js" defer></script>`;
 
 const INBOX_ADDRESSES_SOURCE = "inbox-addresses";
 

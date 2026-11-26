@@ -119,13 +119,13 @@ describe("InboxPage", () => {
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
 		assert.equal(field?.hasAttribute("disabled"), false);
-		const copy = doc.querySelector("[data-inbox-copy]");
-		assert.equal(copy?.getAttribute("data-inbox-address"), "in-3f9a2c@read.place");
+		const copy = doc.querySelector("[data-clipboard-copy]");
+		assert.equal(copy?.getAttribute("data-clipboard-text"), "in-3f9a2c@read.place");
 		assert.equal(copy?.hasAttribute("hidden"), true);
 		const box = doc.querySelector(".inbox-copyable");
 		assert.ok(box, "the address renders inside one copyable box");
 		assert.equal(
-			box.querySelector("[data-inbox-copy]"),
+			box.querySelector("[data-clipboard-copy]"),
 			copy,
 			"the copy button is a child of the box, not a sibling beside it",
 		);
@@ -168,8 +168,8 @@ describe("InboxPage", () => {
 		assert.equal(disabled.hasAttribute("disabled"), true);
 		assert.equal(disabled.hasAttribute("readonly"), false);
 
-		const copyableAddresses = Array.from(doc.querySelectorAll("[data-inbox-copy]")).map((el) =>
-			el.getAttribute("data-inbox-address"),
+		const copyableAddresses = Array.from(doc.querySelectorAll("[data-clipboard-copy]")).map((el) =>
+			el.getAttribute("data-clipboard-text"),
 		);
 		assert.deepEqual(
 			copyableAddresses,
@@ -202,7 +202,7 @@ describe("InboxPage", () => {
 		);
 
 		assert.equal(
-			doc.querySelector("[data-inbox-copy]")?.getAttribute("aria-label"),
+			doc.querySelector("[data-clipboard-copy]")?.getAttribute("aria-label"),
 			"Copy custom email: my-newsletter",
 		);
 		assert.equal(
