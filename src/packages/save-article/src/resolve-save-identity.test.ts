@@ -139,6 +139,14 @@ describe("save identity", () => {
 		expect(await h.resolve(shortLink)).toEqual(resolved({ url: ORIGINAL }));
 	});
 
+	it("follows a newsletter tracker past the Reddit media viewer to the image it shows", async () => {
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+		const image = "https://i.redd.it/example1234.png?_bhlid=abc";
+		const h = harness({ targets: { [tracker]: { url: `https://www.reddit.com/media?url=${encodeURIComponent(image)}`, contentSourceUrl: tracker } } });
+		expect(await h.resolve(tracker)).toEqual(resolved({ url: image }));
+		expect(h.claims).toEqual([expect.objectContaining({ aliasUrl: tracker, targetOriginalUrl: image })]);
+	});
+
 	it("strips subscriber parameters before fixing the original identity", async () => {
 		const wrapper = "https://open.substack.com/pub/person/p/article";
 		const h = harness({ targets: { [wrapper]: { url: `${ORIGINAL}?r=reader&utm_source=email`, contentSourceUrl: wrapper } } });

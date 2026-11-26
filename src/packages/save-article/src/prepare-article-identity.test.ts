@@ -73,6 +73,14 @@ it("fetches the post of a row pinned to its Substack comment view under the row'
 	assert.deepEqual(identity, { status: "resolved", url, originalUrl: "https://newsletter.example/p/a-post" });
 });
 
+it("fetches the image a row pinned to the Reddit media viewer shows under the row's own key", async () => {
+	const viewer = "https://www.reddit.com/media?url=https%3A%2F%2Fi.redd.it%2Fexample1234.png%3F_bhlid%3Dabc";
+	const image = "https://i.redd.it/example1234.png?_bhlid=abc";
+	const h = harness({ kind: "article", originalUrl: viewer });
+	assert.deepEqual(await h.prepare(viewer), { status: "resolved", url: viewer, originalUrl: image });
+	assert.deepEqual(h.repairs, [{ articleUrl: viewer, expectedOriginalUrl: viewer, originalUrl: image, contentSourceUrl: undefined }]);
+});
+
 it("fetches a stored plain article original unchanged", async () => {
 	const identity = await harness({ kind: "article", originalUrl: ORIGINAL }).prepare(ORIGINAL);
 	assert.deepEqual(identity, { status: "resolved", url: ORIGINAL, originalUrl: ORIGINAL });

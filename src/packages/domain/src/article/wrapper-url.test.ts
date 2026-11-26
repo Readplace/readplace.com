@@ -269,6 +269,28 @@ describe("unwrapWrapperUrl", () => {
 	});
 
 	it.each([
+		{
+			viewer: "https://www.reddit.com/media?url=https%3A%2F%2Fi.redd.it%2Fexample1234.png%3F_bhlid%3Dabc",
+			image: "https://i.redd.it/example1234.png?_bhlid=abc",
+		},
+		{ viewer: "https://reddit.com/media?url=https://i.redd.it/example5678.jpeg", image: "https://i.redd.it/example5678.jpeg" },
+	])("recovers the image from the Reddit media viewer $viewer", ({ viewer, image }) => {
+		expect(wrapperFamilyOf(viewer)).toBe("share-intent");
+		expect(unwrapWrapperUrl(viewer)).toEqual({ url: image });
+	});
+
+	it.each([
+		{ label: "a Reddit media viewer without a url", url: "https://www.reddit.com/media" },
+		{ label: "a Reddit media viewer showing a non-HTTP URL", url: "https://www.reddit.com/media?url=javascript%3Aalert(1)" },
+		{ label: "a Reddit media viewer showing an image on another host", url: "https://www.reddit.com/media?url=https%3A%2F%2Fimages.example%2Fphoto.png" },
+		{ label: "a Reddit post", url: "https://www.reddit.com/r/example/comments/abc123/a_post/?url=https%3A%2F%2Fi.redd.it%2Fexample1234.png" },
+		{ label: "a media path on another host", url: "https://publisher.example/media?url=https%3A%2F%2Fi.redd.it%2Fexample1234.png" },
+	])("does not treat $label as a wrapper", ({ url }) => {
+		expect(wrapperFamilyOf(url)).toBeUndefined();
+		expect(unwrapWrapperUrl(url)).toEqual({ url });
+	});
+
+	it.each([
 		{ label: "a tweet intent without a url", url: "https://twitter.com/intent/tweet?text=Read" },
 		{ label: "a tweet intent sharing a non-HTTP URL", url: "https://x.com/intent/post?url=javascript%3Aalert(1)" },
 		{ label: "a Wayback capture of a non-HTTP original", url: "https://web.archive.org/web/2018/ftp://files.example/a" },
@@ -463,7 +485,12 @@ describe("isStoredWrapperUrl", () => {
 		expect(isStoredWrapperUrl(`https://link.mail.beehiiv.com/ss/c/u001.${"a".repeat(1100)}`)).toBe(true);
 	});
 
-	it.each(["https://share.google/AbCdEf_12-3", "https://archive.ph/Ab1cD", "https://archive.is/"])(
+	it.each([
+		"https://share.google/AbCdEf_12-3",
+		"https://archive.ph/Ab1cD",
+		"https://archive.is/",
+		"https://www.reddit.com/media?url=https%3A%2F%2Fi.redd.it%2Fexample1234.png%3F_bhlid%3Dabc",
+	])(
 		"treats a row stored under %s as a wrapper",
 		(url) => {
 			expect(isStoredWrapperUrl(url)).toBe(true);

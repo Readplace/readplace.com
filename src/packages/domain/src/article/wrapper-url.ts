@@ -20,6 +20,8 @@ const ARCHIVE_TODAY_RESERVED_SEGMENTS: ReadonlySet<string> = new Set(["newest", 
 const APPLE_NEWS_HOSTS: ReadonlySet<string> = new Set(["apple.news", "www.apple.news"]);
 const TWEET_INTENT_HOSTS: ReadonlySet<string> = new Set(["twitter.com", "www.twitter.com", "x.com", "www.x.com"]);
 const LINKEDIN_SHARE_HOSTS: ReadonlySet<string> = new Set(["linkedin.com", "www.linkedin.com"]);
+const REDDIT_MEDIA_VIEWER_HOSTS: ReadonlySet<string> = new Set(["reddit.com", "www.reddit.com"]);
+const REDDIT_IMAGE_HOST = "i.redd.it";
 const SUBSTACK_HOSTS: ReadonlySet<string> = new Set(["substack.com", "open.substack.com"]);
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -35,6 +37,7 @@ const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
 const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
 const LINKEDIN_SHARE_ARTICLE_PATH = /^\/shareArticle$/;
+const REDDIT_MEDIA_VIEWER_PATH = /^\/media$/;
 const SEMAFOR_SHORT_LINK_PATH = /^\/s\/[A-Za-z0-9]+$/;
 const BEEHIIV_LINK_PATH = /^\/ss\/c\/.+/;
 const HUBSPOT_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.hubspotlinks\.com$/;
@@ -210,6 +213,13 @@ function linkedInSharedArticleOf(parsed: URL): URL | undefined {
 	return shared === null ? undefined : parseHttpUrl(shared);
 }
 
+function redditViewedImageOf(parsed: URL): URL | undefined {
+	if (!REDDIT_MEDIA_VIEWER_HOSTS.has(hostnameOf(parsed)) || !REDDIT_MEDIA_VIEWER_PATH.test(parsed.pathname)) return undefined;
+	const viewed = parsed.searchParams.get("url");
+	const image = viewed === null ? undefined : parseHttpUrl(viewed);
+	return image !== undefined && hostnameOf(image) === REDDIT_IMAGE_HOST ? image : undefined;
+}
+
 const MAX_USER_ARTICLE_KEY_BYTES = 1024;
 
 function outgrowsUserArticleKey(url: string): boolean {
@@ -226,7 +236,8 @@ function trackerRuleOf(url: string): TrackerRule | undefined {
 function shapeFamilyOf(parsed: URL): WrapperFamily | undefined {
 	const host = hostnameOf(parsed);
 	if (archiveTodayOutbound(parsed) !== null) return "archive-outbound";
-	if (isTweetIntent(parsed) || linkedInSharedArticleOf(parsed) !== undefined) return "share-intent";
+	if (isTweetIntent(parsed) || linkedInSharedArticleOf(parsed) !== undefined || redditViewedImageOf(parsed) !== undefined)
+		return "share-intent";
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
 	if (unwrapArchive(parsed) !== undefined || isArchiveTodayShortId(parsed)) return "archive-snapshot";
@@ -284,6 +295,8 @@ export function unwrapWrapperUrl(url: string): UnwrappedUrl {
 	if (isTweetIntent(parsed)) return unwrapTweetIntent(url, parsed);
 	const linkedInShared = linkedInSharedArticleOf(parsed);
 	if (linkedInShared !== undefined) return { url: linkedInShared.href };
+	const redditViewedImage = redditViewedImageOf(parsed);
+	if (redditViewedImage !== undefined) return { url: redditViewedImage.href };
 	return { url };
 }
 
