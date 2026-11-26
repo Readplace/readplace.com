@@ -4,16 +4,12 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReader } from "@packages/translations/hutch-reader";
 import { parseFragmentRoot } from "../article-body/parse-fragment-root";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
-import { escapeXmlAttribute, escapeXmlText } from "./epub-xhtml";
+import { escapeXmlAttribute, escapeXmlText, paragraphXhtml } from "./epub-xhtml";
 
 const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 const NOTE_REFERENCE_ID_PREFIX = "noteref-highlight-";
 const NOTE_ID_PREFIX = "endnote-highlight-";
-
-function paragraph(text: string): string {
-	return `<p>${escapeXmlText(text)}</p>`;
-}
 
 function numberedNote(input: { state: ReaderHighlightState; note: string; number: number }): string {
 	const id = input.state.highlight.highlightId;
@@ -28,11 +24,11 @@ function entryXhtml(entry: { state: ReaderHighlightState; number?: number }): st
 		: shown.state === "orphaned"
 			? ` ${t("articleBody.highlightExport.notFound")}`
 			: "";
-	const quoted = blocks.map((block, index) => paragraph(index === blocks.length - 1 ? block + suffix : block)).join("");
+	const quoted = blocks.map((block, index) => paragraphXhtml(index === blocks.length - 1 ? block + suffix : block)).join("");
 	if (highlight.note === undefined) return `<blockquote>${quoted}</blockquote>`;
 	const note =
 		entry.number === undefined
-			? paragraph(highlight.note)
+			? paragraphXhtml(highlight.note)
 			: numberedNote({ state: entry.state, note: highlight.note, number: entry.number });
 	return `<blockquote>${quoted}</blockquote>${note}`;
 }
