@@ -430,7 +430,6 @@ export function initBase(config: BaseConfig): RenderBase {
 				TOAST_SCRIPT +
 				MENU_SCRIPT +
 				(body.scripts ?? "") +
-				(state.requestScripts ?? "") +
 				siteScripts +
 				liveReloadScript,
 		});

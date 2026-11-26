@@ -1574,35 +1574,6 @@ describe("Base component", () => {
 		).toBe("https://readplace.com/view/example.com/original-post");
 	});
 
-	it("appends per-request markup after the page's own scripts", () => {
-		const page = createTestPageBody({ scripts: '<script src="/client-dist/page.client.js"></script>' });
-		const result = Base(page, {
-			cspNonce: CSP_NONCE,
-			isAuthenticated: false,
-			emailVerified: undefined,
-			requestScripts: '<script src="/client-dist/per-request.client.js"></script>',
-		}).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const scripts = loadedClientScripts(doc);
-		expect(scripts.indexOf("/client-dist/per-request.client.js")).toBe(
-			scripts.indexOf("/client-dist/page.client.js") + 1,
-		);
-	});
-
-	it("renders no per-request markup for a state that carries none", () => {
-		const page = createTestPageBody();
-		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: false, emailVerified: undefined }).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		expect(loadedClientScripts(doc)).toEqual([
-			"/client-dist/htmx.client.js",
-			"/client-dist/extension-suggestion-banner.client.js",
-			"/client-dist/toast.client.js",
-			"/client-dist/menu.client.js",
-		]);
-	});
-
 	it("loads no trial countdown bundle for a signed-in reader, since the header carries no trial chip", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
