@@ -1301,6 +1301,35 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue", "switching back moves the preference back")
 	}
 
+	func testConfirmsHandPickedAsHomeFromTheReadlistsItBrowses() async {
+		let handPicked = "/queue?scope=hand-picked"
+		var designated = "/queue?queue=work"
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/choose-home" {
+				designated = handPicked
+				return .redirect(to: handPicked)
+			}
+			let picked = request.url?.query == "scope=hand-picked"
+			let chooseHome = picked && designated != handPicked
+				? #"{"name":"set-home-readlist","title":"Set Hand Picked as home","method":"POST","href":"/choose-home"}"#
+				: ""
+			return .json(200, """
+			{"class":["collection","articles"],"entities":[],"links":[{"rel":["home"],"href":"\(designated)"}],
+			"properties":{"readlists":[{"rel":"readlist","label":"All","href":"/queue"},{"rel":"readlist","label":"Work","href":"/queue?queue=work"}],
+			"browseReadlists":[{"rel":"\(picked ? "current" : "readlist")","label":"Hand Picked","href":"\(handPicked)"},
+			{"rel":"readlist","label":"All","href":"/queue"},{"rel":"readlist","label":"Work","href":"/queue?queue=work"}]},
+			"actions":[\(chooseHome)]}
+			""")
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: TestSupport.ephemeralDefaults())
+		await viewModel.loadIfNeeded()
+		await viewModel.select(readlistHref: handPicked)
+		guard let action = viewModel.setHomeAction else { return XCTFail("Hand Picked offers set-home while Work is Home") }
+		await viewModel.invoke(action)
+		XCTAssertEqual(viewModel.homeStatus, "Hand Picked is now your home readlist.")
+		XCTAssertNil(viewModel.setHomeAction)
+	}
+
 	func testNeutralLaunchFollowsAdvertisedHomeWhenAllWasRemembered() async {
 		let defaults = TestSupport.ephemeralDefaults()
 		LastViewedReadlist(defaults: defaults).remember(href: "/queue")
