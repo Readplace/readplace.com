@@ -11,8 +11,6 @@ import {
 import type { PageBody } from "@packages/web-shell";
 
 import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT, UPGRADE_STATEMENT } from "../price-statement";
-import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
-import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import type { ComponentError } from "../shared/component-error.types";
 import { CONNECTED_APPS_PHRASE } from "../shared/client-surface-phrases";
 import { AUTH_STYLES } from "./auth.styles";
@@ -43,8 +41,6 @@ interface AuthFormData {
 	returnUrl?: string;
 	chooseAccount?: boolean;
 	pendingSaveHost?: string;
-	userCount: number;
-	foundingAllocation: FoundingAllocation;
 	lastUsedProvider?: LastAuthProvider;
 }
 
@@ -93,7 +89,6 @@ function authHints({ show }: { show: boolean }): { key: string; text: string }[]
 export function LoginPage(data: AuthFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
-	const foundingAvailable = !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount);
 
 	const content = render(LOGIN_TEMPLATE, {
 		email,
@@ -112,7 +107,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 			: "Sign in to your Readplace account",
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
-		hints: authHints({ show: !foundingAvailable && signInClientGroupFrom(data.returnUrl) === "selfRegistered" }),
+		hints: authHints({ show: signInClientGroupFrom(data.returnUrl) === "selfRegistered" }),
 	});
 
 	return {
@@ -163,7 +158,6 @@ export function AccountLockedPage(): PageBody {
 export function SignupPage(data: SignupFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
-	const foundingAvailable = !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount);
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
 		globalErrorHtml: globalErrorHtml(errors),
@@ -182,13 +176,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 			returnUrl: data.returnUrl,
 			lastUsedProvider: data.lastUsedProvider,
 		}),
-		foundingProgressHtml: renderFoundingProgress({
-			userCount: data.userCount,
-			foundingAllocation: data.foundingAllocation,
-		}),
-		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
-		foundingAvailable,
-		hints: authHints({ show: !foundingAvailable && signInClientGroupFrom(data.returnUrl) !== "nativeApp" }),
+		hints: authHints({ show: signInClientGroupFrom(data.returnUrl) !== "nativeApp" }),
 	});
 
 	return {

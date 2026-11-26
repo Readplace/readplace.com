@@ -4,7 +4,6 @@ import express from "express";
 import { z } from "zod";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type {
-	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
 	FindUserByEmail,
@@ -18,7 +17,6 @@ import {
 	startTrial,
 	trialEndsAtFromNow,
 } from "../../domain/trial/start-trial";
-import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
@@ -30,7 +28,6 @@ import { oauthClientIdFrom } from "./oauth-client-id";
 import { defineCookie } from "@packages/web-analytics";
 import { sessionCookie } from "../session-cookie";
 import { LoginPage } from "./auth.component";
-import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
 import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
@@ -69,7 +66,6 @@ interface GoogleAuthDependencies {
 	createSession: CreateSession;
 	createGoogleUser: CreateGoogleUser;
 	findUserByEmail: FindUserByEmail;
-	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	exchangeGoogleCode: ExchangeGoogleCode;
 	upsertTrialing: UpsertTrialingSubscription;
@@ -78,7 +74,6 @@ interface GoogleAuthDependencies {
 	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
-	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
 	signUnsubscribeToken: (userId: UserId) => string;
@@ -98,11 +93,6 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const claimSignupAllowance = initClaimSignupAllowance({
 		consumeRateLimit: deps.consumeRateLimit,
 		rule: deps.signupCreatedRule,
-	});
-	const fetchUserCount = initFetchUserCount({
-		countUsers: deps.countUsers,
-		logError: deps.logError,
-		logPrefix: "[Google Auth]",
 	});
 	const sendWelcomeEmail = initSendWelcomeEmail({
 		sendEmail: deps.sendEmail,
@@ -145,14 +135,11 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const renderError = async ({ message, reason = "provider_rejected" }: { message: string; reason?: "callback_invalid" | "expired" | "provider_rejected" }) => {
 			res.locals.authDiagnosticReason = reason;
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
 				res,
 				Base(LoginPage(
 					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						errors: [{ message }],
 					},
@@ -165,14 +152,11 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			deps.logger.info("[Signup] allowance spent", { method: "google" });
 			res.locals.authDiagnosticReason = "signup_allowance_spent";
 			res.set("Retry-After", String(retryAfterSeconds));
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
 				res,
 				Base(LoginPage(
 					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						returnUrl,
 						errors: [{ message: signupAllowanceSpentMessage({ limit: deps.signupCreatedRule.limit }) }],
@@ -240,56 +224,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			await renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
 			return;
 		}
-		const userCount = await fetchUserCount();
 		/* Read once, then persisted on the user row (durable) AND emitted on the
 		 * user_created conversion event (30-day retention). */
 		const attribution = readClickAttribution(req);
-		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createGoogleUser({
-				email: tokenResult.email,
-				userId: newUserId,
-				attribution,
-				signupOAuthClientId,
-			});
-			if (!created.ok) {
-				const lookup = await deps.findUserByEmail(tokenResult.email);
-				if (lookup) {
-					if (!lookup.emailVerified) {
-						await deps.markEmailVerified(tokenResult.email);
-					}
-					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-					signIn(res, sessionId);
-					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
-					return;
-				}
-				await renderError({ message: "Account creation failed. Please try again." });
-				return;
-			}
-
-			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-			signIn(res, sessionId);
-			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "free" });
-			deps.recordConversionEvent(
-				req,
-				buildUserCreatedEvent(
-					{ now: deps.now },
-					{
-						userId: created.userId,
-						email: tokenResult.email,
-						method: "google",
-						tier: "free",
-						attribution,
-						homepageVariant: readHomepageVariantSlug(req),
-						visitorId: req.visitorId,
-						pendingSaveId: consumePendingSaveId({ req, res }),
-						oauthClientId,
-					},
-				),
-			);
-			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
-			return;
-		}
-
 		const created = await deps.createGoogleUser({
 			email: tokenResult.email,
 			userId: newUserId,

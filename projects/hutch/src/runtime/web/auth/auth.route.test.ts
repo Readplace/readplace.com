@@ -26,7 +26,6 @@ import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { UserIdSchema } from "@packages/domain/user";
 
-const TEST_FOUNDING_MEMBER_LIMIT = 3;
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 const FREE_PLAN_HINTS = [
 	{ key: "free-plan", text: FREE_PLAN_STATEMENT },
@@ -572,11 +571,9 @@ describe("Auth routes", () => {
 	});
 
 	describe("POST /signup", () => {
-		it("should create the account directly and redirect to /queue when below the founding limit", async () => {
+		it("creates the unverified account, clears site storage and redirects to /queue without a checkout", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, pendingSignup } = harness;
-			// One founding member
-			await auth.createUser({ email: `seed1@test.com`, password: "password123" });
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "free@example.com",
@@ -590,7 +587,7 @@ describe("Auth routes", () => {
 			expect(response.headers["clear-site-data"]).toBe('"storage"');
 
 			const lookup = await auth.findUserByEmail("free@example.com");
-			assert(lookup, "free signup must persist a user");
+			assert(lookup, "signup must persist a user");
 			expect(lookup.emailVerified).toBe(false);
 
 			const claim = await pendingSignup.claimPendingSignup({
@@ -601,12 +598,9 @@ describe("Auth routes", () => {
 			expect(claim).toEqual({ outcome: "not-found" });
 		}, 30000);
 
-		it("creates a trialing subscription_providers row and redirects to /queue when the founding allocation is exhausted", async () => {
+		it("creates a trialing subscription_providers row and redirects to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, subscriptionProviders, conversions, hostedCheckout, pendingSignup, trialScheduler } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 
 			const before = Date.now();
 			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A3%3Avariant-f").type("form").send({
@@ -665,9 +659,6 @@ describe("Auth routes", () => {
 				throw new Error("Scheduler outage");
 			};
 			const harness = useApp(fixture);
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "trial-fail@example.com",
@@ -689,9 +680,6 @@ describe("Auth routes", () => {
 				throw new Error("Scheduler outage");
 			};
 			const harness = useApp(fixture);
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "reminder-fail@example.com",
@@ -707,26 +695,7 @@ describe("Auth routes", () => {
 			expect(subRow.status).toBe("trialing");
 		}, 30000);
 
-		it("should fall back to free signup after a manual deletion drops the count below the limit", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT + 1; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
-			await auth.deleteUser("seed0@test.com");
-			await auth.deleteUser("seed1@test.com");
-
-			const response = await request(harness.server).post("/signup").type("form").send({
-				email: "after-delete@example.com",
-				password: "password123",
-				loadedAt: freshLoadedAt(),
-			});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=home");
-		}, 30000);
-
-		it("should send the email verification email on free signup", async () => {
+		it("should send the email verification email on signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { email } = harness;
 
@@ -739,7 +708,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(303);
 			const sent = email.getSentEmails();
 			const verification = sent.find((m) => m.to === "verify-free@example.com");
-			assert(verification, "verification email must be sent on free signup");
+			assert(verification, "verification email must be sent on signup");
 			expect(verification.subject).toBe("Verify your email — Readplace");
 		});
 
@@ -777,7 +746,7 @@ describe("Auth routes", () => {
 				stream: "conversions",
 				event: "user_created",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 			});
 			expect(conversions.events[0].homepage_variant).toBe("variant-e");
 			expect(conversions.events[0].email_hash).toBeDefined();
@@ -817,7 +786,7 @@ describe("Auth routes", () => {
 				});
 
 			expect(response.status).toBe(303);
-			expect(conversions.events[0]).toMatchObject({ tier: "free", oauth_client_id: "ios-app" });
+			expect(conversions.events[0]).toMatchObject({ tier: "trial", oauth_client_id: "ios-app" });
 			const signedUp = await harness.auth.findUserByEmail("consent-signup@example.com");
 			assert(signedUp, "signup must create the user");
 			const stored = await harness.auth.findUserById(signedUp.userId);
@@ -828,12 +797,9 @@ describe("Auth routes", () => {
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
 		});
 
-		it("carries the OAuth client id onto the trial branch's user_created too, once the founding allocation is exhausted", async () => {
+		it("carries the OAuth client id onto the trial branch's user_created too", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, conversions } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
+			const { conversions } = harness;
 			const returnUrl =
 				"/oauth/authorize?client_id=hutch-chrome-extension&response_type=code" +
 				"&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=abc123";
@@ -913,12 +879,9 @@ describe("Auth routes", () => {
 			expect(conversions.events[0]).toMatchObject({ utm_source: "hackernews", landing_path: "/" });
 		});
 
-		it("persists the hutch_click acquisition attribution on the user row through the trial branch, once the founding allocation is exhausted", async () => {
+		it("persists the hutch_click acquisition attribution on the user row through the trial branch", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, conversions } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const attribution = {
 				utm_source: "hackernews",
 				utm_medium: "referral",
@@ -962,7 +925,7 @@ describe("Auth routes", () => {
 			expect(await auth.getAcquisitionAttribution("organic@example.com")).toBeUndefined();
 		});
 
-		it("should show duplicate-email error when a race condition causes createUserWithPasswordHash to fail during free signup", async () => {
+		it("should show duplicate-email error when a race condition causes createUserWithPasswordHash to fail during signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
 			const harness = useApp({
@@ -1022,7 +985,7 @@ describe("Auth routes", () => {
 			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 		});
 
-		it("signs the visitor in when the trial-path insert races an account that has the same password, once the founding allocation is exhausted", async () => {
+		it("signs the visitor in when the trial-path insert races an account that has the same password", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
 			const harness = useApp({
@@ -1038,9 +1001,6 @@ describe("Auth routes", () => {
 					},
 				},
 			});
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			await fixture.auth.createUser({ email: "race-trial-match@example.com", password: "password123" });
 
 			const response = await request(harness.server).post("/signup").type("form").send({
@@ -1056,10 +1016,7 @@ describe("Auth routes", () => {
 
 		it("sends a verification email after a trial signup so the user can confirm their address before the trial ends", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
+			const { email } = harness;
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "verify-trial@example.com",
@@ -1162,7 +1119,7 @@ describe("Auth routes", () => {
 			expect(response.headers.location).toBe("/queue?scope=home");
 			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 			expect(response.headers["clear-site-data"]).toBe('"storage"');
-			expect(await auth.countUsers()).toBe(1);
+			expect(await auth.userExistsByEmail("existing@example.com")).toBe(true);
 			expect(email.getSentEmails()).toHaveLength(0);
 			expect(conversions.events).toEqual([]);
 		});
@@ -1443,7 +1400,7 @@ describe("Auth routes", () => {
 			return harness.analytics.events.filter((e) => e.event === "signup_attempted");
 		}
 
-		it("emits a single outcome=created event on a successful free signup", async () => {
+		it("emits a single outcome=created event on a successful signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
@@ -1464,11 +1421,8 @@ describe("Auth routes", () => {
 			});
 		});
 
-		it("emits outcome=created on a trial signup once the founding allocation is exhausted", async () => {
+		it("emits outcome=created on a trial signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 
 			await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
 				email: "attempt-trial@gmail.com",
@@ -1565,7 +1519,7 @@ describe("Auth routes", () => {
 			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
 		});
 
-		it("emits outcome=duplicate_email on the trial path insert-time race once the founding allocation is exhausted", async () => {
+		it("emits outcome=duplicate_email on the trial path insert-time race", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
 			const harness = useApp({
@@ -1581,9 +1535,6 @@ describe("Auth routes", () => {
 					},
 				},
 			});
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			await fixture.auth.createUser({ email: "race-trial@gmail.com", password: "existing" });
 
 			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
@@ -1904,12 +1855,9 @@ describe("Auth routes", () => {
 			expect(claim).toEqual({ outcome: "not-found" });
 		});
 
-		it("falls through to the trial signup happy path (303 to /queue) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
+		it("falls through to the trial signup happy path (303 to /queue) when the honeypot is empty, loadedAt is older than 2.5s", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, botDefense, subscriptionProviders } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "real@example.com",
@@ -2443,53 +2391,6 @@ describe("Auth routes", () => {
 		});
 	});
 
-	describe("Founding members progress", () => {
-		it("should render the progress bar on GET /signup with zero users", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/signup");
-			const doc = new JSDOM(response.text).window.document;
-
-			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
-			expect(label?.textContent).toBe(`0 / ${TEST_FOUNDING_MEMBER_LIMIT} founding members`);
-		});
-
-		it("should keep the progress bar on POST /signup 422 responses", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server)
-				.post("/signup")
-				.type("form")
-				.send({ email: "", password: "short", loadedAt: freshLoadedAt() });
-
-			expect(response.status).toBe(422);
-			const doc = new JSDOM(response.text).window.document;
-			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
-			expect(label?.textContent).toBe(`0 / ${TEST_FOUNDING_MEMBER_LIMIT} founding members`);
-		});
-
-		it("should render the founding blurb on GET /signup when allocation is available", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/signup");
-			const doc = new JSDOM(response.text).window.document;
-
-			const blurb = doc.querySelector("[data-test-founding-blurb]");
-			expect(blurb?.textContent).toBe(`Free account for the first ${TEST_FOUNDING_MEMBER_LIMIT} readers`);
-		});
-
-		it("hides the price hints on /signup when the founding allocation is available", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/signup");
-
-			expect(authHintsOf(response.text)).toEqual([]);
-		});
-
-		it("hides the price hints on a connector's /login when the founding allocation is available", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get(`/login?return=${CONNECTOR_RETURN}`);
-
-			expect(authHintsOf(response.text)).toEqual([]);
-		});
-	});
-
 	describe("Signup submit button", () => {
 		it("renders a single 'Join Readplace' submit button (no intent attribute)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -2503,26 +2404,14 @@ describe("Auth routes", () => {
 		});
 	});
 
-	describe("Founding members progress — exhausted allocation", () => {
-		it("should hide the founding progress and blurb on /signup when at the limit", async () => {
+	describe("Auth price hints", () => {
+		it.each(["/login", "/signup"])("renders no founding-member progress bar or blurb on %s", async (path) => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
-			}
+			const doc = new JSDOM((await request(harness.server).get(path)).text).window.document;
 
-			const signupDoc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
-			expect(signupDoc.querySelector("[data-test-founding-progress]")).toBeNull();
-			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
-		}, 30000);
-
-		async function harnessWithExhaustedAllocation() {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `user${i}@test.com`, password: "password123" });
-			}
-			return harness;
-		}
+			expect(doc.querySelector("[data-test-founding-progress]")).toBeNull();
+			expect(doc.querySelector("[data-test-founding-blurb]")).toBeNull();
+		});
 
 		it.each([
 			["a plain /signup", "/signup", FREE_PLAN_HINTS],
@@ -2531,8 +2420,8 @@ describe("Auth routes", () => {
 			["a connector's consent-step /login", `/login?return=${CONNECTOR_RETURN}`, FREE_PLAN_HINTS],
 			["a native app's /login, which opens inside the app", `/login?return=${IOS_RETURN}`, []],
 			["a plain /login", "/login", []],
-		])("shows the right price hints on %s when the founding allocation is exhausted", async (_name, path, hints) => {
-			const harness = await harnessWithExhaustedAllocation();
+		])("shows the right price hints on %s", async (_name, path, hints) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).get(path);
 
@@ -2540,7 +2429,7 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("keeps the price hints when a connector's login attempt fails", async () => {
-			const harness = await harnessWithExhaustedAllocation();
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server)
 				.post(`/login?return=${CONNECTOR_RETURN}`)
@@ -2552,7 +2441,7 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("keeps the price hints when a connector's login form is invalid", async () => {
-			const harness = await harnessWithExhaustedAllocation();
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server)
 				.post(`/login?return=${CONNECTOR_RETURN}`)
@@ -2563,17 +2452,6 @@ describe("Auth routes", () => {
 			expect(authHintsOf(response.text)).toEqual(FREE_PLAN_HINTS);
 		}, 30000);
 
-		it("renders 'Join Readplace' submit button on /signup when the founding allocation is exhausted", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
-			}
-
-			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
-			const submit = doc.querySelector('[data-test-form="signup"] button[type="submit"]');
-			expect(submit?.textContent).toBe("Join Readplace");
-		}, 30000);
 	});
 
 	describe("Pending save context", () => {

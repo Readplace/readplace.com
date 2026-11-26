@@ -28,7 +28,6 @@ import { SESSION_TTL_SECONDS, SessionRow, initGetSessionUserId } from "@packages
 import type {
 	CloseUserAccount,
 	CountEarlyIntentionalSave,
-	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
@@ -113,7 +112,7 @@ const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
  * rejects "#" in emails, so a claim PK can never collide with a delivery-email
  * PK. Claim items carry ownerUserId (never userId), keeping them out of the
- * GSI and out of countUsers' attribute_exists(userId) filter. */
+ * GSI. */
 const CLAIM_PK_PREFIX = "canonical#";
 
 function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
@@ -146,7 +145,6 @@ export function initDynamoDbAuth(deps: {
 	clearAgeLock: ClearAgeLock;
 	findExportRecipient: FindExportRecipient;
 	markExportDelivered: MarkExportDelivered;
-	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -477,23 +475,6 @@ export function initDynamoDbAuth(deps: {
 				}));
 			},
 		);
-	};
-
-	const countUsers: CountUsers = async () => {
-		// Claim items share the table but carry ownerUserId, not userId, so this
-		// filter counts only real user rows (the founding-member gate reads this).
-		let total = 0;
-		let startKey: Record<string, unknown> | undefined;
-		do {
-			const { count, lastEvaluatedKey } = await users.scan({
-				Select: "COUNT",
-				FilterExpression: "attribute_exists(userId)",
-				ExclusiveStartKey: startKey,
-			});
-			total += count;
-			startKey = lastEvaluatedKey;
-		} while (startKey);
-		return total;
 	};
 
 	const markEmailVerified: MarkEmailVerified = async (email) => {
@@ -885,7 +866,6 @@ export function initDynamoDbAuth(deps: {
 		clearAgeLock,
 		findExportRecipient,
 		markExportDelivered,
-		countUsers,
 		countEarlyIntentionalSave,
 		markEmailVerified,
 		markSessionEmailVerified,

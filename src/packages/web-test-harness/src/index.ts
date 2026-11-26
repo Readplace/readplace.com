@@ -9,7 +9,6 @@ export type {
 	EmailBundle,
 	EmailVerificationBundle,
 	EventsBundle,
-	FoundingAllocationBundle,
 	FreshnessBundle,
 	GoogleAuthBundle,
 	GmailIntegrationBundle,

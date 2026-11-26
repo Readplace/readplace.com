@@ -83,8 +83,6 @@ export type MarkAgeLocked = (input: { userId: UserId; at: string }) => Promise<v
 
 export type ClearAgeLock = (userId: UserId) => Promise<"unlocked" | "not-locked">;
 
-export type CountUsers = () => Promise<number>;
-
 export type MarkEmailVerified = (email: string) => Promise<void>;
 
 export type MarkSessionEmailVerified = (sessionId: string) => Promise<void>;

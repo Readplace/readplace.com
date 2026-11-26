@@ -22,7 +22,6 @@ import { ignoreLogLine } from "./web/ignore-log-line";
 import type { ClientNameInGroup } from "@packages/supported-clients";
 import type {
 	CountEarlyIntentionalSave,
-	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
@@ -367,7 +366,6 @@ import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protoco
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
-import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth, initPresentedSirenBearerAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -469,7 +467,6 @@ export interface AppDependencies {
 	destroyUserSessions: DestroyUserSessions;
 	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	markAccountDeleted: MarkAccountDeleted;
-	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markAgeLocked: MarkAgeLocked;
 	clearAgeLock: ClearAgeLock;
@@ -734,7 +731,6 @@ export interface AppDependencies {
 	signupLogger: Logger;
 	uploadLogger: Logger;
 	salt: string;
-	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
 	claimRateLimitUnits: ClaimRateLimitUnits;
 	readOcrPagesLeft: ReadOcrPagesLeft;
@@ -760,8 +756,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		staticBaseUrl,
 		getSessionUserId,
-		countUsers,
-		foundingAllocation,
 		analytics,
 		conversionLogger,
 		subscriptionLogger,
@@ -1472,7 +1466,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		createSession: deps.createSession,
 		renewSession: deps.renewSession,
 		destroySession: deps.destroySession,
-		countUsers,
 		markEmailVerified: deps.markEmailVerified,
 		markSessionEmailVerified: deps.markSessionEmailVerified,
 		sendEmail: deps.sendEmail,
@@ -1496,7 +1489,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordAnalyticsEvent,
 		salt: deps.salt,
 		recordSubscriptionEvent,
-		foundingAllocation,
 		buildBannerState,
 		consumeRateLimit: deps.consumeRateLimit,
 		rateLimitRules: {
@@ -1535,7 +1527,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			createSession: deps.createSession,
 			createGoogleUser,
 			findUserByEmail: deps.findUserByEmail,
-			countUsers,
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
@@ -1544,7 +1535,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			logError: deps.logError,
 			now: deps.now,
 			recordConversionEvent,
-			foundingAllocation,
 			consumeRateLimit: deps.consumeRateLimit,
 			signupCreatedRule: deps.rateLimitRules.signupCreated,
 			logger: deps.signupLogger,
@@ -1566,7 +1556,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		createAppleUser,
 		saveAppleRefreshToken: deps.saveAppleRefreshToken,
 		findUserByEmail: deps.findUserByEmail,
-		countUsers,
 		markEmailVerified: deps.markEmailVerified,
 		exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
 		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
@@ -1575,7 +1564,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		now: deps.now,
 		recordConversionEvent,
-		foundingAllocation,
 		consumeRateLimit: deps.consumeRateLimit,
 		signupCreatedRule: deps.rateLimitRules.signupCreated,
 		logger: deps.signupLogger,

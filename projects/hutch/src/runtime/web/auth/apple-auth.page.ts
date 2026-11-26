@@ -4,7 +4,6 @@ import express from "express";
 import { z } from "zod";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type {
-	CountUsers,
 	CreateAppleUser,
 	CreateSession,
 	FindUserByEmail,
@@ -19,7 +18,6 @@ import {
 	startTrial,
 	trialEndsAtFromNow,
 } from "../../domain/trial/start-trial";
-import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
@@ -32,7 +30,6 @@ import { defineCookie } from "@packages/web-analytics";
 import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { sessionCookie } from "../session-cookie";
 import { LoginPage } from "./auth.component";
-import { initFetchUserCount } from "./fetch-user-count";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
 import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
@@ -82,7 +79,6 @@ interface AppleAuthDependencies {
 	createAppleUser: CreateAppleUser;
 	saveAppleRefreshToken: SaveAppleRefreshToken;
 	findUserByEmail: FindUserByEmail;
-	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	exchangeAppleCode: ExchangeAppleCode;
 	upsertTrialing: UpsertTrialingSubscription;
@@ -91,7 +87,6 @@ interface AppleAuthDependencies {
 	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
-	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
 	signUnsubscribeToken: (userId: UserId) => string;
@@ -111,11 +106,6 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const claimSignupAllowance = initClaimSignupAllowance({
 		consumeRateLimit: deps.consumeRateLimit,
 		rule: deps.signupCreatedRule,
-	});
-	const fetchUserCount = initFetchUserCount({
-		countUsers: deps.countUsers,
-		logError: deps.logError,
-		logPrefix: "[Apple Auth]",
 	});
 	const sendWelcomeEmail = initSendWelcomeEmail({
 		sendEmail: deps.sendEmail,
@@ -182,14 +172,11 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 
 		const renderError = async ({ message, reason = "provider_rejected" }: { message: string; reason?: "callback_invalid" | "expired" | "provider_rejected" }) => {
 			res.locals.authDiagnosticReason = reason;
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
 				res,
 				Base(LoginPage(
 					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						errors: [{ message }],
 					},
@@ -202,14 +189,11 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			deps.logger.info("[Signup] allowance spent", { method: "apple" });
 			res.locals.authDiagnosticReason = "signup_allowance_spent";
 			res.set("Retry-After", String(retryAfterSeconds));
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
 				res,
 				Base(LoginPage(
 					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						returnUrl,
 						errors: [{ message: signupAllowanceSpentMessage({ limit: deps.signupCreatedRule.limit }) }],
@@ -300,55 +284,6 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			await renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
 			return;
 		}
-		const userCount = await fetchUserCount();
-		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createAppleUser({
-				email: tokenResult.email,
-				userId: newUserId,
-				appleRefreshToken: tokenResult.appleRefreshToken,
-				attribution,
-				signupOAuthClientId,
-			});
-			if (!created.ok) {
-				const lookup = await deps.findUserByEmail(tokenResult.email);
-				if (lookup) {
-					await deps.saveAppleRefreshToken({
-						email: tokenResult.email,
-						appleRefreshToken: tokenResult.appleRefreshToken,
-					});
-					if (!lookup.emailVerified) {
-						await deps.markEmailVerified(tokenResult.email);
-					}
-					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-					signIn(res, sessionId);
-					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
-					return;
-				}
-				await renderError({ message: "Account creation failed. Please try again." });
-				return;
-			}
-
-			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-			signIn(res, sessionId);
-			clearPendingSave();
-			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "free" });
-			deps.recordConversionEvent(
-				req,
-				buildUserCreatedEvent(
-					{ now: deps.now },
-					{
-						userId: created.userId,
-						email: tokenResult.email,
-						method: "apple",
-						tier: "free",
-						...conversionContext,
-					},
-				),
-			);
-			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
-			return;
-		}
-
 		const created = await deps.createAppleUser({
 			email: tokenResult.email,
 			userId: newUserId,

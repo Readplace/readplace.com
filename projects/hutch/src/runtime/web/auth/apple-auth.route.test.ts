@@ -17,8 +17,6 @@ import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
-const TEST_FOUNDING_MEMBER_LIMIT = 3;
-
 const TEST_CLIENT_ID = "com.readplace.web";
 const TEST_STATE_SECRET = "test-apple-state-secret";
 
@@ -237,7 +235,6 @@ describe("Apple auth routes", () => {
 		it("ignores the user field Apple posts on first authorization", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "first-auth@example.com" })) });
-			await fixture.auth.createUser({ email: "seed1@test.com", password: "password123" });
 			const state = signState(freshState());
 			const response = await postCallback(harness.server, {
 				state,
@@ -250,31 +247,6 @@ describe("Apple auth routes", () => {
 			const lookup = await fixture.auth.findUserByEmail("first-auth@example.com");
 			expect(lookup?.emailVerified).toBe(true);
 			expect(await fixture.auth.findUserByEmail("ignored@example.com")).toBeNull();
-		});
-
-		it("creates the user directly and skips Stripe when below the founding limit", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "free-apple@example.com" })) });
-			const { auth, conversions } = harness;
-			await auth.createUser({ email: "seed1@test.com", password: "password123" });
-			const state = signState(freshState());
-
-			const response = await postCallback(harness.server, {
-				state,
-				cookie: `hutch_astate=${encodeURIComponent(state)}`,
-			});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=home");
-			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
-
-			const lookup = await auth.findUserByEmail("free-apple@example.com");
-			expect(lookup?.emailVerified).toBe(true);
-
-			const conversionEvent = conversions.events.find((e) => e.method === "apple");
-			assert(conversionEvent, "Apple signup must emit a user_created conversion event");
-			expect(conversionEvent.method).toBe("apple");
-			expect(conversionEvent.tier).toBe("free");
 		});
 
 		it("sends the welcome email before it answers", async () => {
@@ -334,7 +306,7 @@ describe("Apple auth routes", () => {
 			);
 		});
 
-		it("logs in the existing user when a race condition causes createAppleUser to fail during free signup", async () => {
+		it("logs in the existing user when a race condition causes createAppleUser to fail during signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
 			const harness = useApp({
@@ -453,13 +425,10 @@ describe("Apple auth routes", () => {
 			expect(cookiesFrom(response).join(";")).not.toContain("hutch_sid=");
 		});
 
-		it("creates the Apple user with a trialing subscription_providers row when the founding allocation is exhausted", async () => {
+		it("creates the Apple user with a trialing subscription_providers row", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "brand-new@example.com" })) });
 			const { auth, subscriptionProviders, conversions, trialScheduler } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const state = signState({ ...freshState(), homepageVariant: "variant-f" });
 
 			const response = await postCallback(harness.server, {
@@ -494,13 +463,9 @@ describe("Apple auth routes", () => {
 			expect(conversionEvent.homepage_variant).toBe("variant-f");
 		}, 30000);
 
-		it("preserves the return URL through Apple trial signup when the founding allocation is exhausted", async () => {
+		it("preserves the return URL through Apple trial signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "return@example.com" })) });
-			const { auth } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));
 
 			const response = await postCallback(harness.server, {
@@ -529,9 +494,6 @@ describe("Apple auth routes", () => {
 				},
 				apple: appleWith(stubExchange({ email: "race-trial@example.com" })),
 			});
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			await fixture.auth.createUser({ email: "race-trial@example.com", password: "existing" });
 			const state = signState(freshState());
 
@@ -702,7 +664,7 @@ describe("Apple auth routes", () => {
 			expect(response.status).toBe(303);
 			const event = harness.conversions.events.find((e) => e.method === "apple");
 			assert(event, "Apple signup must emit a conversion event");
-			expect(event.tier).toBe("free");
+			expect(event.tier).toBe("trial");
 			expect(event.oauth_client_id).toBe("ios-app");
 			const signedUp = await harness.auth.findUserByEmail("consent-apple@example.com");
 			assert(signedUp, "signup must create the user");
@@ -714,15 +676,12 @@ describe("Apple auth routes", () => {
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
 		});
 
-		it("carries the OAuth client id onto the Apple trial branch's conversion too, once the founding allocation is exhausted", async () => {
+		it("carries the OAuth client id onto the Apple trial branch's conversion too", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
 				apple: appleWith(stubExchange({ email: "consent-apple-trial@example.com" })),
 			});
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const state = signState(
 				freshState({ returnUrl: "/oauth/authorize?client_id=hutch-firefox-extension&response_type=code&state=xyz" }),
 			);
@@ -746,12 +705,6 @@ describe("Apple auth routes", () => {
 	});
 
 	describe("lifecycle_email_sent for the welcome email", () => {
-		async function exhaustFoundingAllocation(harness: ReturnType<typeof useApp>): Promise<void> {
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
-		}
-
 		function callback(harness: ReturnType<typeof useApp>, returnUrl?: string) {
 			const state = signState(freshState({ returnUrl }));
 			return postCallback(harness.server, {
@@ -782,7 +735,6 @@ describe("Apple auth routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "claude-apple@example.com" })) });
 			const client = await registerAssistant(fixture, "Claude");
-			await exhaustFoundingAllocation(harness);
 
 			await callback(harness, `/oauth/authorize?client_id=${client.id}`);
 
@@ -811,23 +763,7 @@ describe("Apple auth routes", () => {
 			expect(contact?.queueDigestOptOutAt).toBeDefined();
 		});
 
-		it("sends the default welcome and records nothing for a free-tier signup from a Claude client", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "free-claude-apple@example.com" })) });
-			const client = await registerAssistant(fixture, "Claude");
-
-			await callback(harness, `/oauth/authorize?client_id=${client.id}`);
-
-			const [welcome] = harness.email.getSentEmails();
-			expect(welcome.html).toContain("Thanks for joining");
-			expect(welcome.headers).toBeUndefined();
-			expect(harness.funnelEvents.events).toEqual([]);
-		});
-
-		it.each([
-			["trial", true],
-			["free-tier", false],
-		])("logs a failed client read on a %s signup, sends the default welcome and still records user_created", async (_tier, trial) => {
+		it("logs a failed client read on a signup, sends the default welcome and still records user_created", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const loggedErrors: string[] = [];
 			const harness = useApp({
@@ -848,7 +784,6 @@ describe("Apple auth routes", () => {
 				grants: ["authorization_code"],
 				tokenEndpointAuthMethod: "none",
 			});
-			if (trial) await exhaustFoundingAllocation(harness);
 
 			const response = await callback(harness, `/oauth/authorize?client_id=${client.id}`);
 
@@ -861,7 +796,6 @@ describe("Apple auth routes", () => {
 		it("records one send for a trial signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "trial-apple@example.com" })) });
-			await exhaustFoundingAllocation(harness);
 
 			await callback(harness);
 
@@ -879,16 +813,6 @@ describe("Apple auth routes", () => {
 			]);
 		});
 
-		it("records nothing for a free-tier signup", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "free-apple@example.com" })) });
-
-			await callback(harness);
-
-			expect(harness.email.getSentEmails().map((sent) => sent.subject)).toEqual(["Welcome to Readplace"]);
-			expect(harness.funnelEvents.events).toEqual([]);
-		});
-
 		it("records nothing and logs when the welcome email fails, and the signup still succeeds", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const loggedErrors: string[] = [];
@@ -904,7 +828,6 @@ describe("Apple auth routes", () => {
 					logError: (message) => { loggedErrors.push(message); },
 				},
 			});
-			await exhaustFoundingAllocation(harness);
 
 			const response = await callback(harness);
 
