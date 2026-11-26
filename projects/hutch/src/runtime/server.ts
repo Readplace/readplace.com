@@ -119,7 +119,6 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
-	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -640,7 +639,6 @@ export interface AppDependencies {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
-	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;
