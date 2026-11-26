@@ -25,6 +25,15 @@ function heldMail(overrides: Partial<GmailHeldMailEntry> = {}): GmailHeldMailEnt
 	};
 }
 
+async function heldFromSender(input: {
+	store: ReturnType<typeof initInMemoryGmailHeldMail>;
+	userId: typeof owner;
+	senderEmail: typeof tldr;
+}): Promise<GmailHeldMailEntry[]> {
+	const held = await input.store.listHeldMailByUserId(input.userId);
+	return held.filter((entry) => entry.senderEmail === input.senderEmail);
+}
+
 describe("initInMemoryGmailHeldMail", () => {
 	it("stores a held message and reads it back for its sender", async () => {
 		const store = initInMemoryGmailHeldMail();
@@ -32,10 +41,9 @@ describe("initInMemoryGmailHeldMail", () => {
 
 		assert.equal(await store.holdMail(entry), "stored");
 
-		assert.deepEqual(
-			await store.listHeldMailBySender({ userId: owner, senderEmail: tldr, limit: 5 }),
-			[entry],
-		);
+		assert.deepEqual(await heldFromSender({ store, userId: owner, senderEmail: tldr }), [
+			entry,
+		]);
 	});
 
 	it("reports a redelivered message as a duplicate", async () => {
@@ -44,28 +52,7 @@ describe("initInMemoryGmailHeldMail", () => {
 		await store.holdMail(entry);
 
 		assert.equal(await store.holdMail(entry), "duplicate");
-		assert.equal(
-			(await store.listHeldMailBySender({ userId: owner, senderEmail: tldr, limit: 5 })).length,
-			1,
-		);
-	});
-
-	it("returns the newest messages first, capped at the requested limit", async () => {
-		const store = initInMemoryGmailHeldMail();
-		await store.holdMail(heldMail({ receivedAt: "2026-08-27T00:00:00.000Z" }));
-		await store.holdMail(heldMail({ receivedAt: "2026-08-27T02:00:00.000Z" }));
-		await store.holdMail(heldMail({ receivedAt: "2026-08-27T01:00:00.000Z" }));
-
-		const held = await store.listHeldMailBySender({
-			userId: owner,
-			senderEmail: tldr,
-			limit: 2,
-		});
-
-		assert.deepEqual(
-			held.map((entry) => entry.receivedAt),
-			["2026-08-27T02:00:00.000Z", "2026-08-27T01:00:00.000Z"],
-		);
+		assert.equal((await heldFromSender({ store, userId: owner, senderEmail: tldr })).length, 1);
 	});
 
 	it("scopes held mail to one sender and one reader", async () => {
@@ -76,11 +63,7 @@ describe("initInMemoryGmailHeldMail", () => {
 		);
 		await store.holdMail(heldMail({ userId: otherUser }));
 
-		const held = await store.listHeldMailBySender({
-			userId: owner,
-			senderEmail: tldr,
-			limit: 5,
-		});
+		const held = await heldFromSender({ store, userId: owner, senderEmail: tldr });
 
 		assert.deepEqual(
 			held.map((entry) => entry.senderEmail),
@@ -112,13 +95,9 @@ describe("initInMemoryGmailHeldMail", () => {
 
 		await store.deleteAllHeldMailByUserId(owner);
 
-		assert.deepEqual(
-			await store.listHeldMailBySender({ userId: owner, senderEmail: tldr, limit: 5 }),
-			[],
-		);
+		assert.deepEqual(await heldFromSender({ store, userId: owner, senderEmail: tldr }), []);
 		assert.equal(
-			(await store.listHeldMailBySender({ userId: otherUser, senderEmail: tldr, limit: 5 }))
-				.length,
+			(await heldFromSender({ store, userId: otherUser, senderEmail: tldr })).length,
 			1,
 		);
 	});

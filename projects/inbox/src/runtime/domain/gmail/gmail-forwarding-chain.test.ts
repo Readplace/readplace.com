@@ -367,11 +367,9 @@ describe("gmail forwarding chain (inbox half)", () => {
 			[],
 		);
 		assert.equal(published.length, 0);
-		const held = await heldMail.listHeldMailBySender({
-			userId,
-			senderEmail,
-			limit: 5,
-		});
+		const held = (await heldMail.listHeldMailByUserId(userId)).filter(
+			(entry) => entry.senderEmail === senderEmail,
+		);
 		assert.equal(held.length, 1);
 		assert.equal(
 			(await senders.findSender({ userId, senderEmail }))?.seenCount,

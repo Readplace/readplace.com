@@ -10,13 +10,6 @@ export function initInMemoryGmailHeldMail(): GmailHeldMailStore {
 			rows.set(key, entry);
 			return "stored";
 		},
-		listHeldMailBySender: async ({ userId, senderEmail, limit }) =>
-			[...rows.values()]
-				.filter((row) => row.userId === userId && row.senderEmail === senderEmail)
-				.sort((left, right) =>
-					right.receivedAtMessageId.localeCompare(left.receivedAtMessageId),
-				)
-				.slice(0, limit),
 		listHeldMailByUserId: async (userId) =>
 			[...rows.values()].filter((row) => row.userId === userId),
 		deleteAllHeldMailByUserId: async (userId) => {
