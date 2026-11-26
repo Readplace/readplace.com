@@ -1283,14 +1283,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		);
 	});
 
-	// The arms of the retired homepage split were their own URLs, so they sit in
-	// histories and bookmarks; `/` is the page they ever meant.
-	for (const retiredArmPath of ["/landing-a", "/landing-b"]) {
-		app.get(retiredArmPath, (_req: Request, res: Response) => {
-			res.redirect(303, "/");
-		});
-	}
-
 	for (const slug of LANDING_PAGE_SLUGS) {
 		app.get(`/${slug}`, async (req: Request, res: Response) => {
 			sendComponent(

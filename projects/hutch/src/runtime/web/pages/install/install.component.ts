@@ -130,20 +130,11 @@ const MCP_OTHER_CLIENTS_GUIDE_HREF = withInternalTracking(MCP_GUIDE_PATH, {
 	content: "mcp-guide-other-clients",
 });
 
-/** Inbound links use per-client values; `ai` is accepted as a convenience entry
- * that lands on the Claude tab. Anything else 400s — the route relies on
- * parseClient throwing for unknown clients. */
-const CLIENT_ALIASES: Record<string, ClientName | undefined> = {
-	ai: "claude",
-};
-
 export function parseClient(value: unknown): InstallClient {
 	if (value === undefined) return "chrome";
 	const raw = String(value);
-	if (isClientName(raw)) return raw;
-	const aliased = CLIENT_ALIASES[raw];
-	assert(aliased, `Unknown install client: ${raw}`);
-	return aliased;
+	assert(isClientName(raw), `Unknown install client: ${raw}`);
+	return raw;
 }
 
 export type FetchFirefoxDownloadUrl = () => Promise<string | null>;

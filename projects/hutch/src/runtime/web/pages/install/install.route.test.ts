@@ -676,20 +676,6 @@ describe("GET /install", () => {
 		).toBe("gemini mcp add --transport http --scope user readplace https://readplace.com/mcp");
 	});
 
-	it("should land client=ai on the Claude tab as a convenience alias", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=ai");
-		const doc = load(response.text);
-
-		const claudeTab = doc.querySelector('[data-test-tab="claude"]');
-		expect(claudeTab?.getAttribute("aria-current")).toBe("page");
-
-		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
-			(el) => el.getAttribute("data-test-panel"),
-		);
-		expect(panels).toEqual(["ai"]);
-	});
-
 	it("should teach each browser panel with that browser's own recording", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
