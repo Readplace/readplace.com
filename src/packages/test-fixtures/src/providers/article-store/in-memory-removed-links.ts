@@ -9,21 +9,18 @@ import type {
 	CountNewsletterIssues,
 	ForEachRemovalCandidatePage,
 	HasNewsletterLink,
-	ListKeysOpenedInReadlists,
 	SummariseNewsletterLinks,
 } from "@packages/provider-contracts/article-store";
 import type { ListAllUserHighlights } from "@packages/provider-contracts/highlights";
 
 export function initInMemoryRemovedLinks(deps: {
 	readNewsletterLinkRows: (userId: UserId) => readonly NewsletterLinkRow[];
-	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	listAllUserHighlights: ListAllUserHighlights;
 }): {
 	hasNewsletterLink: HasNewsletterLink;
 	summariseNewsletterLinks: SummariseNewsletterLinks;
 	countNewsletterIssues: CountNewsletterIssues;
 	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
-	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
 } {
 	const hasNewsletterLink: HasNewsletterLink = async ({ userId }) =>
 		deps.readNewsletterLinkRows(userId).some((row) => isNewsletterLink({ row, userId }));
@@ -34,7 +31,6 @@ export function initInMemoryRemovedLinks(deps: {
 			candidates: deps.readNewsletterLinkRows(userId).map((row) => ({ kind: "row", row })),
 			userId,
 			highlighted: new Set(highlights.map((highlight) => highlight.highlightOf)),
-			openedInReadlists: deps.readOpenedInReadlists(userId),
 			cutoff,
 		});
 	};
@@ -51,13 +47,10 @@ export function initInMemoryRemovedLinks(deps: {
 		);
 	};
 
-	const listKeysOpenedInReadlists: ListKeysOpenedInReadlists = async ({ userId }) => deps.readOpenedInReadlists(userId);
-
 	return {
 		hasNewsletterLink,
 		summariseNewsletterLinks,
 		countNewsletterIssues,
 		forEachRemovalCandidatePage,
-		listKeysOpenedInReadlists,
 	};
 }

@@ -628,6 +628,7 @@ export type MoveNewsletterLinkToHold = (params: {
 	storedKey: string;
 	cutoff: Date;
 	senders: RemovalSenders;
+	readlists: readonly ReadlistSlug[];
 	now: Date;
 }) => Promise<HoldOutcome>;
 
@@ -643,8 +644,6 @@ export type ForEachRemovalCandidatePage = (params: {
 	userId: UserId;
 	onPage: (candidates: NewsletterLinkCandidate[]) => Promise<void>;
 }) => Promise<void>;
-
-export type ListKeysOpenedInReadlists = (params: { userId: UserId }) => Promise<ReadonlySet<string>>;
 
 export type FindOriginalUrls = (params: { storedKeys: readonly string[] }) => Promise<Map<string, string>>;
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { SavedLinksJobIdSchema } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { type DynamoDBDocumentClient, TransactionCanceledException } from "@packages/storage-client";
 import { initDynamoDbRemovedLinks } from "./dynamodb-removed-links";
@@ -72,7 +73,18 @@ const cancelled =
 		});
 	};
 
-const moveParams = { userId: READER, jobId: JOB, storedKey: STORED_KEY, cutoff: CUTOFF, senders: { kind: "all" as const }, now: NOW };
+const WORK = ReadlistSlugSchema.parse("work");
+const LATER = ReadlistSlugSchema.parse("later");
+
+const moveParams = { userId: READER, jobId: JOB, storedKey: STORED_KEY, cutoff: CUTOFF, senders: { kind: "all" as const }, readlists: [], now: NOW };
+
+function readlistCopy(readlist: string): Item {
+	return { ...emailLink(), userId: `${READER}#queue/${readlist}` };
+}
+
+const batchFound =
+	(...items: Item[]): Reply =>
+	() => ({ Responses: { [TABLE]: items } });
 
 function transactItems(sent: Sent[]): Item[] {
 	const transaction = sent.find((s) => s.name === "TransactWriteCommand");
@@ -99,7 +111,8 @@ describe("moveNewsletterLinkToHold", () => {
 		const deletion = Object(remove).Delete;
 		assert.deepEqual(deletion.Key, { userId: READER, url: STORED_KEY });
 		assert.match(deletion.ConditionExpression, /savedAt = :readSavedAt AND savedAt <= :cutoff AND #status = :unread/);
-		assert.match(deletion.ConditionExpression, /attribute_not_exists\(lastSummaryOpenedAt\)/);
+		assert.doesNotMatch(deletion.ConditionExpression, /viewedAt|lastSummaryOpenedAt|handPickedAt|personalPickedAt/);
+		assert.equal(heldItem.heldReadlistRows, undefined);
 		assert.equal(deletion.ExpressionAttributeValues[":readSavedAt"], "2026-11-20T00:00:00.000Z");
 		assert.equal(deletion.ExpressionAttributeValues[":cutoff"], CUTOFF.toISOString());
 	});
@@ -128,10 +141,38 @@ describe("moveNewsletterLinkToHold", () => {
 		assert.equal(deletion.ExpressionAttributeValues[":decision"], "previous");
 	});
 
-	it("keeps a newsletter link explicitly added to Hand Picked", async () => {
-		const { removedLinks, sent } = createScriptedClient({ GetCommand: [found(emailLink({ personalPickedAt: NOW.toISOString() }))] });
-		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "not-selected" });
-		assert.equal(sent.length, 1);
+	it("holds a newsletter link the reader opened or added to Hand Picked", async () => {
+		const { removedLinks } = createScriptedClient({
+			GetCommand: [
+				found(emailLink({ personalPickedAt: NOW.toISOString(), handPickedAt: NOW.toISOString() })),
+				found(emailLink({ viewedAt: NOW.toISOString(), lastSummaryOpenedAt: NOW.toISOString() })),
+			],
+			TransactWriteCommand: [written, written],
+		});
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "held" });
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "held" });
+	});
+
+	it("holds the link's copy in each readlist it was filed in and deletes it with the All row", async () => {
+		const { removedLinks, sent } = createScriptedClient({
+			GetCommand: [found(emailLink())],
+			BatchGetCommand: [batchFound(readlistCopy("work"))],
+			TransactWriteCommand: [written],
+		});
+
+		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold({ ...moveParams, readlists: [WORK, LATER] }), { outcome: "held" });
+
+		const batch = sent.find((s) => s.name === "BatchGetCommand");
+		assert(batch);
+		assert.deepEqual(Object(batch.input).RequestItems[TABLE].Keys, [
+			{ userId: `${READER}#queue/work`, url: STORED_KEY },
+			{ userId: `${READER}#queue/later`, url: STORED_KEY },
+		]);
+		assert.equal(Object(batch.input).RequestItems[TABLE].ConsistentRead, true);
+		const items = transactItems(sent);
+		assert.equal(items.length, 4);
+		assert.deepEqual(Object(items[0]).Put.Item.heldReadlistRows, [readlistCopy("work")]);
+		assert.deepEqual(Object(items[3]).Delete, { TableName: TABLE, Key: { userId: `${READER}#queue/work`, url: STORED_KEY } });
 	});
 
 	it("does not select an absent row or one from a sender the reader did not choose", async () => {
@@ -143,14 +184,13 @@ describe("moveNewsletterLinkToHold", () => {
 		assert.equal(sent.length, 2);
 	});
 
-	it("skips an opened link and an unreadable row without writing", async () => {
+	it("skips an unreadable row without writing", async () => {
 		const { removedLinks, sent } = createScriptedClient({
-			GetCommand: [found(emailLink({ lastSummaryOpenedAt: "2026-11-21T00:00:00.000Z" })), found(emailLink({ savedAt: 42 }))],
+			GetCommand: [found(emailLink({ savedAt: 42 }))],
 		});
 
-		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "skipped", reason: "opened" });
 		assert.deepEqual(await removedLinks.moveNewsletterLinkToHold(moveParams), { outcome: "skipped", reason: "unreadable" });
-		assert.equal(sent.length, 2);
+		assert.equal(sent.length, 1);
 	});
 
 	it("holds a link restored before the cutoff and skips one restored since", async () => {
@@ -252,6 +292,43 @@ describe("restoreHeldLink", () => {
 		assert.deepEqual(Object(put).Put.Item, { ...emailLink(), restoredAt: NOW.toISOString() });
 		assert.equal(Object(put).Put.ConditionExpression, "attribute_not_exists(#url)");
 		assert.deepEqual(Object(remove).Delete.Key, { userId: HOLD, url: HELD_KEY });
+	});
+
+	it("puts each held readlist copy back behind a check that its readlist still exists", async () => {
+		const copies = [readlistCopy("work"), readlistCopy("later")];
+		const { removedLinks, sent } = createScriptedClient({
+			GetCommand: [found(heldRow({ heldReadlistRows: copies })), found({})],
+			TransactWriteCommand: [written],
+		});
+
+		assert.deepEqual(await removedLinks.restoreHeldLink(restoreParams), { outcome: "restored" });
+		const items = transactItems(sent);
+		assert.equal(Object(items[0]).Put.Item.heldReadlistRows, undefined);
+		assert.deepEqual(Object(items[3]).Put.Item, copies[0]);
+		assert.deepEqual(Object(items[4]).ConditionCheck.Key, { userId: READER, url: "readplace:queue-def/work" });
+		assert.equal(Object(items[4]).ConditionCheck.ConditionExpression, "attribute_exists(#url)");
+		assert.deepEqual(Object(items[5]).Put.Item, copies[1]);
+		assert.deepEqual(Object(items[6]).ConditionCheck.Key, { userId: READER, url: "readplace:queue-def/later" });
+	});
+
+	it("drops a readlist the reader deleted since the removal and restores the rest", async () => {
+		const copies = [readlistCopy("work"), readlistCopy("later")];
+		const { removedLinks, sent } = createScriptedClient({
+			GetCommand: [found(heldRow({ heldReadlistRows: copies })), found({})],
+			TransactWriteCommand: [cancelled("None", "None", "None", "None", "ConditionalCheckFailed", "None", "None"), written],
+		});
+
+		assert.deepEqual(await removedLinks.restoreHeldLink(restoreParams), { outcome: "restored" });
+		const retried = Object(sent.filter((s) => s.name === "TransactWriteCommand")[1].input).TransactItems;
+		assert.equal(retried.length, 5);
+		assert.deepEqual(retried[3].Put.Item, copies[1]);
+	});
+
+	it("restores only to All a link held before readlist copies were held", async () => {
+		const { removedLinks, sent } = createScriptedClient({ GetCommand: [found(heldRow()), found({})], TransactWriteCommand: [written] });
+
+		assert.deepEqual(await removedLinks.restoreHeldLink(restoreParams), { outcome: "restored" });
+		assert.equal(transactItems(sent).length, 3);
 	});
 
 	it("returns a restored uncertain link to its original review position", async () => {

@@ -287,3 +287,17 @@
   align-items: center;
   margin-top: 16px;
 }
+
+.newsletter-links-page__confirm-trigger {
+  display: none;
+}
+
+@supports selector(:popover-open) {
+  .newsletter-links-page__confirm-trigger {
+    display: inline-flex;
+  }
+
+  .newsletter-links-page__submit-fallback {
+    display: none;
+  }
+}

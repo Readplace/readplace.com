@@ -31,9 +31,11 @@ export const SavedLinksJobStateSchema = z.enum([
 ]);
 export type SavedLinksJobState = z.infer<typeof SavedLinksJobStateSchema>;
 
+export const SKIPPED_COUNT_CODES = [...REMOVAL_SKIP_REASONS, "opened"] as const;
+
 const SavedLinksJobCountCodeSchema = z.enum([
 	"held",
-	...REMOVAL_SKIP_REASONS,
+	...SKIPPED_COUNT_CODES,
 	"restored",
 	"already-in-all",
 	"unrestorable",
@@ -83,7 +85,7 @@ export function newsletterLinkCountOf(job: SavedLinksJob | undefined): Newslette
 	if (job.action !== "count") return open ? { kind: "busy" } : { kind: "none" };
 	if (open) return { kind: "counting" };
 	if (job.state === "failed") return { kind: "failed" };
-	assert(job.counted, "A completed count carries its counted numbers");
+	if (job.counted === undefined) return { kind: "none" };
 	return { kind: "counted", jobId: job.jobId, counted: job.counted };
 }
 
@@ -161,7 +163,6 @@ export function decideHold(params: {
 	const classification = classifyForRemoval({
 		...params,
 		highlighted: new Set(),
-		openedInReadlists: new Set(),
 	});
 	if (classification.kind === "not-a-newsletter-link")
 		return { kind: "not-selected" };
@@ -204,7 +205,6 @@ export function selectRemovalPage(params: {
 	candidates: readonly NewsletterLinkCandidate[];
 	userId: UserId;
 	highlighted: ReadonlySet<string>;
-	openedInReadlists: ReadonlySet<string>;
 	cutoff: Date;
 	senders: RemovalSenders;
 	counts: SavedLinksJobCounts;

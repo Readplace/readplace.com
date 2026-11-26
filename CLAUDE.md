@@ -198,7 +198,9 @@ A redrive needs no row read first, because the handler reads the reader's job ro
 | The same job, failed | Resumes it from the counts already recorded |
 | A newer job, or this one completed | Logs `[saved-links-job] stale job` and acknowledges |
 
-A resumed job cannot do more than the reader asked. A removal moves only links saved at or before the cutoff its command carries and not restored at or after it, so a link saved or restored after the count stays in All. A restore writes a held link back only where All holds no row for its URL, counting the rest as already in All. A held link expires 30 days after its removal, so a restore redriven later brings back only what is still held. Redrive with `aws sqs start-message-move-task`, after the cause is fixed, and once before the message's 14 days end.
+A resumed job cannot do more than the reader asked. A removal moves only links saved at or before the cutoff its command carries and not restored at or after it, so a link saved or restored after the count stays in All. It takes each moved link's copies in the reader's readlists into the same hold. A restore writes a held link back only where All holds no row for its URL, counting the rest as already in All, and puts each held readlist copy back only into a readlist that still exists. A held link expires 30 days after its removal, so a restore redriven later brings back only what is still held. Redrive with `aws sqs start-message-move-task`, after the cause is fixed, and once before the message's 14 days end.
+
+A remove message queued before 2026-11-27 was confirmed on a page that promised to keep opened and Hand Picked links and every readlist copy. Redriven now, it would take them: delete it instead of redriving it.
 
 ### User-facing copy comes from the translation files
 

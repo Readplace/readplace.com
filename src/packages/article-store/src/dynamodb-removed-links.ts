@@ -15,7 +15,6 @@ import {
 	summariseNewsletterLinkRows,
 } from "@packages/domain/article";
 import { emailIssueKeyPrefix } from "@packages/domain/inbox";
-import { type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
 	CountNewsletterIssues,
@@ -27,7 +26,6 @@ import type {
 	ForEachRemovalCandidatePage,
 	HasHeldLinks,
 	HasNewsletterLink,
-	ListKeysOpenedInReadlists,
 	MoveNewsletterLinkToHold,
 	RestoreHeldLink,
 	SummariseNewsletterLinks,
@@ -44,13 +42,13 @@ import {
 import { z } from "zod";
 import {
 	canonicalRemovalKey,
+	decodeUserArticlePartition,
 	HIGHLIGHT_KEY_PREFIX,
-	READLIST_DEFINITION_KEY_PREFIX,
+	readlistDefinitionKey,
 	readlistPartitionValue,
 	removedLinkKey,
 	removedLinksPartition,
 } from "./user-readlist-partition";
-import { listOwnedReadlistSlugs } from "./readlist-definition-rows";
 
 const PartitionItem = z.looseObject({ url: z.string() });
 
@@ -59,10 +57,6 @@ const NewsletterLinkItem = z.object({
 	status: ArticleStatusSchema,
 	savedAt: z.string(),
 	provenance: dynamoField(SaveProvenanceSchema),
-	handPickedAt: dynamoField(z.string()),
-	personalPickedAt: dynamoField(z.string()),
-	viewedAt: dynamoField(z.string()),
-	lastSummaryOpenedAt: dynamoField(z.string()),
 	restoredAt: dynamoField(z.string()),
 });
 
@@ -99,7 +93,11 @@ const MAX_TRANSACTION_ATTEMPTS = 5;
 
 const HighlightItem = z.object({ highlightOf: z.string() });
 
-const ReadlistViewItem = z.object({ url: z.string(), viewedAt: dynamoField(z.string()) });
+const ReadlistCopyItem = z.looseObject({ userId: z.string(), url: z.string() });
+
+const HeldReadlistRowsItem = z.object({ heldReadlistRows: dynamoField(z.array(ReadlistCopyItem)) });
+
+const READLIST_COPY_FIRST_INDEX = 3;
 
 const RESERVED_KEY_PREFIX = "readplace:";
 
@@ -108,10 +106,6 @@ const LINK_ATTRIBUTES = [
 	"status",
 	"savedAt",
 	"provenance",
-	"handPickedAt",
-	"personalPickedAt",
-	"viewedAt",
-	"lastSummaryOpenedAt",
 	"restoredAt",
 ];
 
@@ -128,10 +122,6 @@ function toNewsletterLinkRow(item: z.infer<typeof NewsletterLinkItem>): Newslett
 		status: item.status,
 		savedAt: new Date(item.savedAt),
 		...(item.provenance === undefined ? {} : { provenance: item.provenance }),
-		...(item.personalPickedAt === undefined ? {} : { personalPickedAt: new Date(item.personalPickedAt) }),
-		...(item.handPickedAt === undefined ? {} : { handPickedAt: new Date(item.handPickedAt) }),
-		...(item.viewedAt === undefined ? {} : { viewedAt: new Date(item.viewedAt) }),
-		...(item.lastSummaryOpenedAt === undefined ? {} : { lastSummaryOpenedAt: new Date(item.lastSummaryOpenedAt) }),
 		...(item.restoredAt === undefined ? {} : { restoredAt: new Date(item.restoredAt) }),
 	};
 }
@@ -202,7 +192,6 @@ export function initDynamoDbRemovedLinks(deps: {
 	hasHeldLinks: HasHeldLinks;
 	findHeldLink: FindHeldLink;
 	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
-	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
 	findOriginalUrls: FindOriginalUrls;
 	findUnrestorableArticles: FindUnrestorableArticles;
 	findKeysInAll: FindKeysInAll;
@@ -242,31 +231,10 @@ export function initDynamoDbRemovedLinks(deps: {
 		return parsed.success ? { kind: "row", row: toNewsletterLinkRow(parsed.data) } : { kind: "unreadable" };
 	};
 
-	const keysOpenedIn = async (params: { userId: UserId; readlists: readonly ReadlistSlug[] }) => {
-		const opened = new Set<string>();
-		for (const readlist of params.readlists) {
-			await forEachQueryPage(
-				userArticles,
-				{
-					KeyConditionExpression: "userId = :userId",
-					ExpressionAttributeValues: { ":userId": readlistPartitionValue({ userId: params.userId, readlist }) },
-					...projectionOf(["url", "viewedAt"]),
-				},
-				async (items) => {
-					for (const item of items) {
-						if (ReadlistViewItem.parse(item).viewedAt !== undefined) opened.add(item.url);
-					}
-				},
-			);
-		}
-		return opened;
-	};
-
 	const summariseNewsletterLinks: SummariseNewsletterLinks = async ({ userId, cutoff }) => {
 		const issuePrefix = emailIssueKeyPrefix(userId);
 		const candidates: NewsletterLinkCandidate[] = [];
 		const highlighted = new Set<string>();
-		const readlists: ReadlistSlug[] = [];
 		await forEachQueryPage(
 			userArticles,
 			allPartitionQuery({ userId, attributes: [...LINK_ATTRIBUTES, "highlightOf"] }),
@@ -277,16 +245,11 @@ export function initDynamoDbRemovedLinks(deps: {
 						highlighted.add(highlightOf);
 						continue;
 					}
-					if (item.url.startsWith(READLIST_DEFINITION_KEY_PREFIX)) {
-						readlists.push(ReadlistSlugSchema.parse(item.url.slice(READLIST_DEFINITION_KEY_PREFIX.length)));
-						continue;
-					}
 					if (isLinkKey({ url: item.url, issuePrefix })) candidates.push(candidateOf(item));
 				}
 			},
 		);
-		const openedInReadlists = await keysOpenedIn({ userId, readlists });
-		return summariseNewsletterLinkRows({ candidates, userId, highlighted, openedInReadlists, cutoff });
+		return summariseNewsletterLinkRows({ candidates, userId, highlighted, cutoff });
 	};
 
 	const forEachRemovalCandidatePage: ForEachRemovalCandidatePage = async ({ userId, onPage }) => {
@@ -294,11 +257,6 @@ export function initDynamoDbRemovedLinks(deps: {
 		await forEachQueryPage(userArticles, allPartitionQuery({ userId, attributes: LINK_ATTRIBUTES }), async (items) => {
 			await onPage(items.filter((item) => isLinkKey({ url: item.url, issuePrefix })).map(candidateOf));
 		});
-	};
-
-	const listKeysOpenedInReadlists: ListKeysOpenedInReadlists = async ({ userId }) => {
-		const readlists = await listOwnedReadlistSlugs({ client: deps.client, tableName: deps.userArticlesTableName, userId });
-		return keysOpenedIn({ userId, readlists });
 	};
 
 	const countNewsletterIssues: CountNewsletterIssues = async ({ userId }) => {
@@ -363,12 +321,19 @@ export function initDynamoDbRemovedLinks(deps: {
 	};
 
 	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async (params) => {
-		const { userId, jobId, storedKey, cutoff, now } = params;
+		const { userId, jobId, storedKey, cutoff, now, readlists } = params;
 		const allKey = { userId, url: storedKey };
 		const current = await userArticles.get(allKey, { consistentRead: true });
 		const decided = holdOutcomeOf({ ...params, item: current });
 		if (decided.outcome !== "held") return decided;
 		assert(current, "a row chosen for the hold was read");
+		const readlistCopies = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.userArticlesTableName,
+			schema: ReadlistCopyItem,
+			keys: readlists.map((readlist) => ({ userId: readlistPartitionValue({ userId, readlist }), url: storedKey })),
+			consistentRead: true,
+		});
 		const { personalScope, personalOrder, ...heldState } = current;
 		const result = await transactWithRetry({
 			client: deps.client,
@@ -385,6 +350,7 @@ export function initDynamoDbRemovedLinks(deps: {
 							removedByJobId: jobId,
 							removedAt: now.toISOString(),
 							expiresAt: Math.floor(heldLinkExpiresAt(now).getTime() / 1000),
+							...(readlistCopies.length === 0 ? {} : { heldReadlistRows: readlistCopies }),
 						},
 					},
 				},
@@ -397,16 +363,11 @@ export function initDynamoDbRemovedLinks(deps: {
 							"savedAt <= :cutoff",
 							"#status = :unread",
 							"provenance.kind = :email",
-							"attribute_not_exists(handPickedAt)",
-							"attribute_not_exists(personalPickedAt)",
 							current.personalDecision === undefined ? "attribute_not_exists(personalDecision)" : "personalDecision = :decision",
 							personalScope === undefined ? "attribute_not_exists(personalScope)" : "personalScope = :scope",
-							"attribute_not_exists(viewedAt)",
-							"attribute_not_exists(lastSummaryOpenedAt)",
 							"(attribute_not_exists(restoredAt) OR restoredAt < :cutoff)",
-							"NOT begins_with(#url, :issueKeyPrefix)",
 						].join(" AND "),
-						ExpressionAttributeNames: { "#status": "status", "#url": "url" },
+						ExpressionAttributeNames: { "#status": "status" },
 						ExpressionAttributeValues: {
 							":readSavedAt": current.savedAt,
 							...(current.personalDecision === undefined ? {} : { ":decision": current.personalDecision }),
@@ -414,7 +375,6 @@ export function initDynamoDbRemovedLinks(deps: {
 							":cutoff": cutoff.toISOString(),
 							":unread": "unread",
 							":email": "email",
-							":issueKeyPrefix": emailIssueKeyPrefix(userId),
 						},
 					},
 				},
@@ -425,6 +385,12 @@ export function initDynamoDbRemovedLinks(deps: {
 					ConditionExpression: "attribute_not_exists(removedAt) OR removedAt <= :at",
 					ExpressionAttributeValues: { ":at": now.toISOString() },
 				} },
+				...readlistCopies.map((copy) => ({
+					Delete: {
+						TableName: deps.userArticlesTableName,
+						Key: { userId: copy.userId, url: copy.url },
+					},
+				})),
 			],
 		});
 		if (result.kind === "written") return { outcome: "held" };
@@ -440,39 +406,64 @@ export function initDynamoDbRemovedLinks(deps: {
 		if (expiresAt <= Math.floor(now.getTime() / 1000)) return { outcome: "gone" };
 		const shared = await sharedArticles.get({ url: removedUrl }, { projection: ["purgedAt"] });
 		if (shared === undefined || shared.purgedAt !== undefined) return { outcome: "unrestorable" };
-		const { heldPersonalScope, heldPersonalOrder, ...heldState } = held;
+		const { heldReadlistRows = [] } = HeldReadlistRowsItem.parse(held);
+		const { heldPersonalScope, heldPersonalOrder, heldReadlistRows: _copies, ...heldState } = held;
 		const restored: Record<string, unknown> = { ...heldState, ...(heldPersonalScope ? { personalScope: heldPersonalScope, personalOrder: heldPersonalOrder } : {}), userId, url: removedUrl, restoredAt: now.toISOString() };
 		for (const attribute of HOLD_ATTRIBUTES) delete restored[attribute];
-		const result = await transactWithRetry({
-			client: deps.client,
-			transactItems: [
-				{
-					Put: {
-						TableName: deps.userArticlesTableName,
-						Item: restored,
-						ConditionExpression: "attribute_not_exists(#url)",
-						ExpressionAttributeNames: { "#url": "url" },
+		let copies = heldReadlistRows;
+		for (;;) {
+			const result = await transactWithRetry({
+				client: deps.client,
+				transactItems: [
+					{
+						Put: {
+							TableName: deps.userArticlesTableName,
+							Item: restored,
+							ConditionExpression: "attribute_not_exists(#url)",
+							ExpressionAttributeNames: { "#url": "url" },
+						},
 					},
-				},
-				{
-					Delete: {
-						TableName: deps.userArticlesTableName,
-						Key: heldRowKey,
-						ConditionExpression: "attribute_exists(#url)",
-						ExpressionAttributeNames: { "#url": "url" },
+					{
+						Delete: {
+							TableName: deps.userArticlesTableName,
+							Key: heldRowKey,
+							ConditionExpression: "attribute_exists(#url)",
+							ExpressionAttributeNames: { "#url": "url" },
+						},
 					},
-				},
-				{ ConditionCheck: {
+					{ ConditionCheck: {
+						TableName: deps.userArticlesTableName,
+						Key: canonicalRemovalKey(userId, removedUrl),
+						ConditionExpression: "attribute_not_exists(removedAt) OR removedAt = :at",
+						ExpressionAttributeValues: { ":at": removedAt },
+					} },
+					...copies.flatMap((copy) => readlistCopyRestore({ userId, copy })),
+				],
+			});
+			if (result.kind === "written") return { outcome: "restored" };
+			if (result.failedAt < READLIST_COPY_FIRST_INDEX) {
+				if (result.failedAt === 2) return { outcome: "unrestorable" };
+				return result.failedAt === 0 ? { outcome: "already-in-all" } : { outcome: "gone" };
+			}
+			const deletedReadlist = Math.floor((result.failedAt - READLIST_COPY_FIRST_INDEX) / 2);
+			copies = copies.filter((_copy, index) => index !== deletedReadlist);
+		}
+	};
+
+	const readlistCopyRestore = (params: { userId: UserId; copy: z.infer<typeof ReadlistCopyItem> }) => {
+		const { readlist } = decodeUserArticlePartition(params.copy.userId);
+		assert(readlist, "a held readlist copy names its readlist");
+		return [
+			{ Put: { TableName: deps.userArticlesTableName, Item: params.copy } },
+			{
+				ConditionCheck: {
 					TableName: deps.userArticlesTableName,
-					Key: canonicalRemovalKey(userId, removedUrl),
-					ConditionExpression: "attribute_not_exists(removedAt) OR removedAt = :at",
-					ExpressionAttributeValues: { ":at": removedAt },
-				} },
-			],
-		});
-		if (result.kind === "written") return { outcome: "restored" };
-		if (result.failedAt === 2) return { outcome: "unrestorable" };
-		return result.failedAt === 0 ? { outcome: "already-in-all" } : { outcome: "gone" };
+					Key: { userId: params.userId, url: readlistDefinitionKey(readlist) },
+					ConditionExpression: "attribute_exists(#url)",
+					ExpressionAttributeNames: { "#url": "url" },
+				},
+			},
+		];
 	};
 
 	const holdingPartitionQuery = (userId: UserId) => ({
@@ -521,7 +512,6 @@ export function initDynamoDbRemovedLinks(deps: {
 		hasHeldLinks,
 		findHeldLink,
 		forEachRemovalCandidatePage,
-		listKeysOpenedInReadlists,
 		findOriginalUrls,
 		findUnrestorableArticles,
 		findKeysInAll,

@@ -1,8 +1,8 @@
 ---
 title: "Clear out the newsletter links you never opened"
-description: "All keeps every link a newsletter saves, and the unread ones pile up. The Newsletter Links Removal page counts them, shows which newsletters sent the most, and removes only the untouched links in one pass. Issues and readlist copies stay, and each removed link can be restored for 30 days."
+description: "All keeps every link a newsletter saves, and the unread ones pile up. The Newsletter Links Removal page counts them, shows which newsletters sent the most, and removes them from All and every readlist in one pass. Read and highlighted links stay, issues stay, and each removed link can be restored for 30 days."
 excerpt: "On the paid plan, one pass clears the unread newsletter links, and each can come back for 30 days."
-tldr: "Every newsletter issue saves its links to All, and the unread ones outnumber the read. Readplace now clears them in one pass: the Newsletter Links Removal page behind the Inbox counts them first, removes only the links that were not read, opened, highlighted or changed, keeps every issue and every copy filed in another readlist, and holds each removed link for 30 days with a Restore that puts it back."
+tldr: "Every newsletter issue saves its links to All, and the unread ones outnumber the read. Readplace now clears them in one pass: the Newsletter Links Removal page behind the Inbox counts them first, removes the links that were not read, highlighted or changed from All and from every readlist they were filed in, keeps every issue, and holds each removed link for 30 days with a Restore that puts it back."
 slug: "clear-out-the-newsletter-links-you-never-opened"
 date: "2026-11-21"
 author: "Fayner Brack"
@@ -21,21 +21,21 @@ A year of that and the list stops looking chosen. Scrolling All turns up row aft
 
 The Inbox shows a line whenever All holds newsletter links. The button on it, Newsletter Links Removal, opens the page that runs the cleanup.
 
-The pass takes only the untouched links. A link marked read stays in All. So does one that was opened, even if only its TL;DR was, one carrying a highlight, one saved again or changed by hand, and one the crawler could not read. The newsletter issues themselves stay, every one of them.
+The pass takes every newsletter link that was not marked read or highlighted. A link marked read stays in All. So does one carrying a highlight, one saved again or changed by hand, and one the crawler could not read. A link that was only opened goes with the rest, and so does one added to Hand Picked. The newsletter issues themselves stay, every one of them.
 
-A link that was [filed into another readlist](/blog/newsletter-articles-land-in-the-readlist-they-belong-to?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=post-newsletter-articles-land-in-the-readlist-they-belong-to) keeps that copy where it is. The removal reaches into All and nowhere else.
+A link that was [filed into another readlist](/blog/newsletter-articles-land-in-the-readlist-they-belong-to?utm_source=blog-clear-out-the-newsletter-links-you-never-opened&utm_medium=internal&utm_content=post-newsletter-articles-land-in-the-readlist-they-belong-to) leaves that readlist too. A cleared newsletter leaves no copy behind in any readlist.
 
 ## The count runs before anything moves
 
-Pressing the button removes nothing. The page counts first: how many unread newsletter links All holds, which newsletters sent the most of them, and how many links will be skipped, with the reason beside each number. That count is the same work that took 21.5 seconds on the largest account, so it runs in the background and the page fills in when the numbers land.
+Pressing the button removes nothing. The page counts first: how many unread newsletter links All holds, which newsletters sent the most of them, and how many links will stay, with the reason beside each number. That count is the same work that took 21.5 seconds on the largest account, so it runs in the background and the page fills in when the numbers land.
 
-The decision then has a scope. The removal covers every newsletter, or only the senders ticked in the list the page draws, heaviest first. Remove newsletter links is the last button. Removing and restoring are part of the paid plan, so on the free plan that button leads to the plans page instead. After it the Inbox line shows the job working, then the result: how many links went, how many were skipped.
+The decision then has a scope. The removal covers every newsletter, or only the senders ticked in the list the page draws, heaviest first. Remove newsletter links is the last button, and it opens a popup that says once more what goes and what stays. Removing and restoring are part of the paid plan, so on the free plan that button leads to the plans page instead. After it the Inbox line shows the job working, then the result: how many links went, how many were skipped.
 
-TBH, the edge of the count is fuzzy for older saves: a link saved by hand before a newsletter ever linked to it can sit in the total, because nothing from back then recorded who saved it first. The confirm page says so beside the number, and the hold below exists for exactly that case.
+TBH, a link saved by hand counts too when a newsletter also saved it. Nothing tells the two saves apart well enough to keep one and take the other, so the hold below exists for exactly that case.
 
 ## Held for 30 days, not deleted
 
-A removed link moves into a hold, and for 30 days the Inbox line offers Restore removed links. A plan that ends inside those 30 days has to be upgraded again before Restore works, or the held links expire. Restore writes each held link back into All and leaves out any that already made it back, so running it twice can't double a row. A held link whose article is no longer stored can't be restored. The page lists it with its URL instead, ready to be saved again.
+A removed link moves into a hold, and for 30 days the Inbox line offers Restore removed links. A plan that ends inside those 30 days has to be upgraded again before Restore works, or the held links expire. Restore writes each held link back into All and into every readlist it was in that still exists, and leaves out any that already made it back, so running it twice can't double a row. A held link whose article is no longer stored can't be restored. The page lists it with its URL instead, ready to be saved again.
 
 A removal that fails partway strands nothing either. The line says it couldn't finish, and whatever was already removed sits in the same hold, restorable like the rest.
 

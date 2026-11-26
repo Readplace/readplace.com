@@ -549,6 +549,7 @@ describe("initExportUserDataHandler", () => {
 			storedKey: ArticleResourceUniqueId.parse("https://tldr.tech/held?utm_source=tldr").value,
 			cutoff: new Date("2026-04-29T00:00:00.000Z"),
 			senders: { kind: "all" },
+			readlists: [],
 			now: new Date("2026-04-29T00:00:00.000Z"),
 		});
 

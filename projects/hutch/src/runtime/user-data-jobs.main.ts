@@ -463,11 +463,10 @@ export const handler = initHandleByDetailType({
 					remove: initRemoveSavedLinks({
 						forEachRemovalCandidatePage: removedLinks.forEachRemovalCandidatePage,
 						forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
-						listKeysOpenedInReadlists: removedLinks.listKeysOpenedInReadlists,
+						listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
 						listAllUserHighlights: highlights.listAllUserHighlights,
 						moveNewsletterLinkToHold: removedLinks.moveNewsletterLinkToHold,
 						findOriginalUrls: removedLinks.findOriginalUrls,
-						listUserSavesForUrls: articleStore.listUserSavesForUrls,
 						publishEvent,
 						now,
 					}),

@@ -281,13 +281,11 @@ const finishSavedLinksJobSchema = z.object({
 	skipped: z
 		.object({
 			read: z.number().int().nonnegative(),
-			opened: z.number().int().nonnegative(),
 			highlighted: z.number().int().nonnegative(),
 			changed: z.number().int().nonnegative(),
 			unreadable: z.number().int().nonnegative(),
 		})
-		.default({ read: 0, opened: 0, highlighted: 0, changed: 0, unreadable: 0 }),
-	savedBeforeMarker: z.number().int().nonnegative().default(0),
+		.default({ read: 0, highlighted: 0, changed: 0, unreadable: 0 }),
 	extraSenders: z.array(senderCountSchema).default([]),
 });
 
@@ -301,6 +299,7 @@ server.post("/e2e/hold-newsletter-link", async (req, res) => {
 		storedKey: ArticleResourceUniqueId.parse(url).value,
 		cutoff: now,
 		senders: { kind: "all" },
+		readlists: (await fixture.articleStore.listReadlistDefinitions(userId)).map((definition) => definition.slug),
 		now,
 	});
 	res.json(outcome);
@@ -330,7 +329,6 @@ server.post("/e2e/finish-saved-links-job", async (req, res) => {
 					],
 					skipped: input.skipped,
 					earliestEmailSave: new Date(RECEIVED_LINK_SAVED_AT),
-					savedBeforeMarker: input.savedBeforeMarker,
 				},
 			},
 		});

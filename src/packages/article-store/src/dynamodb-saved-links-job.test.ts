@@ -146,8 +146,7 @@ describe("counted newsletter links", () => {
 	const summary = {
 		selected: 7,
 		bySender: [{ senderEmail: "dan@tldr.tech", count: 7 }],
-		skipped: { read: 1, opened: 2, highlighted: 0, changed: 0, unreadable: 0 },
-		savedBeforeMarker: 3,
+		skipped: { read: 1, highlighted: 0, changed: 0, unreadable: 0 },
 	};
 	const held = { bySender: [{ senderEmail: "dan@tldr.tech", count: 4 }], unrestorable: ["gone.com/1"] };
 
@@ -210,5 +209,16 @@ describe("counted newsletter links", () => {
 			summary: { ...summary, earliestEmailSave: undefined },
 			held,
 		});
+	});
+
+	it("reads a count stored before opened links were removed as not counted", async () => {
+		const stored = { cutoff: cutoff.toISOString(), issues: 0, summary: { ...summary, skipped: { ...summary.skipped, opened: 2 }, savedBeforeMarker: 3 }, held };
+		const { jobs } = createScriptedClient({
+			GetCommand: [found(jobRow({ action: "count", state: "completed", counts: {}, counted: stored }))],
+		});
+
+		const job = await jobs.findSavedLinksJob({ userId: READER });
+		assert.equal(job?.state, "completed");
+		assert.equal(job?.counted, undefined);
 	});
 });

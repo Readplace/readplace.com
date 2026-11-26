@@ -54,10 +54,6 @@ async function seededStore() {
 	await store.saveArticle(emailSave({ url: "https://a.com/opened-in-readlist" }));
 	await store.saveReadlistArticle({ ...emailSave({ url: "https://a.com/opened-in-readlist" }), readlist: WORK });
 	await store.markReadlistArticleViewed({ userId: READER, readlist: WORK, url: "https://a.com/opened-in-readlist", at: SAVED_AT });
-	assert.equal(
-		store.readNewsletterLinkRows(READER).find((row) => row.storedKey === "a.com/opened-in-readlist")?.viewedAt,
-		undefined,
-	);
 	await store.saveArticle(emailSave({ url: "https://a.com/summary-opened" }));
 	await store.markSummaryToggled({ userId: READER, url: "https://a.com/summary-opened", state: "open", at: SAVED_AT });
 	await store.saveArticle(emailSave({ url: "https://a.com/restored" }));
@@ -67,6 +63,7 @@ async function seededStore() {
 		storedKey: "a.com/restored",
 		cutoff: SAVED_AT,
 		senders: { kind: "all" },
+		readlists: [],
 		now: SAVED_AT,
 	});
 	const held = await store.findHeldLink({ userId: READER, storedKey: "a.com/restored", now: SAVED_AT });
@@ -80,7 +77,6 @@ async function seededStore() {
 	);
 	return initInMemoryRemovedLinks({
 		readNewsletterLinkRows: store.readNewsletterLinkRows,
-		readOpenedInReadlists: store.readOpenedInReadlists,
 		listAllUserHighlights: async (userId) => (userId === READER ? [highlightOf("a.com/highlighted")] : []),
 	});
 }
@@ -90,11 +86,10 @@ describe("initInMemoryRemovedLinks", () => {
 		const removedLinks = await seededStore();
 
 		assert.deepEqual(await removedLinks.summariseNewsletterLinks({ userId: READER, cutoff: CUTOFF }), {
-			selected: 1,
-			bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }],
-			skipped: { read: 1, opened: 3, highlighted: 1, changed: 1, unreadable: 0 },
+			selected: 5,
+			bySender: [{ senderEmail: "dan@tldr.tech", count: 5 }],
+			skipped: { read: 1, highlighted: 1, changed: 1, unreadable: 0 },
 			earliestEmailSave: SAVED_AT,
-			savedBeforeMarker: 0,
 		});
 	});
 
@@ -127,12 +122,5 @@ describe("initInMemoryRemovedLinks", () => {
 		assert.ok(pages[0]?.includes("a.com/chosen"));
 		assert.ok(!pages[0]?.includes("a.com/other"));
 		assert.ok(!pages[0]?.some((storedKey) => storedKey.startsWith(emailIssueKeyPrefix(READER))));
-	});
-
-	it("lists the keys the reader opened inside a readlist", async () => {
-		const removedLinks = await seededStore();
-
-		assert.ok((await removedLinks.listKeysOpenedInReadlists({ userId: READER })).size > 0);
-		assert.equal((await removedLinks.listKeysOpenedInReadlists({ userId: OTHER })).size, 0);
 	});
 });

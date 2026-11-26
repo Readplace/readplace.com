@@ -506,7 +506,6 @@ describe("an issue saved to All beside the links it carried", () => {
 		});
 		const removedLinks = initInMemoryRemovedLinks({
 			readNewsletterLinkRows: h.store.readNewsletterLinkRows,
-			readOpenedInReadlists: h.store.readOpenedInReadlists,
 			listAllUserHighlights: async () => [],
 		});
 

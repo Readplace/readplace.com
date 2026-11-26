@@ -40,25 +40,25 @@ export const enUS = {
 	},
 	newsletterLinks: {
 		line: {
-			offerHeld: "Newsletter links you removed can be restored to All for 30 days.",
+			offerHeld: "Newsletter links you removed can be restored to All and their readlists for 30 days.",
 			removeButton: "Newsletter Links Removal",
 			restoreButton: "Restore removed links",
 			working: {
-				remove: "Removing newsletter links from All…",
-				restore: "Restoring removed links to All…",
+				remove: "Removing newsletter links from All and your readlists…",
+				restore: "Restoring removed links to All and their readlists…",
 			},
 			result: {
 				removed: {
-					one: "Removed {count} newsletter link from All.",
-					other: "Removed {count} newsletter links from All.",
+					one: "Removed {count} newsletter link from All and your readlists.",
+					other: "Removed {count} newsletter links from All and your readlists.",
 				},
 				skipped: {
-					one: "Skipped {count} link you used or that couldn't be read.",
-					other: "Skipped {count} links you used or that couldn't be read.",
+					one: "{count} link stayed, because you read, highlighted or saved it again, or it couldn't be read.",
+					other: "{count} links stayed, because you read, highlighted or saved them again, or they couldn't be read.",
 				},
 				restored: {
-					one: "Restored {count} link to All.",
-					other: "Restored {count} links to All.",
+					one: "Restored {count} link to All and its readlists.",
+					other: "Restored {count} links to All and their readlists.",
 				},
 				unrestorable: {
 					one: "{count} link couldn't be restored, because its article is no longer stored.",
@@ -81,10 +81,10 @@ export const enUS = {
 			countButton: "Count newsletter links",
 			tryAgain: "Try again",
 			total: {
-				one: "{count} unread newsletter link in All will be removed.",
-				other: "{count} unread newsletter links in All will be removed.",
+				one: "{count} newsletter link will be removed.",
+				other: "{count} newsletter links will be removed.",
 			},
-			decision: "Remove these links from All?",
+			decision: "Remove these links from every readlist?",
 			scopeLegend: "Which links to remove:",
 			sendersLegend: "Newsletters with the most links",
 			allSenders: "From every newsletter",
@@ -94,12 +94,11 @@ export const enUS = {
 				other: "{count} links",
 			},
 			skipped: {
-				one: "{count} link will be skipped:",
-				other: "{count} links will be skipped:",
+				one: "{count} link will stay:",
+				other: "{count} links will stay:",
 			},
 			skippedReason: {
-				read: "{count} you read",
-				opened: "{count} you opened",
+				read: "{count} you marked as read",
 				highlighted: "{count} you highlighted",
 				changed: "{count} saved again or changed",
 				unreadable: "{count} that couldn't be read",
@@ -108,11 +107,16 @@ export const enUS = {
 				one: "All holds {count} newsletter issue. It stays.",
 				other: "All holds {count} newsletter issues. Every one stays.",
 			},
+			everyReadlist: "They are removed from All and from every readlist they were saved to.",
+			keptStay: "Links you marked as read or highlighted stay.",
 			restoreWindow: "Removed links can be restored for 30 days.",
-			otherReadlists: "Copies in your other readlists stay there.",
-			beforeMarker:
-				"Links you saved yourself from an issue or its email page before {date}, and links you saved by hand before a newsletter linked them, are in the total.",
+			restoreReadlists: "Restore puts each one back in All and in the readlists it was in.",
 			submit: "Remove newsletter links",
+			popover: {
+				title: "Remove from every readlist?",
+				body: "This removes these newsletter links from All and from every readlist they were saved to. Links you marked as read or highlighted stay. You can restore what was removed for 30 days.",
+				cancel: "Cancel",
+			},
 			back: "Inbox",
 		},
 		restore: {
@@ -122,8 +126,8 @@ export const enUS = {
 			failed: "Couldn't count the links you removed.",
 			countButton: "Count removed links",
 			total: {
-				one: "{count} removed link can be restored to All.",
-				other: "{count} removed links can be restored to All.",
+				one: "{count} removed link can be restored to All and to the readlists it was in.",
+				other: "{count} removed links can be restored to All and to the readlists they were in.",
 			},
 			sendersLegend: "Newsletters the links came from",
 			unrestorable: {

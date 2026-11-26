@@ -289,7 +289,6 @@ export function initInMemoryArticleStore(): {
 	seedUncertainSave: (params: { userId: UserId; url: string }) => void;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
-	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -416,7 +415,10 @@ export function initInMemoryArticleStore(): {
 		for (const listener of defaultRowDeletedListeners) listener(row);
 	};
 	const saveCursors = new Map<UserId, number>();
-	const heldLinks = new Map<string, { userId: UserId; row: UserArticle; link: HeldLink }>();
+	const heldLinks = new Map<
+		string,
+		{ userId: UserId; row: UserArticle; readlistRows: { readlist: ReadlistSlug; row: UserArticle }[]; link: HeldLink }
+	>();
 	const savedLinksJobs = new Map<UserId, SavedLinksJob>();
 	const readlistDefinitions = new Map<
 		string,
@@ -723,19 +725,8 @@ export function initInMemoryArticleStore(): {
 				status: row.status,
 				savedAt: row.savedAt,
 				...(row.provenance === undefined ? {} : { provenance: row.provenance }),
-				...(row.personalPickedAt === undefined ? {} : { personalPickedAt: row.personalPickedAt }),
-				...(row.handPickedAt === undefined ? {} : { handPickedAt: row.handPickedAt }),
-				...(row.viewedAt === undefined ? {} : { viewedAt: row.viewedAt }),
-				...(row.lastSummaryOpenedAt === undefined ? {} : { lastSummaryOpenedAt: row.lastSummaryOpenedAt }),
 				...(row.restoredAt === undefined ? {} : { restoredAt: row.restoredAt }),
 			}));
-
-	const readOpenedInReadlists = (userId: UserId): ReadonlySet<string> =>
-		new Set(
-			[...userArticles.values()]
-				.filter((row) => row.userId === userId && row.readlist !== undefined && row.viewedAt !== undefined)
-				.map((row) => row.url),
-		);
 
 	const saveArticleKeepingPosition: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -1170,7 +1161,7 @@ export function initInMemoryArticleStore(): {
 		return found;
 	};
 
-	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async ({ userId, jobId, storedKey, cutoff, senders, now }) => {
+	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async ({ userId, jobId, storedKey, cutoff, senders, readlists, now }) => {
 		const allKey = userArticleKey(userId, storedKey);
 		const row = userArticles.get(allKey);
 		if (row === undefined) return { outcome: "not-selected" };
@@ -1187,10 +1178,15 @@ export function initInMemoryArticleStore(): {
 			expiresAt: heldLinkExpiresAt(now),
 			senderEmail: row.provenance.senderEmail,
 		};
+		const readlistRows = readlists.flatMap((readlist) => {
+			const copy = userArticles.get(userArticleKey(userId, storedKey, readlist));
+			return copy === undefined ? [] : [{ readlist, row: copy }];
+		});
 		removalTimes.set(allKey, { userId, at: now });
 		userArticles.delete(allKey);
+		for (const { readlist } of readlistRows) userArticles.delete(userArticleKey(userId, storedKey, readlist));
 		forgetAllRowMarkers(allKey);
-		heldLinks.set(heldLinkMapKey({ userId, heldKey }), { userId, row, link });
+		heldLinks.set(heldLinkMapKey({ userId, heldKey }), { userId, row, readlistRows, link });
 		return { outcome: "held" };
 	};
 
@@ -1206,6 +1202,11 @@ export function initInMemoryArticleStore(): {
 		const removal = removalTimes.get(allKey);
 		if (removal && removal.at.getTime() !== held.link.removedAt.getTime()) return { outcome: "unrestorable" };
 		userArticles.set(allKey, { ...held.row, restoredAt: now });
+		for (const { readlist, row } of held.readlistRows) {
+			if (readlistDefinitions.has(readlistDefinitionKey(userId, readlist))) {
+				userArticles.set(userArticleKey(userId, held.link.storedKey, readlist), row);
+			}
+		}
 		heldLinks.delete(heldLinkMapKey({ userId, heldKey }));
 		return { outcome: "restored" };
 	};
@@ -1936,7 +1937,6 @@ export function initInMemoryArticleStore(): {
 		},
 		readHandPickedAt,
 		readNewsletterLinkRows,
-		readOpenedInReadlists,
 		allocateSavedAt,
 		allocateSavedAtSequence,
 		findSavedUrls,

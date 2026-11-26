@@ -33,7 +33,7 @@ function emailLink(
 }
 
 describe("decideHold", () => {
-	it("holds an unread, unopened newsletter link saved before the cutoff", () => {
+	it("holds an unread newsletter link saved before the cutoff", () => {
 		assert.deepEqual(
 			decideHold({
 				row: emailLink(),
@@ -134,6 +134,7 @@ describe("SavedLinksJobCountsSchema", () => {
 			held: 3,
 			read: 1,
 		});
+		assert.deepEqual(SavedLinksJobCountsSchema.parse({ opened: 2 }), { opened: 2 });
 		assert.equal(
 			SavedLinksJobCountsSchema.safeParse({ other: 1 }).success,
 			false,
@@ -145,7 +146,6 @@ describe("selectRemovalPage", () => {
 	const base = {
 		userId: READER,
 		highlighted: new Set<string>(),
-		openedInReadlists: new Set<string>(),
 		cutoff: CUTOFF,
 	};
 
@@ -153,7 +153,6 @@ describe("selectRemovalPage", () => {
 		const page = selectRemovalPage({
 			...base,
 			highlighted: new Set(["h.com/a"]),
-			openedInReadlists: new Set(["o.com/a"]),
 			senders: { kind: "all" },
 			counts: { held: 4 },
 			candidates: [
@@ -182,11 +181,10 @@ describe("selectRemovalPage", () => {
 			],
 		});
 		assert.deepEqual(page, {
-			selected: ["keep.com/a"],
+			selected: ["keep.com/a", "o.com/a"],
 			counts: {
 				held: 4,
 				read: 1,
-				opened: 1,
 				highlighted: 1,
 				changed: 1,
 				unreadable: 1,
@@ -315,9 +313,8 @@ const COUNTED = {
 	summary: {
 		selected: 12,
 		bySender: [{ senderEmail: "dan@tldr.tech", count: 12 }],
-		skipped: { read: 1, opened: 0, highlighted: 0, changed: 0, unreadable: 0 },
+		skipped: { read: 1, highlighted: 0, changed: 0, unreadable: 0 },
 		earliestEmailSave: undefined,
-		savedBeforeMarker: 0,
 	},
 	held: { bySender: [], unrestorable: [] },
 };
@@ -354,8 +351,8 @@ describe("newsletterLinkCountOf", () => {
 		});
 	});
 
-	it("refuses a completed count without numbers", () => {
-		assert.throws(() => newsletterLinkCountOf(job({ action: "count", state: "completed" })));
+	it("is none when a completed count's stored numbers could not be read", () => {
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "count", state: "completed" })), { kind: "none" });
 	});
 });
 

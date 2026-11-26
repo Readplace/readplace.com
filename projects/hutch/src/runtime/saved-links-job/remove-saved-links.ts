@@ -12,8 +12,7 @@ import type {
 	FindOriginalUrls,
 	ForEachHeldLinkPage,
 	ForEachRemovalCandidatePage,
-	ListKeysOpenedInReadlists,
-	ListUserSavesForUrls,
+	ListReadlistDefinitions,
 	MoveNewsletterLinkToHold,
 } from "@packages/provider-contracts/article-store";
 import type { ListAllUserHighlights } from "@packages/provider-contracts/highlights";
@@ -22,11 +21,10 @@ import { chunksOf, type RunSavedLinksJobAction, SAVED_LINKS_JOB_CHUNK_SIZE } fro
 export function initRemoveSavedLinks(deps: {
 	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
 	forEachHeldLinkPage: ForEachHeldLinkPage;
-	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
+	listReadlistDefinitions: ListReadlistDefinitions;
 	listAllUserHighlights: ListAllUserHighlights;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
-	listUserSavesForUrls: ListUserSavesForUrls;
 	publishEvent: PublishEvent;
 	now: () => Date;
 }): RunSavedLinksJobAction {
@@ -34,7 +32,7 @@ export function initRemoveSavedLinks(deps: {
 		const job = detail.job;
 		assert(job.action === "remove", "the remove runner takes a remove job");
 		const cutoff = new Date(job.cutoff);
-		const openedInReadlists = await deps.listKeysOpenedInReadlists({ userId });
+		const readlists = (await deps.listReadlistDefinitions(userId)).map((definition) => definition.slug);
 		let counts: SavedLinksJobCounts = resumed ? await heldEarlier({ userId, jobId, counts: seeded }) : seeded;
 		let stale = false;
 		await deps.forEachRemovalCandidatePage({
@@ -46,7 +44,6 @@ export function initRemoveSavedLinks(deps: {
 					candidates,
 					userId,
 					highlighted: new Set(highlights.map((highlight) => highlight.highlightOf)),
-					openedInReadlists,
 					cutoff,
 					senders: job.senders,
 					counts,
@@ -63,6 +60,7 @@ export function initRemoveSavedLinks(deps: {
 								storedKey,
 								cutoff,
 								senders: job.senders,
+								readlists,
 								now: deps.now(),
 							}),
 						})),
@@ -100,16 +98,10 @@ export function initRemoveSavedLinks(deps: {
 	async function publishDequeued(params: { userId: UserId; storedKeys: string[] }) {
 		if (params.storedKeys.length === 0) return;
 		const originals = await deps.findOriginalUrls({ storedKeys: params.storedKeys });
-		const urls = params.storedKeys.map((storedKey) => {
+		for (const storedKey of params.storedKeys) {
 			const url = originals.get(storedKey);
 			assert(url, "a held link's article row carries its original URL");
-			return url;
-		});
-		const saves = await deps.listUserSavesForUrls({ userId: params.userId, urls });
-		for (const url of urls) {
-			const remaining = saves.get(url);
-			assert(remaining, "every asked URL has an answer");
-			if (remaining.length === 0) await deps.publishEvent(LinkDequeuedEvent, { url, userId: params.userId });
+			await deps.publishEvent(LinkDequeuedEvent, { url, userId: params.userId });
 		}
 	}
 }
