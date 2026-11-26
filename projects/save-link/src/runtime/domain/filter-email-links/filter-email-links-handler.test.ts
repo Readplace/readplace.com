@@ -689,6 +689,27 @@ describe("initFilterEmailLinksHandler", () => {
 		expect(harness.decidedLines).toEqual([]);
 	});
 
+	it("decides a preference-only Smart Readlist by its purpose so kept links reach All, and leaves filing them to its matching", async () => {
+		const harness = makeHarness({
+			definitions: [
+				{
+					...workDefinition(PURPOSE),
+					filing: { mode: "smart", revision: 1, effectiveAt: new Date("2026-09-20T00:00:00.000Z") },
+				},
+			],
+			meta: { ...SELECTS_WORK, selectedReadlists: [{ readlist: WORK, label: "Work", qualification: "preferences" }] },
+		});
+
+		await harness.run(TRIAGED);
+
+		expect(harness.decisions).toHaveLength(1);
+		expect(filings(harness.published)).toEqual([]);
+		expect(harness.published.at(-1)?.detail).toMatchObject({
+			decision: "filtered",
+			fit: expect.arrayContaining([expect.objectContaining({ ordinal: "0000", verdict: "keep" })]),
+		});
+	});
+
 	it("filters a manual readlist by its purpose, like a readlist with no filing mode", async () => {
 		const harness = makeHarness({ definitions: [{ ...workDefinition(PURPOSE), filing: { mode: "manual" } }] });
 

@@ -372,6 +372,28 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.submitted).toEqual([]);
 	});
 
+	it("leaves a Smart Readlist to its matching when every link is saved to All", async () => {
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a>',
+			readlistDefinitions: [{ ...preferred, filing: { mode: "smart", revision: 1, effectiveAt: new Date(NOW) } }],
+		});
+		expect(await harness.run(eventBody())).toEqual({ batchItemFailures: [] });
+		expect(harness.triaged).toEqual([]);
+		expect(harness.submitted).toMatchObject([{ url: compiler.url }]);
+	});
+
+	it("matches an issue-only email against a Smart Readlist's purpose, since only a decision saves its links to All", async () => {
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a>',
+			readlistDefinitions: [{ ...preferred, filing: { mode: "smart", revision: 1, effectiveAt: new Date(NOW) } }],
+		});
+		expect(await harness.run(eventBody({
+			routing: { kind: "gmail", destinationAddresses: ["in-3f9a2c@read.place"], deliveryMode: "issue" },
+		}))).toEqual({ batchItemFailures: [] });
+		expect(harness.triaged).toMatchObject([{ readlist: WORK, links: [compiler] }]);
+		expect(harness.submitted).toEqual([]);
+	});
+
 	it("deduplicates explicit routes and sends only eligible Gmail-import articles to every preferred readlist", async () => {
 		const science = ReadlistSlugSchema.parse("science");
 		const harness = makeHarness({

@@ -126,7 +126,8 @@ export function initFilterEmailLinksHandler(deps: {
 		if (definition === undefined) {
 			return { ...NO_MODEL_CALL, readlistLabel: DEFAULT_READLIST_LABEL, decision: "readlist-missing" };
 		}
-		if (definition.filing?.mode === "smart") {
+		const smart = definition.filing?.mode === "smart";
+		if (smart && !input.preferencesOnly) {
 			return { ...NO_MODEL_CALL, readlistLabel: definition.label, decision: "smart-matching" };
 		}
 		const { purpose } = definition;
@@ -228,7 +229,7 @@ export function initFilterEmailLinksHandler(deps: {
 			readlistLabel: definition.label,
 			decision: "filtered",
 			fit,
-			filings,
+			filings: smart ? [] : filings,
 			purposeVersion,
 			engine,
 			model,

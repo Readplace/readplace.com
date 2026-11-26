@@ -230,8 +230,9 @@ export function initExtractEmailLinksHandler(deps: {
 			(fanOut.links ? explicit : []).map((destination) => [destination.readlist, destination]),
 		);
 		if (paid) {
-			for (const { slug, label, purpose } of definitions) {
+			for (const { slug, label, purpose, filing } of definitions) {
 				if (slug === DEFAULT_READLIST_SLUG || !purpose?.trim()) continue;
+				if (filing?.mode === "smart" && fanOut.links) continue;
 				articles.set(slug, { readlist: slug, label, qualification: articles.has(slug) ? "route-and-preferences" : "preferences" });
 			}
 		}
