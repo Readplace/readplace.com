@@ -9,6 +9,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import type { TestAppFixture } from "@packages/test-fixtures";
@@ -26,7 +27,7 @@ const ARTICLE_HTML = `
 function buildHarness() {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "sha256-stub" });
 	const fixture: TestAppFixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: createNoopLogError() }).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

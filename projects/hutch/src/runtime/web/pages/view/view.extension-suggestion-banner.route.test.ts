@@ -2,10 +2,8 @@ import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import type {
-	ParseArticle,
-	ParseArticleResult,
-} from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";

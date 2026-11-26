@@ -40,11 +40,8 @@ export type ParserDepBundle = {
  * Parser bundle for Lambdas that defer PDF extraction. The `crawlArticle` here
  * is constructed WITHOUT an `extractPdf` dep, so any non-HTML body resolves to
  * `unsupported` and the save-link orchestrator hands the URL to the
- * comprehensive Lambda. The `parseHtml` returned uses this `crawlArticle` for
- * the readability parser's `crawlArticle` dep, which is only exercised by
- * `parseArticle` (test-only) — the production `parseHtml` path receives HTML
- * directly from the caller and never invokes `crawlArticle`. PDF-handling
- * Lambdas should use `initComprehensiveParserDepBundle` instead.
+ * comprehensive Lambda. PDF-handling Lambdas should use
+ * `initComprehensiveParserDepBundle` instead.
  */
 export function initParserDepBundle(deps: {
 	logError: LogError;
@@ -74,7 +71,6 @@ export function initParserDepBundle(deps: {
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
 	});
 	const { parseHtml } = initReadabilityParser({
-		crawlArticle,
 		siteRules,
 		readabilityAdditions,
 		logError: deps.logError,
@@ -128,7 +124,6 @@ export function initComprehensiveParserDepBundle(deps: {
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
 	});
 	const { parseHtml } = initReadabilityParser({
-		crawlArticle,
 		siteRules,
 		readabilityAdditions,
 		logError: deps.logError,

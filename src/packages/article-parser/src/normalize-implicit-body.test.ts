@@ -71,7 +71,6 @@ describe("normalizeImplicitBody", () => {
 		const url = "https://example.test/thread/1";
 		const parser = initReadabilityParser({
 			coverageRules: { inspect: () => [] },
-			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			siteRules: [],
 			readabilityAdditions,
 			logError: () => {},
@@ -133,7 +132,6 @@ describe("normalizeImplicitBody", () => {
 		const url = "https://example.com/lorem-ipsum";
 		const parser = initReadabilityParser({
 			coverageRules: { inspect: () => [] },
-			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			siteRules: [],
 			readabilityAdditions,
 			logError: () => {},
@@ -216,7 +214,6 @@ describe("normalizeImplicitBody", () => {
 			const url = "https://www.sec.gov/Archives/edgar/data/1/000000000026000001/d0.htm";
 			const parser = initReadabilityParser({
 				coverageRules: { inspect: () => [] },
-				crawlArticle: async () => ({ status: "failed", decision: undefined }),
 				siteRules: [],
 				readabilityAdditions,
 				logError: () => {},

@@ -7,6 +7,7 @@ import {
 	createFakeApplyParseResult,
 	createFakePublishLinkSaved,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { MAX_POLLS } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
@@ -49,13 +50,12 @@ async function buildHarness() {
 		};
 	};
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
 		logError: createNoopLogError(),
-	});
+	}).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,
@@ -318,13 +318,12 @@ describe("Reader related-articles slot", () => {
 			bodyHash: "a".repeat(64),
 		});
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { parseArticle } = initReadabilityParser({
+		const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 			coverageRules: { inspect: () => [] },
-			crawlArticle,
 			siteRules: [],
 			readabilityAdditions,
 			logError: createNoopLogError(),
-		});
+		}).parseHtml });
 		const applyParseResult = createFakeApplyParseResult({
 			articleStore: fixture.articleStore,
 			articleCrawl: fixture.articleCrawl,

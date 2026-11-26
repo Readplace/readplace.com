@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import type {
-	ParseArticle,
-	ParseArticleResult,
-} from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,

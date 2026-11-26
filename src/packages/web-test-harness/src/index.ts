@@ -21,6 +21,7 @@ export type {
 	NewsletterCatalogBundle,
 	OnboardingSignalsBundle,
 	OAuthBundle,
+	ParseArticle,
 	ParserBundle,
 	PasswordResetBundle,
 	BrowserHandoffBundle,

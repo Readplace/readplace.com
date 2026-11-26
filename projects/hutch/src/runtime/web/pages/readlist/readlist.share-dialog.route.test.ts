@@ -9,6 +9,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { useTestServer } from "../../../test-app";
@@ -37,13 +38,12 @@ async function saveAndOpen(appOrigin: string, outcome: CrawlOutcome) {
 			? { status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) }
 			: { status: "failed" as const, decision: undefined };
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
 		logError: createNoopLogError(),
-	});
+	}).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

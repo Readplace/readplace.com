@@ -1,5 +1,4 @@
 export type {
-	ParseArticle,
 	ParseArticleResult,
 	ParseHtml,
 } from "./article-parser.types";

@@ -117,7 +117,7 @@ import type {
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
 import type {
 	ArticleCrawlVersion,
 	BotDefenseEvent,
@@ -665,6 +665,8 @@ export interface ArticleCrawlBundle {
 	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
 }
+
+export type ParseArticle = (url: string) => Promise<ParseArticleResult>;
 
 export interface ParserBundle {
 	parseArticle: ParseArticle;

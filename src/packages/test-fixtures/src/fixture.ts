@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { CrawlArticle } from "@packages/crawl-article";
+import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import type { Logger } from "@packages/logger";
 import { noopLogger } from "@packages/logger";
 import { ALL_COVERAGE_RULES_OFF, calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
@@ -8,7 +8,8 @@ import type {
 	BotDefenseEvent,
 	ConversionEvent,
 } from "@packages/provider-contracts/auth";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseHtml } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import { activateCoverageRules, initArticleCoverageRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
@@ -200,6 +201,29 @@ export function createFakeSummaryProvider(deps: { findItemOwner: FindItemOwner; 
 	return { findGeneratedSummary, markSummaryPending, markSummaryReady, markSummaryFailed, markSummarySkipped, summaryStateOf, forceMarkSummaryPending };
 }
 
+export function initCrawlThenParse(deps: { crawlArticle: CrawlArticle; parseHtml: ParseHtml }): ParseArticle {
+	return async (url) => {
+		try {
+			new URL(url);
+		} catch {
+			return { ok: false, reason: "Invalid URL" };
+		}
+
+		const result = await deps.crawlArticle({ url, chargeOcrPages: undefined });
+		if (result.status !== "fetched") {
+			return { ok: false, reason: "Could not fetch article" };
+		}
+
+		return deps.parseHtml({
+			url,
+			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
+			fetchedDocument: result.finalUrl === undefined ? undefined : true,
+			html: result.html,
+			thumbnailUrl: result.thumbnailUrl ?? null,
+		});
+	};
+}
+
 export function createFakeApplyParseResult(deps: {
 	articleStore: Omit<ReturnType<typeof initInMemoryArticleStore>, "onDefaultRowDeleted">;
 	articleCrawl: Pick<ReturnType<typeof initInMemoryArticleCrawl>, "markCrawlFailed" | "markCrawlReady">;
@@ -298,13 +322,13 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	articleStoreMemory.onDefaultRowDeleted(relatedArticlesMemory.forgetRow);
 	articleStoreMemory.onDefaultRowDeleted(pastReadsMemory.forgetRow);
 	const crawlArticle = stubCrawlArticle;
-	const { parseArticle } = initReadabilityParser({
-		crawlArticle,
+	const { parseHtml } = initReadabilityParser({
 		siteRules: [],
 		readabilityAdditions,
 		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 		logError: createNoopLogError(),
 	});
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: articleStoreMemory,
 		articleCrawl,

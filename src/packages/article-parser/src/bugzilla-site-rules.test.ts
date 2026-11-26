@@ -69,8 +69,8 @@ const FIXTURE = `<!doctype html><html><head><title>Tracker shell</title>
 
 const offline = () => { throw new Error("The parser must use the supplied HTML."); };
 const { siteRules } = initArticleSiteRules({ crawlFetch: offline, logError: offline });
-const parser = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules, readabilityAdditions, crawlArticle: offline, logError: offline });
-const stock = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, crawlArticle: offline, logError: offline });
+const parser = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules, readabilityAdditions, logError: offline });
+const stock = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: offline });
 
 function parse({ html = FIXTURE, url = `${ISSUE}&utm_source=sample`, documentUrl = ISSUE } = {}) {
 	const parsed = parser.parseHtml({ html, url, documentUrl, thumbnailUrl: null });

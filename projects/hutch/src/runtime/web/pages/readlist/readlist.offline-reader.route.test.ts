@@ -10,6 +10,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import type { TestAppFixture } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
@@ -49,13 +50,12 @@ function buildFixture(now: () => Date): TestAppFixture {
 		bodyHash: "sha256-stub",
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
 		logError: createNoopLogError(),
-	});
+	}).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: base.articleStore,
 		articleCrawl: base.articleCrawl,
