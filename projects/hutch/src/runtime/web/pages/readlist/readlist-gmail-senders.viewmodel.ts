@@ -11,6 +11,7 @@ import {
 	type GmailSenderRouting,
 	gmailConnectionState,
 	pickerDeliveryMode,
+	routesHere,
 } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
@@ -224,10 +225,6 @@ export function gmailSenderRoutingFor(input: {
 	readlists: readonly ReadlistRef[];
 }): Map<ForwardableSender, GmailSenderRouting> {
 	return new Map(input.mappings.map((sender): [ForwardableSender, GmailSenderRouting] => [sender.senderEmail, routingOf({ ...input, sender })]));
-}
-
-function routesHere(routing: GmailSenderRouting | undefined, slug: ReadlistSlug): boolean {
-	return routing?.kind === "routed" && routing.readlists.includes(slug);
 }
 
 const LABEL_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });

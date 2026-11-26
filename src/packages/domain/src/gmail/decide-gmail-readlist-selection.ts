@@ -40,7 +40,7 @@ function sortedUnique(
 	return [...new Set(senders)].sort();
 }
 
-function routesHere(
+export function routesHere(
 	routing: GmailSenderRouting | undefined,
 	slug: ReadlistSlug,
 ): boolean {

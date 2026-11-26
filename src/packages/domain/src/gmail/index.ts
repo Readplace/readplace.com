@@ -35,6 +35,7 @@ export type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from 
 export { gmailSenderPool, type GmailSenderPool } from "./gmail-sender-pool";
 export {
 	decideGmailReadlistSelection,
+	routesHere,
 	type GmailReadlistSelectionChange,
 	type GmailReadlistSelectionDecision,
 	type GmailReadlistSelectionRejection,
