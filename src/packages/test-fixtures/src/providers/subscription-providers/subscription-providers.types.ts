@@ -12,7 +12,6 @@ export type {
 	MarkSubscriptionPendingCancellationByEvent,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
-	PayDigestClaim,
 	ReleasePayDigest,
 	SubscriptionRecord,
 	SubscriptionStatus,
