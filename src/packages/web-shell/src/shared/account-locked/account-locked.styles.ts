@@ -1,3 +1,4 @@
+export const ACCOUNT_LOCKED_STYLES = `
 .account-locked {
   flex: 1 1 auto;
   background: var(--muted);
@@ -58,3 +59,4 @@
   margin-top: 8px;
   width: 100%;
 }
+`;

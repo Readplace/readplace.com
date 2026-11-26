@@ -1,4 +1,16 @@
 export const enUS = {
+	accountLocked: {
+		title: "Your account is locked",
+		lede: {
+			before: "Your email was never verified within 7 days of signing up, so your account is locked. Email",
+			after: "and I'll restore your access.",
+		},
+		signOut: "Sign out",
+		seo: {
+			title: "Account locked — Readplace",
+			description: "This Readplace account is locked pending email verification.",
+		},
+	},
 	popover: {
 		close: "Close",
 		cancel: "Cancel",

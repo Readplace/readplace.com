@@ -107,7 +107,7 @@ describe("Email verification lockout", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("h1")?.textContent).toBe("Your account is locked");
 
-		const contact = doc.querySelector(".auth-card__link");
+		const contact = doc.querySelector(".account-locked__link");
 		assert(contact, "locked screen must offer a contact link");
 		expect(contact.getAttribute("href")).toBe(
 			"mailto:readplace+verification@readplace.com",

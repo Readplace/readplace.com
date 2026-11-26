@@ -10,7 +10,7 @@ Every user-facing string Readplace shows, one module per surface and locale. The
 | Surface | Purpose |
 |---|---|
 | common | Words and patterns every web surface shares: Close, Cancel and the page-title pattern |
-| shell | The web shell every Readplace site renders around its pages: navigation, footer, banners, toast, confirm popover, offline indicator, pagination, pricing and local-time words |
+| shell | The web shell every Readplace site renders around its pages: navigation, footer, banners, toast, confirm popover, offline indicator, pagination, the account-locked page, pricing and local-time words |
 | hutch-auth | Readplace sign-in: login, signup, password reset and change, OAuth consent, onboarding and the messages the auth middleware shows |
 | hutch-readlist | The reading list: the queue, readlists, filters, article cards, their actions and alerts |
 | hutch-reader | Reading an article: the view and reader pages, save page, article-body slots, the offline reader and EPUB front matter |
