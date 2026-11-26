@@ -62,6 +62,7 @@ data class ReadingListState(
 	 * the sheet, so the sheet opens without waiting. */
 	val readerPresentation: ReaderPresentation? = null,
 	val appearance: String? = null,
+	val readlistHint: ReadlistHintContent? = null,
 	/** The collection-level controls the toolbar renders. The server's own collection
 	 * affordances are looped (each presentable one becomes a control), and the
 	 * client-side add (+) control that opens the Share help is always present — it is
@@ -138,6 +139,8 @@ data class ReadingListState(
 		return SharedArticlesDrop.of(readlist, mainlineHref = rootHref, tickedHrefs = shareTargetHrefs)
 	}
 }
+
+data class ReadlistHintContent(val text: String, val linkLabel: String, val url: String)
 
 /**
  * What the in-app web sheet needs to present a server URL: the resolved URL and,
@@ -968,6 +971,9 @@ class ReadingListViewModel(
 				// the toolbar for the whole scroll.
 				collectionAffordances = toolbarOf(page),
 				appearance = page.appearance,
+				readlistHint = page.hint?.let { hint ->
+					Href.resolve(hint.linkHref, api.baseUrl)?.let { url -> ReadlistHintContent(text = hint.text, linkLabel = hint.linkLabel, url = url) }
+				},
 				rootHref = page.rootHref,
 				tabs = page.tabs,
 				readlists = page.browseReadlists,

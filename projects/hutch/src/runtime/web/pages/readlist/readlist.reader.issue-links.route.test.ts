@@ -6,8 +6,6 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
-import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 
 const useApp = useTestServer();
 const useMeteredApp = useTestServer({ isDailyLimited: () => true });
@@ -100,35 +98,6 @@ function panelOf(html: string) {
 	};
 }
 
-it("records deliberate saves before rollout while withholding Hand Picked membership controls", async () => {
-	const environment = jest.replaceProperty(process, "env", { ...process.env, HAND_PICKED_HOME_ENABLED: "false" });
-	try {
-		const { fixture, harness, agent, userId } = await buildHarness();
-		const url = "https://a.test/deliberate-save";
-		await agent.post("/queue/save").type("form").send({ url }).expect(303);
-		const saved = await fixture.articleStore.findArticleByUrl(url);
-		assert(saved);
-		const collection = await agent.get("/queue").expect(200);
-		const page = parse(collection.text);
-		expect(page.querySelector(`[data-test-article="${saved.id.value}"]`)).not.toBeNull();
-		expect(page.querySelector("form[action*='/hand-picked']")).toBeNull();
-
-		const token = await saveAccessTokenForUser(harness, userId);
-		const siren = (await request(harness.server).get("/queue")
-			.set("Authorization", `Bearer ${token}`).set("Accept", SIREN_MEDIA_TYPE).expect(200)).body;
-		expect(siren.entities.length).toBeGreaterThan(0);
-		for (const article of siren.entities) {
-			expect(article.actions).not.toContainEqual(expect.objectContaining({ name: expect.stringMatching(/-hand-picked$/) }));
-		}
-		await agent.post(`/queue/${saved.id.value}/hand-picked`).type("form").send({ membership: "remove" }).expect(404);
-		await agent.get("/queue?scope=hand-picked").expect(404);
-		await agent.post(`/queue/${saved.id.value}/delete?scope=hand-picked`).expect(404);
-		expect((await fixture.articleStore.findArticleById(saved.id, userId))?.personalPickedAt).toBeDefined();
-	} finally {
-		environment.restore();
-	}
-});
-
 it("filters All by source within the current tab and counts shared newsletter links once", async () => {
 	const { fixture, agent, userId } = await buildHarness();
 	const store = fixture.articleStore;
@@ -172,27 +141,6 @@ it("filters All by source within the current tab and counts shared newsletter li
 	}
 });
 
-it("reviews an ambiguous older save from Hand Picked and closes its review card after a decision", async () => {
-	const { agent, fixture, userId } = await buildHarness();
-	const url = "https://example.org/older";
-	const { saved } = await fixture.articleStore.saveArticle({
-		userId, url, savedAt: new Date("2025-01-01"), provenance: { kind: "web" }, saveTrigger: "manual",
-		metadata: { title: "An older article", siteName: "", excerpt: "", wordCount: 0 }, estimatedReadTime: MinutesSchema.parse(1),
-	});
-	fixture.articleStore.seedUncertainSave({ userId, url });
-	const home = parse((await agent.get("/queue?scope=hand-picked").expect(200)).text);
-	const review = [...home.querySelectorAll("a")].find(link => link.textContent?.trim() === "Review older saves in All");
-	const href = review?.getAttribute("href");
-	assert(href);
-	const listing = parse((await agent.get(href).expect(200)).text);
-	expect(listing.querySelectorAll("[data-test-article]")).toHaveLength(1);
-	const card = `/queue/${saved.id.value}/card?review=older`;
-	await agent.get(card).expect(200);
-	await agent.post(`/queue/${saved.id.value}/hand-picked?review=older`).type("form").send({ membership: "remove" }).expect(303);
-	await agent.get(card).expect(404);
-	expect((await fixture.articleStore.findArticleById(saved.id, userId))?.status).toBe("unread");
-});
-
 it("preserves a nine-link issue and a read article through pick, redelivery and unpick", async () => {
 	const { fixture, agent, userId, putLink, issueId } = await buildHarness({ thirdUrl: "https://news.example/2" });
 	for (let index = 3; index < 9; index++) {
@@ -207,15 +155,14 @@ it("preserves a nine-link issue and a read article through pick, redelivery and 
 	const store = fixture.articleStore;
 	const { saved } = await store.saveArticle({ ...article, savedAt: new Date("2026-06-24") });
 	const read = await store.updateArticleStatus(saved.id, userId, "read");
-	const membership = `/queue/${saved.id.value}/hand-picked`;
 	const picked = { userId, personalScope: "picked", status: "read" } as const;
-	await agent.post(membership).type("form").send({ membership: "add" }).expect(303);
+	await agent.post(`/queue/${saved.id.value}/move`).type("form").send({ from: "default", to: "~hand-picked" }).expect(303);
 	const firstPick = (await store.findArticleById(saved.id, userId))?.personalPickedAt;
 	expect(firstPick).toBeDefined();
 	await store.saveArticle({ ...article, savedAt: new Date("2026-06-25") });
 	expect(await store.findArticleById(saved.id, userId)).toMatchObject({ status: "read", personalPickedAt: firstPick, readAt: read?.readAt });
 	expect(await store.countArticlesByUser(picked)).toBe(1);
-	await agent.post(membership).type("form").send({ membership: "remove" }).expect(303);
+	await agent.post(`/queue/${saved.id.value}/delete?scope=hand-picked`).expect(303);
 	await store.saveArticle({ ...article, savedAt: new Date("2026-06-26") });
 	expect(await store.countArticlesByUser(picked)).toBe(0);
 	expect(await store.countArticlesByUser({ userId, status: "read" })).toBe(1);

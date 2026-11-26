@@ -40,11 +40,6 @@ module.exports = {
     },
     {
       type: 'script',
-      name: 'Testing historical readlist reconciliation',
-      command: 'python3 -B scripts/test_reconcile_personal_readlists.py',
-    },
-    {
-      type: 'script',
       name: 'Testing bulk preparation and recovery with DynamoDB Local',
       command: 'node scripts/test-bulk-article-recovery.cjs',
       e2e: true,

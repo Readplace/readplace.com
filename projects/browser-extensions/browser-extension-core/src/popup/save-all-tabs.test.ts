@@ -131,11 +131,23 @@ describe("classifyTabs", () => {
 				appDomains,
 			).skipped,
 		).toEqual([
-			{ tabId: null, reason: "Only http and https URLs can be saved" },
-			{ tabId: 5, reason: "Only http and https URLs can be saved" },
 			{ tabId: 6, reason: "Readplace's own pages aren't saved" },
 			{ tabId: 2, reason: "Already open in another tab" },
 		]);
+	});
+
+	it("leaves a tab that is not a web page out of both lists", () => {
+		expect(
+			classifyTabs(
+				[
+					{ id: 1, url: "chrome://newtab" },
+					{ id: 2, url: "about:blank" },
+					{ id: 3, url: "moz-extension://abc/popup.html" },
+					{ id: 4 },
+				],
+				appDomains,
+			),
+		).toEqual({ saveable: [], skipped: [] });
 	});
 
 	it("reports no skips when every tab is saveable", () => {
@@ -312,12 +324,13 @@ describe("buildSaveAllDetailLines", () => {
 					{ url: "http://printer.local/status", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
 					{ url: "ftp://example.com/file", code: "unsupported_scheme", message: "Only http and https URLs can be saved" },
 				],
-				clientSkipReasons: ["Only http and https URLs can be saved", "Already open in another tab"],
+				clientSkipReasons: ["Readplace's own pages aren't saved", "Already open in another tab"],
 			}),
 		).toEqual([
-			{ kind: "skipped", text: "Only http and https URLs can be saved" },
+			{ kind: "skipped", text: "Readplace's own pages aren't saved" },
 			{ kind: "skipped", text: "Already open in another tab" },
 			{ kind: "skipped", text: "Private-network and loopback addresses can't be saved" },
+			{ kind: "skipped", text: "Only http and https URLs can be saved" },
 		]);
 	});
 

@@ -560,7 +560,6 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMITS: formatEnvMap(rateLimitRules),
-		HAND_PICKED_HOME_ENABLED: String(config.getBoolean("handPickedHomeEnabled") ?? false),
 		BULK_ARTICLES_ENABLED: String(config.getBoolean("bulkArticlesEnabled") ?? false),
 		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),

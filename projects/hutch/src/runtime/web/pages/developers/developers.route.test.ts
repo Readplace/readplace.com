@@ -388,13 +388,8 @@ describe("/developers documents what the API emits", () => {
 			.send({ fileName: "dune.epub", byteLength: "1024" });
 		expect(staged.body.class).toEqual(["upload-staged"]);
 
-		const unpick = actionNamed(all.body.entities[0], "remove-from-hand-picked");
-		await request(harness.server).post(unpick.href).set("Authorization", `Bearer ${token}`)
-			.set("Accept", SIREN_MEDIA_TYPE).type("form").send({ membership: "remove" }).expect(303);
-		const afterUnpick = await openAll(harness, token);
 		const emitted = [
 			...new Set([
-				...namesOf(afterUnpick.body),
 				...namesOf(all.body),
 				...namesOf(named.body),
 				...namesOf(namedPinned.body),
@@ -536,6 +531,8 @@ describe("/developers copy", () => {
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",
 			"article-original":
 				"An article whose source is public also carries an original link of type text/html, with no title: the page it came from, to open in a browser without the token. An uploaded file or other private item has none, even though its url is set. An upload Readplace couldn't use carries an untitled upload-again link of type text/html to the signed-in upload page, until the next version of the article drops it. Show each only while it's present.",
+			"hand-picked":
+				"Every article a reader saves themselves joins Hand Picked, including each page sent through save-articles. Imports and newsletter links stay in “All” only. The home link opens Hand Picked, and properties.browseReadlists lists it first, then “All” and each named readlist. The add-to-hand-picked and remove-from-hand-picked actions are gone: a reader adds an older article with “Add to readlist” on the web and removes one from the Hand Picked readlist there.",
 			storefront:
 				"A client installed from an app store may send its storefront's three-letter code in an X-Readplace-Storefront header, or in a readplace_storefront cookie from a web view. For China mainland (CHN), responses leave out text a model wrote: summaries, Next read and Already read.",
 			"markdown-layout":
@@ -600,6 +597,7 @@ describe("/developers copy", () => {
 		expect({
 			pages: itemOf("data-test-collection-property", "pages"),
 			readlists: itemOf("data-test-collection-property", "readlists"),
+			hint: itemOf("data-test-collection-property", "hint"),
 			status: itemOf("data-test-field", "status"),
 			order: itemOf("data-test-field", "order"),
 			url: itemOf("data-test-field", "url"),
@@ -612,6 +610,9 @@ describe("/developers copy", () => {
 			],
 			readlists: [
 				"readlists: All and each named readlist, each a {label, rel, href, pinned}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
+			],
+			hint: [
+				"hint: for Readplace's own apps only, on the Hand Picked collection: a {text, link: {label, href}} note the app shows with its link. Skip it.",
 			],
 			status: ["status: unread or read. Without it, search lists unread articles."],
 			order: [

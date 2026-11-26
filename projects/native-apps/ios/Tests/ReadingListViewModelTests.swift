@@ -184,6 +184,59 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.appearance, "dark")
 	}
 
+	nonisolated private static func collection(hintHref: String?) -> String {
+		let plain = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")])
+		guard let hintHref else { return plain }
+		return plain.replacingOccurrences(
+			of: "\"pageSize\": 20",
+			with: "\"pageSize\": 20, \"hint\": { \"text\": \"Older saves stay elsewhere.\", \"link\": { \"label\": \"Open on the web\", \"href\": \"\(hintHref)\" } }"
+		)
+	}
+
+	func testShowsTheHintOfTheReadlistOnScreenAndClearsItOnAReadlistWithoutOne() async {
+		StubURLProtocol.setHandler { request, _ in
+			switch (request.url?.path, request.url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "queue=work"):
+				return .json(200, Self.collection(hintHref: nil))
+			case ("/queue", _):
+				return .json(200, Self.collection(hintHref: "/queue"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.hint?.text, "Older saves stay elsewhere.")
+		XCTAssertEqual(viewModel.hint?.linkLabel, "Open on the web")
+		XCTAssertEqual(viewModel.hint?.url.absoluteString, "\(AppConfig.serverBaseURL)/queue", "the hint's href resolves against the API base URL into an absolute URL the browser can open")
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertNil(viewModel.hint, "a readlist without a hint shows none")
+	}
+
+	func testShowsNoHintWhenItsLinkCannotBeResolved() async {
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Self.collection(hintHref: "ftp://example.com/queue"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertNil(viewModel.hint, "a hint whose link cannot be opened is not shown")
+	}
+
 	func testToolbarKeepsExactlyOneAddControlWhenTheServerAlsoAdvertisesAddLinksHelp() async {
 		// The + is now client-owned and always injected. Should the server ever
 		// re-advertise add-links-help (a rollback of the server change, or another

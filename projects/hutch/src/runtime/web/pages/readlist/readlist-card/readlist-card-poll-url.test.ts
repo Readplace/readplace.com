@@ -19,10 +19,6 @@ describe("buildCardPollUrl", () => {
 		expect(url).toBe("/queue/abc123/card?poll=4&tab=done");
 	});
 
-	it("preserves individual review when refreshing an older save", () => {
-		expect(buildCardPollUrl({ articleId: "abc", pollCount: 2, filters: { reviewOlder: true } })).toBe("/queue/abc/card?poll=2&review=older");
-	});
-
 	it("omits order when it equals the tab's default order", () => {
 		const url = buildCardPollUrl({
 			articleId: "abc123",

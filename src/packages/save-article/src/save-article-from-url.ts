@@ -149,7 +149,7 @@ export function initSaveArticleFromUrl(
 			saveTrigger: storedSaveTrigger(params),
 			...(params.requestedAt ? { requestedAt: new Date(params.requestedAt) } : {}),
 			...(bulkSave ? { bulkSave: true as const } : {}),
-			...(bulkSave || params.personalPickAt === undefined ? {} : { personalPick: { requestedAt: params.personalPickAt, attemptId: params.saveAttemptId } }),
+			...(params.personalPickAt === undefined ? {} : { personalPick: { requestedAt: params.personalPickAt, attemptId: params.saveAttemptId } }),
 		});
 		const resurfacesEarlierSaves = written.createdUserArticle && params.saveTrigger === "manual";
 		const meteredLegs: MeteredLegsMode =

@@ -26,7 +26,6 @@ export function buildCardPollUrl(params: {
 	}
 	if (params.filters.managedSource) search.set("source", params.filters.managedSource);
 	if (params.filters.sender) search.set("sender", params.filters.sender);
-	if (params.filters.reviewOlder) search.set("review", "older");
 	const tab = params.filters.tab ?? "queue";
 	if (tab !== "queue") search.set("tab", tab);
 	const { defaultOrder } = tabQuery(tab);

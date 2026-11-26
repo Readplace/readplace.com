@@ -20,7 +20,8 @@ import { z } from "zod";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
-import { ReadlistSlugsSchema } from "./readlist-slugs";
+import { ReadlistDestinationsSchema } from "./readlist-slugs";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import type { AddLinkFormError } from "./readlist-add-link.component";
 
@@ -195,7 +196,7 @@ const { tPlural } = translator(hutchReadlist, DEFAULT_LOCALE);
 const MoveFlashQuerySchema = z.object({
 	moved_article: ReaderArticleHashIdSchema,
 	moved_from: ReadlistSlugSchema,
-	moved_to: ReadlistSlugsSchema,
+	moved_to: ReadlistDestinationsSchema,
 });
 
 function moveFlashCopy(move: { from: ReadlistRef; to: ReadlistRef }): Omit<SingleMoveFlash, "articleId"> {
@@ -217,6 +218,9 @@ function moveFlashFor(input: {
 	const from = input.readlists.find((readlist) => readlist.slug === input.from);
 	const to = input.readlists.filter((readlist) => input.to.includes(readlist.slug));
 	if (from === undefined || to.length === 0) return undefined;
+	if (to.length === 1 && to[0].slug === HAND_PICKED_SCOPE) {
+		return { articleId: input.articleId, message: t("handPicked.added"), undoQueues: [HAND_PICKED_SCOPE] };
+	}
 	if (to.length === 1) return { articleId: input.articleId, ...moveFlashCopy({ from, to: to[0] }) };
 	return {
 		articleId: input.articleId,

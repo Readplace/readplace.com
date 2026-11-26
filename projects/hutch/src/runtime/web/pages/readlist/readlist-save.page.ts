@@ -523,6 +523,7 @@ export function initReadlistSaveRoutes(
 						readlist: DEFAULT_READLIST_SLUG,
 						bulkSave: true,
 						requestedAt,
+						personalPickAt: requestedAt,
 						saveTrigger: "manual",
 						saveAttemptId,
 					});
@@ -553,6 +554,7 @@ export function initReadlistSaveRoutes(
 					provenance: resolveSaveProvenance(req.oauthClientId),
 					bulkSave: true,
 					requestedAt,
+					personalPickAt: requestedAt,
 					saveTrigger: "manual",
 					savedAt,
 					saveAttemptId: page.saveAttemptId,
