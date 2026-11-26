@@ -13,7 +13,7 @@
                 {{#with highlightedOn}}<p class="highlights-rail__highlighted-on" data-test-highlight-highlighted-on>{{t "articleBody.highlightsRail.highlightedOn"}} <time datetime="{{iso}}" data-local-time="{{mode}}">{{label}}</time></p>{{/with}}
                 <div class="highlights-rail__actions">
                   {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-highlight-jump="{{highlightId}}" data-test-action="highlight-jump">{{t "articleBody.highlightsRail.jump"}}</a>{{/if}}
-                  <button class="btn btn--neutral btn--s highlights-rail__copy" type="button" aria-label="{{t "articleBody.highlightsRail.copyLabel"}}" data-highlight-copy data-test-action="highlight-copy">{{t "articleBody.highlightsRail.copy"}}</button>
+                  <button class="btn btn--neutral btn--s highlights-rail__copy" type="button" aria-label="{{t "articleBody.highlightsRail.copyLabel"}}" data-highlight-rail-copy data-test-action="highlight-copy">{{t "articleBody.highlightsRail.copy"}}</button>
                   {{#with edit}}<form method="POST" action="{{deleteUrl}}" class="highlights-rail__delete-form highlights-rail__delete-form--fallback" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
                     <button class="btn btn--neutral btn--s" type="submit" data-test-action="highlight-delete-fallback">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
                   </form>

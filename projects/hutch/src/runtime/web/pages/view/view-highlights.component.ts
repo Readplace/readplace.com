@@ -45,7 +45,7 @@ const LOCAL_TARGET: HighlightFormTarget = { kind: "local" };
 function renderTextSurfaces(note: string | undefined): string {
 	return [
 		note === undefined ? "" : renderHighlightPreview({ highlightId: PLACEHOLDER_ID, note }),
-		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note }),
+		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note, quote: "" }),
 		renderHighlightNoteEditDialog({ highlightId: PLACEHOLDER_ID, note, target: LOCAL_TARGET }),
 	].join("");
 }
@@ -84,7 +84,10 @@ export interface LocalViewHighlights {
 
 export function renderLocalViewHighlights(input: { articleUrl: string }): LocalViewHighlights {
 	return {
-		toolbarHtml: renderLocalHighlightToolbar({ openedUrl: VIEW_HIGHLIGHTS_EVENT_PATH }),
+		toolbarHtml: renderLocalHighlightToolbar({
+			openedUrl: VIEW_HIGHLIGHTS_EVENT_PATH,
+			copiedUrl: `${VIEW_HIGHLIGHTS_EVENT_PATH}?action=copied`,
+		}),
 		cardHtml: render(CARD_TEMPLATE, {
 			articleUrl: input.articleUrl,
 			eventUrl: VIEW_HIGHLIGHTS_EVENT_PATH,

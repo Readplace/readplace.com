@@ -33,8 +33,9 @@ export function highlightFormScopeFor(req: Request, articleId: string): Highligh
 }
 
 export function highlightCopiedUrlFor(req: Request, articleId: string): string {
-	const query = nativeSurfaceQuery(req);
-	return `${READLIST_PATH}/${articleId}/highlights/copied${query === "" ? "" : `?${query}`}`;
+	const query = new URLSearchParams(nativeSurfaceQuery(req));
+	query.set("origin", "rail");
+	return `${READLIST_PATH}/${articleId}/highlights/copied?${query}`;
 }
 
 export function initReaderHighlightOptions(deps: {

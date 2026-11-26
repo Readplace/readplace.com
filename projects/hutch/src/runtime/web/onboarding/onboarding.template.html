@@ -66,12 +66,23 @@
             {{#if actions.length}}
             <div class="setup-guide__actions">
               {{#each actions}}
+              {{#if createNameLabel}}
+              <details>
+                <summary>{{label}}</summary>
+                <form method="{{method}}" action="{{action}}" hx-boost="false">
+                  <label for="onboarding-create-readlist-name">{{createNameLabel}}</label>
+                  <input class="form-input" id="onboarding-create-readlist-name" name="label" required>
+                  <button type="submit" class="{{buttonClass}}" data-test-onboarding-action="{{key}}">{{label}}</button>
+                </form>
+              </details>
+              {{else}}
               <form method="{{method}}" action="{{action}}">
                 {{#each inputs}}
                 <input type="hidden" name="{{name}}" value="{{value}}">
                 {{/each}}
                 <button type="submit" class="{{buttonClass}}" data-test-onboarding-action="{{key}}">{{label}}</button>
               </form>
+              {{/if}}
               {{/each}}
             </div>
             {{/if}}

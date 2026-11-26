@@ -6,7 +6,7 @@ import { generateCspNonce } from "@packages/web-shell";
 import { type DOMWindow, JSDOM } from "jsdom";
 import { Base } from "../../base.component";
 import { HIGHLIGHTS_RENDERED_EVENT } from "../../shared/article-body/highlights/highlights-rendered-event";
-import type { HighlightClipboard } from "../../shared/article-body/highlights/highlight-copy.client";
+import { initHighlightCopy } from "../../shared/article-body/highlights/highlight-copy.client";
 import { initHighlightToolbar, type ToolbarRect } from "../../shared/article-body/highlights/highlight-toolbar.client";
 import type { LocalHighlightStorage } from "../../shared/article-body/highlights/local-highlights";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
@@ -89,7 +89,7 @@ function harness(input: {
 	withToolbarScript?: boolean;
 	rectsOf?: () => readonly ToolbarRect[];
 	pageHtml?: string;
-	clipboard?: HighlightClipboard;
+	clipboard?: { writeText(text: string): Promise<void> };
 }): Harness {
 	const dom = new JSDOM(input.pageHtml ?? PAGE_HTML, { url: PAGE_URL });
 	const h: Harness = {
@@ -141,7 +141,6 @@ function harness(input: {
 			isOpen: () => false,
 			isFocusVisible: () => false,
 			sendBeacon: (url) => h.beacons.push(url),
-			clipboard: input.clipboard,
 			isAutoPopoverOpen: () => false,
 			paintDraft: () => undefined,
 			clearDraft: () => undefined,
@@ -152,6 +151,13 @@ function harness(input: {
 			throw new Error("these tests never check a highlight");
 		},
 			chromeBottom: () => 0,
+		});
+		initHighlightCopy({
+			document: h.doc,
+			navigator: input.clipboard === undefined ? {} : { clipboard: input.clipboard },
+			setTimeoutFn: () => undefined,
+			clearTimeoutFn: () => undefined,
+			sendBeacon: (url) => h.beacons.push(url),
 		});
 	}
 	return h;
@@ -613,7 +619,7 @@ describe("initViewHighlights", () => {
 
 		assert.deepEqual(copied, ["A second sentence"]);
 		assert.equal(h.doc.documentElement.classList.contains("has-clipboard"), true);
-		assert.equal(h.doc.querySelector("[data-test-highlight-copy-status]")?.textContent, "Highlight copied");
+		assert.equal(h.doc.querySelector("[data-test-highlight-rail-copy-status]")?.textContent, "Highlight copied");
 		assert.deepEqual(h.beacons, ["/view/highlights/event?action=copied"]);
 	});
 
@@ -810,6 +816,21 @@ describe("initViewHighlights — the actions on a kept passage", () => {
 		assert.ok(byId({ h, id: "delete-highlight-local-2" }));
 		assert.equal(cardOf(h).querySelector("[data-view-highlights-surfaces]")?.innerHTML.includes("00000000-0000-4000-8000-000000000000"), false);
 		assert.equal(byId({ h, id: "manage-highlight-hint" }).hidden, true);
+	});
+
+	it("gives each kept passage's Copy highlight item that passage's text", () => {
+		const h = textHarness();
+		highlight({ h, quote: "The first" });
+		rowNote({ h, quote: "A second sentence", note: "Kept note" });
+
+		assert.deepEqual(
+			["local-1", "local-2"].map((id) =>
+				part({ root: byId({ h, id: `manage-highlight-${id}` }), selector: "[data-highlight-copy]" }).getAttribute(
+					"data-highlight-copy",
+				),
+			),
+			["The first", "A second sentence"],
+		);
 	});
 
 	it("makes every kept passage a tab stop described by its note and the actions hint", () => {

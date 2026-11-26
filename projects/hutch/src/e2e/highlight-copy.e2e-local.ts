@@ -15,7 +15,7 @@ const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const TOOLBAR = "[data-test-highlight-toolbar]";
 const HIGHLIGHT_BUTTON = '[data-test-action="highlight"]';
 const COPY = '[data-test-action="highlight-copy"]';
-const STATUS = "[data-test-highlight-copy-status]";
+const STATUS = "[data-test-highlight-rail-copy-status]";
 
 const LONG_PASSAGE = [
 	"A reader who keeps a passage wants all of it back when they paste it elsewhere,",

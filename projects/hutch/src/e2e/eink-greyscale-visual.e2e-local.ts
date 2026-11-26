@@ -275,10 +275,10 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE, url: BASE_URL },
 			]);
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-			await expect(page.locator('[data-test-onboarding-progress="50"]')).toBeVisible();
+			await expect(page.locator('[data-test-onboarding-progress="40"]')).toBeVisible();
 			await expect(page.locator(".setup-guide__marker--complete")).toHaveCount(2);
 			await expect(page.locator(".setup-guide__marker--current")).toHaveCount(1);
-			await expect(page.locator(".setup-guide__marker--upcoming")).toHaveCount(1);
+			await expect(page.locator(".setup-guide__marker--upcoming")).toHaveCount(2);
 			await settle(page, SETUP_GUIDE);
 			await expect(page.locator(SETUP_GUIDE)).toHaveScreenshot(`eink-setup-guide-${theme}.png`, CONTRAST_SENSITIVE);
 		});
@@ -290,6 +290,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				data: { userId, state: "trialing" },
 			});
 			assert.equal(subscription.status(), 201);
+			assert.equal((await page.request.post(`${BASE_URL}/e2e/seed-smart-readlist-milestone`, { data: { userId } })).status(), 201);
 			const inbox = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, { data: { userId } });
 			assert.equal(inbox.status(), 201);
 			for (let index = 0; index < 4; index += 1) {
@@ -311,8 +312,8 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				{ name: SAVE_COOKIE_NAME, value: SAVE_COOKIE_VALUE, url: BASE_URL },
 			]);
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-			await expect(page.locator('[data-test-onboarding-progress="75"]')).toBeVisible();
-			await expect(page.locator("[data-test-onboarding-chip]")).toHaveText("Saved 4 of 50");
+			await expect(page.locator('[data-test-onboarding-progress="80"]')).toBeVisible();
+			await expect(page.locator('[data-test-onboarding-step="save-enough-for-next-read"] [data-test-onboarding-chip]')).toHaveText("Saved 4 of 50");
 			await expect(page.locator(".setup-guide__marker--complete")).toHaveCount(3);
 			await expect(page.locator(".setup-guide__marker--partial-1")).toHaveCount(1);
 			await settle(page, SETUP_GUIDE);

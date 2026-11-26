@@ -1,6 +1,5 @@
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
-import { type HighlightClipboard, initHighlightCopy } from "./highlight-copy.client";
 import { initHighlightPanels } from "./highlight-popover.client";
 import {
 	type HighlightPreviews,
@@ -15,6 +14,8 @@ import {
 	type SentenceTapWindow,
 } from "./sentence-tap.client";
 import { placeNearSelection } from "./toolbar-placement-coarse";
+
+export { initHighlightCopy } from "./highlight-copy.client";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -77,7 +78,6 @@ interface HighlightToolbarDeps {
 	isOpen: (popover: Element) => boolean;
 	isFocusVisible: (element: Element) => boolean;
 	sendBeacon: (url: string) => void;
-	clipboard: HighlightClipboard | undefined;
 	isAutoPopoverOpen: () => boolean;
 	paintDraft: (range: Range) => void;
 	clearDraft: () => void;
@@ -331,7 +331,6 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	const root = document.documentElement;
 	if (root.hasAttribute(OWNED_ATTRIBUTE)) return;
 	root.setAttribute(OWNED_ATTRIBUTE, "");
-	initHighlightCopy({ document, clipboard: deps.clipboard, timers: deps.timers, sendBeacon: deps.sendBeacon });
 	let frameRequested = false;
 
 	const selectionOf = (): Selection => {

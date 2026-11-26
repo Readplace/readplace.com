@@ -227,7 +227,6 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isOpen: () => false,
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
-		clipboard: undefined,
 		isAutoPopoverOpen: () => false,
 		paintDraft: () => h.order.push("paint"),
 		clearDraft: () => h.order.push("clear"),

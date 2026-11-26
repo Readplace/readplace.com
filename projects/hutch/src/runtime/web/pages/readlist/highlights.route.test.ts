@@ -914,37 +914,67 @@ describe("Highlights (POST /queue/:id/highlights/opened)", () => {
 });
 
 describe("Highlights (POST /queue/:id/highlights/copied)", () => {
-	const copiedPath = (articleId: string, query = "") =>
+	const copiedPath = (articleId: string, query: string) =>
 		`/queue/${articleId}/highlights/copied${query}`;
 
 	it.each([
-		["web", ""],
-		["ios", "?platform=ios"],
-		["android", "?platform=android"],
-	] as const)("records exactly a %s highlight_copied with no text and answers 204", async (surface, query) => {
+		["", "web", "panel"],
+		["?platform=ios&", "ios", "panel"],
+		["?platform=android&", "android", "panel"],
+		["", "web", "rail"],
+		["?platform=ios&", "ios", "rail"],
+		["?platform=android&", "android", "rail"],
+	] as const)(
+		"records highlight_copied with no text for the query prefix %j as surface %s from the %s and answers 204",
+		async (platformPrefix, surface, origin) => {
+			const harness = useApp(parsedFixture());
+			const { agent, articleId } = await saveArticle(
+				harness,
+				`https://example.com/highlight-copied-${surface}-${origin}`,
+			);
+			const highlightId = await createHighlight(agent, {
+				articleId,
+				exact: "readability parser",
+			});
+			const query = `${platformPrefix === "" ? "?" : platformPrefix}highlight=${highlightId}&origin=${origin}`;
+
+			const response = await agent.post(copiedPath(articleId, query));
+
+			expect(response.status).toBe(204);
+			expect(
+				harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+			).toEqual([
+				{
+					stream: "analytics",
+					event: "highlight_copied",
+					timestamp: expect.any(String),
+					user_id: expect.any(String),
+					visitor_hash: expect.any(String),
+					origin,
+					highlight_id: highlightId,
+					surface,
+				},
+			]);
+		},
+	);
+
+	it.each([
+		["an unknown origin", "?highlight=11111111-1111-4111-8111-111111111111&origin=mark"],
+		["a non-uuid highlight id", "?highlight=not-a-uuid&origin=panel"],
+		["no query", ""],
+	])("answers 204 and records nothing for %s", async (_case, query) => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
-			`https://example.com/highlight-copied-${surface}`,
+			"https://example.com/highlight-copied-malformed",
 		);
-		const user = await harness.auth.findUserByEmail("test@example.com");
-		assert(user);
 
 		const response = await agent.post(copiedPath(articleId, query));
 
 		expect(response.status).toBe(204);
-		const events = harness.analytics.events.filter((event) => event.event === "highlight_copied");
-		expect(events).toEqual([
-			{
-				stream: "analytics",
-				event: "highlight_copied",
-				timestamp: expect.any(String),
-				user_id: user.userId,
-				visitor_hash: expect.any(String),
-				origin: "rail",
-				surface,
-			},
-		]);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toEqual([]);
 	});
 
 	it("records the copy for a locked owner", async () => {
@@ -956,9 +986,15 @@ describe("Highlights (POST /queue/:id/highlights/copied)", () => {
 			harness,
 			"https://example.com/highlight-copied-locked",
 		);
+		const highlightId = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		offsetMs = 8 * 24 * 60 * 60 * 1000;
 
-		const response = await agent.post(copiedPath(articleId, "?platform=ios"));
+		const response = await agent.post(
+			copiedPath(articleId, `?platform=ios&highlight=${highlightId}&origin=rail`),
+		);
 
 		expect(response.status).toBe(204);
 		expect(
@@ -982,7 +1018,9 @@ describe("Highlights (POST /queue/:id/highlights/copied)", () => {
 			.type("form")
 			.send({ email: "other@example.com", password: "password123" });
 
-		const response = await other.post(copiedPath(articleId));
+		const response = await other.post(
+			copiedPath(articleId, "?highlight=11111111-1111-4111-8111-111111111111&origin=panel"),
+		);
 
 		expect(response.status).toBe(404);
 		expect(
@@ -1246,7 +1284,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
 
-		expect(actionsOf(panel)).toEqual(["Add note", "Delete highlight"]);
+		expect(actionsOf(panel)).toEqual(["Add note", "Copy highlight", "Delete highlight"]);
 		expect(panel.querySelector(".highlight-popover__note")).toBeNull();
 		expect(panel.hasAttribute("aria-describedby")).toBe(false);
 	});
@@ -1263,7 +1301,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 		assert(note, "the panel shows the note");
 		expect(note.textContent).toBe("My thought");
 		expect(panel.getAttribute("aria-describedby")).toBe(note.id);
-		expect(actionsOf(panel)).toEqual(["Edit note", "Delete note", "Delete highlight"]);
+		expect(actionsOf(panel)).toEqual(["Edit note", "Copy highlight", "Delete note", "Delete highlight"]);
 	});
 
 	it("points every panel action at a dialog or form the page renders", async () => {
@@ -1274,6 +1312,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		const page = doc((await agent.get(viewPath(articleId))).text);
 		const targets = Array.from(page.querySelectorAll("[data-highlight-popover] button"), (button) => {
+			if (button.hasAttribute("data-highlight-copy")) return { kind: "copy", role: button.getAttribute("data-highlight-copy") };
 			const dialogId = button.getAttribute("popovertarget");
 			if (dialogId !== null) return { kind: "dialog", role: page.getElementById(dialogId)?.getAttribute("role") };
 			const formId = button.getAttribute("form");
@@ -1283,6 +1322,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		expect(targets).toEqual([
 			{ kind: "dialog", role: "dialog" },
+			{ kind: "copy", role: "readability parser" },
 			{ kind: "form", role: "FORM" },
 			{ kind: "dialog", role: "dialog" },
 		]);

@@ -22,7 +22,7 @@ function actionsOf(panel: Element): (string | null)[] {
 
 describe("renderHighlightPopoverPanel", () => {
 	it("renders one highlight's actions with its note as text behind the note hook", () => {
-		const doc = parse(renderHighlightPopoverPanel({ highlightId: HIGHLIGHT_ID, note: "Kept <b>note</b>" }));
+		const doc = parse(renderHighlightPopoverPanel({ highlightId: HIGHLIGHT_ID, note: "Kept <b>note</b>", quote: "the passage" }));
 		const panel = doc.getElementById(`manage-highlight-${HIGHLIGHT_ID}`);
 		assert(panel);
 
@@ -31,6 +31,7 @@ describe("renderHighlightPopoverPanel", () => {
 		assert.equal(panel.querySelector("[data-highlight-note-text]")?.textContent, "Kept <b>note</b>");
 		assert.deepEqual(actionsOf(panel), [
 			"highlight-panel-note",
+			"highlight-panel-copy",
 			"highlight-panel-note-delete",
 			"highlight-panel-delete",
 		]);
@@ -47,15 +48,31 @@ describe("renderHighlightPopoverPanel", () => {
 		);
 	});
 
+	it("offers Copy highlight carrying the quote as escaped text, without autofocus", () => {
+		const panel = parse(
+			renderHighlightPopoverPanel({ highlightId: HIGHLIGHT_ID, note: undefined, quote: `Say "<b>hi</b>" & go` }),
+		).getElementById(`manage-highlight-${HIGHLIGHT_ID}`);
+		assert(panel);
+		const copy = panel.querySelector('[data-test-action="highlight-panel-copy"]');
+		assert(copy);
+
+		assert.equal(copy.getAttribute("data-highlight-copy"), `Say "<b>hi</b>" & go`);
+		assert.equal(copy.querySelector("b"), null);
+		assert.equal(copy.classList.contains("highlight-popover__copy"), true);
+		assert.equal(copy.hasAttribute("autofocus"), false);
+		assert.equal(copy.hasAttribute("hidden"), false);
+		assert.equal(copy.textContent?.trim(), "Copy highlight");
+	});
+
 	it("offers Add note and no note block or Delete note when the highlight has no note", () => {
-		const panel = parse(renderHighlightPopoverPanel({ highlightId: HIGHLIGHT_ID, note: undefined })).getElementById(
+		const panel = parse(renderHighlightPopoverPanel({ highlightId: HIGHLIGHT_ID, note: undefined, quote: "the passage" })).getElementById(
 			`manage-highlight-${HIGHLIGHT_ID}`,
 		);
 		assert(panel);
 
 		assert.equal(panel.hasAttribute("aria-describedby"), false);
 		assert.equal(panel.querySelector("[data-highlight-note-text]"), null);
-		assert.deepEqual(actionsOf(panel), ["highlight-panel-note", "highlight-panel-delete"]);
+		assert.deepEqual(actionsOf(panel), ["highlight-panel-note", "highlight-panel-copy", "highlight-panel-delete"]);
 		assert.equal(panel.querySelector('[data-test-action="highlight-panel-note"]')?.textContent?.trim(), "Add note");
 	});
 });
@@ -110,6 +127,22 @@ describe("renderHighlightPopovers", () => {
 		assert.deepEqual(
 			Array.from(doc.querySelectorAll("[data-highlight-popover]"), (panel) => panel.getAttribute("data-highlight-popover")),
 			[HIGHLIGHT_ID],
+		);
+	});
+
+	it("gives an edited highlight's panel the quote shown in this version", () => {
+		const edited = [
+			{
+				highlight: { ...highlight(HIGHLIGHT_ID), exact: "beta" },
+				shown: { state: "anchored" as const, edited: true, quote: "beta prime" },
+				marked: true,
+			},
+		];
+		const doc = parse(renderHighlightPopovers(highlightsRailRowViews({ rows: edited, scope: SCOPE, openNote: undefined })));
+
+		assert.equal(
+			doc.querySelector('[data-test-action="highlight-panel-copy"]')?.getAttribute("data-highlight-copy"),
+			"beta prime",
 		);
 	});
 

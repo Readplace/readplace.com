@@ -1389,7 +1389,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		logWidget({
 			region,
-			title: "Highlights copied per day by surface",
+			title: "Highlights copied per day, by surface",
 			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, event, action, surface",
@@ -1398,7 +1398,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				'| fields coalesce(surface, "view") as copiedOn',
 				"| stats count(*) as copied by copiedOn, bin(1d)",
 			].join(" "),
-			x: 0, y: 358, width: 24, height: 8,
+			x: 0, y: 358, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);

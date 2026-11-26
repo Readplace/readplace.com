@@ -34,6 +34,8 @@ const NOTE_INPUT = "[data-test-highlight-note-input]";
 const PANEL_NOTE = '[data-test-action="highlight-panel-note"]';
 const PANEL_NOTE_DELETE = '[data-test-action="highlight-panel-note-delete"]';
 const PANEL_DELETE = '[data-test-action="highlight-panel-delete"]';
+const PANEL_COPY = '[data-test-action="highlight-panel-copy"]';
+const COPY_STATUS = "[data-test-highlight-copy-status]";
 const EDITOR_SAVE = '[data-test-action="highlight-note-edit-save"]';
 const NOTE_DELETE = '[data-test-action="highlight-note-delete"]';
 const CONFIRM_DELETE = '[data-test-action="highlight-delete-confirm"]';
@@ -249,6 +251,21 @@ test.describe("Highlighting on /view on a phone", () => {
 	});
 });
 
+test.describe("Copying a kept highlight on /view", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, permissions: ["clipboard-read", "clipboard-write"] });
+
+	test("Copy highlight puts exactly the passage on the clipboard and says it was copied", async ({ page }, testInfo) => {
+		await openReadableView(page, `${BASE_URL}/e2e/article/view-highlights-copy-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await keptHighlightId(page, KEPT_PASSAGES[2]);
+
+		await (await openActions(page, highlightId)).locator(PANEL_COPY).click();
+
+		await expect(page.locator(COPY_STATUS)).toHaveText("Highlight copied");
+		await expect(page.locator(COPY_STATUS)).toBeVisible();
+		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(KEPT_PASSAGES[2]);
+	});
+});
+
 test.describe("Managing a kept highlight where it sits in the text on /view", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -394,7 +411,7 @@ test.describe("Managing a kept highlight where it sits in the text on /view", ()
 			await writeNoteFromText(page, { highlightId, note: "A note so every action shows." });
 
 			await openActions(page, highlightId);
-			await expect(panelOf(page, highlightId).locator(PANEL_CONTROLS)).toHaveCount(3);
+			await expect(panelOf(page, highlightId).locator(PANEL_CONTROLS)).toHaveCount(4);
 			expect(
 				await page.evaluate(controlsMissedByAHit, {
 					editor: `#manage-highlight-${highlightId}:popover-open`,

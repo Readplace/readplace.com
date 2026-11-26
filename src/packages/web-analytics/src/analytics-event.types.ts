@@ -215,7 +215,8 @@ export interface HighlightCopiedEvent {
 	timestamp: string;
 	user_id: UserId;
 	visitor_hash: string | null;
-	origin: "rail";
+	origin: "panel" | "rail";
+	highlight_id: HighlightId;
 	surface: "web" | "ios" | "android";
 }
 
