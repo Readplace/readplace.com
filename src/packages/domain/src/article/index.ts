@@ -223,10 +223,9 @@ export {
 	type AnchorState,
 	type Highlight,
 	type TextQuoteSelector,
-	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightNoteSchema,
-	joinNotesNewestFirst,
 } from "./highlight/highlight";
+export { HIGHLIGHT_NOTE_MAX_LENGTH, joinNotesNewestFirst } from "./highlight/highlight-note";
 export {
 	highlightOnPage,
 	type PlaceableHighlight,

@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import {
 	AnchorStateSchema,
-	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightIdSchema,
 	HighlightNoteSchema,
-	joinNotesNewestFirst,
 } from "./highlight";
+import { HIGHLIGHT_NOTE_MAX_LENGTH } from "./highlight-note";
 
 describe("HighlightIdSchema", () => {
 	it("accepts a uuid", () => {
@@ -62,31 +61,5 @@ describe("HighlightNoteSchema", () => {
 			).success,
 			false,
 		);
-	});
-});
-
-describe("joinNotesNewestFirst", () => {
-	it("joins every present note in the order given, separated by blank lines", () => {
-		assert.deepEqual(joinNotesNewestFirst(["request", undefined, "newest row", "oldest row"]), {
-			ok: true,
-			note: "request\n\nnewest row\n\noldest row",
-		});
-	});
-
-	it("keeps a lone note as it is", () => {
-		assert.deepEqual(joinNotesNewestFirst([undefined, "old"]), { ok: true, note: "old" });
-	});
-
-	it("leaves the note absent when every note is absent", () => {
-		assert.deepEqual(joinNotesNewestFirst([undefined, undefined]), { ok: true });
-	});
-
-	it("accepts a join of exactly the maximum length", () => {
-		const newer = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 3);
-		assert.deepEqual(joinNotesNewestFirst([newer, "b"]), { ok: true, note: `${newer}\n\nb` });
-	});
-
-	it("refuses notes that join past the cap", () => {
-		assert.deepEqual(joinNotesNewestFirst(["a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 3), "b", "c"]), { ok: false });
 	});
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CandidateId } from "@packages/article-state-types";
+import { cleanHighlightNote, HIGHLIGHT_NOTE_MAX_LENGTH } from "./highlight-note";
 
 export const HighlightIdSchema = z.uuid().brand<"HighlightId">();
 export type HighlightId = z.infer<typeof HighlightIdSchema>;
@@ -31,20 +32,7 @@ export interface Highlight extends TextQuoteSelector {
 	anchorRevision: number;
 }
 
-export const HIGHLIGHT_NOTE_MAX_LENGTH = 8191;
-
 export const HighlightNoteSchema = z
 	.string()
-	.transform((value) => value.replace(/\r\n/g, "\n").trim())
-	.refine((value) => value.length <= HIGHLIGHT_NOTE_MAX_LENGTH)
-	.transform((value) => (value === "" ? undefined : value));
-
-export type JoinedNote = { ok: true; note?: string } | { ok: false };
-
-export function joinNotesNewestFirst(notes: readonly (string | undefined)[]): JoinedNote {
-	const parts = notes.filter((part) => part !== undefined);
-	if (parts.length === 0) return { ok: true };
-	const note = parts.join("\n\n");
-	if (note.length > HIGHLIGHT_NOTE_MAX_LENGTH) return { ok: false };
-	return { ok: true, note };
-}
+	.transform(cleanHighlightNote)
+	.refine((value) => value === undefined || value.length <= HIGHLIGHT_NOTE_MAX_LENGTH);

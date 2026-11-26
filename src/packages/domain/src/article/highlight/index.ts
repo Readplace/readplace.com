@@ -19,3 +19,4 @@ export {
 } from "./text-anchoring";
 export { cutRange } from "./cut-range";
 export { sentenceBoundsAt } from "./sentence-bounds";
+export { cleanHighlightNote, joinNotesNewestFirst } from "./highlight-note";
