@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { OAuthGrantId, RefreshAttempt } from "./evidence";
+import { OAuthGrantIdSchema } from "@packages/domain/oauth";
+import { RefreshAttempt, Revocation } from "./evidence";
 
 export const RefreshRefusal = RefreshAttempt.extend({
 	status: z.number().int(),
 	reason: z.string(),
-	grantId: OAuthGrantId.optional(),
+	grantId: OAuthGrantIdSchema.optional(),
 	credentialExpiresAt: z.number().optional(),
-	revocation: z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion", "disconnect"]), completedAt: z.number() }).optional(),
+	revocation: Revocation.optional(),
 });
 export type RefreshRefusal = z.infer<typeof RefreshRefusal>;
 export const RefreshOutcome = z.object({

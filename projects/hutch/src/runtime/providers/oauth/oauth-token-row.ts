@@ -1,6 +1,6 @@
-import { OAuthSignInSchema } from "@packages/domain/oauth";
+import { OAuthGrantIdSchema, OAuthSignInSchema } from "@packages/domain/oauth";
 import { z } from "zod";
-import { CredentialFingerprint, OAuthGrantId } from "../../oauth-refresh/evidence";
+import { CredentialFingerprint } from "../../oauth-refresh/evidence";
 
 export const OAuthTokenRow = z.object({
 	pk: z.string(),
@@ -12,7 +12,7 @@ export const OAuthTokenRow = z.object({
 	userId: z.string(),
 	scope: z.array(z.string()).optional(),
 	emailVerified: z.boolean().optional(),
-	grantId: OAuthGrantId.optional(),
+	grantId: OAuthGrantIdSchema.optional(),
 	parentFingerprint: CredentialFingerprint.optional(),
 	epoch: z.number().optional(),
 	generation: z.number().optional(),

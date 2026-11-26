@@ -3,8 +3,6 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { z } from "zod";
 
-export const OAuthGrantId = OAuthGrantIdSchema;
-export type OAuthGrantId = z.infer<typeof OAuthGrantId>;
 export const CredentialFingerprint = z.string().brand<"CredentialFingerprint">();
 export type CredentialFingerprint = z.infer<typeof CredentialFingerprint>;
 export const RefreshRefusalId = z.string().min(1).brand<"RefreshRefusalId">();
@@ -15,15 +13,16 @@ export const RefreshAttempt = z.object({
 	fingerprint: CredentialFingerprint,
 });
 export type RefreshAttempt = z.infer<typeof RefreshAttempt>;
-export type RevocationCause = "rotation" | "logout" | "logout-all" | "account-deletion" | "disconnect";
+export const Revocation = z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion", "disconnect"]), completedAt: z.number() });
+export type RevocationCause = z.infer<typeof Revocation>["cause"];
 export const CredentialHistory = z.object({
 	pk: z.string(),
-	grantId: OAuthGrantId,
+	grantId: OAuthGrantIdSchema,
 	fingerprint: CredentialFingerprint,
 	credentialExpiresAt: z.number(),
 	expiresAt: z.number(),
 	parentFingerprint: CredentialFingerprint.optional(),
-	revocation: z.object({ cause: z.enum(["rotation", "logout", "logout-all", "account-deletion", "disconnect"]), completedAt: z.number() }).optional(),
+	revocation: Revocation.optional(),
 });
 export type CredentialHistory = z.infer<typeof CredentialHistory>;
 export interface RefreshContext {
