@@ -120,6 +120,57 @@ function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | 
 	return row && !row.deletedAt ? row : undefined;
 }
 
+function defineUsersTable(deps: { client: DynamoDBDocumentClient; usersTableName: string }) {
+	return defineDynamoTable({
+		client: deps.client,
+		tableName: deps.usersTableName,
+		schema: UserRow,
+	});
+}
+
+function initUserRowLookups(users: ReturnType<typeof defineUsersTable>) {
+	const findUserRowByUserId = async (userId: UserId) =>
+		(
+			await users.query({
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+				Limit: 1,
+			})
+		).items[0];
+
+	const findEmailByUserId: FindEmailByUserId = async (userId) => {
+		const row = await findUserRowByUserId(userId);
+		return row ? row.email : null;
+	};
+
+	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
+		const row = await findUserRowByUserId(userId);
+		if (!row) return null;
+		return {
+			email: row.email,
+			emailVerified: row.emailVerified === true,
+			queueDigestOptOutAt: row.queueDigestOptOutAt,
+			registeredAt: row.registeredAt,
+			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
+			deletedAt: row.deletedAt,
+		};
+	};
+
+	return { findUserRowByUserId, findEmailByUserId, findUserContactByUserId };
+}
+
+export function initDynamoDbUserContact(deps: {
+	client: DynamoDBDocumentClient;
+	usersTableName: string;
+}): {
+	findEmailByUserId: FindEmailByUserId;
+	findUserContactByUserId: FindUserContactByUserId;
+} {
+	const { findEmailByUserId, findUserContactByUserId } = initUserRowLookups(defineUsersTable(deps));
+	return { findEmailByUserId, findUserContactByUserId };
+}
+
 export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
 	usersTableName: string;
@@ -169,11 +220,8 @@ export function initDynamoDbAuth(deps: {
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
 } {
-	const users = defineDynamoTable({
-		client: deps.client,
-		tableName: deps.usersTableName,
-		schema: UserRow,
-	});
+	const users = defineUsersTable(deps);
+	const { findEmailByUserId, findUserContactByUserId } = initUserRowLookups(users);
 	const sessions = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.sessionsTableName,
@@ -573,17 +621,6 @@ export function initDynamoDbAuth(deps: {
 		return count > 0;
 	};
 
-	const findEmailByUserId: FindEmailByUserId = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
-		return row ? row.email : null;
-	};
-
 	const closeUserAccount: CloseUserAccount = async (userId) => {
 		const email = await findEmailByUserId(userId);
 		if (email === null) return;
@@ -667,25 +704,6 @@ export function initDynamoDbAuth(deps: {
 				ExpressionAttributeValues: { ":requestedAt": requestedAt, ":userId": userId },
 			}),
 		);
-	};
-
-	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
-		if (!row) return null;
-		return {
-			email: row.email,
-			emailVerified: row.emailVerified === true,
-			queueDigestOptOutAt: row.queueDigestOptOutAt,
-			registeredAt: row.registeredAt,
-			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
-			deletedAt: row.deletedAt,
-		};
 	};
 
 	const findUserById: FindUserById = async (userId) => {

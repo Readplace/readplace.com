@@ -1,8 +1,7 @@
-import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
-import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
+import { initDynamoDbUserContact } from "./providers/auth/dynamodb-auth";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
@@ -13,7 +12,6 @@ import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "./send-first-inbox-email-noti
 const env = readEnv(SEND_FIRST_INBOX_EMAIL_NOTICE_ENV);
 
 const usersTable = env.DYNAMODB_USERS_TABLE;
-const sessionsTable = env.DYNAMODB_SESSIONS_TABLE;
 const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
 const onboardingTable = env.DYNAMODB_ONBOARDING_TABLE;
 const resendApiKey = env.RESEND_API_KEY;
@@ -27,11 +25,9 @@ const { findByUserId } = initDynamoDbSubscriptionRead({
 	tableName: subscriptionProvidersTable,
 });
 
-const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: env.ANALYTICS_SALT, now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
+const auth = initDynamoDbUserContact({
 	client: dynamoClient,
 	usersTableName: usersTable,
-	sessionsTableName: sessionsTable,
 });
 
 const onboardingSignals = initOnboardingSignals({

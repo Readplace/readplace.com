@@ -8,7 +8,7 @@ import {
 import { HomeReadlistSlugSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema, hashPassword } from "@packages/domain/user";
-import { initDynamoDbAuth } from "./dynamodb-auth";
+import { initDynamoDbAuth, initDynamoDbUserContact } from "./dynamodb-auth";
 
 /** Fake that honours the GetCommand projection so a row with fields missing from it round-trips as real DynamoDB would. */
 function createFakeClient(
@@ -1933,5 +1933,56 @@ describe("initDynamoDbAuth", () => {
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});
+	});
+});
+
+describe("initDynamoDbUserContact", () => {
+	function initUserContact(client: DynamoDBDocumentClient) {
+		return initDynamoDbUserContact({ client, usersTableName: "users" });
+	}
+
+	it("finds the email through the users table's userId-index alone", async () => {
+		const { client, commands } = createQueryFakeClient({
+			row: { email: "user@example.com", userId: "abc123" },
+		});
+
+		const email = await initUserContact(client).findEmailByUserId(USER);
+
+		expect(email).toBe("user@example.com");
+		expect(commands.map((c) => [c.name, c.input.TableName, c.input.IndexName])).toEqual([
+			["QueryCommand", "users", "userId-index"],
+		]);
+	});
+
+	it("returns a null email when no row exists for the id", async () => {
+		const { client } = createQueryFakeClient({});
+
+		expect(await initUserContact(client).findEmailByUserId(USER)).toBeNull();
+	});
+
+	it("returns the same contact the full auth provider returns", async () => {
+		const row = {
+			email: "user@example.com",
+			userId: "abc123",
+			emailVerified: true,
+			registeredAt: "2026-10-01T00:00:00.000Z",
+			earlyIntentionalSaves: 2,
+		};
+
+		const contact = await initUserContact(createQueryFakeClient({ row }).client).findUserContactByUserId(USER);
+
+		expect(contact).toEqual(await initAuth(createQueryFakeClient({ row }).client).findUserContactByUserId(USER));
+		expect(contact).toEqual({
+			email: "user@example.com",
+			emailVerified: true,
+			registeredAt: "2026-10-01T00:00:00.000Z",
+			earlyIntentionalSaves: 2,
+		});
+	});
+
+	it("returns a null contact when no row exists for the id", async () => {
+		const { client } = createQueryFakeClient({});
+
+		expect(await initUserContact(client).findUserContactByUserId(USER)).toBeNull();
 	});
 });

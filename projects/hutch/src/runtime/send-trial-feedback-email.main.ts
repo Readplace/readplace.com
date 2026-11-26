@@ -1,9 +1,8 @@
-import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 /* c8 ignore start -- composition root, no logic to test */
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
-import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
+import { initDynamoDbUserContact } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
@@ -20,7 +19,6 @@ const env = readEnv(SEND_TRIAL_FEEDBACK_EMAIL_ENV);
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
 const usersTable = env.DYNAMODB_USERS_TABLE;
-const sessionsTable = env.DYNAMODB_SESSIONS_TABLE;
 const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
 const resendApiKey = env.RESEND_API_KEY;
 const staticBaseUrl = env.STATIC_BASE_URL;
@@ -34,11 +32,9 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 	now: () => new Date(),
 });
 
-const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: env.ANALYTICS_SALT, now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
+const auth = initDynamoDbUserContact({
 	client: dynamoClient,
 	usersTableName: usersTable,
-	sessionsTableName: sessionsTable,
 });
 
 const articleStore = initDynamoDbSavedArticleStore({
