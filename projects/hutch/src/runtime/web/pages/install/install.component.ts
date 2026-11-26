@@ -113,8 +113,6 @@ const CATEGORY_TAB_GROUPS = {
 
 type BucketKey = (typeof CATEGORY_TAB_GROUPS)[keyof typeof CATEGORY_TAB_GROUPS]["slug"];
 
-export type InstallClient = ClientName;
-
 function clientByName(name: ClientName): SupportedClient {
 	const client = SUPPORTED_CLIENTS.find((candidate) => candidate.name === name);
 	assert(client, `Client missing from SUPPORTED_CLIENTS: ${name}`);
@@ -130,7 +128,7 @@ const MCP_OTHER_CLIENTS_GUIDE_HREF = withInternalTracking(MCP_GUIDE_PATH, {
 	content: "mcp-guide-other-clients",
 });
 
-export function parseClient(value: unknown): InstallClient {
+export function parseClient(value: unknown): ClientName {
 	if (value === undefined) return "chrome";
 	const raw = String(value);
 	assert(isClientName(raw), `Unknown install client: ${raw}`);
@@ -153,7 +151,7 @@ export function initFetchFirefoxDownloadUrl(deps: { fetch: typeof fetch }): Fetc
  * can render its download CTA. Scoped to the browser-extension group because a
  * native app with no storefront is `selfHostedPointer` too, yet has no build for
  * that pointer to name. */
-export function isSelfHostedDownload(client: InstallClient): boolean {
+export function isSelfHostedDownload(client: ClientName): boolean {
 	const found = clientByName(client);
 	return found.group === "browserExtension" && found.install.kind === "selfHostedPointer";
 }
@@ -382,7 +380,7 @@ type PanelView =
 	| { type: "notesApp"; app: NotesApp };
 
 function buildPanel(
-	active: InstallClient,
+	active: ClientName,
 	firefoxDownloadUrl: string | null,
 	staticBaseUrl: string,
 ): PanelView {
@@ -459,7 +457,7 @@ function buildPanel(
 
 export function InstallPage(params: {
 	firefox: string | null;
-	client: InstallClient;
+	client: ClientName;
 	staticBaseUrl: string;
 }): PageBody {
 	const panel = buildPanel(params.client, params.firefox, params.staticBaseUrl);

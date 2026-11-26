@@ -145,7 +145,6 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { saveTip
 		...vm,
 		tabs,
 		faq: IMPORT_FAQ,
-		limits: IMPORT_LIMITS,
 		errorMessage,
 		errorAlertHtml: errorMessage
 			? renderAlert({ key: "import", content: { variant: "error", message: { text: errorMessage } } })

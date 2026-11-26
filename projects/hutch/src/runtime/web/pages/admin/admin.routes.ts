@@ -33,7 +33,6 @@ export function initAdminRoutes(
 		| "readArticleContent"
 		| "findGeneratedSummary"
 		| "findArticleCrawlStatus"
-		| "markCrawlPending"
 		| "forceMarkCrawlPending"
 		| "publishRecrawlLinkInitiated"
 		| "findUserByEmail"
@@ -113,7 +112,6 @@ export function initAdminRoutes(
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
-		markCrawlPending: deps.markCrawlPending,
 		forceMarkCrawlPending: deps.forceMarkCrawlPending,
 		publishRecrawlLinkInitiated: deps.publishRecrawlLinkInitiated,
 		buildBannerState,

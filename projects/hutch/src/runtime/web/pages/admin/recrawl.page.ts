@@ -9,7 +9,6 @@ import { z } from "zod";
 import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
-	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
 import type { FindArticleByUrl, FindArticleCrawlVersions, FindArticleFreshness, FindItemOwner } from "@packages/provider-contracts/article-store";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
@@ -53,7 +52,6 @@ export interface AdminRecrawlDependencies {
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
-	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	buildBannerState: BuildBannerState;
