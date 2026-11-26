@@ -140,7 +140,7 @@ import {
 	GmailHistoryImportJobIdSchema,
 } from "@packages/domain/gmail";
 import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-history-imports";
-import { NEWSLETTER_CATALOG_OBJECT_KEY, initS3NewsletterCatalog } from "./newsletter-catalog/s3-newsletter-catalog";
+import { initS3NewsletterCatalog } from "./newsletter-catalog/s3-newsletter-catalog";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
@@ -475,7 +475,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const newsletterCatalog = initS3NewsletterCatalog({
 		client: s3Client,
 		bucketName: requireEnv("NEWSLETTER_CATALOG_BUCKET_NAME"),
-		key: NEWSLETTER_CATALOG_OBJECT_KEY,
 		logger,
 	});
 

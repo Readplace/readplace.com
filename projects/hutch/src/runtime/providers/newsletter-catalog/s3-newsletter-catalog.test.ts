@@ -52,7 +52,6 @@ function harness(reply: (command: SentCommand) => unknown) {
 	const catalog = initS3NewsletterCatalog({
 		client: { send: send as unknown as SendFn },
 		bucketName: "catalog-bucket",
-		key: "newsletter-catalog.json",
 		logger,
 	});
 	return { ...catalog, commands, errors };

@@ -4,14 +4,13 @@ import { type NewsletterCatalogDocument, NewsletterCatalogDocumentSchema } from 
 import type { Logger } from "@packages/logger";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 
-export const NEWSLETTER_CATALOG_OBJECT_KEY = "newsletter-catalog.json";
+const NEWSLETTER_CATALOG_OBJECT_KEY = "newsletter-catalog.json";
 
 const WRITE_CONFLICT_STATUSES: ReadonlySet<number | undefined> = new Set([409, 412]);
 
 export function initS3NewsletterCatalog(deps: {
 	client: Pick<S3Client, "send">;
 	bucketName: string;
-	key: string;
 	logger: Logger;
 }): { readCatalog: ReadNewsletterCatalog; writeCatalog: WriteNewsletterCatalog } {
 	let cached: { etag: string; document: NewsletterCatalogDocument } | undefined;
@@ -22,7 +21,7 @@ export function initS3NewsletterCatalog(deps: {
 			const result = await deps.client.send(
 				new GetObjectCommand({
 					Bucket: deps.bucketName,
-					Key: deps.key,
+					Key: NEWSLETTER_CATALOG_OBJECT_KEY,
 					...(revalidating === undefined ? {} : { IfNoneMatch: revalidating.etag }),
 				}),
 			);
@@ -46,7 +45,7 @@ export function initS3NewsletterCatalog(deps: {
 			const result = await deps.client.send(
 				new PutObjectCommand({
 					Bucket: deps.bucketName,
-					Key: deps.key,
+					Key: NEWSLETTER_CATALOG_OBJECT_KEY,
 					Body: JSON.stringify(document),
 					ContentType: "application/json",
 					...(expectedEtag === undefined ? { IfNoneMatch: "*" } : { IfMatch: expectedEtag }),
