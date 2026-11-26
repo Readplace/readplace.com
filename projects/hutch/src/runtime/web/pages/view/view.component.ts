@@ -184,22 +184,15 @@ export function renderViewCtaActionOob(action: ViewAction): string {
 	return renderViewCtaAction(action, true);
 }
 
-export function viewEpubHref(articleUrl: string): string {
+export function viewEpubHref(input: { articleUrl: string; utmSource: "view-article" | "view-end-cta" }): string {
 	return withClickSurface(
-		articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }),
-		CLICK_SURFACES.readerPublic,
-	);
-}
-
-export function viewEndCtaEpubHref(articleUrl: string): string {
-	return withClickSurface(
-		articleEpubHref({ articleUrl, utmSource: "view-end-cta", appClient: undefined }),
+		articleEpubHref({ articleUrl: input.articleUrl, utmSource: input.utmSource, appClient: undefined }),
 		CLICK_SURFACES.readerPublic,
 	);
 }
 
 export function renderViewDownloadsOob(params: { articleUrl: string; guide: EpubDownloadGuide | undefined }): string {
-	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide, placements: ["toolbar"] });
+	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref({ articleUrl: params.articleUrl, utmSource: "view-article" }), guide: params.guide, placements: ["toolbar"] });
 }
 
 function viewShareInput(input: {

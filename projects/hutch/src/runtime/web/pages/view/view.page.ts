@@ -89,7 +89,6 @@ import {
 	renderViewDownloadsOob,
 	renderViewShareUpgradeOob,
 	viewEpubHref,
-	viewEndCtaEpubHref,
 	splitTrackedHref,
 	formatViewDocumentTitle,
 	renderViewCtaActionOob,
@@ -228,7 +227,7 @@ function endCtaEpubAction(input: { articleUrl: string; guide: EpubDownloadGuide 
 		key: "download-epub",
 		label: "Download EPUB",
 		variant: "secondary",
-		...splitTrackedHref(viewEndCtaEpubHref(input.articleUrl)),
+		...splitTrackedHref(viewEpubHref({ articleUrl: input.articleUrl, utmSource: "view-end-cta" })),
 	};
 }
 
@@ -633,7 +632,7 @@ function handleViewArticle(
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
 					actions,
-					epubDownloadHref: state.content === undefined || !epubOffered ? undefined : viewEpubHref(articleUrl),
+					epubDownloadHref: state.content === undefined || !epubOffered ? undefined : viewEpubHref({ articleUrl, utmSource: "view-article" }),
 					epubDownloadGuide,
 					saveTip,
 					extensionInstallUrl: readerPublicInstallUrl(req),
@@ -704,7 +703,7 @@ function viewEpubGuideFor(req: Request, articleUrl: string): EpubDownloadGuide |
 	if (isNativeSurface(req)) return undefined;
 	return epubDownloadGuideFor({
 		osFamily: classifyOsFamily(req.get("user-agent")),
-		downloadHref: viewEpubHref(articleUrl),
+		downloadHref: viewEpubHref({ articleUrl, utmSource: "view-article" }),
 		learnMoreHref: withClickSurface(
 			withInternalTracking(KINDLE_GUIDE_PATH, { source: "view-article", content: EPUB_GUIDE_CONTENT }),
 			CLICK_SURFACES.readerPublic,
