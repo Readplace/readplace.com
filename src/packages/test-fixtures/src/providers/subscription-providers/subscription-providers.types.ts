@@ -6,8 +6,6 @@ export type {
 	ListUserIdsBySubscriptionStatus,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByEvent,
-	MarkSubscriptionCancelledByUserId,
-	MarkSubscriptionPendingCancellation,
 	MarkPaymentFailedEmailSent,
 	MarkSubscriptionPendingCancellationByEvent,
 	MarkTrialFeedbackEmailSent,
@@ -18,3 +16,4 @@ export type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
+export type { MarkSubscriptionCancelledByUserId, MarkSubscriptionPendingCancellation } from "@packages/web-test-harness";

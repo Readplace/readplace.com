@@ -251,8 +251,6 @@ import type {
 	MarkSessionAdminMfaVerified,
 	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelledByUserId,
-	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
 	OnUnpaidFirstInvoice,
@@ -346,6 +344,15 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
+
+export type MarkSubscriptionPendingCancellation = (input: {
+	userId: UserId;
+	cancellationEffectiveAt: string;
+}) => Promise<void>;
+
+export type MarkSubscriptionCancelledByUserId = (input: {
+	userId: UserId;
+}) => Promise<void>;
 
 export type HttpErrorMessageMapping = (
 	query: Record<string, unknown>,

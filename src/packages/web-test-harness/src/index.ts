@@ -21,6 +21,8 @@ export type {
 	NewsletterCatalogBundle,
 	OnboardingSignalsBundle,
 	OAuthBundle,
+	MarkSubscriptionCancelledByUserId,
+	MarkSubscriptionPendingCancellation,
 	ParseArticle,
 	ParserBundle,
 	PasswordResetBundle,

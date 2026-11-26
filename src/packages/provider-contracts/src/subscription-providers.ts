@@ -76,15 +76,6 @@ export type UpsertActiveSubscription = (input: {
 	plan?: BillingPlan;
 }) => Promise<void>;
 
-export type MarkSubscriptionPendingCancellation = (input: {
-	userId: UserId;
-	cancellationEffectiveAt: string;
-}) => Promise<void>;
-
-export type MarkSubscriptionCancelledByUserId = (input: {
-	userId: UserId;
-}) => Promise<void>;
-
 export type MarkSubscriptionCancelledByEvent = (input: {
 	userId: UserId;
 	subscriptionId: string | undefined;

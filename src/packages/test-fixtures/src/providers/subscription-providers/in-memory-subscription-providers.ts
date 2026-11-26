@@ -12,8 +12,6 @@ import {
 	type ListUserIdsBySubscriptionStatus,
 	type MarkSubscriptionActive,
 	type MarkSubscriptionCancelledByEvent,
-	type MarkSubscriptionCancelledByUserId,
-	type MarkSubscriptionPendingCancellation,
 	type MarkSubscriptionPendingCancellationByEvent,
 	type MarkTrialFeedbackEmailSent,
 	type MarkTrialReminderEmailSent,
@@ -27,6 +25,7 @@ import {
 	type UpsertActiveSubscription,
 	type UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
+import type { MarkSubscriptionCancelledByUserId, MarkSubscriptionPendingCancellation } from "@packages/web-test-harness";
 
 const MARKERS_KEPT_ACROSS_TRIAL_WINDOWS: ReadonlySet<string> = new Set<keyof SubscriptionRecord>([
 	"trialDay3EmailSentAt",

@@ -44,7 +44,7 @@ function buildEventBridgeBody(detail: {
 }
 
 describe("handle-subscription-cancellation-scheduled-handler", () => {
-	it("calls markPendingCancellation with the userId and cancellationEffectiveAt from the event", async () => {
+	it("calls markPendingCancellationByEvent with the userId and cancellationEffectiveAt from the event", async () => {
 		const calls: Array<{ userId: string; cancellationEffectiveAt: string }> = [];
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
 			markPendingCancellationByEvent: async ({ userId, cancellationEffectiveAt }) => {
@@ -75,7 +75,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 		]);
 	});
 
-	it("handles trial cancel events (no subscriptionId) by passing through to markPendingCancellation", async () => {
+	it("handles trial cancel events (no subscriptionId) by passing through to markPendingCancellationByEvent", async () => {
 		const calls: Array<{ userId: string; cancellationEffectiveAt: string }> = [];
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
 			markPendingCancellationByEvent: async ({ userId, cancellationEffectiveAt }) => {
@@ -105,7 +105,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 		]);
 	});
 
-	it("reports a batch item failure when markPendingCancellation throws", async () => {
+	it("reports a batch item failure when markPendingCancellationByEvent throws", async () => {
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
 			markPendingCancellationByEvent: async () => {
 				throw new Error("DynamoDB timeout");
@@ -176,7 +176,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 		assert.equal(result.batchItemFailures.length, 1);
 	});
 
-	it("idempotent on duplicate delivery — same userId + cancellationEffectiveAt routed twice produces a second markPendingCancellation that the provider treats as the same write", async () => {
+	it("idempotent on duplicate delivery — same userId + cancellationEffectiveAt routed twice produces a second markPendingCancellationByEvent that the provider treats as the same write", async () => {
 		const calls: Array<{ userId: string; cancellationEffectiveAt: string }> = [];
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
 			markPendingCancellationByEvent: async ({ userId, cancellationEffectiveAt }) => {
