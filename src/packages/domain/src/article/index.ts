@@ -12,7 +12,6 @@ export {
 	SUMMARY_STAGE_TO_PCT,
 	DEFAULT_CRAWL_STAGE,
 	DEFAULT_SUMMARY_STAGE,
-	crawlStagePct,
 	crawlProgressPct,
 	summaryStagePct,
 	type CrawlStage,
