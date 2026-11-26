@@ -27,7 +27,7 @@ import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
 import type { HtmxDelivery } from "./htmx-script";
-import { injectPageStylesIntoMain, injectSiteDialogIntoMain } from "./inject-page-styles";
+import { injectPageStylesIntoMain, insertAfterMainOpenTag } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
@@ -329,7 +329,12 @@ function renderMainContent(body: PageBody, state: BannerState): string {
 	const upgradeStyles = state.upgrade === undefined ? [] : [NEEDS_UPGRADE_STYLES];
 	return injectPageStylesIntoMain({
 		content: dialogs.reduce(
-			(content, dialog) => injectSiteDialogIntoMain({ content, html: dialog.html }),
+			(content, dialog) =>
+				insertAfterMainOpenTag({
+					content,
+					html: dialog.html,
+					missingMainMessage: "PageBody.content must contain a <main> element when a site dialog is provided",
+				}),
 			body.content.html,
 		),
 		styles: [body.styles, ...dialogs.map((dialog) => dialog.styles), ...upgradeStyles].join(""),
