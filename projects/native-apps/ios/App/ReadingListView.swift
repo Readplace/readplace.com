@@ -62,21 +62,11 @@ struct ReadingListView: View {
 		NavigationStack {
 			VStack(spacing: 0) {
 				if let readlist = viewModel.currentReadlistLabel {
-					HStack {
-						VStack(alignment: .leading, spacing: 2) {
-							Text(readlist).font(.subheadline)
-							if let description = viewModel.currentReadlistDescription {
-								Text(description).font(.caption)
-							}
-							if let hint = viewModel.hint {
-								ReadlistHintRow(hint: hint) { Task { await openHint(hint) } }
-							}
-						}
-						.foregroundStyle(Color.brandTextSecondary)
-						Spacer(minLength: 0)
-					}
-					.padding(.horizontal)
-					.padding(.bottom, 10)
+					ReadlistHeader(
+						label: readlist,
+						description: viewModel.currentReadlistDescription,
+						hint: viewModel.hint
+					) { hint in Task { await openHint(hint) } }
 				}
 				if !viewModel.tabs.isEmpty {
 					Picker("Filter", selection: tabSelection) {
@@ -85,7 +75,7 @@ struct ReadingListView: View {
 						}
 					}
 					.pickerStyle(.segmented)
-					.padding(.horizontal)
+					.padding(.horizontal, ListingPanelEdge.gutter)
 					.padding(.bottom, 8)
 				}
 				if let progress = viewModel.offlineDownload {
@@ -107,7 +97,7 @@ struct ReadingListView: View {
 				content
 			}
 				.background(Color.brandSurface.ignoresSafeArea())
-				.navigationTitle("Reading List")
+				.navigationBarTitleDisplayMode(.inline)
 				.onChange(of: viewModel.homeStatus) { status in
 					if let status { UIAccessibility.post(notification: .announcement, argument: status) }
 				}
@@ -310,7 +300,7 @@ struct ReadingListView: View {
 			.contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 		}
 		.buttonStyle(.plain)
-		.padding(.horizontal)
+		.padding(.horizontal, ListingPanelEdge.gutter)
 		.padding(.bottom, 8)
 		.accessibilityLabel(SharedArticlesDropPresentation.title(for: drop))
 		.accessibilityAddTraits(SharedArticlesDropPresentation.accessibilityTraits(for: drop))
@@ -552,7 +542,7 @@ struct OfflineDownloadRow: View {
 			}
 			.accessibilityLabel(dismissLabel)
 		}
-		.padding(.horizontal)
+		.padding(.horizontal, ListingPanelEdge.gutter)
 		.padding(.bottom, 8)
 	}
 
@@ -578,17 +568,39 @@ struct OfflineDownloadRow: View {
 	}
 }
 
-struct ReadlistHintRow: View {
-	let hint: ReadlistHint
-	let open: () -> Void
+struct ReadlistHeader: View {
+	static let nameTraits: AccessibilityTraits = .isHeader
+
+	let label: String
+	let description: String?
+	let hint: ReadlistHint?
+	let open: (ReadlistHint) -> Void
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 2) {
-			Text(hint.text).font(.caption)
-			Button(hint.linkLabel, action: open)
-				.font(.caption)
-				.foregroundStyle(Color.brandAppTint)
-				.accessibilityAddTraits(.isLink)
+		VStack(alignment: .leading, spacing: 4) {
+			Text(label)
+				.font(.largeTitle.bold())
+				.foregroundStyle(Color.brandTextPrimary)
+				.lineLimit(2)
+				.accessibilityAddTraits(Self.nameTraits)
+			if let description {
+				Text(description)
+					.font(.subheadline)
+					.foregroundStyle(Color.brandTextSecondary)
+			}
+			if let hint {
+				Text(hint.text)
+					.font(.footnote)
+					.foregroundStyle(Color.brandTextSecondary)
+				Button(hint.linkLabel) { open(hint) }
+					.font(.footnote)
+					.foregroundStyle(Color.brandAppTint)
+					.accessibilityAddTraits(.isLink)
+			}
 		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.padding(.horizontal, ListingPanelEdge.gutter)
+		.padding(.top, 8)
+		.padding(.bottom, 12)
 	}
 }
