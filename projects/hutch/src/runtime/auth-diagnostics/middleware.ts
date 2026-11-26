@@ -4,11 +4,9 @@ import { z } from "zod";
 import { AuthDiagnosticEvent, AuthDiagnosticReason } from "@packages/domain/auth-diagnostics";
 import { gatewayRequestIdOf } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { clients } from "./oauth-context";
 import { authDiagnosticContext, type AuthDiagnosticContext, type initAuthDiagnosticRecorder } from "./record";
 
-const clients: Record<string, AuthDiagnosticContext["client"]> = {
-	"hutch-chrome-extension": "chrome", "hutch-firefox-extension": "firefox", "ios-app": "ios", "android-app": "android", "obsidian-plugin": "obsidian",
-};
 const requestFields = z.object({ client_id: z.string().optional().catch(undefined), action: z.string().optional().catch(undefined) });
 const responseFields = z.object({
 	error: z.string().optional(), readplace_reason: AuthDiagnosticReason.optional().catch(undefined),
@@ -50,7 +48,7 @@ export function initAuthDiagnosticMiddleware(deps: {
 		const parsedBody = requestFields.safeParse(req.body).data;
 		const parsedQuery = requestFields.safeParse(req.query).data;
 		const clientId = parsedBody?.client_id ?? parsedQuery?.client_id;
-		const client = clientId === undefined ? "web" : clients[clientId] ?? "external";
+		const client = clientId === undefined ? "web" : clients[clientId]?.client ?? "external";
 		const flow = z.uuid().safeParse(req.cookies?.[FLOW_COOKIE]).data;
 		const context: AuthDiagnosticContext = {
 			request_id: gatewayRequestIdOf(req) ?? randomUUID(),
