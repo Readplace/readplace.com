@@ -38,12 +38,12 @@ import { QUEUE_DIGEST_MIN_GAP_MS, QUEUE_DIGEST_MIN_SAVE_AGE_MS } from "./domain/
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./observability/queue-digest-events";
 import { initSendQueueDigestHandler } from "./send-queue-digest/send-queue-digest-handler";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
-import { initEventBridgeResolveArticleOnView } from "./providers/events/eventbridge-resolve-article-on-view";
 import { initBuildQueueDigestBook } from "./web/queue-digest-book";
 import { initBuildBookEpub } from "./web/shared/epub/book-epub";
 import { requireEnv } from "@packages/require-env";
 import { initS3ReadMediaImage } from "./providers/media-image/s3-read-media-image";
 import { initReadArticleImageByIdentity } from "./providers/read-article-image-by-identity";
+import { ResolveArticleOnViewCommand } from "@packages/infra-components";
 
 /** Dedupe cooldown for the per-user digest slot. Set below the 6h flush cadence
  * so it guards a redriven/concurrent flush of the same tick.
@@ -131,7 +131,7 @@ const crawlStore = initDynamoDbArticleCrawl({
 
 const requestResolutionOnView = initRequestResolutionOnView({
 	claimResolutionOnView: initDynamoDbClaimResolutionOnView({ client: dynamoClient, tableName: articlesTable, now: () => new Date() }),
-	publishResolveArticleOnView: initEventBridgeResolveArticleOnView({ publishEvent }).publishResolveArticleOnView,
+	publishResolveArticleOnView: (params) => publishEvent(ResolveArticleOnViewCommand, params),
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 	findGeneratedSummary: summaryStore.findGeneratedSummary,
 	logger,

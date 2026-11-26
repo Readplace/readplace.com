@@ -45,7 +45,6 @@ import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-id
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
 import { initAgeLockDeletionDueHandler } from "./age-lock-deletion/age-lock-deletion-due-handler";
 import { initDeleteAccount } from "./domain/account/delete-account";
-import { initEventBridgeDeleteAccountCommand } from "./providers/events/eventbridge-delete-account-command";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
 import { initReleasePrivateItems } from "./media-release/release-private-items";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
@@ -428,7 +427,7 @@ export const handler = initHandleByDetailType({
 					markAccountDeleted: auth.markAccountDeleted,
 					revokeAllUserOAuthTokens,
 					destroyUserSessions: auth.destroyUserSessions,
-					publishDeleteAccountCommand: initEventBridgeDeleteAccountCommand({ publishEvent }).publishDeleteAccountCommand,
+					publishDeleteAccountCommand: (params) => publishEvent(DeleteAccountCommand, params),
 					now,
 				}),
 				logger,

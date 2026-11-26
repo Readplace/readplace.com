@@ -18,11 +18,6 @@ import { initActivateCheckout } from "./domain/subscription/activate-checkout";
 import { initCheckoutCompletedHandler } from "./checkout-completed/checkout-completed-handler";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./providers/stripe-prices/stripe-prices";
-import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
-import { initEventBridgeSubscriptionCancellationScheduled } from "./providers/events/eventbridge-subscription-cancellation-scheduled";
-import { initEventBridgeSubscriptionCancelled } from "./providers/events/eventbridge-subscription-cancelled";
-import { initEventBridgeSubscriptionChargeFailed } from "./providers/events/eventbridge-subscription-charge-failed";
-import { initEventBridgeSubscriptionChargeSucceeded } from "./providers/events/eventbridge-subscription-charge-succeeded";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initCancelSubscriptionHandler } from "./cancel-subscription/cancel-subscription-handler";
 import { initHandleSubscriptionCancellationScheduledHandler } from "./handle-subscription-cancellation-scheduled/handle-subscription-cancellation-scheduled-handler";
@@ -38,6 +33,7 @@ import {
 } from "./observability/subscription-events";
 import { readEnv } from "@packages/require-env";
 import { SUBSCRIPTION_EVENTS_ENV } from "./subscription-events.env";
+import type { PublishCancelSubscriptionCommand, PublishSubscriptionCancellationScheduled, PublishSubscriptionCancelled, PublishSubscriptionChargeFailed, PublishSubscriptionChargeSucceeded } from "@packages/provider-contracts/events";
 
 const env = readEnv(SUBSCRIPTION_EVENTS_ENV);
 
@@ -102,12 +98,11 @@ const activateCheckout = initActivateCheckout({
 	now,
 });
 
-const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
-const { publishSubscriptionCancellationScheduled } =
-	initEventBridgeSubscriptionCancellationScheduled({ publishEvent });
-const { publishSubscriptionCancelled } = initEventBridgeSubscriptionCancelled({ publishEvent });
-const { publishSubscriptionChargeFailed } = initEventBridgeSubscriptionChargeFailed({ publishEvent });
-const { publishSubscriptionChargeSucceeded } = initEventBridgeSubscriptionChargeSucceeded({ publishEvent });
+const publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand = (params) => publishEvent(CancelSubscriptionCommand, params);
+const publishSubscriptionCancellationScheduled: PublishSubscriptionCancellationScheduled = (params) => publishEvent(SubscriptionCancellationScheduledEvent, params);
+const publishSubscriptionCancelled: PublishSubscriptionCancelled = (params) => publishEvent(SubscriptionCancelledEvent, params);
+const publishSubscriptionChargeFailed: PublishSubscriptionChargeFailed = (params) => publishEvent(SubscriptionChargeFailedEvent, params);
+const publishSubscriptionChargeSucceeded: PublishSubscriptionChargeSucceeded = (params) => publishEvent(SubscriptionChargeSucceededEvent, params);
 
 export const handler = initHandleByDetailType({
 	routes: {

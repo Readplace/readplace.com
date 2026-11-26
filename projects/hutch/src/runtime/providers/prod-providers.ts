@@ -1,5 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { RunBulkArticlesCommand } from "@packages/infra-components";
+import { RunBulkArticlesCommand, CancelSubscriptionCommand, ComputeRelatedPassesCommand, ComputeRelatedPastReadsCommand, DeleteAccountCommand, ExportUserDataCommand, LinkDequeuedEvent, LinkQueuedEvent, SaveLinkCommand, MediaUploadCommittedEvent, MediaUploadStagedEvent, QueueEntryCreatedEvent, RecrawlLinkInitiatedEvent, RemoveMyContentCommand, ResolveArticleOnViewCommand, SaveAnonymousLinkCommand, SaveLinkRawHtmlCommand, SaveLinkRawPdfCommand, StaleCheckRequestedEvent, SubmitLinkCommand, UpdateFetchTimestampCommand } from "@packages/infra-components";
 import { initDynamoBulkSelections } from "../bulk-articles/selection-store";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { initSsmAdminTotpSecrets } from "./admin-totp-secrets/ssm-admin-totp-secrets";
@@ -70,26 +70,8 @@ import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
 import { initDynamoDbFindItemOwner, initReadArticleContent } from "@packages/article-store";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
-import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
-import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
-import { initEventBridgeComputeRelatedPasses } from "./events/eventbridge-compute-related-passes";
-import { initEventBridgeResolveArticleOnView } from "./events/eventbridge-resolve-article-on-view";
 import { initRequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
 import { initRequestStaleCheck } from "../domain/stale-check/request-stale-check";
-import { initEventBridgeComputeRelatedPastReads } from "./events/eventbridge-compute-related-past-reads";
-import { initEventBridgeLinkQueued } from "./events/eventbridge-link-queued";
-import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
-import { initEventBridgeRecrawlLinkInitiated } from "./events/eventbridge-recrawl-link-initiated";
-import { initEventBridgeRemoveMyContent } from "./events/eventbridge-remove-my-content";
-import { initEventBridgeSaveAnonymousLink } from "./events/eventbridge-save-anonymous-link";
-import { initEventBridgeSubmitLink } from "./events/eventbridge-submit-link";
-import { initEventBridgeStaleCheckRequested } from "./events/eventbridge-stale-check-requested";
-import { initEventBridgeSaveLinkRawHtmlCommand } from "./events/eventbridge-save-link-raw-html-command";
-import { initEventBridgeSaveLinkRawPdfCommand } from "./events/eventbridge-save-link-raw-pdf-command";
-import { initEventBridgeUpdateFetchTimestamp } from "./events/eventbridge-update-fetch-timestamp";
-import { initEventBridgeExportUserDataCommand } from "./events/eventbridge-export-user-data-command";
-import { initEventBridgeDeleteAccountCommand } from "./events/eventbridge-delete-account-command";
-import { initEventBridgeCancelSubscriptionCommand } from "./events/eventbridge-cancel-subscription-command";
 import { initPutPendingHtml } from "./pending-html/put-pending-html";
 import { initPutPendingPdf } from "./pending-pdf/put-pending-pdf";
 import { initS3PendingUpload } from "./pending-upload/s3-pending-upload";
@@ -103,8 +85,6 @@ import { initS3PresignMediaImage } from "./media-image/s3-presign-media-image";
 import { initS3PresignEnclosure } from "./media-objects/s3-presign-enclosure";
 import { initS3ReadMediaImage } from "./media-image/s3-read-media-image";
 import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
-import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
-import { initEventBridgeMediaUploadStaged } from "./events/eventbridge-media-upload-staged";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
 import { MEDIA_KINDS, mintUploadId } from "@packages/media-contracts";
 import { initDynamoDbTranscriptCharge, initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
@@ -159,6 +139,8 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import { initReportReadlistCap } from "../observability/readlist-cap";
 import type { ReadlistCapApproachedLine } from "../observability/events";
 import { initDynamoDbPendingViewHighlights } from "./pending-view-highlights/dynamodb-pending-view-highlights";
+import type { PublishCancelSubscriptionCommand, PublishComputeRelatedPasses, PublishComputeRelatedPastReads, PublishDeleteAccountCommand, PublishExportUserDataCommand, PublishLinkDequeued, PublishLinkQueued, PublishLinkSaved, PublishQueueEntryCreated, PublishRecrawlLinkInitiated, PublishRemoveMyContent, PublishResolveArticleOnView, PublishSaveAnonymousLink, PublishSaveLinkRawHtmlCommand, PublishSaveLinkRawPdfCommand, PublishStaleCheckRequested, PublishSubmitLink, PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
+import type { PublishMediaUploadCommitted, PublishMediaUploadStaged } from "@packages/domain";
 
 /** `appOrigin` is threaded in rather than read from the environment because the
  * dev server may have bound a different port than `APP_ORIGIN` names, and every
@@ -314,13 +296,13 @@ export function initProdProviders(input: { appOrigin: string }) {
 		client: new EventBridgeClient({}),
 		eventBusName,
 	});
-	const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
-	const { publishLinkQueued } = initEventBridgeLinkQueued({ publishEvent });
-	const { publishLinkDequeued } = initEventBridgeLinkDequeued({ publishEvent });
-	const { publishQueueEntryCreated } = initEventBridgeQueueEntryCreated({ publishEvent });
-	const { publishComputeRelatedPastReads } = initEventBridgeComputeRelatedPastReads({ publishEvent });
-	const { publishComputeRelatedPasses } = initEventBridgeComputeRelatedPasses({ publishEvent });
-	const { publishResolveArticleOnView } = initEventBridgeResolveArticleOnView({ publishEvent });
+	const publishLinkSaved: PublishLinkSaved = (params) => publishEvent(SaveLinkCommand, params);
+	const publishLinkQueued: PublishLinkQueued = (params) => publishEvent(LinkQueuedEvent, params);
+	const publishLinkDequeued: PublishLinkDequeued = (params) => publishEvent(LinkDequeuedEvent, params);
+	const publishQueueEntryCreated: PublishQueueEntryCreated = (params) => publishEvent(QueueEntryCreatedEvent, params);
+	const publishComputeRelatedPastReads: PublishComputeRelatedPastReads = (params) => publishEvent(ComputeRelatedPastReadsCommand, params);
+	const publishComputeRelatedPasses: PublishComputeRelatedPasses = (params) => publishEvent(ComputeRelatedPassesCommand, params);
+	const publishResolveArticleOnView: PublishResolveArticleOnView = (params) => publishEvent(ResolveArticleOnViewCommand, params);
 	const requestResolutionOnView = initRequestResolutionOnView({
 		claimResolutionOnView: initDynamoDbClaimResolutionOnView({ client, tableName: articlesTable, now: () => new Date() }),
 		publishResolveArticleOnView,
@@ -329,17 +311,17 @@ export function initProdProviders(input: { appOrigin: string }) {
 		logger,
 		now: () => new Date(),
 	});
-	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
-	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
-	const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
-	const { publishSubmitLink } = initEventBridgeSubmitLink({ publishEvent });
-	const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
-	const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
-	const { publishSaveLinkRawPdfCommand } = initEventBridgeSaveLinkRawPdfCommand({ publishEvent });
-	const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
-	const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
-	const { publishDeleteAccountCommand } = initEventBridgeDeleteAccountCommand({ publishEvent });
-	const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
+	const publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated = (params) => publishEvent(RecrawlLinkInitiatedEvent, params);
+	const publishRemoveMyContent: PublishRemoveMyContent = (params) => publishEvent(RemoveMyContentCommand, params);
+	const publishSaveAnonymousLink: PublishSaveAnonymousLink = (params) => publishEvent(SaveAnonymousLinkCommand, params);
+	const publishSubmitLink: PublishSubmitLink = (params) => publishEvent(SubmitLinkCommand, params);
+	const publishStaleCheckRequested: PublishStaleCheckRequested = (params) => publishEvent(StaleCheckRequestedEvent, params);
+	const publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand = (params) => publishEvent(SaveLinkRawHtmlCommand, params);
+	const publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand = (params) => publishEvent(SaveLinkRawPdfCommand, params);
+	const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = (params) => publishEvent(UpdateFetchTimestampCommand, params);
+	const publishExportUserDataCommand: PublishExportUserDataCommand = (params) => publishEvent(ExportUserDataCommand, params);
+	const publishDeleteAccountCommand: PublishDeleteAccountCommand = (params) => publishEvent(DeleteAccountCommand, params);
+	const publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand = (params) => publishEvent(CancelSubscriptionCommand, params);
 	const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 	const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
 	const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initS3PendingUpload({
@@ -428,7 +410,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	});
 	const { presignMediaImage } = initS3PresignMediaImage({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { presignEnclosure } = initS3PresignEnclosure({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
-	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
+	const publishMediaUploadCommitted: PublishMediaUploadCommitted = (params) => publishEvent(MediaUploadCommittedEvent, params);
 	const transcriptAllowanceSeconds = transcriptAllowanceSecondsFromEnv();
 	const transcriptLedgerDeps = {
 		client,
@@ -447,7 +429,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		headMediaPendingOriginal,
 		now: () => Date.now(),
 	});
-	const { publishMediaUploadStaged } = initEventBridgeMediaUploadStaged({ publishEvent });
+	const publishMediaUploadStaged: PublishMediaUploadStaged = (params) => publishEvent(MediaUploadStagedEvent, params);
 	const importSessionStore = initDynamoDbImportSession({
 		client,
 		tableName: importSessionsTable,
