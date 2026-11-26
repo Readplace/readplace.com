@@ -25,7 +25,7 @@ import { displayableReadTime } from "@packages/domain/article";
  * scheme survives that — an embedded one (`…/web/<ts>/https://site/x`, the shape
  * wayback captures carry) arrives as `https:/` and resolves to a different
  * DynamoDB row, so a recrawl silently heals the wrong article. Query values are
- * not path-normalised. The path form stays supported for hand-typed URLs.
+ * not path-normalised.
  */
 export function recrawlPathFor(articleUrl: string): string {
 	return `/admin/recrawl?url=${encodeURIComponent(articleUrl)}`;

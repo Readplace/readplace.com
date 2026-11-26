@@ -100,31 +100,14 @@ function handleLanding(
 	};
 }
 
-/** `?url=` wins when present — see {@link recrawlPathFor} for why the path
- * carrier cannot name every row. A query value must be a full URL (the landing
- * form's `type="url"` input already enforces that); only the path form gets the
- * schemeless default. */
-function requestedUrlFrom(req: Request<{ splat?: string[] }>): string | undefined {
+function requestedUrlFrom(req: Request): string | undefined {
 	const fromQuery = req.query.url;
-	if (typeof fromQuery === "string") return fromQuery;
-	const splat = req.params.splat;
-	if (splat === undefined) return undefined;
-	const rawPath = splat.join("/");
-	// API Gateway v2 HTTP API decodes %2F to /, restore https:/ → https://
-	// (same normalisation as /view). Only the leading scheme is recoverable —
-	// an embedded `https:/` is indistinguishable from a genuine single slash.
-	const restoredScheme = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
-	// Admin pastes the bare article URL (`fagnerbrack.com/post`) without a
-	// scheme. Default to https:// so the path resolves to the same DB row
-	// as the canonical save.
-	return /^https?:\/\//i.test(restoredScheme)
-		? restoredScheme
-		: `https://${restoredScheme}`;
+	return typeof fromQuery === "string" ? fromQuery : undefined;
 }
 
 function refusePrivateItemRecrawl(deps: AdminRecrawlDependencies) {
 	return async (
-		req: Request<{ splat?: string[] }>,
+		req: Request,
 		res: Response,
 		next: NextFunction,
 	): Promise<void> => {
@@ -157,7 +140,7 @@ function refusePrivateItemRecrawl(deps: AdminRecrawlDependencies) {
 
 async function resolveArticleUrl(
 	deps: AdminRecrawlDependencies,
-	req: Request<{ splat?: string[] }>,
+	req: Request,
 	res: Response,
 ): Promise<string | undefined> {
 	const parsed = RecrawlUrlSchema.safeParse(requestedUrlFrom(req));
@@ -177,24 +160,11 @@ async function resolveArticleUrl(
 	return new URL(parsed.data).toString();
 }
 
-function handleShowRecrawlPage(
-	deps: AdminRecrawlDependencies,
-	reader: ReturnType<typeof initArticleReader>,
-	resolveStoredArticle: ResolveStoredArticle,
-) {
-	return async (
-		req: Request<{ splat?: string[] }>,
-		res: Response,
-	): Promise<void> => {
-		await renderRecrawlPage(deps, reader, resolveStoredArticle, req, res);
-	};
-}
-
 async function renderRecrawlPage(
 	deps: AdminRecrawlDependencies,
 	reader: ReturnType<typeof initArticleReader>,
 	resolveStoredArticle: ResolveStoredArticle,
-	req: Request<{ splat?: string[] }>,
+	req: Request,
 	res: Response,
 ): Promise<void> {
 	const requestedUrl = await resolveArticleUrl(deps, req, res);
@@ -251,7 +221,7 @@ async function renderRecrawlPage(
 
 function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArticle: ResolveStoredArticle) {
 	return async (
-		req: Request<{ splat?: string[] }>,
+		req: Request,
 		res: Response,
 	): Promise<void> => {
 		const requestedUrl = await resolveArticleUrl(deps, req, res);
@@ -398,19 +368,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 	router.get("/", refusePrivateItem, handleLanding(deps, reader, resolveStoredArticle));
 	router.get("/summary", refusePrivateItem, handleSummaryPoll(reader, resolveStoredArticle, deps.readerSectionThresholdBytes));
 	router.get("/reader", refusePrivateItem, handleReaderPoll(reader, resolveStoredArticle, deps.readerSectionThresholdBytes));
-	// The `?url=` trigger is registered first so the lossless carrier is matched
-	// before the path wildcard ever sees the request.
 	router.post("/", refusePrivateItem, handleTriggerRecrawl(deps, resolveStoredArticle));
-	router.post<string, { splat?: string[] }>(
-		"/*splat",
-		refusePrivateItem,
-		handleTriggerRecrawl(deps, resolveStoredArticle),
-	);
-	router.get<string, { splat?: string[] }>(
-		"/*splat",
-		refusePrivateItem,
-		handleShowRecrawlPage(deps, reader, resolveStoredArticle),
-	);
 
 	return router;
 }

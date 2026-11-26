@@ -143,7 +143,7 @@ describe("Admin recrawl routes", () => {
 		it("redirects unauthenticated visitors to /login (303)", async () => {
 			const { server } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 
-			const response = await request(server).get(`/admin/recrawl/${ENCODED}`);
+			const response = await request(server).get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
@@ -154,7 +154,7 @@ describe("Admin recrawl routes", () => {
 			await auth.createUser({ email: OTHER_EMAIL, password: OTHER_PASSWORD });
 			const agent = await loginAs(server, OTHER_EMAIL, OTHER_PASSWORD);
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(403);
 			expect(response.text).toContain("Admin access required");
@@ -165,7 +165,7 @@ describe("Admin recrawl routes", () => {
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(403);
 		});
@@ -257,13 +257,13 @@ describe("Admin recrawl routes", () => {
 		});
 	});
 
-	describe("GET /admin/recrawl/:url", () => {
+	describe("GET /admin/recrawl?url=", () => {
 		it("returns 404 when the URL is not already in the articles DB", async () => {
 			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			const agent = await signInAsAdmin();
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(404);
 		});
@@ -281,7 +281,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -307,7 +307,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -328,7 +328,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
@@ -348,7 +348,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -368,7 +368,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -397,7 +397,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const badge = doc.querySelector("[data-test-tier-badge]");
@@ -419,7 +419,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const badge = doc.querySelector("[data-test-tier-badge]");
@@ -439,7 +439,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await harness.signInAsAdmin();
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const badge = doc.querySelector("[data-test-tier-badge]");
@@ -465,7 +465,7 @@ describe("Admin recrawl routes", () => {
 
 			const agent = await harness.signInAsAdmin();
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			expect(response.headers["cache-control"]).toBe("no-store");
@@ -514,7 +514,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions });
 			const agent = await harness.signInAsAdmin();
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const recrawlMain = new JSDOM(response.text).window.document.querySelector("[data-test-admin-recrawl]");
@@ -578,7 +578,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions: [{ crawledAtMinute: "2026-07-10T09:14Z" }] });
 			const agent = await harness.signInAsAdmin();
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -621,7 +621,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions: [{ crawledAtMinute: "2026-07-10T09:14Z" }] });
 			const agent = await harness.signInAsAdmin();
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -668,7 +668,7 @@ describe("Admin recrawl routes", () => {
 
 			const agent = await harness.signInAsAdmin();
 
-			const postResponse = await agent.post(`/admin/recrawl/${ENCODED}`);
+			const postResponse = await agent.post(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(postResponse.status).toBe(303);
 			expect(postResponse.headers.location).toBe(
@@ -693,28 +693,9 @@ describe("Admin recrawl routes", () => {
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			const agent = await signInAsAdmin();
 
-			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.post(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(404);
-		});
-
-		it("treats a schemeless POST path segment as https:// so admins can paste `host/path` without typing the scheme", async () => {
-			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
-			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			await harness.articleStore.saveArticleGlobally({
-				url: ARTICLE_URL,
-				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: MinutesSchema.parse(1),
-				savedAt: new Date(),
-			});
-			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
-
-			const agent = await harness.signInAsAdmin();
-			// A schemeless path segment must still resolve to a URL, not be rejected as missing.
-			const response = await agent.post("/admin/recrawl/example.com/post");
-
-			expect(response.status).toBe(303);
-			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
 		});
 
 		it("preserves the existing ready summary on the admin recrawl trigger — summary regeneration is decided downstream by the canonicalContentHash gate, not by wiping state up front", async () => {
@@ -739,7 +720,7 @@ describe("Admin recrawl routes", () => {
 
 			const agent = await harness.signInAsAdmin();
 
-			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.post(`/admin/recrawl?url=${ENCODED}`);
 
 			expect(response.status).toBe(303);
 			const summaryAfter = await harness.summary.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: ARTICLE_URL, viewer: ANONYMOUS_VIEWER });
@@ -1209,7 +1190,6 @@ describe("Admin recrawl of a private item", () => {
 	}
 
 	it.each([
-		["POST with the URL in the path", `/admin/recrawl/${PRIVATE_ENCODED}`],
 		["POST with the URL in ?url=", `/admin/recrawl?url=${PRIVATE_ENCODED}`],
 	])("refuses a %s and publishes no recrawl", async (_label, path) => {
 		const { harness, agent } = await seededAdmin();
@@ -1225,7 +1205,6 @@ describe("Admin recrawl of a private item", () => {
 
 	it.each([
 		["the landing page's ?url=", `/admin/recrawl?url=${PRIVATE_ENCODED}`],
-		["the path form", `/admin/recrawl/${PRIVATE_ENCODED}`],
 		["the reader poll", `/admin/recrawl/reader?url=${PRIVATE_ENCODED}&poll=1`],
 		["the summary poll", `/admin/recrawl/summary?url=${PRIVATE_ENCODED}&poll=1`],
 	])("refuses to render a private item through %s", async (_label, path) => {
@@ -1258,10 +1237,9 @@ describe("Admin recrawl of a saved email issue", () => {
 		await harness.articleCrawl.markCrawlReady({ url: issue });
 		const agent = await harness.signInAsAdmin();
 		for (const url of [encoded, schemeLessKey]) {
-			for (const path of [`/admin/recrawl?url=${url}`, `/admin/recrawl/${url}`]) {
-				expect((await agent.get(path)).status).toBe(404);
-				expect((await agent.post(path)).status).toBe(404);
-			}
+			const path = `/admin/recrawl?url=${url}`;
+			expect((await agent.get(path)).status).toBe(404);
+			expect((await agent.post(path)).status).toBe(404);
 			for (const slot of ["reader", "summary"]) {
 				const response = await agent.get(`/admin/recrawl/${slot}?url=${url}`);
 				expect(response.status).toBe(400);
@@ -1291,7 +1269,7 @@ describe("Admin recrawl of a long body", () => {
 		await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 		const agent = await harness.signInAsAdmin();
-		const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+		const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
 		expect(response.status).toBe(200);
 		const pager = new JSDOM(response.text).window.document.querySelector("[data-test-section-pager]");
