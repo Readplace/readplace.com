@@ -2,7 +2,7 @@ import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/s
 import { CRAWL_ESTIMATE_SCRIPT } from "../../shared/crawl-estimate/crawl-estimate.component";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
+import { readerScripts } from "../../shared/reader-nav-script";
 import type {
 	ArticleDestinationUrl,
 	Minutes,
@@ -399,16 +399,14 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		clickSurface: CLICK_SURFACES.readerPublic,
 		followsSystemTheme: true,
 		content: { html: content },
-		scripts: readerScripts({
-			navHide: NAV_HIDE_DISABLED,
-			page:
-				SHARE_DIALOG_SCRIPT +
-				REPORT_ARTICLE_SCRIPT +
-				CRAWL_ESTIMATE_SCRIPT +
-				SAVE_TIP_SCRIPT +
-				TABLE_OF_CONTENTS_SCRIPT +
-				READER_TOP_SCRIPT +
-				(localHighlights === undefined ? "" : VIEW_HIGHLIGHTS_SCRIPTS),
-		}),
+		scripts: readerScripts(
+			SHARE_DIALOG_SCRIPT +
+			REPORT_ARTICLE_SCRIPT +
+			CRAWL_ESTIMATE_SCRIPT +
+			SAVE_TIP_SCRIPT +
+			TABLE_OF_CONTENTS_SCRIPT +
+			READER_TOP_SCRIPT +
+			(localHighlights === undefined ? "" : VIEW_HIGHLIGHTS_SCRIPTS),
+		),
 	};
 }

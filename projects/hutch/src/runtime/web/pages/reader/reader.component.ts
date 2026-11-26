@@ -1,7 +1,7 @@
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
+import { readerScripts } from "../../shared/reader-nav-script";
 import type { ArticleBody, ArticleStatus, HighlightId, SavedArticle } from "@packages/domain/article";
 import { isPrivateItemUrl, nextReadDismissalOf } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
@@ -500,22 +500,20 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: actions.bodyClass,
 		content: { html: content },
-		scripts: readerScripts({
-			navHide: NAV_HIDE_DISABLED,
-			page:
-				SHARE_DIALOG_SCRIPT +
-				SUMMARY_TOGGLE_SCRIPT +
-				REPORT_ARTICLE_SCRIPT +
-				CAPTURE_FAILED_RELAY_SCRIPT +
-				CRAWL_ESTIMATE_SCRIPT +
-				READLIST_PICKER_SCRIPT +
-				READLIST_CLIENT_SCRIPT +
-				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
-				(options.enclosure.kind === "absent" ? "" : PLAYER_SCRIPT) +
-				READER_OPEN_SCRIPT +
-				READER_TOP_SCRIPT +
-				TABLE_OF_CONTENTS_SCRIPT +
-				HIGHLIGHT_TOOLBAR_SCRIPT,
-		}),
+		scripts: readerScripts(
+			SHARE_DIALOG_SCRIPT +
+			SUMMARY_TOGGLE_SCRIPT +
+			REPORT_ARTICLE_SCRIPT +
+			CAPTURE_FAILED_RELAY_SCRIPT +
+			CRAWL_ESTIMATE_SCRIPT +
+			READLIST_PICKER_SCRIPT +
+			READLIST_CLIENT_SCRIPT +
+			(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
+			(options.enclosure.kind === "absent" ? "" : PLAYER_SCRIPT) +
+			READER_OPEN_SCRIPT +
+			READER_TOP_SCRIPT +
+			TABLE_OF_CONTENTS_SCRIPT +
+			HIGHLIGHT_TOOLBAR_SCRIPT,
+		),
 	};
 }
