@@ -19,6 +19,7 @@ import type { ReaderHighlightState } from "../../shared/article-body/reader-slot
 import { prepareReaderContent, WHOLE_DOCUMENT_SECTION } from "../../shared/article-body/reader-slot/reader-content";
 import { articleMarkdown } from "../../shared/article-markdown/article-markdown";
 import { highlightsMarkdown } from "../../shared/article-markdown/highlights-markdown";
+import { isPrefetchRequest } from "../../shared/prefetch-request";
 
 interface OwnerArticleMarkdownDeps {
 	recordEngagementActivity: RecordEngagementActivity;
@@ -70,8 +71,7 @@ export function isDeliberateReaderRequest(req: Request): boolean {
 	return (
 		req.query.poll === undefined &&
 		req.get("X-Purpose") !== "preview" &&
-		!req.get("Purpose")?.includes("prefetch") &&
-		!req.get("Sec-Purpose")?.includes("prefetch") &&
+		!isPrefetchRequest(req) &&
 		!req.get("Authorization")?.startsWith("Bearer ")
 	);
 }
