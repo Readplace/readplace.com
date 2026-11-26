@@ -37,7 +37,7 @@ import {
 	viewerFor,
 } from "@packages/domain/article";
 import type { FindPersonalLibrary } from "@packages/provider-contracts/engagement-starter";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { CONTENT_BEARING_COLUMNS } from "./tombstone-article";
@@ -107,7 +107,6 @@ import {
 import {
 	BULK_ARTICLE_JOB_PREFIX, CANONICAL_REMOVAL_PREFIX,
 	canonicalRemovalKey,
-	READLIST_DEFINITION_KEY_PREFIX,
 	READLIST_FIT_OVERRIDE_KEY_PREFIX,
 	decodeUserArticlePartition,
 	partitionFor,
@@ -116,6 +115,7 @@ import {
 	removedLinksPartition,
 	savedLinksJobKey,
 } from "./user-readlist-partition";
+import { listOwnedReadlistSlugs } from "./readlist-definition-rows";
 
 const ArticleContentRow = z.object({
 	content: dynamoField(z.string()),
@@ -356,11 +356,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		client,
 		tableName: userArticlesTableName,
 		schema: SaveCursorRow,
-	});
-	const readlistSlugRows = defineDynamoTable({
-		client,
-		tableName: userArticlesTableName,
-		schema: z.object({ queueSlug: ReadlistSlugSchema }),
 	});
 	const readlistFitOverrideRows = defineDynamoTable({
 		client,
@@ -1119,37 +1114,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const findReadlistArticles: FindReadlistArticles = (query) =>
 		findArticlesInPartition(readlistPartitionValue({ userId: query.userId, readlist: query.readlist }), query);
 
-	const readlistDefinitionRows = defineDynamoTable({
-		client,
-		tableName: userArticlesTableName,
-		schema: z.object({ queueSlug: ReadlistSlugSchema, createdAt: z.string() }),
-	});
-
-	const ownedReadlistSlugsInCreationOrder = async (userId: UserId): Promise<ReadlistSlug[]> => {
-		const rows: { slug: ReadlistSlug; createdAt: string }[] = [];
-		await forEachQueryPage(
-			readlistDefinitionRows,
-			{
-				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: {
-					":userId": userId,
-					":prefix": READLIST_DEFINITION_KEY_PREFIX,
-				},
-				ConsistentRead: true,
-			},
-			async (items) => {
-				for (const item of items) rows.push({ slug: item.queueSlug, createdAt: item.createdAt });
-			},
-		);
-		return rows
-			.sort(
-				(a, b) =>
-					new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
-					a.slug.localeCompare(b.slug),
-			)
-			.map((row) => row.slug);
-	};
+	const ownedReadlistSlugsInCreationOrder = (userId: UserId): Promise<ReadlistSlug[]> =>
+		listOwnedReadlistSlugs({ client, tableName: userArticlesTableName, userId });
 
 	const findArticlesAcrossReadlists: FindArticlesAcrossReadlists = async (query) => {
 		const page = query.page ?? 1;
@@ -1463,25 +1429,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 			onPage,
 		);
 
-	const listUserReadlistSlugs = async (userId: UserId): Promise<ReadlistSlug[]> => {
-		const slugs: ReadlistSlug[] = [];
-		await forEachQueryPage(
-			readlistSlugRows,
-			{
-				ConsistentRead: true,
-				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: {
-					":userId": userId,
-					":prefix": READLIST_DEFINITION_KEY_PREFIX,
-				},
-			},
-			async (rows) => {
-				for (const row of rows) slugs.push(row.queueSlug);
-			},
-		);
-		return slugs;
-	};
 
 	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
 		const deletePage = async (rows: z.infer<typeof UserArticleRow>[]) => {
@@ -1490,7 +1437,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			);
 		};
 		await forEachPartitionRow(userId, deletePage);
-		const slugs = await listUserReadlistSlugs(userId);
+		const slugs = await ownedReadlistSlugsInCreationOrder(userId);
 		for (const slug of slugs) {
 			await forEachPartitionRow(readlistPartitionValue({ userId, readlist: slug }), deletePage);
 		}
@@ -1544,7 +1491,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			for (const row of rows) seen.add(row.url);
 		};
 		await forEachPartitionRow(userId, collect);
-		for (const slug of await listUserReadlistSlugs(userId)) {
+		for (const slug of await ownedReadlistSlugsInCreationOrder(userId)) {
 			await forEachPartitionRow(readlistPartitionValue({ userId, readlist: slug }), collect);
 		}
 		await forEachHeldLinkRowPage(userId, async (rows) => {
@@ -1785,7 +1732,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const listUserSavesForUrl: ListUserSavesForUrl = async ({ userId, url }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const slugs = await listUserReadlistSlugs(userId);
+		const slugs = await ownedReadlistSlugsInCreationOrder(userId);
 		const rows = await batchGetFromTable({
 			client,
 			tableName: userArticlesTableName,
@@ -1852,7 +1799,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	};
 
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
-		const slugs = readlists ?? [DEFAULT_READLIST_SLUG, ...await listUserReadlistSlugs(userId)];
+		const slugs = readlists ?? [DEFAULT_READLIST_SLUG, ...await ownedReadlistSlugsInCreationOrder(userId)];
 		const partitions = slugs.map((readlist) => partitionFor({ userId, readlist }));
 		const normalizedUrls = [
 			...new Set(urls.map((url) => ArticleResourceUniqueId.parse(url).value)),
