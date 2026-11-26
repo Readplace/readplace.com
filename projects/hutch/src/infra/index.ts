@@ -148,8 +148,6 @@ const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
 const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
-const gmailFilterRewriteFailedThreshold = config.requireNumber("gmailFilterRewriteFailedThreshold");
-const gmailEmailUpdateFailedThreshold = config.requireNumber("gmailEmailUpdateFailedThreshold");
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const mcpScanListingWindowHours = config.getNumber("mcpScanListingWindowHours");
 const analyticsSaltGeneration = config.requireNumber("analyticsSaltGeneration");
@@ -1948,7 +1946,7 @@ new aws.cloudwatch.MetricAlarm("gmail-filter-rewrite-failed-alarm", {
 	namespace: GMAIL_METRIC_NAMESPACE,
 	period: 3600,
 	statistic: "Sum",
-	threshold: gmailFilterRewriteFailedThreshold,
+	threshold: 1,
 	treatMissingData: "notBreaching",
 	alarmDescription: "Readplace could not write a reader's Gmail forwarding filter",
 	alarmActions: [gmailFilterRewriteFailedTopic.arn],
@@ -2355,7 +2353,7 @@ new aws.cloudwatch.MetricAlarm("gmail-email-update-failed-alarm", {
 	namespace: GMAIL_METRIC_NAMESPACE,
 	period: 3600,
 	statistic: "Sum",
-	threshold: gmailEmailUpdateFailedThreshold,
+	threshold: 1,
 	treatMissingData: "notBreaching",
 	alarmDescription: "Readplace could not label and mark read the Gmail original of a saved email",
 	alarmActions: [gmailEmailUpdateFailedTopic.arn],
