@@ -398,7 +398,7 @@ final class ReadingListViewModel: ObservableObject {
 			guard tabUnchanged(since: generation) else { return }
 			if action.name == "set-home-readlist", let page {
 				snapshot.save(page, href: page.currentTabHref, savedAt: Date())
-				if let label = page.readlists.first(where: { $0.isCurrent && $0.href == page.homeHref })?.label {
+				if let label = page.browseReadlists.first(where: { $0.isCurrent && $0.href == page.homeHref })?.label {
 					homeStatus = "\(label) is now your home readlist."
 				}
 			}
