@@ -87,6 +87,6 @@ export function initSettleByCaller(deps: {
 }): SettleAnyReceivedUpload {
 	return async ({ session, kind, etag, size }) =>
 		isSignedInMediaUploadSession(session)
-			? deps.commitReceivedUpload({ session, kind, etag, size })
+			? deps.commitReceivedUpload({ session, kind, etag })
 			: deps.stageForReview({ session, kind, etag, size });
 }

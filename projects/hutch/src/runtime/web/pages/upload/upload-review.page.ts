@@ -197,7 +197,6 @@ export function initAnonymousUploadRoutes(deps: {
 					session: claimed,
 					kind,
 					etag: claimed.etag,
-					size: claimed.byteLength ?? 0,
 				}),
 			);
 		},

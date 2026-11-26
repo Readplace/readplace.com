@@ -269,7 +269,6 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			outcome: "staged",
 			uploadId,
 			post,
-			uploadCeilingBytes,
 		});
 	});
 
@@ -289,7 +288,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		const views: Record<UploadSessionViewState, UploadOutcome> = {
 			staged: { outcome: "continue", uploadId: session.uploadId },
 			committed: { outcome: "committed", uploadId: session.uploadId },
-			failed: { outcome: "failed", uploadId: session.uploadId },
+			failed: { outcome: "failed" },
 		};
 		await write(req, res, views[session.status]);
 	});
