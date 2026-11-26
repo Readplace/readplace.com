@@ -6,7 +6,7 @@ import type {
 	PurgeArticleContent,
 } from "@packages/article-store";
 import type { UserId } from "@packages/domain/user";
-import { PrivateItemUrlSchema, stagedObjectKey, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
+import { bookImagesKeyPrefix, PrivateItemUrlSchema, stagedObjectKey, transcriptsKeyPrefix, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import type { UnrefAllForUpload } from "@packages/media-object-store";
 import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 import type { SettleStartedCharge } from "@packages/provider-contracts/transcript-quota";
@@ -17,11 +17,11 @@ export type ReleaseStep = (item: { url: string; userId: UserId }) => Promise<voi
 export type ReleasePrivateItem = (item: { url: string; userId: UserId }) => Promise<"released" | "not-owner">;
 
 export function bookImagesPrefix(url: string): string {
-	return `images/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/`;
+	return bookImagesKeyPrefix(uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url)));
 }
 
 export function transcriptsPrefix(url: string): string {
-	return `transcripts/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/`;
+	return transcriptsKeyPrefix(uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url)));
 }
 
 export function initPrivateItemReleaseSteps(deps: {
