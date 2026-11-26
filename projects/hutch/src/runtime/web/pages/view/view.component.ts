@@ -350,7 +350,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		innerContent,
 		railLandmark,
 		railHtml,
-		articleUrl: input.articleUrl,
 		ctaItems,
 		endCtaHtml: renderViewEndCta(input.endCta),
 		saveTipHtml: input.saveTip.html,
