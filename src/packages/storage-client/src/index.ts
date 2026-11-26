@@ -21,3 +21,4 @@ export {
 	type TransactionOutcome,
 } from "./conditional-write";
 export { assembleRowUpdate } from "./row-update";
+export { withoutUndefinedAttributes } from "./without-undefined-attributes";

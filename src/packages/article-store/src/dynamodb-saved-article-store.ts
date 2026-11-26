@@ -10,6 +10,7 @@ import {
 	TransactGetCommand,
 	TransactWriteCommand,
 	transactIfConditions,
+	withoutUndefinedAttributes,
 	writeIfCondition,
 } from "@packages/storage-client";
 import { toEventInstant } from "@packages/domain/event-envelope";
@@ -1866,10 +1867,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		partition: string,
 		row: z.infer<typeof UserArticleRow>,
 	): Promise<boolean> => {
-		const attributes = Object.fromEntries(
-			Object.entries(row).filter(([, value]) => value !== undefined),
-		);
-		return writeReadlistCopy(userId, row.userId, { ...attributes, userId: partition, url: row.url });
+		return writeReadlistCopy(userId, row.userId, { ...withoutUndefinedAttributes(row), userId: partition, url: row.url });
 	};
 
 	const moveReadlistArticles: MoveReadlistArticles = async ({ userId, from, to }) => {
