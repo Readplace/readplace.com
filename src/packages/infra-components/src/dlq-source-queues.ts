@@ -15,6 +15,7 @@ export const SAVE_LINK_DLQ_SOURCES = {
 	recrawlLinkInitiated: SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated,
 	recrawlContentExtracted: "recrawl-content-extracted",
 	filterEmailLinks: SAVE_LINK_LAMBDA_NAMES.filterEmailLinks,
+	matchSmartReadlists: SAVE_LINK_LAMBDA_NAMES.matchSmartReadlists,
 } as const;
 
 export const INBOX_DLQ_SOURCES = {
@@ -63,6 +64,7 @@ export const SAVE_LINK_DLQ_SOURCE_QUEUES = {
 	recrawlLinkInitiated: `${SAVE_LINK_DLQ_SOURCES.recrawlLinkInitiated}-q`,
 	recrawlContentExtracted: `${SAVE_LINK_DLQ_SOURCES.recrawlContentExtracted}-q`,
 	filterEmailLinks: `${SAVE_LINK_DLQ_SOURCES.filterEmailLinks}-q`,
+	matchSmartReadlists: `${SAVE_LINK_DLQ_SOURCES.matchSmartReadlists}-q`,
 } as const satisfies QueueNamesFor<typeof SAVE_LINK_DLQ_SOURCES>;
 
 export const INBOX_DLQ_SOURCE_QUEUES = {

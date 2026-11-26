@@ -6,8 +6,8 @@ import {
 } from "@packages/ai-message";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
-import { EventEnvelope } from "@packages/domain/event-envelope";
-import { type EmailLinkOrdinal, EmailLinkOrdinalSchema } from "@packages/domain/inbox";
+import { EventEnvelope, EventInstantSchema } from "@packages/domain/event-envelope";
+import { type EmailLinkOrdinal, EmailLinkOrdinalSchema, emailIssueReceivedAt } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_LABEL,
 	DEFAULT_READLIST_SLUG,
@@ -45,7 +45,7 @@ import type { initFilingsLeftToFile } from "./filings-left-to-file";
 import type { initAdmitTriagedMessage } from "./triaged-message-admission";
 
 const FailedTriageIds = z.object({
-	detail: z.object({ userId: UserIdSchema, receivedAtMessageId: z.string(), readlist: z.string() }),
+	detail: z.object({ userId: UserIdSchema, receivedAtMessageId: z.string(), readlist: z.string(), startIndex: z.number().int().positive().optional() }),
 });
 
 const LinkScopedTriage = z.object({ detail: z.object({ scope: z.literal("link") }) });
@@ -68,7 +68,7 @@ type Filing = { ordinal: EmailLinkOrdinal; url: string; fit: FileArticleIntoRead
 
 type FilterDecision = {
 	readlistLabel: string;
-	decision: "filtered" | "no-purpose" | "readlist-missing";
+	decision: "filtered" | "no-purpose" | "readlist-missing" | "smart-matching";
 	fit: FitEntry[];
 	filings: Filing[];
 	purposeVersion?: ReadlistPurposeVersion;
@@ -117,6 +117,7 @@ export function initFilterEmailLinksHandler(deps: {
 		receivedAtMessageId: string;
 		readlist: ReadlistSlug;
 		definition: ReadlistDefinitionData | undefined;
+		preferencesOnly?: true;
 		subject: string;
 		senderEmail: string;
 		links: { ordinal: EmailLinkOrdinal; url: string; anchorText: string }[];
@@ -125,13 +126,16 @@ export function initFilterEmailLinksHandler(deps: {
 		if (definition === undefined) {
 			return { ...NO_MODEL_CALL, readlistLabel: DEFAULT_READLIST_LABEL, decision: "readlist-missing" };
 		}
+		if (definition.filing?.mode === "smart") {
+			return { ...NO_MODEL_CALL, readlistLabel: definition.label, decision: "smart-matching" };
+		}
 		const { purpose } = definition;
-		if (purpose === undefined) {
+		if (!purpose?.trim()) {
 			return {
 				...NO_MODEL_CALL,
 				readlistLabel: definition.label,
 				decision: "no-purpose",
-				filings: links.map((link) => ({
+				filings: input.preferencesOnly ? [] : links.map((link) => ({
 					ordinal: link.ordinal,
 					url: link.url,
 					fit: {
@@ -282,11 +286,12 @@ export function initFilterEmailLinksHandler(deps: {
 				ordinal: EmailLinkOrdinalSchema.parse(link.ordinal),
 			}));
 
+			const range = detail.scope === "email" && detail.startIndex !== undefined ? { startIndex: detail.startIndex } : {};
 			const admission = await admitTriagedMessage({
 				userId,
 				receivedAtMessageId: detail.receivedAtMessageId,
 				readlist,
-				target: detail.scope === "link" ? { scope: "link", ordinal: EmailLinkOrdinalSchema.parse(detail.links[0].ordinal) } : { scope: "email" },
+				target: detail.scope === "link" ? { scope: "link", ordinal: EmailLinkOrdinalSchema.parse(detail.links[0].ordinal) } : { scope: "email", ...range },
 			});
 			assert(admission.kind !== "wait", "the readlist has not decided the email yet");
 			if (admission.kind === "skip") {
@@ -302,6 +307,7 @@ export function initFilterEmailLinksHandler(deps: {
 					userId,
 					receivedAtMessageId: detail.receivedAtMessageId,
 					readlist,
+					...range,
 					reason: "paid-plan-required",
 					receiveCount: record.receiveCount,
 				});
@@ -316,16 +322,19 @@ export function initFilterEmailLinksHandler(deps: {
 				receivedAtMessageId: detail.receivedAtMessageId,
 				readlist,
 				definition,
+				preferencesOnly: admission.preferencesOnly,
 				subject: detail.subject,
 				senderEmail: detail.senderEmail,
 				links,
 			});
 
+			const originalRequest = detail.scope === "email" && (detail.startIndex !== undefined || admission.preferencesOnly)
+				? EventInstantSchema.safeParse(emailIssueReceivedAt(detail.receivedAtMessageId)) : undefined;
 			const filings = await filingsLeftToFile({
 				userId,
 				readlist,
 				receivedAtMessageId: detail.receivedAtMessageId,
-				triagedAt,
+				triagedAt: originalRequest?.success ? originalRequest.data : triagedAt,
 				filings: outcome.filings,
 			});
 			for (const filing of filings) {
@@ -333,12 +342,15 @@ export function initFilterEmailLinksHandler(deps: {
 					url: filing.url,
 					userId,
 					readlist,
+					...(originalRequest?.success && { requestedAt: originalRequest.data }),
 					provenance: { kind: "email", senderEmail: detail.senderEmail },
 					fit: filing.fit,
 				});
 			}
 			await publishEvent(EmailLinksFilteredEvent, {
 				scope: detail.scope,
+				...range,
+				...(admission.startIndex !== undefined && { startIndex: admission.startIndex }),
 				userId,
 				receivedAtMessageId: detail.receivedAtMessageId,
 				readlist,

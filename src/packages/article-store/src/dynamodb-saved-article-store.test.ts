@@ -4047,6 +4047,31 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 		});
 	});
 
+	it("files a smart match only while the readlist still holds the rule revision it was matched under", async () => {
+		const { client, commands } = createFakeClient();
+
+		expect(await initStore(client).fileIntoLiveReadlist(filing({ smartRule: { revision: 4 } }))).toEqual({
+			outcome: "filed",
+		});
+
+		const definition = itemsOf(commands)[0]?.ConditionCheck;
+		expect(definition?.ConditionExpression).toBe(
+			"attribute_exists(#url) AND filingMode = :smart AND filingRuleRevision = :revision",
+		);
+		expect(definition?.ExpressionAttributeValues).toEqual({ ":smart": "smart", ":revision": 4 });
+	});
+
+	it("answers smart-rule-changed when a smart match's definition check fails", async () => {
+		const { client, commands } = createFakeClient({
+			TransactWriteCommand: { default: cancelled(["ConditionalCheckFailed", "None", "None"]) },
+		});
+
+		expect(await initStore(client).fileIntoLiveReadlist(filing({ smartRule: { revision: 4 } }))).toEqual({
+			outcome: "smart-rule-changed",
+		});
+		expect(commands.map((c) => c.name)).toEqual(["TransactWriteCommand"]);
+	});
+
 	it.each([
 		["the readlist definition", ["ConditionalCheckFailed", "None", "None"], "readlist-gone"],
 		["the definition and the All row together", ["ConditionalCheckFailed", "ConditionalCheckFailed", "None"], "readlist-gone"],
@@ -4397,6 +4422,61 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 	});
 });
 
+describe("countSmartReadlistArticles", () => {
+	const work = ReadlistSlugSchema.parse("work");
+	const later = ReadlistSlugSchema.parse("later");
+	const urls = Array.from({ length: 12 }, (_, i) => ({ url: `example.com/${i}` }));
+	const cursor = { userId: "abc123#queue/work", url: "cursor" };
+	it("follows filtered and duplicate pages, projecting stored keys from live memberships", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { readlist: [
+			{ Items: [], LastEvaluatedKey: cursor }, { Items: urls.slice(0, 5) },
+			{ Items: urls.slice(0, 5), LastEvaluatedKey: cursor }, { Items: urls.slice(5, 9) },
+		] } });
+		expect(await initStore(client).countSmartReadlistArticles({ userId: USER, readlists: [work, later] })).toBe(9);
+		expect(commands).toHaveLength(4);
+		for (const [index, { input }] of commands.entries()) {
+			expect(input).toMatchObject({
+				ConsistentRead: true, Limit: 100, ProjectionExpression: "#url",
+				FilterExpression: "attribute_exists(savedAt)", ExclusiveStartKey: index % 2 === 1 ? cursor : undefined,
+				ExpressionAttributeValues: { ":partition": `${USER}#queue/${index < 2 ? work : later}` },
+			});
+			expect(input.IndexName).toBeUndefined();
+		}
+	});
+
+	it.each(["stable", "purpose removed", "membership removed"] as const)(
+		"checks the contributing purposes and ten memberships together when %s", async (scenario) => {
+			let firstPurpose: string | undefined = "Team practices";
+			const { client, commands } = createFakeClient({
+				QueryCommand: { readlist: [
+					{ Items: urls.slice(0, 5) },
+					() => {
+						if (scenario === "purpose removed") firstPurpose = undefined;
+						return { Items: urls.slice(5), LastEvaluatedKey: cursor };
+					},
+				] },
+				TransactGetCommand: { default: () => ({ Responses: [
+					...urls.slice(0, 10).map((_, i) => ({
+						Item: i === 0 && scenario === "membership removed" ? undefined : { savedAt: STORE_NOW.toISOString() },
+					})),
+					{ Item: { queuePurpose: firstPurpose } }, { Item: { queuePurpose: "Later reading" } },
+				] }) },
+			});
+			const count = initStore(client).countSmartReadlistArticles({ userId: USER, readlists: [work, later, ReadlistSlugSchema.parse("unused")] });
+			if (scenario === "stable") expect(await count).toBe(10);
+			else await expect(count).rejects.toThrow("changed during counting");
+			expect(commands.map(({ name }) => name)).toEqual(["QueryCommand", "QueryCommand", "TransactGetCommand"]);
+			expect(commands[2].input).toEqual({ TransactItems: [
+				...urls.slice(0, 10).map(({ url }, i) => ({ Get: {
+					TableName: "user-articles", Key: { userId: `${USER}#queue/${i < 5 ? work : later}`, url }, ProjectionExpression: "savedAt",
+				} })),
+				...[work, later].map((slug) => ({ Get: {
+					TableName: "user-articles", Key: { userId: USER, url: `readplace:queue-def/${slug}` }, ProjectionExpression: "queuePurpose",
+				} })),
+			] });
+		},
+	);
+});
 
 describe("personal readlist pagination", () => {
 	it.each(["bulk", "unknown"] as const)("applies the %s source to counts and to the current tab before taking a page", async managedOrigin => {

@@ -1079,6 +1079,21 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		expect(vm.extractionReported).toBe(true);
 	});
 
+	it("shows an issue for its routed list and keeps polling for a later preference decision", () => {
+		const vm = build({
+			entry: entry({ gmailDeliveryMode: "issue" }),
+			links: [kept("0000"), kept("0300")],
+			linksMeta: {
+				...decided([fitEntry("0000", "keep")]),
+				extractionWindow: { start: 300, end: 301 },
+				selectedReadlists: [{ readlist: WORK, label: "Work", qualification: "preferences" }],
+				issueSave: { readlists: [], held: false },
+			},
+		});
+		expect(vm.articles.notices).not.toContainEqual(SAVED_TO_ALL);
+		expect(vm.articles.panelPollUrl).toContain("/articles?poll=1");
+	});
+
 	it("says it is still choosing once the poll budget is spent", () => {
 		const vm = build({
 			links: [kept("0000")],
@@ -1263,12 +1278,12 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		]);
 	});
 
-	it("says nothing about a readlist that no longer exists", () => {
+	it.each(["readlist-missing", "smart-matching"] as const)("says nothing about a readlist decided %s", (decision) => {
 		const vm = build({
 			links: [kept("0000")],
 			linksMeta: routedMeta({
 				eligibleArticleCount: 1,
-				readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision: "readlist-missing", fit: [] }],
+				readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision, fit: [] }],
 			}),
 		});
 

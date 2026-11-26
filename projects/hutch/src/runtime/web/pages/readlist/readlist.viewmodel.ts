@@ -1,5 +1,4 @@
-import { HAND_PICKED_SCOPE, isBuiltInReadlist, personalHomeEnabled } from "./built-in-readlists";
-import { personalPickAction } from "./personal-pick-action";
+import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
 import {
 	ABSENT_ENCLOSURE,
 	type CrawlRemainingEstimate,
@@ -59,7 +58,7 @@ import type {
 	ReaderProvenance,
 } from "../../shared/article-body/article-header/provenance-label";
 import type { ReadlistUrlState } from "./readlist.url";
-import { READLIST_PATH, buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
+import { ALL_READLIST_PATH, READLIST_PATH, buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
 import type { MoveFlash, StatusFlash } from "./readlist.error";
 import type { MoveUndoFields } from "./readlist-mutation-fragments";
@@ -94,8 +93,6 @@ export interface ArticleAction {
 }
 
 export interface ReadlistArticleViewModel {
-	reviewOlder?: boolean;
-	personalPick?: ReturnType<typeof personalPickAction>;
 	suggestionLabel?: string;
 	id: string;
 	title: string;
@@ -260,6 +257,7 @@ function articleMoveOf(input: {
 	from: ReadlistSlug;
 	returnQuery: string;
 	filing: ArticleFiling;
+	handPicked: boolean;
 }): ArticleMoveViewModel | undefined {
 	const { filing } = input;
 	const custom = filing.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
@@ -268,9 +266,12 @@ function articleMoveOf(input: {
 			(readlist) => readlist.slug,
 		),
 	);
-	const destinations = custom
-		.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
-		.map((readlist) => ({ slug: readlist.slug, label: readlist.label }));
+	const destinations = [
+		...(input.handPicked ? [{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }] : []),
+		...custom
+			.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
+			.map((readlist) => ({ slug: readlist.slug, label: readlist.label, smart: readlist.smart })),
+	];
 	const create =
 		custom.length < READLIST_MAX_PER_USER ? { popoverId: moveCreatePopoverId(input.articleId) } : undefined;
 	const popoverId = moveDialogPopoverId(input.articleId);
@@ -293,6 +294,7 @@ interface ArticleMoveInput {
 	from: ReadlistSlug;
 	returnQuery: string;
 	filing: ArticleFiling | undefined;
+	handPicked: boolean;
 }
 
 function toArticleMove(input: ArticleMoveInput): ArticleMoveViewModel | undefined {
@@ -334,7 +336,7 @@ export function toReadlistArticleViewModel(params: {
 	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
-	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing };
+	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing, handPicked: filters.readlist === DEFAULT_READLIST_SLUG && article.personalPickedAt === undefined };
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged, removePick: filters.readlist === HAND_PICKED_SCOPE });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
@@ -351,8 +353,6 @@ export function toReadlistArticleViewModel(params: {
 				};
 	return {
 		id,
-		reviewOlder: filters.reviewOlder,
-		personalPick: personalHomeEnabled() && isBuiltInReadlist(filters.readlist) ? personalPickAction(article, returnQuery) : undefined,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		excerpt: excerpt.text,
@@ -398,7 +398,7 @@ function moveToastFor(flash: MoveFlash, returnQuery: string): NonNullable<Readli
 		return {
 			message: flash.message,
 			undoUrl: `${READLIST_PATH}/${flash.articleId}/unassign`,
-			undoFields: { queue: flash.undoQueues, returnTo: `${READLIST_PATH}${returnQuery}` },
+			undoFields: { queue: flash.undoQueues, returnTo: returnQuery ? `${READLIST_PATH}${returnQuery}` : ALL_READLIST_PATH },
 		};
 	}
 	return {

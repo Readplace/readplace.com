@@ -52,7 +52,7 @@ describe("Saving a newsletter click-tracker", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const response = await agent.post("/queue/save").type("form").send({ url: TRACKER });
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue#latest-saved");
+		expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		expect(fixture.wrapperTarget.calls).toEqual([TRACKER]);
 		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).toBeNull();
 		expect(await fixture.articleStore.findArticleByUrl(PUBLISHER)).not.toBeNull();

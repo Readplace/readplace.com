@@ -47,8 +47,11 @@ import type {
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
@@ -81,6 +84,8 @@ import type {
 	FindUserById,
 	SetSessionReadlistFilter,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 } from "@packages/provider-contracts/auth";
 import type {
 	FindArticleCrawlStatus,
@@ -127,6 +132,8 @@ import type {
 	RecordGmailStepDismissed,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordOnboardingOutstandingVersion,
@@ -164,6 +171,7 @@ export interface ReadlistDependencies {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
@@ -180,6 +188,8 @@ export interface ReadlistDependencies {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
@@ -256,6 +266,8 @@ export interface ReadlistDependencies {
 	/** Stamps the account the first time its save count reaches the Next Read
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;
@@ -289,4 +301,6 @@ export interface ReadlistDependencies {
 	now: () => Date;
 	keepOffer: ReturnType<typeof initKeepOffer>;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 }

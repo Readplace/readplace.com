@@ -1,7 +1,8 @@
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
-import { READLIST_PATH, buildReadlistUrl, type ReadlistUrlState } from "./readlist.url";
+import { readlistReturnQuery, type ReadlistUrlState } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-save-skeleton.template.html"), "utf-8");
 
@@ -19,7 +20,7 @@ export interface ReadlistSaveSkeletonDisplayModel {
 export function toReadlistSaveSkeletonDisplayModel(input: {
 	filters: ReadlistUrlState;
 }): ReadlistSaveSkeletonDisplayModel {
-	const listingIsWhereTheSaveLands = buildReadlistUrl(input.filters) === READLIST_PATH;
+	const listingIsWhereTheSaveLands = input.filters.readlist === DEFAULT_READLIST_SLUG && readlistReturnQuery(input.filters) === "";
 	const state: SaveSkeletonState = listingIsWhereTheSaveLands ? "armed" : "inert";
 	return { stateClass: STATE_CLASSES[state] };
 }

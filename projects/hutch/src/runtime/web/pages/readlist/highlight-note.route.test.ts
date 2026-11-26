@@ -64,6 +64,7 @@ function parsedFixture(): TestAppFixture {
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
@@ -709,6 +710,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 			),
 		).toEqual([
 			"highlight-jump",
+			"highlight-copy",
 			"highlight-delete-fallback",
 			"highlight-delete",
 			"highlight-note",

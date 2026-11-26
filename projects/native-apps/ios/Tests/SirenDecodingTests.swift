@@ -585,6 +585,37 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
 	}
 
+	func testDecodesACollectionHintWithItsLink() throws {
+		let json = """
+		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20, "hint": { "text": "Older saves stay elsewhere.", "link": { "label": "Open on the web", "href": "/queue" } } }, "links": [], "actions": [] }
+		"""
+		let page = ReadlistPage(collection: try decodeCollection(json))
+		XCTAssertEqual(
+			page.hint,
+			CollectionHint(text: "Older saves stay elsewhere.", link: CollectionHintLink(label: "Open on the web", href: "/queue"))
+		)
+	}
+
+	func testDropsAHintThatHasNoLinkAndStillDecodesTheCollection() throws {
+		let json = """
+		{ "class": ["collection", "articles"],
+			"properties": { "total": 1, "page": 1, "pageSize": 20, "hint": { "text": "Older saves stay elsewhere." } },
+			"entities": [\(Fixtures.article(id: "a1"))],
+			"links": [], "actions": [] }
+		"""
+		let page = ReadlistPage(collection: try decodeCollection(json))
+		XCTAssertNil(page.hint, "a hint without its link is no hint")
+		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
+	}
+
+	func testDecodesACollectionThatCarriesNoHint() throws {
+		let json = """
+		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20 }, "links": [], "actions": [] }
+		"""
+		let page = ReadlistPage(collection: try decodeCollection(json))
+		XCTAssertNil(page.hint)
+	}
+
 	func testCollectionNoticeMessagesKeepOnlyTheRenderableOnes() throws {
 		// The server may attach generic notices to the collection (e.g. the Share
 		// Extension's "don't close this" caption). The client surfaces only the ones

@@ -1,0 +1,13 @@
+export const MIN_UNITS = 3;
+export const LEAD_WORDS = 8;
+export const DOMINANT_UNIT_SHARE = 0.8;
+export const DESCEND_MIN_SHARE = 0.5;
+export const MEDIAN_UNIT_WORDS = 40;
+export const OUTSIDE_PROSE_WORDS = 40;
+export const ITEM_MIN_WORDS = 3;
+export const ITEM_MAX_WORDS = 80;
+export const REPEATED_ITEMS = 3;
+export const WORD_WINDOW = 8;
+export const CJK_WINDOW = 12;
+export const MIN_RUN_TOKENS = 2;
+export const ASSOCIATION_MAX_TOKENS = 12;

@@ -36,6 +36,7 @@ import {
 	ComputeRelatedPastReadsCommand,
 	ComputeRelatedPassesCommand,
 	EmailLinksTriagedEvent,
+	MatchSmartReadlistsCommand,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
@@ -63,6 +64,10 @@ import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "../runtime/domain/re
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "../runtime/domain/filter-email-links/max-receive-count";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
+import {
+	MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT,
+	MATCH_SMART_READLISTS_TIMEOUTS,
+} from "../runtime/domain/match-smart-readlists/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
@@ -91,6 +96,7 @@ import { ANONYMOUS_LINK_SAVED_ENV } from "../runtime/anonymous-link-saved.env";
 import { CANONICAL_CONTENT_CHANGED_ENV } from "../runtime/canonical-content-changed.env";
 import { COMPUTE_RELATED_ARTICLES_ENV } from "../runtime/compute-related-articles.env";
 import { FILTER_EMAIL_LINKS_ENV } from "../runtime/filter-email-links.env";
+import { MATCH_SMART_READLISTS_ENV } from "../runtime/match-smart-readlists.env";
 import { FILE_ARTICLE_INTO_READLIST_ENV } from "../runtime/file-article-into-readlist.env";
 import { RECRAWL_LINK_INITIATED_ENV } from "../runtime/recrawl-link-initiated.env";
 import { RECRAWL_CONTENT_EXTRACTED_ENV } from "../runtime/recrawl-content-extracted.env";
@@ -140,6 +146,7 @@ const inboxEmailLinksTableArn = config.require("inboxEmailLinksTableArn");
 const paidCrawlBudget = config.require("paidCrawlBudget");
 const renderCrawlBudget = config.require("renderCrawlBudget");
 const renderRequestDiagnostics = config.require("renderRequestDiagnostics");
+const coverageRuleModes = config.require("coverageRuleModes");
 const readlistFitEngine = config.require("readlistFitEngine");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
@@ -464,6 +471,7 @@ const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand,
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SAVE_LINK_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -551,6 +559,7 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SUBMIT_LINK_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
@@ -673,6 +682,7 @@ const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkR
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SAVE_LINK_RAW_HTML_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
@@ -722,6 +732,7 @@ const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAno
 	layers: [curlImpersonateLayerArn],
 	environmentNames: SAVE_ANONYMOUS_LINK_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1024,6 +1035,7 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environmentNames: COMPREHENSIVE_CRAWL_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
@@ -1092,6 +1104,7 @@ const renderCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCo
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
 	environmentNames: RENDER_CRAWL_COMMAND_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		...crawlEgressProxyEnvironment,
 		CRAWL_RESIDENTIAL_PROXY_URL: pulumi.secret(requireEnv("CRAWL_RESIDENTIAL_PROXY_URL")),
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1277,6 +1290,7 @@ const staleCheckRequestedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRe
 	layers: [curlImpersonateLayerArn],
 	environmentNames: STALE_CHECK_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1340,6 +1354,7 @@ const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.select
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...SELECT_MOST_COMPLETE_CONTENT_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1384,6 +1399,7 @@ const selectArticleContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.selectArtic
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: SELECT_ARTICLE_CONTENT_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1558,6 +1574,7 @@ const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAft
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...RESELECT_AFTER_REMOVAL_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1898,6 +1915,62 @@ const filterEmailLinksLambdaWithSQS = new SqsBackedLambda("filter-email-links", 
 
 eventBus.subscribe(EmailLinksTriagedEvent, filterEmailLinksLambdaWithSQS);
 
+const matchSmartReadlistsQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.matchSmartReadlists, {
+	visibilityTimeoutSeconds: MATCH_SMART_READLISTS_TIMEOUTS.sqsVisibilitySeconds,
+	dlqMaxReceiveCount: MATCH_SMART_READLISTS_MAX_RECEIVE_COUNT,
+});
+
+const matchSmartReadlistsUserArticlesDynamodb = new DynamoDBAccess("match-smart-readlists-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem"],
+});
+
+const matchSmartReadlistsSubscriptionProvidersDynamodb = new DynamoDBAccess(
+	"match-smart-readlists-subscription-providers-dynamodb",
+	{
+		tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem"],
+	},
+);
+
+const matchSmartReadlistsArticlesDynamodb = new DynamoDBAccess("match-smart-readlists-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+
+const matchSmartReadlistsLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.matchSmartReadlists, {
+	entryPoint: "./src/runtime/match-smart-readlists.main.ts",
+	outputDir: ".lib/match-smart-readlists",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: MATCH_SMART_READLISTS_TIMEOUTS.lambdaSeconds,
+	environmentNames: MATCH_SMART_READLISTS_ENV,
+	environment: {
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		READLIST_FIT_ENGINE: readlistFitEngine,
+	},
+	policies: [
+		...matchSmartReadlistsUserArticlesDynamodb.policies,
+		...matchSmartReadlistsSubscriptionProvidersDynamodb.policies,
+		...matchSmartReadlistsArticlesDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(matchSmartReadlistsLambda);
+
+const matchSmartReadlistsLambdaWithSQS = new SqsBackedLambda("match-smart-readlists", {
+	lambda: matchSmartReadlistsLambda,
+	queue: matchSmartReadlistsQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(MatchSmartReadlistsCommand, matchSmartReadlistsLambdaWithSQS);
+
 const fileArticleIntoReadlistQueue = new Sqs("file-article-into-readlist", {
 	visibilityTimeoutSeconds: 300,
 	dlqMaxReceiveCount: 5,
@@ -1960,6 +2033,7 @@ const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLink
 	layers: [curlImpersonateLayerArn],
 	environmentNames: RECRAWL_LINK_INITIATED_ENV,
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -2008,6 +2082,7 @@ const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...RECRAWL_CONTENT_EXTRACTED_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -2150,6 +2225,7 @@ const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environmentNames: [...REFRESH_CONTENT_EXTRACTED_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
+		COVERAGE_RULE_MODES: coverageRuleModes,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,

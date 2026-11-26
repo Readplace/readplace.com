@@ -1,7 +1,8 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { noopLogger } from "@packages/logger";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
-import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { type ArticleCoverage, CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
@@ -309,6 +310,46 @@ describe("initCommitDeferredCrawl", () => {
 				["logCrawlOutcome", { url, thisTier: "tier-1", thisTierStatus: failed ? "failed" : "success", otherTierStatus: "failed", pickedTier: "none" }],
 				...announcements[mode],
 			]);
+		});
+	});
+
+	describe("the finalized coverage of a rendered body", () => {
+		const sha256 = (html: string) => createHash("sha256").update(html).digest("hex");
+		const coverageOf = (sourceHtml: string): ArticleCoverage => ({
+			schemaVersion: 1,
+			sourceDigest: sha256(sourceHtml),
+			outputDigest: sha256(renderedArticle.html),
+			assessments: [{ ruleId: "section-coverage", ruleVersion: 1, mode: "shadow", repair: "would-apply", outcome: "known-partial", scope: { kind: "article", units: 14 }, covered: 1, unresolved: 13, reasons: ["missing-section"] }],
+		});
+		const coverageFinalize: FinalizeArticle = async (input) => ({ ok: true, article: { ...renderedArticle, metadata: { ...renderedArticle.metadata, coverage: coverageOf(input.html) } } });
+		const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
+
+		it.each([
+			{ path: "comparing", candidates: [archived], digestBoundToContentHash: "sourceDigest" as const },
+			{ path: "non-comparing", candidates: undefined, digestBoundToContentHash: "outputDigest" as const },
+		])("reaches the stored manifest on the $path path, with its $digestBoundToContentHash matching the manifest's content hash", async ({ candidates, digestBoundToContentHash }) => {
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const { commitFetchedBody } = createCommit({ finalizeArticle: coverageFinalize, putTierSource });
+
+			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save", userId: UserIdSchema.parse("user-1"), candidates });
+
+			const coverage = coverageOf(renderedBody.html);
+			const evaluationHtml = candidates === undefined ? renderedArticle.html : renderedBody.html;
+			const metadata = candidateProvenance({
+				metadata: { ...renderedArticle.metadata, coverage },
+				html: renderedArticle.html,
+				evaluationHtml,
+				attemptId: saveAttemptId,
+				originalUrl: url,
+				sourceUrl: url,
+				kind: "live",
+				fetchedAt: "2026-10-29T00:00:00.000Z",
+				httpStatus: 200,
+			});
+			expect(putTierSource).toHaveBeenCalledWith({ url, tier: "tier-1", html: renderedArticle.html, evaluationHtml, metadata });
+			expect(metadata.coverage).toEqual(coverage);
+			expect(metadata.contentHash).toBe(coverage[digestBoundToContentHash]);
+			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: metadata.id, tier: "tier-1" } });
 		});
 	});
 

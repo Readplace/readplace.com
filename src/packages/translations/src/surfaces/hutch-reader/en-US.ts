@@ -36,6 +36,9 @@ export const enUS = {
 		highlightPopover: {
 			title: "Highlight actions",
 			hint: "Opens this highlight's actions",
+			copy: "Copy highlight",
+			copied: "Highlight copied",
+			copyFailed: "Couldn't copy the highlight. Select its text to copy it.",
 		},
 		highlightsRail: {
 			title: "Highlights",
@@ -46,6 +49,10 @@ export const enUS = {
 			addNote: "Add note",
 			editNote: "Edit note",
 			deleteHighlight: "Delete highlight",
+			copy: "Copy",
+			copyLabel: "Copy highlight",
+			copied: "Highlight copied",
+			copyFailed: "Couldn't copy. The highlight is selected, so you can copy it from your device's menu.",
 			deleteConfirm: {
 				title: "Delete this highlight?",
 				body: "The passage stays in the article; only your highlight is removed.",

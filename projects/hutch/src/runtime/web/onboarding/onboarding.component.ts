@@ -1,10 +1,12 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PitchablePlatform } from "./extension-install";
 import { BROWSER_EXTENSIONS_OR, NATIVE_APP_DEVICES_OR } from "../shared/client-enumerations";
 import { READLIST_DISMISS_ONBOARDING_PATH } from "../pages/readlist/readlist.url";
-import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep } from "./onboarding.steps";
+import { applicableOnboardingSteps, firstOutstandingStep, hasOutstandingGmailStep, hasOutstandingSmartReadlistStep } from "./onboarding.steps";
 import type {
 	OnboardingAction,
 	OnboardingActionKey,
@@ -15,6 +17,8 @@ import type {
 } from "./onboarding.types";
 
 export { ONBOARDING_STYLES } from "./onboarding.styles";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const ONBOARDING_TEMPLATE = readFileSync(
 	join(__dirname, "onboarding.template.html"),
@@ -35,6 +39,7 @@ const BUTTON_CLASS_BY_VARIANT: Record<OnboardingActionVariant, string> = {
 };
 
 interface OnboardingActionDisplayModel {
+	createNameLabel?: string;
 	key: string;
 	method: OnboardingActionMethod;
 	action: string;
@@ -51,6 +56,7 @@ function toActionDisplayModel(
 ): OnboardingActionDisplayModel {
 	const shared = {
 		key: action.key,
+		createNameLabel: action.key === "create-readlist" ? t("smartReadlist.name") : undefined,
 		method: action.method,
 		label: action.label,
 		buttonClass: BUTTON_CLASS_BY_VARIANT[action.variant],
@@ -60,9 +66,9 @@ function toActionDisplayModel(
 		const href = withInternalTracking(`${action.href}${returnQuery}`, tracking);
 		return { ...shared, action: href, inputs: [] };
 	}
-	const [path, query] = withInternalTracking(action.href, tracking).split("?");
-	const inputs = [...new URLSearchParams(query)].map(([name, value]) => ({ name, value }));
-	return { ...shared, action: path, inputs };
+	const url = new URL(withInternalTracking(action.href, tracking), "https://readplace.invalid");
+	const inputs = [...url.searchParams].map(([name, value]) => ({ name, value }));
+	return { ...shared, action: `${url.pathname}${url.hash}`, inputs };
 }
 
 type OnboardingStepStatus = "complete" | "current" | "upcoming";
@@ -159,6 +165,7 @@ const SEE_INSTALL_OPTIONS_ACTION: OnboardingAction = {
 function renderNoClientCard(
 	options: OnboardingChecklistOptions,
 	steps: OnboardingStepDisplayModel[],
+	percent: number,
 ): string {
 	const stateClass = options.dismissed && steps.length === 0 ? "setup-guide--hidden" : "setup-guide--visible";
 	return render(ONBOARDING_TEMPLATE, {
@@ -168,8 +175,8 @@ function renderNoClientCard(
 		steps,
 		showSteps: steps.length > 0,
 		foldOpen: true,
-		percent: 0,
-		progressBarClass: "setup-guide__progress-bar setup-guide__progress-bar--0",
+		percent,
+		progressBarClass: `setup-guide__progress-bar setup-guide__progress-bar--${percent}`,
 		dismiss: dismissDisplayModel("dismiss-no-client", options),
 		installOptions: toActionDisplayModel(SEE_INSTALL_OPTIONS_ACTION, ""),
 		noClientLede: `Readplace doesn't have an app for this device yet. If you use ${BROWSER_EXTENSIONS_OR} on a computer, or ${NATIVE_APP_DEVICES_OR}, you can install Readplace there.`,
@@ -194,7 +201,10 @@ export function OnboardingChecklist(
 			status: step.isComplete(ctx) ? "complete" : step === outstanding ? "current" : "upcoming",
 		}),
 	);
-	if (!ctx.hasInstallableClient) return renderNoClientCard(options, steps);
+	if (!ctx.hasInstallableClient) {
+		const keepDismissed = options.dismissed && !hasOutstandingGmailStep(ctx) && !hasOutstandingSmartReadlistStep(ctx);
+		return renderNoClientCard(options, keepDismissed ? [] : steps, percent);
+	}
 	const allComplete = outstanding === undefined;
 	const unearnedCompletion = allComplete && options.completionUnearned;
 	const activeStateClass = allComplete ? "setup-guide--complete" : "setup-guide--visible";

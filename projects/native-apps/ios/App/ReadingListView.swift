@@ -1,11 +1,13 @@
 import OSLog
 import SwiftUI
+import UIKit
 
 private let processingRefreshLogger = Logger(subsystem: "com.readplace.app", category: "processing-refresh")
 
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
 	let onSignedOut: () -> Void
+	let externalBrowser: ExternalBrowser
 	@StateObject private var viewModel: ReadingListViewModel
 	@Environment(\.scenePhase) private var scenePhase
 
@@ -22,8 +24,9 @@ struct ReadingListView: View {
 		var id: String { affordance.id }
 	}
 
-	init(session: AppSession, onSignedOut: @escaping () -> Void) {
+	init(session: AppSession, externalBrowser: ExternalBrowser, onSignedOut: @escaping () -> Void) {
 		self.session = session
+		self.externalBrowser = externalBrowser
 		self.onSignedOut = onSignedOut
 		let api = session.makeAPI()
 		let group = TokenStore.resolvedAppGroupId
@@ -65,6 +68,9 @@ struct ReadingListView: View {
 							if let description = viewModel.currentReadlistDescription {
 								Text(description).font(.caption)
 							}
+							if let hint = viewModel.hint {
+								ReadlistHintRow(hint: hint) { Task { await openHint(hint) } }
+							}
 						}
 						.foregroundStyle(Color.brandTextSecondary)
 						Spacer(minLength: 0)
@@ -102,6 +108,9 @@ struct ReadingListView: View {
 			}
 				.background(Color.brandSurface.ignoresSafeArea())
 				.navigationTitle("Reading List")
+				.onChange(of: viewModel.homeStatus) { status in
+					if let status { UIAccessibility.post(notification: .announcement, argument: status) }
+				}
 				.toolbar {
 					ToolbarItem(placement: .navigationBarLeading) {
 						Button("Sign out") { Task { await signOut() } }
@@ -111,9 +120,13 @@ struct ReadingListView: View {
 							Menu {
 								Picker("Readlist", selection: readlistSelection) {
 									ForEach(viewModel.readlistMenu) { item in
-										Label(item.label, systemImage: item.badgeSystemImage)
+										Label(item.displayedLabel, systemImage: item.badgeSystemImage)
 											.tag(Optional(item.href))
 									}
+								}
+								if let action = viewModel.setHomeAction, let title = action.title {
+									Divider()
+									Button(title) { Task { await viewModel.invoke(action) } }
 								}
 							} label: {
 								Image(systemName: "line.3.horizontal")
@@ -304,6 +317,11 @@ struct ReadingListView: View {
 	}
 
 	@MainActor
+	func openHint(_ hint: ReadlistHint) async {
+		await openURLWithHandoff(hint.url, browser: externalBrowser, mint: { try await viewModel.mintBrowserHandoff() })
+	}
+
+	@MainActor
 	func signOut() async {
 		await viewModel.stopOfflineDownload()
 		await session.logout()
@@ -361,6 +379,10 @@ struct ReadingListView: View {
 		.background(Color.brandSurface.ignoresSafeArea())
 		.safeAreaInset(edge: .bottom) {
 			VStack(spacing: 0) {
+				if let status = viewModel.homeStatus {
+					Text(status)
+						.font(.footnote)
+				}
 				if !viewModel.messages.isEmpty {
 					ListBanner(
 						text: viewModel.messages.map(\.plainText).joined(separator: "\n"),
@@ -552,6 +574,21 @@ struct OfflineDownloadRow: View {
 		switch state {
 		case .running: return "Cancel download"
 		case .resumable: return "Dismiss download"
+		}
+	}
+}
+
+struct ReadlistHintRow: View {
+	let hint: ReadlistHint
+	let open: () -> Void
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 2) {
+			Text(hint.text).font(.caption)
+			Button(hint.linkLabel, action: open)
+				.font(.caption)
+				.foregroundStyle(Color.brandAppTint)
+				.accessibilityAddTraits(.isLink)
 		}
 	}
 }

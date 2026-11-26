@@ -20,7 +20,8 @@ import { z } from "zod";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
-import { ReadlistSlugsSchema } from "./readlist-slugs";
+import { ReadlistDestinationsSchema } from "./readlist-slugs";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import type { AddLinkFormError } from "./readlist-add-link.component";
 
@@ -79,7 +80,9 @@ const READLIST_NAME_LENGTH_MESSAGE = `Give the readlist a name of ${READLIST_LAB
 
 export const READLIST_LIMIT_MESSAGE = `You can create up to ${READLIST_MAX_PER_USER} readlists. Delete an existing readlist before creating a new one.`;
 
-export type ReadlistCreateDialogRejection = ReadlistCreateRejection | "name-taken";
+export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat(DEFAULT_LOCALE).format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
+
+export type ReadlistCreateDialogRejection = ReadlistCreateRejection | "name-taken" | "invalid-purpose";
 
 export const READLIST_CREATE_REJECTIONS: Record<ReadlistCreateDialogRejection, { message: string }> = {
 	"invalid-name": {
@@ -90,6 +93,9 @@ export const READLIST_CREATE_REJECTIONS: Record<ReadlistCreateDialogRejection, {
 	},
 	"name-taken": {
 		message: "You already have a readlist with that name, so pick another one.",
+	},
+	"invalid-purpose": {
+		message: READLIST_PURPOSE_INVALID_MESSAGE,
 	},
 };
 
@@ -107,8 +113,6 @@ export const READLIST_RENAME_REJECTIONS: Record<ReadlistRenameRejection, { messa
 };
 
 export const READLIST_UNKNOWN_ARTICLE_MESSAGE = "That article isn't in this readlist.";
-
-export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat(DEFAULT_LOCALE).format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
 
 export type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;
 
@@ -192,7 +196,7 @@ const { tPlural } = translator(hutchReadlist, DEFAULT_LOCALE);
 const MoveFlashQuerySchema = z.object({
 	moved_article: ReaderArticleHashIdSchema,
 	moved_from: ReadlistSlugSchema,
-	moved_to: ReadlistSlugsSchema,
+	moved_to: ReadlistDestinationsSchema,
 });
 
 function moveFlashCopy(move: { from: ReadlistRef; to: ReadlistRef }): Omit<SingleMoveFlash, "articleId"> {
@@ -214,6 +218,9 @@ function moveFlashFor(input: {
 	const from = input.readlists.find((readlist) => readlist.slug === input.from);
 	const to = input.readlists.filter((readlist) => input.to.includes(readlist.slug));
 	if (from === undefined || to.length === 0) return undefined;
+	if (to.length === 1 && to[0].slug === HAND_PICKED_SCOPE) {
+		return { articleId: input.articleId, message: t("handPicked.added"), undoQueues: [HAND_PICKED_SCOPE] };
+	}
 	if (to.length === 1) return { articleId: input.articleId, ...moveFlashCopy({ from, to: to[0] }) };
 	return {
 		articleId: input.articleId,

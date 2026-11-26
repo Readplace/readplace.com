@@ -1,19 +1,24 @@
 import type { GmailDeliveryMode } from "@packages/domain/gmail";
 
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchIntegrations } from "@packages/translations/hutch-integrations";
+
+const { t } = translator(hutchIntegrations, DEFAULT_LOCALE);
+
 export const GMAIL_DELIVERY_COPY: Record<GmailDeliveryMode, { option: string; description: string; row: string }> = {
 	issue: {
 		option: "The issue itself",
-		description: "Each issue lands in your readlist as one article. Save the links you want while you read it.",
+		description: t("gmailDelivery.issue"),
 		row: "Saves each issue",
 	},
 	links: {
 		option: "The articles it links to",
-		description: "The articles each issue links to are saved one by one. The email stays on its inbox page.",
+		description: t("gmailDelivery.links"),
 		row: "Saves the linked articles",
 	},
 	both: {
 		option: "Both",
-		description: "Each issue lands as an article, and the articles it links to are saved beside it.",
+		description: t("gmailDelivery.both"),
 		row: "Saves each issue and its linked articles",
 	},
 };

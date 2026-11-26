@@ -3,13 +3,13 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { Logger } from "@packages/logger";
 import { noopLogger } from "@packages/logger";
-import { calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
+import { ALL_COVERAGE_RULES_OFF, calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
 import type {
 	BotDefenseEvent,
 	ConversionEvent,
 } from "@packages/provider-contracts/auth";
 import type { ParseArticle } from "@packages/article-parser";
-import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { activateCoverageRules, initArticleCoverageRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
@@ -302,6 +302,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
+		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({
@@ -481,6 +482,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findReadlistRemoval: articleStoreMemory.findReadlistRemoval,
 			markReadlistArticleViewed: articleStoreMemory.markReadlistArticleViewed,
 			listUserSavesForUrl: articleStoreMemory.listUserSavesForUrl,
+			countSmartReadlistArticles: articleStoreMemory.countSmartReadlistArticles,
 			listUserSavesForUrls: articleStoreMemory.listUserSavesForUrls,
 			assignSavedArticleToReadlist: articleStoreMemory.assignSavedArticleToReadlist,
 			moveReadlistArticles: articleStoreMemory.moveReadlistArticles,
@@ -496,6 +498,10 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			pinReadlistDefinition: articleStoreMemory.pinReadlistDefinition,
 			unpinReadlistDefinition: articleStoreMemory.unpinReadlistDefinition,
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
+			setSmartReadlistRule: articleStoreMemory.setSmartReadlistRule,
+			turnOffSmartReadlistMatching: articleStoreMemory.turnOffSmartReadlistMatching,
+			findSmartMatchRevisions: articleStoreMemory.findSmartMatchRevisions,
+			recordSmartMatchRevision: articleStoreMemory.recordSmartMatchRevision,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: async ({ url, viewer }) =>

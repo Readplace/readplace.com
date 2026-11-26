@@ -30,7 +30,7 @@ interface SeedLink {
 interface SeedReadlistOutcome {
 	readlist: string;
 	readlistLabel: string;
-	decision: "filtered" | "no-purpose" | "readlist-missing" | "failed";
+	decision: "filtered" | "no-purpose" | "readlist-missing" | "smart-matching" | "failed";
 	fit: { ordinal: string; verdict: "keep" | "drop" | "unsure"; reason: string }[];
 }
 

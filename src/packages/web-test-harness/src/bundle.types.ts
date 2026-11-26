@@ -136,6 +136,8 @@ import type {
 	CountEarlyIntentionalSave,
 	MarkActivationThresholdReached,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
@@ -200,6 +202,7 @@ import type {
 	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -213,6 +216,10 @@ import type {
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
+	FindSmartMatchRevisions,
+	RecordSmartMatchRevision,
 	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
@@ -297,6 +304,8 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
@@ -363,6 +372,8 @@ export interface AuthBundle {
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	markEmailVerified: MarkEmailVerified;
 	markAgeLocked: MarkAgeLocked;
 	clearAgeLock: ClearAgeLock;
@@ -570,6 +581,7 @@ export interface ArticleStoreBundle {
 	findReadlistRemoval: FindReadlistRemoval;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -585,6 +597,10 @@ export interface ArticleStoreBundle {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
+	findSmartMatchRevisions: FindSmartMatchRevisions;
+	recordSmartMatchRevision: RecordSmartMatchRevision;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
@@ -781,6 +797,8 @@ export interface WrapperTargetBundle {
 export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;

@@ -14,8 +14,7 @@
             {{#if builtInCaption}}
             <header class="readlist__heading"><h1>{{builtInTitle}}</h1><p>{{builtInCaption}}</p></header>
             {{/if}}
-            {{#if reviewOlderHref}}<p><a href="{{reviewOlderHref}}">{{t "handPicked.review"}}</a></p>{{/if}}
-            {{#if reviewingOlder}}<p>{{t "handPicked.reviewInstructions"}}</p>{{/if}}
+            {{#if addOlderSavesHref}}<p class="readlist__older-saves"><a class="btn btn--neutral" href="{{addOlderSavesHref}}" data-test-action="add-older-saves">{{t "handPicked.addOlder"}}</a></p>{{/if}}
             {{#if manageArticles}}
             <details class="readlist__manage" {{#if manageArticles.open}}open{{/if}}>
               <summary>{{t "manage.title"}}</summary>
@@ -124,6 +123,7 @@
           {{{onboardingHtml}}}
         </div>
       </div>
+      {{{preferencesSavedHtml}}}
       <div id="status-toast">{{{statusToastHtml}}}</div>
       {{{countsSpanHtml}}}
       {{{readlistRenamesHtml}}}

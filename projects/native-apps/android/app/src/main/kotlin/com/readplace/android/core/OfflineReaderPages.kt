@@ -16,9 +16,14 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Instant
 
-data class DownloadedVersions(val byArticleId: Map<String, String>) {
-	fun isCurrent(articleId: String, contentVersion: String?): Boolean =
-		contentVersion != null && byArticleId[articleId] == contentVersion
+data class KeptVersion(val contentVersion: String, val savedAt: Instant) {
+	fun isCurrent(contentVersion: String?, now: Instant): Boolean =
+		contentVersion == this.contentVersion && OfflineCopy.isShowable(savedAt = savedAt, now = now)
+}
+
+data class DownloadedVersions(val byReaderUrl: Map<String, KeptVersion>) {
+	fun isCurrent(readerUrl: String, contentVersion: String?, now: Instant): Boolean =
+		byReaderUrl[readerUrl]?.isCurrent(contentVersion, now) == true
 }
 
 class ReaderPageResponse(
@@ -50,7 +55,11 @@ class OfflineReaderPages(
 		val contentVersion: String?,
 		val contentType: String,
 		val contentSecurityPolicy: String?,
-	)
+		val readerUrl: String?,
+	) {
+		val keptVersion: KeptVersion?
+			get() = contentVersion?.let { KeptVersion(contentVersion = it, savedAt = Instant.ofEpochSecond(savedAt)) }
+	}
 
 	private val pages = File(directory, "reader-pages")
 	private val published = MutableStateFlow(DownloadedVersions(emptyMap()))
@@ -64,7 +73,7 @@ class OfflineReaderPages(
 					val header = (if (file.name.endsWith(STAGED_SUFFIX)) null else headerOf(file))?.takeIf(::isShowable)
 					header ?: null.also { file.delete() }
 				}
-				.mapNotNull { header -> header.contentVersion?.let { header.articleId to it } }
+				.mapNotNull { header -> header.readerUrl?.let { url -> header.keptVersion?.let { url to it } } }
 				.toMap()
 		}
 		published.value = DownloadedVersions(held)
@@ -79,6 +88,7 @@ class OfflineReaderPages(
 				contentVersion = contentVersion,
 				contentType = response.contentType,
 				contentSecurityPolicy = response.contentSecurityPolicy,
+				readerUrl = readerUrl,
 			)
 			val file = fileFor(readerUrl)
 			try {
@@ -98,7 +108,8 @@ class OfflineReaderPages(
 				return@withContext false
 			}
 			published.update { held ->
-				DownloadedVersions(if (contentVersion == null) held.byArticleId - articleId else held.byArticleId + (articleId to contentVersion))
+				val kept = header.keptVersion
+				DownloadedVersions(if (kept == null) held.byReaderUrl - readerUrl else held.byReaderUrl + (readerUrl to kept))
 			}
 			true
 		}
@@ -126,8 +137,7 @@ class OfflineReaderPages(
 
 	suspend fun isCurrent(readerUrl: String, contentVersion: String?): Boolean =
 		withContext(io) {
-			val header = headerOf(fileFor(readerUrl)) ?: return@withContext false
-			contentVersion != null && header.contentVersion == contentVersion && isShowable(header)
+			headerOf(fileFor(readerUrl))?.keptVersion?.isCurrent(contentVersion, now = now()) == true
 		}
 
 	private fun headerOf(file: File): Header? {
@@ -157,6 +167,9 @@ class OfflineReaderPages(
 	private companion object {
 		const val SEPARATOR = '\n'
 		const val STAGED_SUFFIX = ".tmp"
-		val json = Json { ignoreUnknownKeys = true }
+		val json = Json {
+			ignoreUnknownKeys = true
+			explicitNulls = false
+		}
 	}
 }

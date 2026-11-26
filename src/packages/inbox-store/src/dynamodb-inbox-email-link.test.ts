@@ -546,6 +546,14 @@ describe("initDynamoDbInboxEmailLink", () => {
 			});
 		});
 
+		it("updates the reserved outcome row for the continuation", async () => {
+			const { merge, commands } = storeReading(outcomeRow({ ...filtered, startIndex: 300 }));
+			expect(await merge.mergeReadlistOutcomeFit({
+				userId: USER, receivedAtMessageId: RAM, readlist: WORK, entry, startIndex: 300,
+			})).toBe("merged");
+			expect(commands.map(({ input }) => input.Key?.ordinal)).toEqual([`readlist#${WORK}#300`, `readlist#${WORK}#300`]);
+		});
+
 		it("keeps an existing entry for the same link", async () => {
 			const { merge, commands } = storeReading(outcomeRow({ ...filtered, fit: [kept, { ...entry, verdict: "keep" }] }));
 
@@ -634,6 +642,38 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(captured?.input.ConditionExpression).toBeUndefined();
 		});
 
+	});
+
+	it("advances an extraction window once and marks its dispatch independently", async () => {
+		const { client, commands } = createPaginatedClient([{ rows: [] }]);
+		const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+		const key = { userId: USER, receivedAtMessageId: RAM };
+		await store.putLinksMeta({ ...key, meta: {
+			truncated: true, extractionFailed: false, eligibleArticleCount: 299, extractionWindow: { start: 0, end: 300 },
+		} });
+		await store.putLinksMeta({ ...key, meta: {
+			truncated: false, extractionFailed: false, eligibleArticleCount: 1, extractionWindow: { start: 300, end: 301 },
+		} });
+		await store.markWindowDispatched({ ...key, end: 301 });
+		expect(commands[0].input.ConditionExpression).toBe("attribute_not_exists(extractionWindow)");
+		expect(commands[1].input.ConditionExpression).toBe("extractionWindow.#end = :start");
+		expect(commands[1].input.UpdateExpression).toContain("eligibleArticleCount + :eligible");
+		expect(commands[2].input.ConditionExpression).toBe("extractionWindow.#end = :end");
+	});
+
+	it("reads the extraction window and its outcomes across query pages", async () => {
+		const { client, commands } = createPaginatedClient([
+			{ rows: [linkRow()], lastEvaluatedKey: { ordinal: "0000" } },
+			{ rows: [{ userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM,
+				truncated: false, extractionWindow: { start: 300, end: 301 }, dispatchedThrough: 301,
+				selectedReadlists: [{ readlist: WORK, label: "Work", qualification: "preferences" }],
+			}] },
+		]);
+		const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+		const { meta } = await store.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toMatchObject({ extractionWindow: { start: 300, end: 301 }, dispatchedThrough: 301 });
+		expect(meta?.selectedReadlists?.[0]?.qualification).toBe("preferences");
+		expect(commands[1].input.ExclusiveStartKey).toEqual({ ordinal: "0000" });
 	});
 
 	describe("markLinksExtractionFailed", () => {
@@ -1034,6 +1074,14 @@ describe("Gmail readlist outcomes", () => {
 			}),
 		).rejects.toThrow("unavailable");
 	});
+	it("stores a continuation in its own outcome row", async () => {
+		const { client, commands } = createPaginatedClient([{ rows: [] }]);
+		const linkStore = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+		const result = await linkStore.putReadlistOutcome({ userId: USER, receivedAtMessageId: RAM, outcome: { ...outcome, startIndex: 300 } });
+		expect(result).toBe("stored");
+		expect(commands[0].input.Item).toMatchObject({ ordinal: `readlist#${WORK}#300` });
+	});
+
 	it("writes no purpose version, engine or model key when the outcome has none", async () => {
 		let captured: CapturedCommand | undefined;
 		await store((command) => {
@@ -1151,8 +1199,9 @@ describe("Gmail readlist outcomes", () => {
 it("preserves Gmail eligibility and held-save state on the extraction barrier", async () => {
 	let captured: CapturedCommand | undefined;
 	await store((command) => { captured = command as CapturedCommand; return {}; }).putLinksMeta({ userId: USER, receivedAtMessageId: RAM, meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true } });
-	expect(captured?.input.UpdateExpression).toContain("eligibleArticleCount = if_not_exists(eligibleArticleCount, :eligibleArticleCount), savesHeld = if_not_exists(savesHeld, :savesHeld)");
-	expect(captured?.input.ExpressionAttributeValues?.[":eligibleArticleCount"]).toBe(0);
+	expect(captured?.input.UpdateExpression).toContain("eligibleArticleCount = if_not_exists(eligibleArticleCount, :eligible)");
+	expect(captured?.input.UpdateExpression).toContain("savesHeld = if_not_exists(savesHeld, :savesHeld)");
+	expect(captured?.input.ExpressionAttributeValues?.[":eligible"]).toBe(0);
 	expect(captured?.input.ExpressionAttributeValues?.[":savesHeld"]).toBe(true);
 	const { client } = createPaginatedClient([{ rows: [{ userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM, truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true }] }]);
 	expect((await initDynamoDbInboxEmailLink({ client, tableName: TABLE }).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true, readlistOutcomes: [] });

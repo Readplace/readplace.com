@@ -7,12 +7,14 @@ import {
 	dynamoField,
 	forEachQueryPage,
 	TransactionCanceledException,
+	TransactGetCommand,
 	TransactWriteCommand,
 	transactIfConditions,
 	writeIfCondition,
 } from "@packages/storage-client";
 import { toEventInstant } from "@packages/domain/event-envelope";
 import { initFindReadlistRemoval, initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
+import { initFindSmartMatchRevisions, initRecordSmartMatchRevision } from "./smart-match-revision-marker";
 import { EnclosureSchema, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
@@ -61,9 +63,12 @@ import type {
 	FileIntoLiveReadlist,
 	FindReadlistFiling,
 	FindReadlistRemoval,
+	FindSmartMatchRevisions,
+	RecordSmartMatchRevision,
 	PurgeReadlistArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -327,9 +332,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
+	findSmartMatchRevisions: FindSmartMatchRevisions;
+	recordSmartMatchRevision: RecordSmartMatchRevision;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -1382,6 +1390,17 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const isNeitherPassedNorConditionFailed = (code: string | undefined) =>
 		code !== "None" && code !== "ConditionalCheckFailed";
 
+	const definitionCondition = (smartRule: Parameters<FileIntoLiveReadlist>[0]["smartRule"]) => {
+		if (smartRule === undefined) {
+			return { ConditionExpression: "attribute_exists(#url)", ExpressionAttributeNames: { "#url": "url" } };
+		}
+		return {
+			ConditionExpression: "attribute_exists(#url) AND filingMode = :smart AND filingRuleRevision = :revision",
+			ExpressionAttributeNames: { "#url": "url" },
+			ExpressionAttributeValues: { ":smart": "smart", ":revision": smartRule.revision },
+		};
+	};
+
 	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
 		const { userId, readlist } = params;
 		const key = ArticleResourceUniqueId.parse(params.url).value;
@@ -1393,8 +1412,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 							ConditionCheck: {
 								TableName: userArticlesTableName,
 								Key: { userId, url: readlistDefinitionKey(readlist) },
-								ConditionExpression: "attribute_exists(#url)",
-								ExpressionAttributeNames: { "#url": "url" },
+								...definitionCondition(params.smartRule),
 							},
 						},
 						{
@@ -1423,7 +1441,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			const codes = (error.CancellationReasons ?? []).map((reason) => reason.Code);
 			const decisive = codes.indexOf("ConditionalCheckFailed");
 			if (decisive === -1 || codes.some(isNeitherPassedNorConditionFailed)) throw error;
-			if (decisive === 0) return { outcome: "readlist-gone" };
+			if (decisive === 0) return { outcome: params.smartRule === undefined ? "readlist-gone" : "smart-rule-changed" };
 			if (decisive === 1) {
 				const allRow = await userArticles.get({ userId, url: key }, { consistentRead: true });
 				return { outcome: allRow === undefined ? "not-in-all" : "removed-after-request" };
@@ -1816,6 +1834,51 @@ export function initDynamoDbSavedArticleStore(deps: {
 		});
 	};
 
+	const smartMembershipKeys = defineDynamoTable({
+		client, tableName: userArticlesTableName, schema: z.object({ url: z.string() }),
+	});
+
+	const countSmartReadlistArticles: CountSmartReadlistArticles = async ({ userId, readlists }) => {
+		const witnesses = new Map<string, ReadlistSlug>();
+		for (const readlist of readlists) {
+			let cursor: Record<string, unknown> | undefined;
+			do {
+				const page = await smartMembershipKeys.query({
+					KeyConditionExpression: "userId = :partition",
+					ExpressionAttributeValues: { ":partition": readlistPartitionValue({ userId, readlist }) },
+					FilterExpression: "attribute_exists(savedAt)",
+					ProjectionExpression: "#url",
+					ExpressionAttributeNames: { "#url": "url" },
+					ConsistentRead: true, Limit: 100, ExclusiveStartKey: cursor,
+				});
+				for (const { url } of page.items) {
+					witnesses.set(url, readlist);
+					if (witnesses.size === 10) break;
+				}
+				cursor = page.lastEvaluatedKey;
+			} while (cursor && witnesses.size < 10);
+			if (witnesses.size === 10) break;
+		}
+		if (witnesses.size < 10) return witnesses.size;
+
+		const gets = [
+			...[...witnesses].map(([url, readlist]) => ({
+				Key: { userId: readlistPartitionValue({ userId, readlist }), url },
+				ProjectionExpression: "savedAt",
+			})),
+			...[...new Set(witnesses.values())].map((readlist) => ({
+				Key: { userId, url: readlistDefinitionKey(readlist) }, ProjectionExpression: "queuePurpose",
+			})),
+		];
+		const { Responses } = await client.send(new TransactGetCommand({
+			TransactItems: gets.map((get) => ({ Get: { TableName: userArticlesTableName, ...get } })),
+		}));
+		if (!gets.every((get, i) => z.string().min(1).safeParse(Responses?.[i]?.Item?.[get.ProjectionExpression]).success)) {
+			throw new Error("Smart Readlist memberships or purposes changed during counting");
+		}
+		return witnesses.size;
+	};
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const slugs = readlists ?? [DEFAULT_READLIST_SLUG, ...await listUserReadlistSlugs(userId)];
 		const partitions = slugs.map((readlist) => partitionFor({ userId, readlist }));
@@ -2050,9 +2113,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 		purgeReadlistArticle,
 		findReadlistFiling,
 		findReadlistRemoval: initFindReadlistRemoval({ client, userArticlesTableName }),
+		findSmartMatchRevisions: initFindSmartMatchRevisions({ client, userArticlesTableName }),
+		recordSmartMatchRevision: initRecordSmartMatchRevision({ client, userArticlesTableName }),
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
+		countSmartReadlistArticles,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,

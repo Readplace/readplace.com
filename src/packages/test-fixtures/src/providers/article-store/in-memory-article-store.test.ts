@@ -43,6 +43,34 @@ function makeArticleParams(
 }
 
 describe("initInMemoryArticleStore", () => {
+	it("counts shared Smart Readlist articles once and caps progress at ten", async () => {
+		const store = initInMemoryArticleStore();
+		const count = () => store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK, LATER] });
+		for (const slug of [WORK, LATER]) {
+			await store.createReadlistDefinition({ userId: USER_A, slug, label: slug, createdAt: new Date() });
+			await store.setReadlistDefinitionPurpose({ userId: USER_A, slug, purpose: "Things to study" });
+			for (let i = 0; i < 5; i++) {
+				const index = i + (slug === WORK ? 0 : 4);
+				await store.saveReadlistArticle({ ...makeArticleParams({ url: URL + index }), readlist: slug });
+			}
+		}
+		expect(await count()).toBe(9);
+		await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: LATER });
+		expect(await count()).toBe(5);
+		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: LATER, purpose: "Review" });
+		await store.setReadlistArticleStatus({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK, status: "read" });
+		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK });
+		expect(await count()).toBe(9);
+		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: LATER });
+		expect(await count()).toBe(8);
+		await store.saveReadlistArticle({ ...makeArticleParams({ userId: USER_B }), readlist: WORK });
+		expect(await count()).toBe(8);
+		for (const i of [9, 10, 11]) {
+			await store.saveReadlistArticle({ ...makeArticleParams({ url: URL + i, saveTrigger: "automatic" }), readlist: WORK });
+		}
+		expect(await count()).toBe(10);
+	});
+
 	describe("personal readlists", () => {
 		const attemptId = SaveAttemptIdSchema.parse("pick-1");
 		const request = { requestedAt: "2026-11-20T00:00:00.000Z", attemptId };
@@ -2244,6 +2272,25 @@ describe("initInMemoryArticleStore", () => {
 			).toEqual([["work", "Work", undefined]]);
 		});
 
+		it("leaves a Smart Readlist's purpose to its smart rule", async () => {
+			const store = initInMemoryArticleStore();
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date("2026-08-19T10:00:00.000Z") });
+			await store.setSmartReadlistRule({
+				userId: USER_A,
+				slug: WORK,
+				purpose: "Essays on how teams actually ship.",
+				effectiveAt: new Date("2026-08-20T10:00:00.000Z"),
+			});
+
+			expect(await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Anything" })).toEqual({
+				updated: false,
+			});
+			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({ cleared: false });
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
+				"Essays on how teams actually ship.",
+			]);
+		});
+
 		it("reports a readlist the reader does not hold as uncleared", async () => {
 			const store = initInMemoryArticleStore();
 
@@ -2924,6 +2971,13 @@ describe("initInMemoryArticleStore readlist filing", () => {
 		);
 	});
 
+	it("counts an automatic filing already marked read once its purpose is set", async () => {
+		const store = await liveStore();
+		await store.fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt: new Date() } }));
+		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Read at work" });
+		expect(await store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK] })).toBe(1);
+	});
+
 	it("answers readlist-gone without a definition, and not-in-all without an All row", async () => {
 		const noDefinition = initInMemoryArticleStore();
 		await noDefinition.saveArticle(makeArticleParams());
@@ -3377,5 +3431,149 @@ describe("findOriginalUrls", () => {
 		const found = await store.findOriginalUrls({ storedKeys: [storedKey, "missing.com/x"] });
 
 		expect([...found.entries()]).toEqual([[storedKey, "https://Example.com/Post?ref=1"]]);
+	});
+});
+
+describe("initInMemoryArticleStore smart readlists", () => {
+	const KEY = ArticleResourceUniqueId.parse(URL).value;
+	const HOME = ReadlistSlugSchema.parse("home");
+	const EFFECTIVE_AT = new Date("2026-11-20T08:00:00.000Z");
+	const rule = { userId: USER_A, slug: WORK, purpose: "Essays on shipping.", effectiveAt: EFFECTIVE_AT };
+	const filing = (smartRule: { revision: number }) => ({
+		userId: USER_A,
+		readlist: WORK,
+		url: URL,
+		savedAt: new Date(),
+		provenance: { kind: "web" as const },
+		requestedAt: new Date(Date.now() + 60_000),
+		landsAs: { status: "unread" as const },
+		smartRule,
+	});
+	const storeWithWork = async () => {
+		const store = initInMemoryArticleStore();
+		await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date() });
+		return store;
+	};
+
+	it("creates a readlist with manual filing", async () => {
+		const store = await storeWithWork();
+
+		const [definition] = await store.listReadlistDefinitions(USER_A);
+
+		expect(definition?.filing).toEqual({ mode: "manual" });
+	});
+
+	it("bumps the rule revision on every set, storing the purpose and effective instant", async () => {
+		const store = await storeWithWork();
+
+		expect(await store.setSmartReadlistRule(rule)).toEqual({ kind: "set", revision: 1 });
+		expect(await store.setSmartReadlistRule({ ...rule, purpose: "Essays on teams." })).toEqual({ kind: "set", revision: 2 });
+
+		const [definition] = await store.listReadlistDefinitions(USER_A);
+		expect(definition?.purpose).toBe("Essays on teams.");
+		expect(definition?.filing).toEqual({ mode: "smart", revision: 2, effectiveAt: EFFECTIVE_AT });
+	});
+
+	it("answers readlist-gone when setting a rule on a readlist with no definition", async () => {
+		expect(await initInMemoryArticleStore().setSmartReadlistRule(rule)).toEqual({ kind: "readlist-gone" });
+	});
+
+	it("turns a smart readlist back to manual, bumping the revision and keeping the purpose", async () => {
+		const store = await storeWithWork();
+		await store.setSmartReadlistRule(rule);
+
+		expect(await store.turnOffSmartReadlistMatching({ userId: USER_A, slug: WORK })).toEqual({ turnedOff: true });
+		expect(await store.turnOffSmartReadlistMatching({ userId: USER_A, slug: WORK })).toEqual({ turnedOff: false });
+
+		const [definition] = await store.listReadlistDefinitions(USER_A);
+		expect(definition?.filing).toEqual({ mode: "manual" });
+		expect(definition?.purpose).toBe("Essays on shipping.");
+		expect(await store.setSmartReadlistRule(rule)).toEqual({ kind: "set", revision: 3 });
+	});
+
+	it("files a smart match only under the readlist's current rule revision", async () => {
+		const store = await storeWithWork();
+		await store.saveArticle(makeArticleParams());
+
+		expect(await store.fileIntoLiveReadlist(filing({ revision: 1 }))).toEqual({ outcome: "smart-rule-changed" });
+		await store.setSmartReadlistRule(rule);
+		await store.setSmartReadlistRule(rule);
+		expect(await store.fileIntoLiveReadlist(filing({ revision: 1 }))).toEqual({ outcome: "smart-rule-changed" });
+		expect(await store.fileIntoLiveReadlist(filing({ revision: 2 }))).toEqual({ outcome: "filed" });
+		expect(await initInMemoryArticleStore().fileIntoLiveReadlist(filing({ revision: 2 }))).toEqual({
+			outcome: "smart-rule-changed",
+		});
+	});
+
+	it("records a readlist's match revision only upward, and only on a row in All", async () => {
+		const store = initInMemoryArticleStore();
+		const marker = { userId: USER_A, storedKey: KEY, readlist: WORK, revision: 2 };
+		expect(await store.recordSmartMatchRevision(marker)).toEqual({ recorded: false });
+		expect(await store.findSmartMatchRevisions({ userId: USER_A, storedKey: KEY })).toEqual({ kind: "not-in-all" });
+		const savedAt = new Date("2026-11-20T00:00:00.000Z");
+		await store.saveArticle(makeArticleParams({ savedAt }));
+
+		expect(await store.recordSmartMatchRevision(marker)).toEqual({ recorded: true });
+		expect(await store.recordSmartMatchRevision(marker)).toEqual({ recorded: false });
+		expect(await store.recordSmartMatchRevision({ ...marker, revision: 1 })).toEqual({ recorded: false });
+		expect(await store.recordSmartMatchRevision({ ...marker, readlist: HOME, revision: 1 })).toEqual({ recorded: true });
+
+		expect(await store.findSmartMatchRevisions({ userId: USER_A, storedKey: KEY })).toEqual({
+			kind: "in-all",
+			savedAt,
+			revisions: new Map([
+				[WORK, 2],
+				[HOME, 1],
+			]),
+		});
+	});
+
+	it("forgets the markers when the All row is deleted, held, or the account's articles are deleted", async () => {
+		const store = initInMemoryArticleStore();
+		const other = "https://example.com/other";
+		const otherKey = ArticleResourceUniqueId.parse(other).value;
+		const saved = await store.saveArticle(makeArticleParams());
+		await store.saveArticle(makeArticleParams({ url: other }));
+		await store.saveArticle(makeArticleParams({ userId: USER_B }));
+		await store.recordSmartMatchRevision({ userId: USER_A, storedKey: KEY, readlist: WORK, revision: 2 });
+		await store.recordSmartMatchRevision({ userId: USER_A, storedKey: otherKey, readlist: WORK, revision: 2 });
+		await store.recordSmartMatchRevision({ userId: USER_B, storedKey: KEY, readlist: WORK, revision: 2 });
+
+		await store.deleteArticle(saved.saved.id, USER_A);
+		await store.saveArticle(makeArticleParams());
+		expect(await store.findSmartMatchRevisions({ userId: USER_A, storedKey: KEY })).toEqual(
+			expect.objectContaining({ revisions: new Map() }),
+		);
+
+		await store.deleteAllUserArticles(USER_A);
+		await store.saveArticle(makeArticleParams({ url: other }));
+		expect(await store.findSmartMatchRevisions({ userId: USER_A, storedKey: otherKey })).toEqual(
+			expect.objectContaining({ revisions: new Map() }),
+		);
+		expect(await store.findSmartMatchRevisions({ userId: USER_B, storedKey: KEY })).toEqual(
+			expect.objectContaining({ revisions: new Map([[WORK, 2]]) }),
+		);
+	});
+
+	it("forgets the markers when a newsletter link moves to the hold", async () => {
+		const store = initInMemoryArticleStore();
+		const savedAt = new Date("2026-11-20T00:00:00.000Z");
+		const email = { kind: "email", senderEmail: "news@example.com" } as const;
+		await store.saveArticle(makeArticleParams({ savedAt, provenance: email, saveTrigger: "automatic" }));
+		await store.recordSmartMatchRevision({ userId: USER_A, storedKey: KEY, readlist: WORK, revision: 2 });
+
+		await store.moveNewsletterLinkToHold({
+			userId: USER_A,
+			jobId: SavedLinksJobIdSchema.parse("2026-12-02T00:00:00.000Z-job"),
+			storedKey: KEY,
+			cutoff: new Date("2026-12-01T00:00:00.000Z"),
+			senders: { kind: "all" },
+			now: new Date("2026-12-02T00:00:00.000Z"),
+		});
+		await store.saveArticle(makeArticleParams());
+
+		expect(await store.findSmartMatchRevisions({ userId: USER_A, storedKey: KEY })).toEqual(
+			expect.objectContaining({ revisions: new Map() }),
+		);
 	});
 });

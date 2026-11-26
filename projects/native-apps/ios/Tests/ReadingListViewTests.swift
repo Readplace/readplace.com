@@ -45,7 +45,7 @@ final class ReadingListViewTests: XCTestCase {
 		let session = makeSession()
 		var loggedInWhenReplayed: Bool?
 		var replays = 0
-		let view = ReadingListView(session: session, onSignedOut: {
+		let view = ReadingListView(session: session, externalBrowser: ExternalBrowser { _, completion in completion(true) }, onSignedOut: {
 			replays += 1
 			loggedInWhenReplayed = session.isLoggedIn
 		})
@@ -69,7 +69,7 @@ final class ReadingListViewTests: XCTestCase {
 		XCTAssertEqual(intro.phase, .idle, "a returning logged-in launch never entered the intro")
 		XCTAssertTrue(intro.isMuted)
 
-		await ReadingListView(session: session, onSignedOut: { intro.replay() }).signOut()
+		await ReadingListView(session: session, externalBrowser: ExternalBrowser { _, completion in completion(true) }, onSignedOut: { intro.replay() }).signOut()
 
 		XCTAssertEqual(intro.phase, .playing, "the video plays again after signing out")
 		XCTAssertEqual(log.restarts, 1, "the theme restarts with it, so the video is scored")
@@ -83,10 +83,36 @@ final class ReadingListViewTests: XCTestCase {
 		let log = MusicLog()
 		let intro = makeIntro(log: log)
 
-		await ReadingListView(session: session, onSignedOut: { intro.replay() }).signOut()
+		await ReadingListView(session: session, externalBrowser: ExternalBrowser { _, completion in completion(true) }, onSignedOut: { intro.replay() }).signOut()
 
 		XCTAssertFalse(session.isLoggedIn, "revocation is best-effort; the local sign-out always completes")
 		XCTAssertEqual(intro.phase, .playing)
 		XCTAssertEqual(log.restarts, 1)
+	}
+
+	private func hint() throws -> ReadlistHint {
+		ReadlistHint(
+			text: "Older saves stay elsewhere.",
+			linkLabel: "Open on the web",
+			url: try XCTUnwrap(URL(string: "\(AppConfig.serverBaseURL)/queue"))
+		)
+	}
+
+	func testOpensTheHintsLinkThroughTheHandoffOpener() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/auth/handoff" ? .json(200, #"{ "code": "minted" }"#) : .json(404, "{}")
+		}
+		var opened: [URL] = []
+		let browser = ExternalBrowser { url, completion in
+			opened.append(url)
+			completion(true)
+		}
+		let hint = try hint()
+		let view = ReadingListView(session: makeSession(), externalBrowser: browser, onSignedOut: {})
+
+		await view.openHint(hint)
+
+		let handoff = try XCTUnwrap(browserHandoffURL(for: hint.url, code: "minted", baseURL: AppConfig.serverBaseURL))
+		XCTAssertEqual(opened, [try XCTUnwrap(chromeURLFor(handoff))], "the link opens in Chrome carrying a signed-in handoff")
 	}
 }

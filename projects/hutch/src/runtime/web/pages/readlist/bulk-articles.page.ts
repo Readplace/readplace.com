@@ -40,7 +40,7 @@ export function bulkArticleRoutes(deps: ReadlistDependencies, shared: ReadlistSh
 		assert(req.userId);
 		const input = form.safeParse(req.body);
 		const filters = (await shared.resolveReadlistContext(req, req.userId)).state;
-		if (!input.success || filters.readlist !== DEFAULT_READLIST_SLUG || filters.reviewOlder) { res.sendStatus(400); return; }
+		if (!input.success || filters.readlist !== DEFAULT_READLIST_SLUG) { res.sendStatus(400); return; }
 		const { action, extent, visible } = input.data;
 		if (action.startsWith("file/") && isAccountLocked(req)) { res.sendStatus(403); return; }
 		const destination = action.startsWith("file/") && (await deps.listReadlistDefinitions(req.userId)).find(list => list.slug === action.slice(5));
@@ -53,7 +53,7 @@ export function bulkArticleRoutes(deps: ReadlistDependencies, shared: ReadlistSh
 		await ops.store.create(job);
 		if (extent === "page") {
 			const listed = new Set(typeof visible === "string" ? [visible] : visible);
-			const store = shared.storeFor(filters.readlist, false, filters.managedSource, filters.sender);
+			const store = shared.storeFor(filters.readlist, filters.managedSource, filters.sender);
 			const page = await store.findArticlesByUser({ userId: req.userId, status: tab.status, sort: tab.sort, order: spec.data.order,
 				page: filters.page, pageSize: READLIST_PAGE_SIZE, discovery: shared.storeDiscoveryOf(filters) });
 			await ops.store.append(job, page.articles.filter(article => listed.has(article.id.value)).map(selectionTarget), undefined, deps.now());

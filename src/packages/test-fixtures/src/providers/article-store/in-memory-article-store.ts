@@ -94,11 +94,17 @@ import type {
 	PinReadlistDefinition,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
+	ReadlistFiling,
+	FindSmartMatchRevisions,
+	RecordSmartMatchRevision,
 	UnpinReadlistDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	FindQueueRowKeys,
 	QueueRowKey,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -331,11 +337,14 @@ export function initInMemoryArticleStore(): {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
+	findSmartMatchRevisions: FindSmartMatchRevisions;
+	recordSmartMatchRevision: RecordSmartMatchRevision;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	findQueueRowKeys: FindQueueRowKeys;
 	hasQueueRow: (key: QueueRowKey) => boolean;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -351,6 +360,8 @@ export function initInMemoryArticleStore(): {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
@@ -423,6 +434,9 @@ export function initInMemoryArticleStore(): {
 			createdAt: Date;
 			starterCampaignId?: string;
 			pinnedAt?: Date;
+			filingMode?: "manual" | "smart";
+			filingRuleRevision?: number;
+			filingRuleEffectiveAt?: Date;
 		}
 	>();
 	const readlistFitOverrides = new Map<
@@ -435,6 +449,15 @@ export function initInMemoryArticleStore(): {
 	const recordReadlistRemoval = (removal: { userId: UserId; readlist: ReadlistSlug; url: string }) => {
 		if (!userArticles.has(userArticleKey(removal.userId, ArticleResourceUniqueId.parse(removal.url).value))) return;
 		readlistRemovals.set(readlistRemovalKey(removal), { userId: removal.userId, removedAt: toEventInstant(new Date()) });
+	};
+	const smartMatchRevisions = new Map<string, { userId: UserId; readlist: ReadlistSlug; revision: number }>();
+	const forgetAllRowMarkers = (allKey: string) => {
+		for (const key of readlistRemovals.keys()) {
+			if (key.startsWith(`${allKey}|`)) readlistRemovals.delete(key);
+		}
+		for (const key of smartMatchRevisions.keys()) {
+			if (key.startsWith(`${allKey}|`)) smartMatchRevisions.delete(key);
+		}
 	};
 	const findPersonalLibrary: FindPersonalLibrary = async (userId) => {
 		const own = [...userArticles.values()].filter((row) => row.userId === userId);
@@ -977,9 +1000,7 @@ export function initInMemoryArticleStore(): {
 		userArticles.delete(uaKey);
 		if (readlist === undefined) {
 			removalTimes.set(uaKey, { userId, at: new Date() });
-			for (const key of readlistRemovals.keys()) {
-				if (key.startsWith(`${uaKey}|`)) readlistRemovals.delete(key);
-			}
+			forgetAllRowMarkers(uaKey);
 			announceDefaultRowDeleted({ userId, url: article.originalUrl });
 		}
 		return true;
@@ -1034,8 +1055,35 @@ export function initInMemoryArticleStore(): {
 	const findReadlistRemoval: FindReadlistRemoval = async (params) =>
 		readlistRemovals.get(readlistRemovalKey(params))?.removedAt;
 
+	const findSmartMatchRevisions: FindSmartMatchRevisions = async ({ userId, storedKey }) => {
+		const allKey = userArticleKey(userId, storedKey);
+		const row = userArticles.get(allKey);
+		if (row === undefined) return { kind: "not-in-all" };
+		const revisions = new Map<ReadlistSlug, number>();
+		for (const [key, marker] of smartMatchRevisions) {
+			if (key.startsWith(`${allKey}|`)) revisions.set(marker.readlist, marker.revision);
+		}
+		return { kind: "in-all", savedAt: row.savedAt, revisions };
+	};
+
+	const recordSmartMatchRevision: RecordSmartMatchRevision = async ({ userId, storedKey, readlist, revision }) => {
+		const allKey = userArticleKey(userId, storedKey);
+		if (!userArticles.has(allKey)) return { recorded: false };
+		const key = `${allKey}|${readlist}`;
+		const existing = smartMatchRevisions.get(key);
+		if (existing !== undefined && existing.revision >= revision) return { recorded: false };
+		smartMatchRevisions.set(key, { userId, readlist, revision });
+		return { recorded: true };
+	};
+
 	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
-		if (!readlistDefinitions.has(readlistDefinitionKey(params.userId, params.readlist))) {
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.readlist));
+		if (params.smartRule !== undefined) {
+			const ruleHolds =
+				definition?.filingMode === "smart" && definition.filingRuleRevision === params.smartRule.revision;
+			if (!ruleHolds) return { outcome: "smart-rule-changed" };
+		}
+		if (definition === undefined) {
 			return { outcome: "readlist-gone" };
 		}
 		if (!userArticles.has(userArticleKey(params.userId, ArticleResourceUniqueId.parse(params.url).value))) {
@@ -1087,6 +1135,9 @@ export function initInMemoryArticleStore(): {
 		}
 		for (const [key, removal] of readlistRemovals) {
 			if (removal.userId === userId) readlistRemovals.delete(key);
+		}
+		for (const [key, marker] of smartMatchRevisions) {
+			if (marker.userId === userId) smartMatchRevisions.delete(key);
 		}
 		saveCursors.delete(userId);
 		for (const [key, held] of heldLinks) {
@@ -1144,6 +1195,7 @@ export function initInMemoryArticleStore(): {
 		};
 		removalTimes.set(allKey, { userId, at: now });
 		userArticles.delete(allKey);
+		forgetAllRowMarkers(allKey);
 		heldLinks.set(heldLinkMapKey({ userId, heldKey }), { userId, row, link });
 		return { outcome: "held" };
 	};
@@ -1288,6 +1340,18 @@ export function initInMemoryArticleStore(): {
 			return candidate.userId === key.userId && candidate.url === key.url;
 		});
 
+	const countSmartReadlistArticles: CountSmartReadlistArticles = async ({ userId, readlists }) => {
+		const urls = new Set<string>();
+		for (const row of userArticles.values()) {
+			if (row.userId === userId && row.readlist && readlists.includes(row.readlist)) {
+				if (!readlistDefinitions.get(readlistDefinitionKey(userId, row.readlist))?.purpose) continue;
+				urls.add(row.url);
+				if (urls.size === 10) break;
+			}
+		}
+		return urls.size;
+	};
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
@@ -1369,6 +1433,7 @@ export function initInMemoryArticleStore(): {
 			slug: params.slug,
 			label: params.label,
 			createdAt: params.createdAt,
+			filingMode: "manual",
 		});
 		return { created: true, ownedCount: owned.length + 1 };
 	};
@@ -1400,15 +1465,39 @@ export function initInMemoryArticleStore(): {
 	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { updated: false };
+		if (!definition || definition.filingMode === "smart") return { updated: false };
+		const firstSetup = !definition.purpose?.trim();
 		definition.purpose = params.purpose;
-		return { updated: true };
+		return { updated: true, firstSetup };
+	};
+
+	const setSmartReadlistRule: SetSmartReadlistRule = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { kind: "readlist-gone" };
+		const revision = (definition.filingRuleRevision ?? 0) + 1;
+		definition.filingMode = "smart";
+		definition.purpose = params.purpose;
+		definition.filingRuleRevision = revision;
+		definition.filingRuleEffectiveAt = params.effectiveAt;
+		return { kind: "set", revision };
+	};
+
+	const turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (definition?.filingMode !== "smart") return { turnedOff: false };
+		assert(definition.filingRuleRevision !== undefined, "a smart readlist carries its rule revision");
+		definition.filingMode = "manual";
+		definition.filingRuleRevision += 1;
+		definition.filingRuleEffectiveAt = undefined;
+		return { turnedOff: true };
 	};
 
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { cleared: false };
+		if (!definition || definition.filingMode === "smart") return { cleared: false };
 		definition.purpose = undefined;
 		return { cleared: true };
 	};
@@ -1458,16 +1547,31 @@ export function initInMemoryArticleStore(): {
 		return userArticles.delete(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value, readlist));
 	};
 
+	const filingOf = (definition: {
+		filingMode?: "manual" | "smart";
+		filingRuleRevision?: number;
+		filingRuleEffectiveAt?: Date;
+	}): { filing?: ReadlistFiling } => {
+		if (definition.filingMode === undefined) return {};
+		if (definition.filingMode === "manual") return { filing: { mode: "manual" } };
+		assert(definition.filingRuleRevision !== undefined, "a smart readlist carries its rule revision");
+		assert(definition.filingRuleEffectiveAt !== undefined, "a smart readlist carries its rule's effective instant");
+		return {
+			filing: { mode: "smart", revision: definition.filingRuleRevision, effectiveAt: definition.filingRuleEffectiveAt },
+		};
+	};
+
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, purpose, createdAt, starterCampaignId, pinnedAt }) => ({
-				slug,
-				label,
-				purpose,
-				createdAt,
-				...(starterCampaignId === undefined ? {} : { starterCampaignId }),
-				...(pinnedAt === undefined ? {} : { pinnedAt }),
+			.map((definition) => ({
+				slug: definition.slug,
+				label: definition.label,
+				purpose: definition.purpose,
+				createdAt: definition.createdAt,
+				...(definition.starterCampaignId === undefined ? {} : { starterCampaignId: definition.starterCampaignId }),
+				...(definition.pinnedAt === undefined ? {} : { pinnedAt: definition.pinnedAt }),
+				...filingOf(definition),
 			}))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
 
@@ -1902,11 +2006,14 @@ export function initInMemoryArticleStore(): {
 		purgeReadlistArticle,
 		findReadlistFiling,
 		findReadlistRemoval,
+		findSmartMatchRevisions,
+		recordSmartMatchRevision,
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		findQueueRowKeys,
 		hasQueueRow,
+		countSmartReadlistArticles,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,
@@ -1922,6 +2029,8 @@ export function initInMemoryArticleStore(): {
 		pinReadlistDefinition,
 		unpinReadlistDefinition,
 		setReadlistDefinitionPurpose,
+		setSmartReadlistRule,
+		turnOffSmartReadlistMatching,
 		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,

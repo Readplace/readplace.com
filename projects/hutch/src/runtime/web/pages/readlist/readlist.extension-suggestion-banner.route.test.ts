@@ -153,6 +153,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const { parseArticle } = initReadabilityParser({
+			coverageRules: { inspect: () => [] },
 			crawlArticle,
 			siteRules: [],
 			readabilityAdditions,
@@ -202,6 +203,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const { parseArticle } = initReadabilityParser({
+			coverageRules: { inspect: () => [] },
 			crawlArticle,
 			siteRules: [],
 			readabilityAdditions,

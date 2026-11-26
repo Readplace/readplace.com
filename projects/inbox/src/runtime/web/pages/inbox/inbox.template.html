@@ -3,7 +3,7 @@
     <div class="inbox__header">
       <a class="inbox__back" href="{{backHref}}" data-test-inbox-back>{{icon "arrow-left"}} {{backLabel}}</a>
       <h1 class="inbox__title">From My Custom Emails</h1>
-      {{#unless paidFeaturesLocked}}<p class="inbox__subtitle">Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.</p>{{/unless}}
+      {{#unless paidFeaturesLocked}}<p class="inbox__subtitle">{{t "inboxDelivery.addresses"}}</p>{{/unless}}
     </div>
 
     {{{statusToastHtml}}}

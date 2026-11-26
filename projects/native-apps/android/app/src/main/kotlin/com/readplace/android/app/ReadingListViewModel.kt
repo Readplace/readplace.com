@@ -62,6 +62,7 @@ data class ReadingListState(
 	 * the sheet, so the sheet opens without waiting. */
 	val readerPresentation: ReaderPresentation? = null,
 	val appearance: String? = null,
+	val readlistHint: ReadlistHintContent? = null,
 	/** The collection-level controls the toolbar renders. The server's own collection
 	 * affordances are looped (each presentable one becomes a control), and the
 	 * client-side add (+) control that opens the Share help is always present — it is
@@ -82,6 +83,9 @@ data class ReadingListState(
 	/** The mainline readlist's href (the collection's `root` link). Null when the
 	 * server advertised none, in which case no readlist is treated as mainline. */
 	val rootHref: String? = null,
+	val homeHref: String? = null,
+	val setHomeAction: SirenAction? = null,
+	val homeStatus: String? = null,
 	/** The extra readlists the reader chose as share destinations, mirrored from the
 	 * persisted choice so the menu badges and drop row reflect it without a fetch. */
 	val shareTargetHrefs: Set<String> = emptySet(),
@@ -90,6 +94,7 @@ data class ReadingListState(
 	val isOffline: Boolean = false,
 	val offlineDownload: OfflineDownloadProgress? = null,
 	val interruptedOfflineDownload: OfflineDownloadRun? = null,
+	val readerBaseUrl: String,
 ) {
 	val offlineDownloadHref: String? get() = tabs.firstOrNull()?.href
 
@@ -100,8 +105,11 @@ data class ReadingListState(
 			else -> interruptedOfflineDownload?.let { OfflineDownloadStatus.Resumable(it) }
 		}
 
-	fun isAvailableOffline(article: Article): Boolean =
-		downloadedVersions.isCurrent(articleId = article.id, contentVersion = article.contentVersion)
+	fun isAvailableOffline(article: Article, now: Instant): Boolean {
+		if (!article.isReadyToRead) return false
+		val readerUrl = article.readHref?.let { ReaderRequest.url(it, readerBaseUrl) } ?: return false
+		return downloadedVersions.isCurrent(readerUrl = readerUrl, contentVersion = article.contentVersion, now = now)
+	}
 
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
@@ -119,6 +127,7 @@ data class ReadingListState(
 			readlists = readlists,
 			selectedHref = selectedReadlistHref,
 			mainlineHref = rootHref,
+			homeHref = homeHref,
 			shareTargetHrefs = shareTargetHrefs,
 		)
 
@@ -134,6 +143,8 @@ data class ReadingListState(
 		return SharedArticlesDrop.of(readlist, mainlineHref = rootHref, tickedHrefs = shareTargetHrefs)
 	}
 }
+
+data class ReadlistHintContent(val text: String, val linkLabel: String, val url: String)
 
 /**
  * What the in-app web sheet needs to present a server URL: the resolved URL and,
@@ -173,7 +184,7 @@ class ReadingListViewModel(
 	private val readerPages: OfflineReaderPages,
 	private val scope: CoroutineScope,
 ) {
-	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
+	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP), readerBaseUrl = api.baseUrl))
 	val state: StateFlow<ReadingListState> = states.asStateFlow()
 
 	init {
@@ -255,7 +266,45 @@ class ReadingListViewModel(
 	 * it never races the launch-time load with a second fetch. */
 	private var hasLoadedOnce = false
 
-	suspend fun loadIfNeeded() = if (!hasLoadedOnce && !states.value.isLoading) openRememberedReadlist() else Unit
+	suspend fun loadIfNeeded() {
+		if (hasLoadedOnce || states.value.isLoading) return
+		val generation = tabGeneration
+		val snapshotGeneration = snapshot.generation
+		val read = beginRead()
+		try {
+			val entry = api.rediscoverReadlist()
+			if (!tabUnchanged(generation)) return
+			snapshot.keepFirstPage(entry, href = null, generation = snapshotGeneration)
+			val home = entry.homeHref
+			if (home == null && lastViewed.href != null) return openRememberedReadlist(fallback = entry)
+			val page = if (home == null || home == entry.currentReadlistHref) entry else loadFirstPage(path = home)
+			if (tabUnchanged(generation)) {
+				currentTabHref = page.currentTabHref ?: page.currentReadlistHref ?: home
+				replace(page, emptyList(), read)
+			}
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (error: Exception) {
+			if (!tabUnchanged(generation)) return
+			val page = if (OfflineReading.isTransportFailure(error)) cachedLaunchPage() else null
+			if (page == null) handle(error) else replace(page, emptyList(), read)
+		} finally {
+			endRead()
+		}
+	}
+
+	private suspend fun cachedLaunchPage(): ReadlistPage? {
+		val entry = snapshot.firstPage(href = null)
+		val last = lastViewed.currentTabHref?.let { snapshot.firstPage(href = it) }
+			?: lastViewed.href?.let { snapshot.firstPage(href = it) }
+		val home = lastViewed.homeHref ?: entry?.homeHref
+		if (home != null) {
+			val matching = listOfNotNull(last, entry).firstOrNull { it.currentReadlistHref == home }
+			if (matching != null) return matching
+			snapshot.firstPage(href = home)?.let { return it }
+		}
+		return last ?: entry
+	}
 
 	suspend fun refresh() {
 		fetchFirstPage()
@@ -316,19 +365,15 @@ class ReadingListViewModel(
 		nextHref = null
 		pagesHeld = 0
 		isLoadingMore = false
-		mutate { it.copy(articles = emptyList(), hasMore = false, processingReceivedAt = emptyMap()) }
+		mutate { it.copy(articles = emptyList(), hasMore = false, processingReceivedAt = emptyMap(), setHomeAction = null, homeStatus = null) }
 	}
 
 	/**
-	 * Opens the readlist the reader last viewed, requested directly so a cold launch
-	 * shows it without flashing the entry point. With nothing remembered, loads the
-	 * entry point. On a non-auth failure of the remembered read, falls back to
-	 * entry-point discovery once; an auth failure uses the existing session handling
-	 * with no fallback. The stored href is left intact on any failure — a later
-	 * successful load that names a current readlist is what supersedes it.
+	 * Older servers don't publish Home. Try the remembered readlist before showing
+	 * their entry collection. Authentication failures still use session handling.
 	 */
-	private suspend fun openRememberedReadlist() {
-		val href = lastViewed.href ?: return fetchFirstPage(followHome = true)
+	private suspend fun openRememberedReadlist(fallback: ReadlistPage) {
+		val href = lastViewed.href ?: return
 		mutate { it.copy(selectedReadlistHref = href) }
 		restart(href = href)
 		val generation = tabGeneration
@@ -347,7 +392,7 @@ class ReadingListViewModel(
 				else -> {
 					currentTabHref = null
 					mutate { it.copy(selectedReadlistHref = null) }
-					fetchFirstPage(followHome = true)
+					replace(fallback, emptyList(), read)
 				}
 			}
 		} finally {
@@ -364,7 +409,7 @@ class ReadingListViewModel(
 		mutate { it.copy(shareTargetHrefs = shareTarget.hrefs) }
 	}
 
-	private suspend fun fetchFirstPage(followHome: Boolean = false) {
+	private suspend fun fetchFirstPage() {
 		val generation = tabGeneration
 		val read = beginRead()
 		// A locked account's reads still succeed, so a fresh load reconciles a
@@ -374,7 +419,6 @@ class ReadingListViewModel(
 		try {
 			val page = loadFirstPage(path = currentTabHref)
 			if (!tabUnchanged(generation)) return
-			if (followHome) page.homeHref?.takeIf { it != page.currentReadlistHref }?.let { return select(readlistHref = it) }
 			replace(firstPage = page, deeperPages = emptyList(), read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
@@ -435,7 +479,13 @@ class ReadingListViewModel(
 			// A switch mid-mutation abandons the result rather than adopting it into
 			// the new readlist; the error path keeps its existing behaviour (this owns
 			// no new mutation-error policy).
-			if (tabUnchanged(generation)) adopt(page, read)
+			if (tabUnchanged(generation)) {
+				if (action.name == "set-home-readlist" && page != null) {
+					val label = page.readlists.find { it.isCurrent && it.href == page.homeHref }?.label
+					if (label != null) mutate { it.copy(homeStatus = "$label is now your home readlist.") }
+				}
+				adopt(page, read)
+			}
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
@@ -941,7 +991,10 @@ class ReadingListViewModel(
 			// The list now holds first-page server truth, so any share-sheet save
 			// recorded up to this point has been shown — including one saved before
 			// a cold launch, which the launch load itself surfaces.
-			if (!page.isStoredCopy) unseenSave.clear()
+			if (!page.isStoredCopy) {
+				unseenSave.clear()
+				lastViewed.remember(page.homeHref, page.currentTabHref)
+			}
 			// The advertised current tab becomes the reload target; a collection that
 			// names none keeps the target the switch or launch aimed at.
 			page.currentTabHref?.let { currentTabHref = it }
@@ -964,7 +1017,12 @@ class ReadingListViewModel(
 				// the toolbar for the whole scroll.
 				collectionAffordances = toolbarOf(page),
 				appearance = page.appearance,
+				readlistHint = page.hint?.let { hint ->
+					Href.resolve(hint.linkHref, api.baseUrl)?.let { url -> ReadlistHintContent(text = hint.text, linkLabel = hint.linkLabel, url = url) }
+				},
 				rootHref = page.rootHref,
+				homeHref = page.homeHref,
+				setHomeAction = page.action(named = "set-home-readlist").takeUnless { page.isStoredCopy },
 				tabs = page.tabs,
 				readlists = page.browseReadlists,
 				filingReadlists = page.readlists,

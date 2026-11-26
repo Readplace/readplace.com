@@ -36,6 +36,6 @@ export function toReadlistKeepOfferDisplayModel(eligibility: KeepOfferEligibilit
 	};
 }
 
-export function renderReadlistKeepOffer(model: ReadlistKeepOfferDisplayModel): string {
-	return render(TEMPLATE, model);
+export function renderReadlistKeepOffer(model: ReadlistKeepOfferDisplayModel, returnQuery = ""): string {
+	return render(TEMPLATE, { ...model, dismissPath: `/queue/keep-offer/dismiss${returnQuery}` });
 }

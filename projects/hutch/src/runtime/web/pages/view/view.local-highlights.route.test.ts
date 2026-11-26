@@ -77,7 +77,19 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 		const markup = localHighlightsOf(response.text);
 		assert(markup.toolbar, "the local toolbar renders");
 		assert.equal(markup.toolbar.getAttribute("data-highlight-opened-url"), "/view/highlights/event");
+		assert.equal(markup.toolbar.getAttribute("data-highlight-copied-url"), "/view/highlights/event?action=copied");
 		const doc = new JSDOM(response.text).window.document;
+		const status = doc.querySelector("[data-highlight-copy-status]");
+		assert(status, "the copy status renders");
+		assert.deepEqual(
+			[status.getAttribute("data-copied-text"), status.getAttribute("data-copy-failed-text"), status.hasAttribute("hidden")],
+			["Highlight copied", "Couldn't copy the highlight. Select its text to copy it.", true],
+		);
+		const copyItems = Array.from(
+			doc.querySelectorAll<HTMLTemplateElement>("template[data-view-highlights-surface]"),
+			(template) => template.content.querySelector("[data-highlight-copy]")?.getAttribute("data-highlight-copy"),
+		);
+		assert.deepEqual(copyItems, ["", "", undefined, undefined]);
 		const forms = Array.from(doc.querySelectorAll("[data-highlight-create-form], #note-highlight-dialog form"));
 		assert.deepEqual(
 			forms.map((form) => [
@@ -93,6 +105,23 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 		assert.equal(markup.card.getAttribute("data-view-highlights-url"), ARTICLE_URL);
 		assert(markup.popup, "the sign-up popup renders");
 		assert.deepEqual(markup.scripts, ["/client-dist/view-highlights.client.js", "/client-dist/highlight-toolbar.client.js"]);
+	});
+
+	it("renders the copy status region in main, outside the reading layout, reporting copies to the event route", async () => {
+		const harness = await harnessWith({ urls: [ARTICLE_URL] });
+
+		const response = await request(harness.server).get(VIEW_PATH).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		const status = doc.querySelector("[data-test-highlight-rail-copy-status]");
+		assert(status, "the copy status region renders");
+		assert.equal(status.parentElement?.tagName, "MAIN");
+		assert.equal(status.closest(".reading-layout"), null);
+		assert.equal(status.getAttribute("role"), "status");
+		assert.equal(status.getAttribute("data-copied-url"), "/view/highlights/event?action=copied");
+		const row = doc.querySelector("template[data-view-highlights-row]");
+		assert(row, "the row template renders");
+		assert.equal(row.innerHTML.includes('data-test-action="highlight-copy"'), true);
 	});
 
 	it("holds the in-text surfaces and the delete confirm for a placeholder highlight, with the hint beside the card", async () => {
@@ -166,6 +195,7 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 				button.textContent?.trim(),
 			]),
 			[
+				["btn btn--neutral btn--s highlights-rail__copy", null, "Copy"],
 				["btn btn--neutral btn--s highlights-rail__delete-form--fallback", null, "Delete highlight"],
 				["btn btn--neutral btn--s highlights-rail__delete-trigger", `delete-highlight-${placeholder}`, "Delete highlight"],
 				["btn btn--destructive btn--s", null, "Delete note"],

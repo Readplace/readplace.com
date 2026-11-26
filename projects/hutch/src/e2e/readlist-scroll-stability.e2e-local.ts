@@ -273,6 +273,7 @@ for (const viewport of VIEWPORTS) {
 			const dialog = `#readlist-create-move-${articleId}`;
 			await page.click(`${card} [data-test-action="article-menu"]`);
 			await page.click(`${card} [data-test-action="move"]`);
+			await page.click(`#readlist-move-${articleId} [data-test-action="move-create"]`);
 			await page.waitForSelector(`${dialog}:popover-open`);
 			await page.locator(`${dialog} input[name="label"]`).fill("Finance");
 

@@ -51,7 +51,7 @@ describe("Readlist routes", () => {
 				summary: "Ready summary.",
 			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -455,7 +455,7 @@ describe("GET /queue/:id/card — the move item", () => {
 
 		const polled = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
 
-		expect(menuControls(polled)).toEqual(["remove-from-hand-picked", "move-fallback", "move", "delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
 	});
 
 	it("builds the move item from the memberships the article holds now", async () => {
@@ -472,6 +472,6 @@ describe("GET /queue/:id/card — the move item", () => {
 			`readlist-move-${articleId}`,
 			`readlist-create-move-${articleId}`,
 		]);
-		expect(menuControls(polled)).toEqual(["remove-from-hand-picked", "move", "delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["move", "delete-fallback", "delete"]);
 	});
 });

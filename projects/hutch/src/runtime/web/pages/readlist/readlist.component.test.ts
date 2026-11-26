@@ -15,6 +15,7 @@ import { readlistRenamePopoverId } from "./readlist-rename.component";
 import { READLIST_CLIENT_SCRIPT } from "./readlist-name-form.component";
 import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-download-script";
 import { ReadlistPage, type ReadlistPageOptions } from "./readlist.component";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
 const RAIL: ReadlistRailViewModel = {
@@ -100,6 +101,7 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 		deviceClass: "desktop",
 		keepOffer: { shown: false, reason: "not-trial" },
 		readlistHoldsArticles: false,
+		libraryHoldsArticles: true,
 		tabHoldsRows: false,
 		rail: RAIL,
 		saveTip: { state: "due", html: "" },
@@ -191,6 +193,12 @@ function emptyActionSubmission(action: Element): { method: string | null; url: U
 function emptyActionKeys(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-empty-action]"), (action) =>
 		action.getAttribute("data-test-empty-action"),
+	);
+}
+
+function olderSavesActionKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll(".readlist__older-saves [data-test-action]"), (action) =>
+		action.getAttribute("data-test-action"),
 	);
 }
 
@@ -471,6 +479,72 @@ describe("ReadlistPage", () => {
 		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
+	it("offers Add older saves from All as a neutral button on a Hand Picked page that lists articles", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE }, articles: [PLAIN_ARTICLE], isEmpty: false },
+			{ readlistHoldsArticles: true },
+		);
+
+		const button = doc.querySelector('[data-test-action="add-older-saves"]');
+		assert(button, "the Add older saves button must be offered");
+		expect(button.className).toBe("btn btn--neutral");
+		expect(button.textContent).toBe("Add older saves from All");
+		const href = new URL(button.getAttribute("href") ?? "", "https://readplace.com");
+		expect(href.pathname).toBe("/queue");
+		expect(href.searchParams.get("utm_source")).toBe("queue-heading");
+		expect(href.searchParams.get("utm_content")).toBe("add-older-saves");
+		expect(olderSavesActionKeys(doc)).toEqual(["add-older-saves"]);
+	});
+
+	it("offers no Add older saves button outside Hand Picked", () => {
+		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false }, { readlistHoldsArticles: true });
+
+		expect(olderSavesActionKeys(doc)).toEqual([]);
+	});
+
+	it("tells a reader whose Hand Picked is empty that older saves stay in All, with Browse All as the only control", () => {
+		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE } }, { readlistHoldsArticles: false, libraryHoldsArticles: true });
+
+		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No hand-picked articles here yet");
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
+			"Articles you save from now on appear here. Older saves stay in All.",
+		);
+		expect(emptyActionKeys(doc)).toEqual(["browse-all"]);
+		expect(olderSavesActionKeys(doc)).toEqual([]);
+	});
+
+	it("shows Nothing saved yet with the install action on Hand Picked when the library is empty", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE } },
+			{ readlistHoldsArticles: false, libraryHoldsArticles: false, onboarding: onboardingWith(installableClient({ platform: "chrome" })) },
+		);
+
+		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("Nothing saved yet");
+		expect(emptyActionKeys(doc)).toEqual(["install"]);
+	});
+
+	it("shows No finished articles yet with View Unread Articles on Hand Picked's Done tab when Hand Picked holds unread articles", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE, tab: "done" } },
+			{ readlistHoldsArticles: true, libraryHoldsArticles: true },
+		);
+
+		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No finished articles yet");
+		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
+			"Once you finish an article and mark it as read, you'll find it here.",
+		);
+		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
+		const action = doc.querySelector('[data-test-empty-action="view-unread"]');
+		assert(action, "the View Unread Articles CTA must be offered");
+		const submission = emptyActionSubmission(action);
+		expect([
+			submission.method,
+			submission.url.pathname,
+			submission.url.searchParams.get("scope"),
+			submission.url.searchParams.get("utm_content"),
+		]).toEqual(["GET", "/queue", "hand-picked", "view-unread"]);
+	});
+
 	it("tells a reader with an empty custom readlist to add an article from All, and offers its preferences as Beta", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } }, { readlistHoldsArticles: false });
 
@@ -647,6 +721,7 @@ describe("ReadlistPage", () => {
 		assert(form, "the save form must render");
 		expect([...urlParams(form.getAttribute("action")).keys()]).toEqual(["utm_source", "utm_medium", "utm_content"]);
 		expect([...urlParams(offlineDownload(doc).getAttribute("data-offline-download")).keys()]).toEqual([
+			"queue",
 			"utm_source",
 			"utm_medium",
 			"utm_content",

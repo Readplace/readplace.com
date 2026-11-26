@@ -1,7 +1,7 @@
 import { EmailLinkOrdinalSchema, type InboxEmailLinksMeta } from "@packages/domain/inbox";
 import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
-import { cardReadlistFits } from "./inbox-readlist-fit";
+import { cardReadlistFits, readlistOutcomeFor } from "./inbox-readlist-fit";
 
 const EMAIL_ID = "2026-06-24T09:00:00.000Z#<m@x>";
 const ORDINAL = EmailLinkOrdinalSchema.parse("0001");
@@ -76,5 +76,30 @@ describe("cardReadlistFits", () => {
 				ordinal: ORDINAL,
 			}),
 		).toEqual([]);
+	});
+});
+
+describe("readlistOutcomeFor", () => {
+	const ordinal = EmailLinkOrdinalSchema.parse("0300");
+	const continuation = { ...workOutcome, startIndex: 300, fit: [{ ordinal, verdict: "drop" as const, reason: "Off topic." }] };
+
+	it("keeps the original decision and adds the continuation's decision", () => {
+		const outcomes = [continuation, workOutcome];
+		expect(readlistOutcomeFor({ outcomes, readlist: WORK })?.fit).toEqual([...workOutcome.fit, ...continuation.fit]);
+		expect(readlistOutcomeFor({ outcomes, readlist: WORK, ordinal: ORDINAL })).toBe(workOutcome);
+		expect(readlistOutcomeFor({ outcomes, readlist: WORK, ordinal })).toBe(continuation);
+	});
+
+	it("surfaces a failed continuation while retaining the original per-card outcome", () => {
+		const latest = { ...continuation, decision: "failed" as const, fit: [] };
+		const outcomes = [latest, workOutcome];
+		expect(readlistOutcomeFor({ outcomes, readlist: WORK })).toBe(latest);
+		expect(readlistOutcomeFor({ outcomes, readlist: WORK, ordinal: ORDINAL })).toBe(workOutcome);
+	});
+
+	it("preserves a settled no-preferences outcome across continuations", () => {
+		const first = { ...workOutcome, decision: "no-purpose" as const, fit: [] };
+		const latest = { ...first, startIndex: 300 };
+		expect(readlistOutcomeFor({ outcomes: [first, latest], readlist: WORK })).toBe(latest);
 	});
 });

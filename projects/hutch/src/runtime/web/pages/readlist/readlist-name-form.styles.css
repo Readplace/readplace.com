@@ -24,3 +24,29 @@
 .htmx-request .readlist-name-form__loader {
   display: flex;
 }
+
+.readlist-name-form__commit-label--smart {
+  display: none;
+}
+
+.readlist-name-form:has(.readlist-create__smart-toggle:checked) .readlist-name-form__commit-label {
+  display: none;
+}
+
+.readlist-name-form:has(.readlist-create__smart-toggle:checked) .readlist-name-form__commit-label--smart {
+  display: inline;
+}
+
+.readlist-create__smart-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.readlist-create__smart-purpose {
+  display: none;
+}
+
+.readlist-name-form:has(.readlist-create__smart-toggle:checked) .readlist-create__smart-purpose {
+  display: block;
+}

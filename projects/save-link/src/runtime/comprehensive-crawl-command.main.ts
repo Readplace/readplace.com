@@ -18,6 +18,7 @@ import { extractPdfMetadata } from "@packages/crawl-article";
 import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { readEnv } from "@packages/require-env";
+import { parseCoverageRuleModes } from "@packages/domain/article";
 import { COMPREHENSIVE_CRAWL_COMMAND_ENV } from "./comprehensive-crawl-command.env";
 import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
 import { initRunMeteredLeg } from "./domain/metered-leg/run-metered-leg";
@@ -41,6 +42,7 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 
 const env = readEnv(COMPREHENSIVE_CRAWL_COMMAND_ENV);
+const coverageRuleModes = parseCoverageRuleModes(env.COVERAGE_RULE_MODES);
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
@@ -103,6 +105,7 @@ const parser = initComprehensiveParserDepBundle({
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	extractPdf,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+	coverageRuleModes,
 });
 const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });

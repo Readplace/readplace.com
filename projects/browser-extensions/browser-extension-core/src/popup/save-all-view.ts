@@ -8,7 +8,7 @@ import {
 	viewKindOf,
 } from "../bulk-save-run/bulk-save-run";
 import type { WindowId } from "../domain/window-id";
-import { type SaveAllDetailLine, buildSaveAllDetailLines, savingTabsTitle, summarizeBulkSave } from "./save-all-tabs";
+import { type SaveAllDetailLine, buildSaveAllDetailLines, isWebPageUrl, savingTabsTitle, summarizeBulkSave } from "./save-all-tabs";
 
 export type SaveAllView = {
 	kind: RunViewKind;
@@ -80,5 +80,5 @@ export function routeToolbarOpen(input: {
 	if (run === undefined || !isActive(run)) return { kind: "single-save" };
 	const holdsUrl = run.links.some((link) => link.url === input.activeTab.url);
 	const holdsTab = run.clientSkips.some((skip) => skip.tabId !== null && skip.tabId === input.activeTab.tabId);
-	return holdsUrl || holdsTab ? { kind: "follow", run } : { kind: "single-save" };
+	return holdsUrl || holdsTab || !isWebPageUrl(input.activeTab.url) ? { kind: "follow", run } : { kind: "single-save" };
 }

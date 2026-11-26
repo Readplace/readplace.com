@@ -270,7 +270,7 @@ describe("Upload routes", () => {
 		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
 		const received = await agent.post(`/upload/${uploadId}/received`);
 		expect(received.status).toBe(303);
-		expect(received.headers.location).toBe("/queue");
+		expect(received.headers.location).toBe("/queue?queue=default");
 
 		const session = await harness.mediaUpload.findMediaUploadSession({ uploadId, userId });
 		expect(session?.status).toBe("committed");
@@ -280,7 +280,7 @@ describe("Upload routes", () => {
 
 		const again = await agent.get(`/upload/${uploadId}`);
 		expect(again.status).toBe(303);
-		expect(again.headers.location).toBe("/queue");
+		expect(again.headers.location).toBe("/queue?queue=default");
 	});
 
 	it("answers upload_unsupported_type, naming every format the member may upload, for a file no kind recognises", async () => {

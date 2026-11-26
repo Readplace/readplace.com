@@ -59,6 +59,7 @@ export function initClaimViewHighlights(deps: {
 			freshness,
 			provenance: input.provenance,
 			requestedAt: input.requestedAt,
+			personalPickAt: input.requestedAt,
 			saveTrigger: "manual",
 			saveAttemptId: newSaveAttemptId(),
 		});

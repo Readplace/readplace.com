@@ -24,6 +24,7 @@ import {
 	renderHighlightsRail,
 } from "../../shared/article-body/highlights-rail/highlights-rail.component";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
+import { renderHighlightCopyStatus } from "../../shared/article-body/highlights-rail/highlight-copy-status.component";
 import {
 	HIGHLIGHT_TOOLBAR_SCRIPT,
 	type HighlightRefusal,
@@ -154,6 +155,7 @@ export function readerMarkStatusConfirm(input: {
 export interface ReaderPageHighlights extends ReaderHighlights {
 	scope: HighlightFormScope | undefined;
 	openNote: HighlightId | undefined;
+	copiedUrl: string;
 }
 
 function sharingOffReasonFor(articleUrl: string): SharingOffReason | undefined {
@@ -486,6 +488,7 @@ export function ReaderPage(
 		downloadGuideHtml,
 		readlistCreateHtml,
 		statusToastHtml,
+		highlightCopyStatusHtml: renderHighlightCopyStatus({ copiedUrl: highlights.copiedUrl }),
 	});
 
 	return {
@@ -513,9 +516,7 @@ export function ReaderPage(
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				(highlights.scope === undefined && highlights.rows.every((row) => row.note === undefined)
-					? ""
-					: HIGHLIGHT_TOOLBAR_SCRIPT),
+				HIGHLIGHT_TOOLBAR_SCRIPT,
 		}),
 	};
 }

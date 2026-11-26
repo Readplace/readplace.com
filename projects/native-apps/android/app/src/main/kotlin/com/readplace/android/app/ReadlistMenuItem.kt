@@ -15,6 +15,7 @@ data class ReadlistMenuItem(
 	val href: String,
 	val isSelected: Boolean,
 	val isShareTarget: Boolean,
+	val isHome: Boolean,
 ) {
 	companion object {
 		fun items(
@@ -22,12 +23,14 @@ data class ReadlistMenuItem(
 			selectedHref: String?,
 			mainlineHref: String?,
 			shareTargetHrefs: Set<String>,
+			homeHref: String? = null,
 		): List<ReadlistMenuItem> =
 			readlists.map { readlist ->
 				ReadlistMenuItem(
 					label = readlist.label,
 					href = readlist.href,
 					isSelected = readlist.matches(listOfNotNull(selectedHref)),
+					isHome = readlist.href == homeHref,
 					isShareTarget = readlist.matches(listOfNotNull(mainlineHref) + shareTargetHrefs),
 				)
 			}

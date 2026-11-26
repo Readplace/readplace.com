@@ -11,6 +11,25 @@ export type ReadlistFitOverridesByReadlist = ReadonlyMap<
 	readonly ReadlistFitOverride[]
 >;
 
+export function readlistOutcomeFor(input: {
+	outcomes: readonly InboxReadlistOutcome[];
+	readlist: ReadlistSlug;
+	ordinal?: EmailLinkOrdinal;
+}): InboxReadlistOutcome | undefined {
+	const outcomes = input.outcomes.filter((outcome) => outcome.readlist === input.readlist)
+		.sort((left, right) => (left.startIndex ?? 0) - (right.startIndex ?? 0));
+	if (input.ordinal !== undefined) {
+		const index = Number(input.ordinal);
+		return outcomes.reverse().find((outcome) => (outcome.startIndex ?? 0) <= index);
+	}
+	const initial = outcomes[0];
+	if (initial === undefined || outcomes.length === 1) return initial;
+	const latest = outcomes[outcomes.length - 1];
+	if (latest.decision === "failed") return latest;
+	const filtered = outcomes.find((outcome) => outcome.decision === "filtered");
+	return filtered ? { ...filtered, fit: outcomes.flatMap((outcome) => outcome.fit) } : latest;
+}
+
 export function currentReadlistFitOverride(params: {
 	overrides: readonly ReadlistFitOverride[];
 	emailId: string;
@@ -52,7 +71,7 @@ export function cardReadlistFits(params: {
 	if (params.meta?.savesHeld === true) return [];
 	const outcomes = params.meta?.readlistOutcomes ?? [];
 	return (params.meta?.selectedReadlists ?? []).flatMap(({ readlist, label }) => {
-		const outcome = outcomes.find((entry) => entry.readlist === readlist);
+		const outcome = readlistOutcomeFor({ outcomes, readlist, ordinal: params.ordinal });
 		if (outcome === undefined) return [];
 		return [
 			{

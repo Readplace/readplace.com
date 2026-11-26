@@ -60,7 +60,7 @@ import {
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle, type PutImageObject } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
+import { activateCoverageRules, initArticleCoverageRules, initArticleSiteRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createListUserOAuthClients,
@@ -164,7 +164,7 @@ import {
 	initResolveWrapperTarget,
 	neverResolveWrapperTarget,
 } from "@packages/save-article";
-import { ARTICLE_REFRESH_DEADLINE_MS, isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
+import { ALL_COVERAGE_RULES_OFF, ARTICLE_REFRESH_DEADLINE_MS, isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { parseAdminTotpSecrets } from "../web/pages/admin/admin-totp-secrets";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
@@ -418,7 +418,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		crawlArticle,
 		siteRules,
 		readabilityAdditions,
-		logError,
+		logError,		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 	});
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo, logThumbnailNotDelivered });
 	const finalizeArticle = initFinalizeArticle({
@@ -758,6 +758,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
+		recordSmartReadlistMinimumReached: onboardingSignals.recordSmartReadlistMinimumReached,
+		recordSmartReadlistStepDismissed: onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: onboardingSignals.recordGmailStepDismissed,

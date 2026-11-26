@@ -419,6 +419,36 @@ describe("initFileArticleIntoReadlistCommandHandler on a redrive", () => {
 		expect(JSON.stringify(h.infos)).not.toContain("example.com");
 	});
 
+	it("an email filing queued before the readlist became a Smart Readlist creates no row and logs smart-matching", async () => {
+		const h = await harness();
+		await h.saveToAll(URL);
+		await h.store.setSmartReadlistRule({ userId: USER, slug: WORK, purpose: "Code review.", effectiveAt: NOW });
+
+		await expectSkipped(h, await h.run(command(), { requestedAt: anHourBack() }), "smart-matching");
+	});
+
+	it("a reader filing into a Smart Readlist still files the link", async () => {
+		const h = await harness();
+		await h.saveToAll(URL);
+		await h.store.setSmartReadlistRule({ userId: USER, slug: WORK, purpose: "Code review.", effectiveAt: NOW });
+
+		await h.run(command({ fit: { verdict: "keep", source: { kind: "reader" } } }), { requestedAt: anHourBack() });
+
+		expect(await h.workRow(URL)).not.toBeNull();
+		expect(h.skipped()).toEqual([]);
+	});
+
+	it("an email filing into a readlist whose matching was turned off still files the link", async () => {
+		const h = await harness();
+		await h.saveToAll(URL);
+		await h.store.setSmartReadlistRule({ userId: USER, slug: WORK, purpose: "Code review.", effectiveAt: NOW });
+		await h.store.turnOffSmartReadlistMatching({ userId: USER, slug: WORK });
+
+		await h.run(command(), { requestedAt: anHourBack() });
+
+		expect(await h.workRow(URL)).not.toBeNull();
+	});
+
 	it("a redrive after the account was deleted ends with readlist-gone instead of waiting", async () => {
 		const h = await harness();
 		await h.store.deleteAllUserArticles(USER);
@@ -640,6 +670,15 @@ describe("initFileArticleIntoReadlistCommandHandler on a redrive", () => {
 		await h.store.deleteReadlistArticleByUrl({ userId: USER, readlist: WORK, url: URL });
 
 		await expectSkipped(h, await h.run(command(), { requestedAt }), "removed-after-request");
+	});
+
+	it("preserves a removal when a continuation restates the original request time", async () => {
+		const h = await harness();
+		const originalRequest = anHourBack().toISOString();
+		await h.saveToAll(URL);
+		await h.store.deleteReadlistArticleByUrl({ userId: USER, readlist: WORK, url: URL });
+		const replayed = await h.run(command({ requestedAt: originalRequest }), { requestedAt: new Date(Date.now() + 2_000) });
+		await expectSkipped(h, replayed, "removed-after-request");
 	});
 
 	it("a redrive after the reader read the row leaves it read and in place", async () => {

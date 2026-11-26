@@ -4,7 +4,7 @@ import { initResolveReaderProvenance, initResolveReaderProvenances } from "../..
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 
 export function readlistDependenciesFrom(
-	deps: Pick<AppDependencies, "setSessionReadlistFilter" | "findSessionReadlistFilter" | "validateSaveableUrl" | "findUserById" | "findArticlesByUser" | "countArticlesByUser" | "findArticleById" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "findArticleUrlById" | "saveArticle" | "saveArticleKeepingPosition" | "changePersonalPick" | "deleteArticle" | "updateArticleStatus" | "markArticleViewed" | "findReadlistArticles" | "countReadlistArticles" | "findReadlistArticleById" | "updateArticleStatusAcrossReadlists" | "deleteReadlistArticle" | "purgeReadlistArticle" | "markReadlistArticleViewed" | "listUserSavesForUrl" | "listUserSavesForUrls" | "deleteArticleHighlights" | "listArticleHighlights" | "readCanonicalSnapshot" | "deleteHighlight" | "updateHighlightNote" | "moveReadlistArticles" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "setReadlistDefinitionPurpose" | "clearReadlistDefinitionPurpose" | "purgeReadlistFitOverrides" | "listReadlistFitOverrides" | "deleteReadlistFitOverride" | "listInboxAddresses" | "setInboxAddressReadlist" | "createRoutedInboxAddress" | "markSummaryToggled" | "recordEngagementActivity" | "markRelatedDismissed" | "publishLinkSaved" | "publishLinkQueued" | "publishLinkDequeued" | "publishQueueEntryCreated" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "requestResolutionOnView" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "findRelatedArticles" | "findPastReads" | "listReceivedSenders" | "bulkArticles" | "listSenderIssues" | "resolveCanonicalIdentity" | "listIssueLinks" | "findIssueLink" | "findIssueLinkSaveStates" | "publishRemoveMyContent" | "publishSaveLinkRawHtmlCommand" | "publishSaveLinkRawPdfCommand" | "putPendingHtml" | "putPendingPdf" | "createUploadSlot" | "statPendingUpload" | "readPendingUploadPrefix" | "findGeneratedSummary" | "findGeneratedSummaries" | "markSummaryPending" | "findArticleCrawlStatus" | "findArticleCrawlStatuses" | "markCrawlPending" | "refreshArticleIfStale" | "refreshArticleIfStaleStored" | "publishSubmitLink" | "allocateSavedAt" | "allocateSavedAtSequence" | "findSavedUrls" | "resolveFirstVisitIdentity" | "pinContentSource" | "publishUpdateFetchTimestamp" | "readArticleContent" | "httpErrorMessageMapping" | "getOnboardingSignals" | "recordNativeAppAnyActivity" | "recordNativeAppSavedArticle" | "recordNextReadMinimumReached" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "recordOnboardingOutstandingVersion" | "recordMarkReadAcrossQueuesAcknowledged" | "recordDeleteArticleAcknowledged" | "setKeepOfferDismissed" | "presignMediaImage" | "logError" | "salt" | "now" | "presignEnclosure" | "readerSectionThresholdBytes" | "readArticleImage">,
+	deps: Pick<AppDependencies, "setSessionReadlistFilter" | "findSessionReadlistFilter" | "validateSaveableUrl" | "findUserById" | "findArticlesByUser" | "countArticlesByUser" | "findArticleById" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "findArticleUrlById" | "saveArticle" | "saveArticleKeepingPosition" | "changePersonalPick" | "deleteArticle" | "updateArticleStatus" | "markArticleViewed" | "findReadlistArticles" | "countReadlistArticles" | "findReadlistArticleById" | "updateArticleStatusAcrossReadlists" | "deleteReadlistArticle" | "purgeReadlistArticle" | "markReadlistArticleViewed" | "listUserSavesForUrl" | "countSmartReadlistArticles" | "listUserSavesForUrls" | "deleteArticleHighlights" | "listArticleHighlights" | "readCanonicalSnapshot" | "deleteHighlight" | "updateHighlightNote" | "moveReadlistArticles" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "setReadlistDefinitionPurpose" | "setSmartReadlistRule" | "turnOffSmartReadlistMatching" | "clearReadlistDefinitionPurpose" | "purgeReadlistFitOverrides" | "listReadlistFitOverrides" | "deleteReadlistFitOverride" | "listInboxAddresses" | "setInboxAddressReadlist" | "createRoutedInboxAddress" | "markSummaryToggled" | "recordEngagementActivity" | "markRelatedDismissed" | "publishLinkSaved" | "publishLinkQueued" | "publishLinkDequeued" | "publishQueueEntryCreated" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "requestResolutionOnView" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "findRelatedArticles" | "findPastReads" | "listReceivedSenders" | "bulkArticles" | "listSenderIssues" | "resolveCanonicalIdentity" | "listIssueLinks" | "findIssueLink" | "findIssueLinkSaveStates" | "publishRemoveMyContent" | "publishSaveLinkRawHtmlCommand" | "publishSaveLinkRawPdfCommand" | "putPendingHtml" | "putPendingPdf" | "createUploadSlot" | "statPendingUpload" | "readPendingUploadPrefix" | "findGeneratedSummary" | "findGeneratedSummaries" | "markSummaryPending" | "findArticleCrawlStatus" | "findArticleCrawlStatuses" | "markCrawlPending" | "refreshArticleIfStale" | "refreshArticleIfStaleStored" | "publishSubmitLink" | "allocateSavedAt" | "allocateSavedAtSequence" | "findSavedUrls" | "resolveFirstVisitIdentity" | "pinContentSource" | "publishUpdateFetchTimestamp" | "readArticleContent" | "httpErrorMessageMapping" | "getOnboardingSignals" | "recordNativeAppAnyActivity" | "recordNativeAppSavedArticle" | "recordSmartReadlistMinimumReached" | "recordSmartReadlistStepDismissed" | "recordNextReadMinimumReached" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "recordOnboardingOutstandingVersion" | "recordMarkReadAcrossQueuesAcknowledged" | "recordDeleteArticleAcknowledged" | "setKeepOfferDismissed" | "presignMediaImage" | "logError" | "salt" | "now" | "presignEnclosure" | "readerSectionThresholdBytes" | "readArticleImage" | "findHomeReadlist" | "setHomeReadlist">,
 	built: Pick<
 		ReadlistDependencies,
 		"createReaderHighlight" | "keepOffer" | "validateNewSaveUrl" | "appOrigin" | "secureCookies" | "saveArticleWithoutActivity" | "addArticleToReadlist" | "fileArticleIntoReadlist" | "upsertReadlist" | "deleteReadlistDefinition" | "markdownBearerAuth" | "resolveOwnedArticle" | "resolveVerificationStatus" | "requirePaidFeatures" | "canSaveContent" | "getEffectiveAccess" | "claimDailySaves" | "hasNoOcrPagesLeft" | "buildBannerState" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent"
@@ -74,6 +74,7 @@ export function readlistDependenciesFrom(
 		purgeReadlistArticle: deps.purgeReadlistArticle,
 		markReadlistArticleViewed: deps.markReadlistArticleViewed,
 		listUserSavesForUrl: deps.listUserSavesForUrl,
+		countSmartReadlistArticles: deps.countSmartReadlistArticles,
 		listUserSavesForUrls: deps.listUserSavesForUrls,
 		deleteArticleHighlights: deps.deleteArticleHighlights,
 		listArticleHighlights: deps.listArticleHighlights,
@@ -90,6 +91,8 @@ export function readlistDependenciesFrom(
 		pinReadlistDefinition: deps.pinReadlistDefinition,
 		unpinReadlistDefinition: deps.unpinReadlistDefinition,
 		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+		setSmartReadlistRule: deps.setSmartReadlistRule,
+		turnOffSmartReadlistMatching: deps.turnOffSmartReadlistMatching,
 		clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 		deleteReadlistDefinition,
 		purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,
@@ -152,6 +155,8 @@ export function readlistDependenciesFrom(
 		getOnboardingSignals: deps.getOnboardingSignals,
 		recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
+		recordSmartReadlistMinimumReached: deps.recordSmartReadlistMinimumReached,
+		recordSmartReadlistStepDismissed: deps.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: deps.recordGmailStepDismissed,
@@ -176,6 +181,8 @@ export function readlistDependenciesFrom(
 		salt: deps.salt,
 		now: deps.now,
 		keepOffer,
+		findHomeReadlist: deps.findHomeReadlist,
+		setHomeReadlist: deps.setHomeReadlist,
 		setKeepOfferDismissed: deps.setKeepOfferDismissed,
 	};
 }

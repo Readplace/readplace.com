@@ -10,13 +10,14 @@
           <div class="readlist__browse">
             {{{purposeCardHtml}}}
             {{{tabsHtml}}}
+            {{#unless smart}}
             <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
               <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
               <div class="readlist-preferences__unset">
                 <div class="readlist-empty" data-test-preferences-empty>
                   <div class="readlist-empty__illustration">{{{setupIllustrationHtml}}}</div>
                   <h3 class="readlist-empty__title">Set up your readlist</h3>
-                  <p class="readlist-empty__text">Personalise this readlist by choosing what you want to read in it.</p>
+                  <p class="readlist-empty__text">{{t "readlistPreferences.setup"}}</p>
                   {{#each setupActions}}
                   <button class="btn btn--neutral readlist-empty__cta" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-setup">Set up readlist</button>
                   {{/each}}
@@ -31,9 +32,11 @@
               </div>
               {{/each}}
             </section>
+            {{/unless}}
             {{{inboxesHtml}}}
             {{{gmailSendersHtml}}}
             {{{choicesHtml}}}
+            {{{smartFilingHtml}}}
           </div>
         </div>
         <div class="readlist__side">
@@ -41,6 +44,7 @@
           {{{onboardingHtml}}}
         </div>
       </div>
+      {{{preferencesSavedHtml}}}
       <div id="status-toast">{{{statusToastHtml}}}</div>
       {{{readlistRenamesHtml}}}
       {{{readlistCreateHtml}}}

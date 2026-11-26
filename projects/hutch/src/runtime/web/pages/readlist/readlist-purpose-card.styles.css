@@ -103,3 +103,16 @@
     display: inline;
   }
 }
+
+.readlist-preferences-saved[open] {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  margin: auto;
+  height: fit-content;
+}
+
+.readlist-preferences-saved::backdrop {
+  background: rgb(0 0 0 / 40%);
+}

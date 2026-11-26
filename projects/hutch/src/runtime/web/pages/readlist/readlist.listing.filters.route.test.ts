@@ -28,7 +28,7 @@ describe("Readlist routes", () => {
 				.send({ url: "https://example.com/existing" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue#latest-saved");
+			expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		});
 
 		it("should save for unchanged content (304)", async () => {
@@ -53,7 +53,7 @@ describe("Readlist routes", () => {
 			const refreshedFreshness: RefreshArticleIfStale = async () => ({
 				action: "refreshed",
 				article: {
-					ok: true as const,
+					ok: true as const, coverage: [],
 					article: {
 						title: "Refreshed",
 						siteName: "example.com",

@@ -76,6 +76,7 @@ struct ReadlistPage {
 	let tabs: [ReadlistTab]
 	let readlists: [Readlist]
 	let appearance: String?
+	let hint: CollectionHint?
 	let isStoredCopy: Bool
 	let sirenBody: Data?
 	let redirectChain: [String]
@@ -97,6 +98,7 @@ struct ReadlistPage {
 		readlists = (collection.properties?.readlists ?? []).map(Readlist.init(entry:))
 		browseReadlists = collection.properties?.browseReadlists?.map(Readlist.init(entry:)) ?? readlists
 		appearance = collection.properties?.appearance
+		hint = collection.properties?.hint
 		self.isStoredCopy = isStoredCopy
 		self.sirenBody = sirenBody
 		self.redirectChain = redirectChain
@@ -201,7 +203,7 @@ final class ReadplaceAPI {
 		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData, timeout: nil)
 	}
 
-	func followReadlist(path: String) async throws -> ReadlistPage {
+	func followReadlist(path: String? = nil) async throws -> ReadlistPage {
 		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData, timeout: Self.listReadTimeout)
 	}
 
@@ -268,7 +270,7 @@ final class ReadplaceAPI {
 			let collection = try? JSONDecoder().decode(SirenCollection.self, from: data),
 			(collection.`class` ?? []).contains("collection")
 		else { return nil }
-		return ReadlistPage(collection: collection)
+		return ReadlistPage(collection: collection, sirenBody: data)
 	}
 
 	// MARK: - Reader session
@@ -488,6 +490,7 @@ final class ReadplaceAPI {
 		// onboarding completion per-user (Safari on the same phone can't see the
 		// app's cookies, so it can't rely on the extension's cookie signals).
 		authed.setValue(AppConfig.clientIos, forHTTPHeaderField: AppConfig.clientHeader)
+		authed.setValue("1", forHTTPHeaderField: AppConfig.homeReadlistHeader)
 		authed.setValue(AppConfig.saveContinuityBackground, forHTTPHeaderField: AppConfig.saveContinuityHeader)
 		authed.setValue(await readStorefront()?.raw, forHTTPHeaderField: AppConfig.storefrontHeader)
 		authed.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")

@@ -36,6 +36,30 @@ describe("buildReaderReadlistFiling", () => {
 		});
 	});
 
+	it("marks a Smart Readlist option with its accessible name and leaves a manual one plain", () => {
+		const filing = buildReaderReadlistFiling({
+			articleId: "abc123",
+			definitions: [
+				{
+					slug: WORK,
+					label: "Work",
+					createdAt: new Date("2026-08-01T00:00:00.000Z"),
+					filing: { mode: "smart", revision: 1, effectiveAt: new Date("2026-08-01T00:00:00.000Z") },
+				},
+				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z"), filing: { mode: "manual" } },
+			],
+			saves: [{}],
+			returnTo: "/queue/abc123/view",
+			filed: [],
+			markStatusConfirmGated: false,
+		});
+
+		expect(filing.picker?.options).toEqual([
+			{ slug: WORK, label: "Work", iconName: READLIST_KIND_ICON.custom, smart: true, accessibleName: "Work, Smart Readlist" },
+			{ slug: LATER, label: "Later", iconName: READLIST_KIND_ICON.custom },
+		]);
+	});
+
 	it("splits owned readlists into tags for memberships and picker options for the rest", () => {
 		const filing = buildReaderReadlistFiling({
 			articleId: "abc123",

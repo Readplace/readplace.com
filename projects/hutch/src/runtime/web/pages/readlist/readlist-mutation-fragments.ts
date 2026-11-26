@@ -1,7 +1,7 @@
 import { render, renderToast, withInternalTracking } from "@packages/web-shell";
 import type { StatusFlash } from "./readlist.error";
 import type { ReadlistUrlState } from "./readlist.url";
-import { buildReadlistCountsUrl, buildReadlistUrl, READLIST_PATH } from "./readlist.url";
+import { buildReadlistCountsUrl, readlistReturnQuery } from "./readlist.url";
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
@@ -117,7 +117,7 @@ export function renderReadlistMutationFragment(input: {
 		countsUrl: buildReadlistCountsUrl(input.filters),
 		oob: true,
 	});
-	const returnQuery = buildReadlistUrl(input.filters).slice(READLIST_PATH.length);
+	const returnQuery = readlistReturnQuery(input.filters);
 	const toast = renderStatusToast({
 		message: input.statusFlash.message,
 		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${returnQuery}`,

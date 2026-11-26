@@ -14,8 +14,36 @@ export const enUS = {
 	ocrPagesHeld: {
 		warning: "This PDF has {pages} pages, more than are left in today's allowance.",
 	},
+	homeReadlist: {
+		setAction: "Set {label} as home",
+	},
 	readlistDestination: {
 		preferences: "Preferences",
 		integrations: "Connectors",
+	},
+	handPickedHint: {
+		text: "Older saves stay in All. To add one to Hand Picked, use “Add to readlist” on the web.",
+		link: "Open All on the web",
+	},
+	findArticles: {
+		search: "Search articles or sources",
+		readingTime: "Reading time",
+		savedDate: "Saved date",
+		time: {
+			under5: "Under 5 min",
+			from5To10: "5–10 min",
+			from10To20: "10–20 min",
+			over20: "20+ min",
+		},
+		saved: {
+			today: "Today",
+			week: "This week",
+			month: "This month",
+			older: "Older",
+		},
+		noMatches: "No matching articles",
+		clearSearch: "Clear search",
+		clearFilters: "Clear filters",
+		clearAll: "Clear search and filters",
 	},
 } as const;

@@ -71,9 +71,11 @@ const InboxEmailLinkRow = z.object({
 	truncated: dynamoField(z.boolean()),
 	extractionFailed: dynamoField(z.boolean()),
 	anchorText: dynamoField(z.string()),
+	extractionWindow: dynamoField(z.object({ start: z.number(), end: z.number() })),
+	dispatchedThrough: dynamoField(z.number()),
 	selectedReadlists: dynamoField(
 		z.array(
-			z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1) }),
+			z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1), qualification: z.enum(["preferences", "route-and-preferences"]).optional() }),
 		),
 	),
 	readlistOutcome: dynamoField(InboxReadlistOutcomeSchema),
@@ -117,6 +119,8 @@ function toMeta(item: InboxEmailLinkRowType): InboxEmailLinksMeta {
 	// that wrote them succeeded.
 	return {
 		truncated: Boolean(item.truncated),
+		...(item.extractionWindow && { extractionWindow: item.extractionWindow }),
+		...(item.dispatchedThrough !== undefined && { dispatchedThrough: item.dispatchedThrough }),
 		extractionFailed: Boolean(item.extractionFailed),
 		...(item.eligibleArticleCount === undefined ? {} : { eligibleArticleCount: item.eligibleArticleCount }),
 		...(item.savesHeld === undefined ? {} : { savesHeld: item.savesHeld }),
@@ -302,21 +306,44 @@ export function initDynamoDbInboxEmailLink(deps: {
 				);
 				values[":selectedReadlists"] = meta.selectedReadlists;
 			}
-			for (const field of ["eligibleArticleCount", "savesHeld", "issueSave"] as const) {
+			for (const field of ["savesHeld", "issueSave"] as const) {
 				if (meta[field] !== undefined) {
 					sets.push(`${field} = if_not_exists(${field}, :${field})`);
 					values[`:${field}`] = meta[field];
 				}
 			}
 
-			await table.update({
-				Key: {
-					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-					ordinal: META_SORT_KEY,
-				},
+			const window = meta.extractionWindow;
+			const Key = { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal: META_SORT_KEY };
+			if (meta.eligibleArticleCount !== undefined) {
+				sets.push(window && window.start > 0
+					? "eligibleArticleCount = eligibleArticleCount + :eligible"
+					: "eligibleArticleCount = if_not_exists(eligibleArticleCount, :eligible)");
+				values[":eligible"] = meta.eligibleArticleCount;
+			}
+			if (window === undefined) {
+				await table.update({ Key, UpdateExpression: `SET ${sets.join(", ")}`, ExpressionAttributeValues: values });
+				return;
+			}
+			sets.push("extractionWindow = :window");
+			values[":window"] = window;
+			if (window.start > 0) values[":start"] = window.start;
+			await writeIfCondition(() => table.update({
+				Key,
+				ConditionExpression: window.start === 0 ? "attribute_not_exists(extractionWindow)" : "extractionWindow.#end = :start",
+				ExpressionAttributeNames: window.start === 0 ? undefined : { "#end": "end" },
 				UpdateExpression: `SET ${sets.join(", ")}`,
 				ExpressionAttributeValues: values,
-			});
+			}));
+		},
+		markWindowDispatched: async ({ userId, receivedAtMessageId, end }) => {
+			await writeIfCondition(() => table.update({
+				Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal: META_SORT_KEY },
+				ConditionExpression: "extractionWindow.#end = :end",
+				UpdateExpression: "SET dispatchedThrough = :end",
+				ExpressionAttributeNames: { "#end": "end" },
+				ExpressionAttributeValues: { ":end": end },
+			}));
 		},
 		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
 			const outcome = await writeIfCondition(() => table.put({
@@ -363,10 +390,11 @@ export function initDynamoDbInboxEmailLink(deps: {
 			receivedAtMessageId,
 			readlist,
 			entry,
+			startIndex,
 		}) => {
 			const Key = {
 				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-				ordinal: `${READLIST_OUTCOME_PREFIX}${readlist}`,
+				ordinal: `${READLIST_OUTCOME_PREFIX}${readlist}${startIndex === undefined ? "" : `#${startIndex}`}`,
 			};
 			const stored = (await table.get(Key, { consistentRead: true }))?.readlistOutcome;
 			if (stored?.decision !== "filtered") return "not-filtered";
@@ -396,7 +424,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 			const writeOutcome = await writeIfCondition(() => table.put({
 				Item: {
 					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-					ordinal: `${READLIST_OUTCOME_PREFIX}${outcome.readlist}`,
+					ordinal: `${READLIST_OUTCOME_PREFIX}${outcome.readlist}${outcome.startIndex === undefined ? "" : `#${outcome.startIndex}`}`,
 					userId,
 					receivedAtMessageId,
 					readlistOutcome,
@@ -409,29 +437,30 @@ export function initDynamoDbInboxEmailLink(deps: {
 			return "stored";
 		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
-			const { items } = await table.query({
+			const links: InboxEmailLinkEntry[] = [];
+			let meta: InboxEmailLinksMeta | undefined;
+			const readlistOutcomes: InboxReadlistOutcome[] = [];
+			await forEachQueryPage(table, {
 				ConsistentRead: true,
 				KeyConditionExpression: "userLinkGroup = :pk",
 				ExpressionAttributeValues: {
 					":pk": groupKey({ userId, receivedAtMessageId }),
 				},
 				ScanIndexForward: true,
+			}, async (items) => {
+				for (const item of items) {
+					if (item.ordinal.startsWith(READLIST_OUTCOME_PREFIX)) {
+						assert(item.readlistOutcome, "readlist outcome row missing result");
+						readlistOutcomes.push(item.readlistOutcome);
+						continue;
+					}
+					if (item.ordinal === META_SORT_KEY) {
+						meta = toMeta(item);
+						continue;
+					}
+					links.push(toEntry(item));
+				}
 			});
-			const links: InboxEmailLinkEntry[] = [];
-			let meta: InboxEmailLinksMeta | undefined;
-			const readlistOutcomes: InboxReadlistOutcome[] = [];
-			for (const item of items) {
-				if (item.ordinal.startsWith(READLIST_OUTCOME_PREFIX)) {
-					assert(item.readlistOutcome, "readlist outcome row missing result");
-					readlistOutcomes.push(item.readlistOutcome);
-					continue;
-				}
-				if (item.ordinal === META_SORT_KEY) {
-					meta = toMeta(item);
-					continue;
-				}
-				links.push(toEntry(item));
-			}
 			return {
 				links,
 				meta:
@@ -452,7 +481,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 			const row = await table.get({
 				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
 				ordinal: META_SORT_KEY,
-			});
+			}, { consistentRead: true });
 			return row === undefined ? undefined : toMeta(row);
 		},
 		deleteLinksByEmail,

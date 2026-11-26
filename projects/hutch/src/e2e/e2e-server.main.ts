@@ -4,6 +4,7 @@ import express from 'express'
 import { z } from 'zod'
 import { Logger, consoleLogger, noopLogger } from '@packages/logger'
 import {
+	ALL_COVERAGE_RULES_OFF,
 	calculateReadTime,
 	CRAWL_STAGES,
 	ItemMediaSchema,
@@ -78,7 +79,7 @@ import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget
 import type { ChargeOcrPages, CrawlArticle, ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
-import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
+import { activateCoverageRules, initArticleCoverageRules, initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
@@ -143,7 +144,13 @@ const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().w
 const crawlWithoutSaver = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const chargeSaverOcrPages: ChargeOcrPages = async () => ({ allowed: true })
 const crawlArticle: CrawlArticle = (params) => crawlWithoutSaver({ ...params, chargeOcrPages: chargeSaverOcrPages })
-const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
+const { parseArticle, parseHtml } = initReadabilityParser({
+	crawlArticle,
+	siteRules,
+	readabilityAdditions,
+	logError,
+	coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
+})
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
 	parseHtml,
@@ -759,6 +766,12 @@ server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
 		return
 	}
 	await fixture.onboardingSignals.recordInboxArticleQueued({ userId: parsed.data.userId })
+	res.status(201).json({ ok: true })
+})
+
+server.post('/e2e/seed-smart-readlist-milestone', async (req, res) => {
+	const { userId } = z.object({ userId: UserIdSchema }).parse(req.body)
+	await fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId })
 	res.status(201).json({ ok: true })
 })
 

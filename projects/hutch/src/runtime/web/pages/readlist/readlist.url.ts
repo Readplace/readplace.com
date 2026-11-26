@@ -1,4 +1,4 @@
-import { HAND_PICKED_SCOPE, personalHomeEnabled } from "./built-in-readlists";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { z } from "zod";
 import {
 	readlistFilterOf,
@@ -20,6 +20,7 @@ import { TAB_IDS, type TabId, tabQuery } from "./readlist.tabs";
  * query strings built here — all derive from this constant so they can't drift
  * from the mount point. */
 export const READLIST_PATH = "/queue";
+export const ALL_READLIST_PATH = `${READLIST_PATH}?queue=${DEFAULT_READLIST_SLUG}`;
 
 export type LinkParams = readonly (readonly [string, string])[];
 
@@ -32,7 +33,6 @@ export type ManagedArticleSource = "picked" | "bulk" | "unknown" | "sender";
 export interface ReadlistUrlState {
 	managedSource?: ManagedArticleSource;
 	sender?: string;
-	reviewOlder?: true;
 	readlist: ReadlistSlug;
 	tab: TabId;
 	order?: SortOrder;
@@ -81,10 +81,9 @@ export function parseReadlistUrl(query: Record<string, unknown>): ReadlistUrlSta
 	const source = z.enum(["picked", "bulk", "unknown", "sender"]).safeParse(query.source);
 	const tab = parsed.tab ?? (parsed.status === "read" ? "done" : "queue");
 	return {
-		readlist: parsed.readlist ?? parsed.queue ?? (personalHomeEnabled() && query.scope === "hand-picked" ? HAND_PICKED_SCOPE : DEFAULT_READLIST_SLUG),
+		readlist: parsed.readlist ?? parsed.queue ?? (query.scope === "hand-picked" ? HAND_PICKED_SCOPE : DEFAULT_READLIST_SLUG),
 		tab,
-		...(source.success && !query.scope && !query.review && !(parsed.readlist ?? parsed.queue) ? { managedSource: source.data, ...(source.data === "sender" && typeof query.sender === "string" && query.sender.length <= 320 ? { sender: query.sender } : {}) } : {}),
-		...(personalHomeEnabled() && query.review === "older" && !query.scope && !(parsed.readlist ?? parsed.queue) ? { reviewOlder: true as const } : {}),
+		...(source.success && !query.scope && !(parsed.readlist ?? parsed.queue) ? { managedSource: source.data, ...(source.data === "sender" && typeof query.sender === "string" && query.sender.length <= 320 ? { sender: query.sender } : {}) } : {}),
 		order: parsed.order,
 		discovery: discoveryOf(parsed),
 		page: parsed.page ?? 1,
@@ -111,7 +110,6 @@ function readlistQueryString(state: Partial<ReadlistUrlState>, extraParams: Link
 
 	if (state.managedSource && state.readlist === DEFAULT_READLIST_SLUG) params.set("source", state.managedSource);
 	if (state.readlist === DEFAULT_READLIST_SLUG && state.managedSource === "sender" && state.sender) params.set("sender", state.sender);
-	if (state.reviewOlder && state.readlist === DEFAULT_READLIST_SLUG) params.set("review", "older");
 	if (state.readlist === HAND_PICKED_SCOPE) {
 		params.set("scope", "hand-picked");
 	} else if (state.readlist && state.readlist !== DEFAULT_READLIST_SLUG) {
@@ -138,7 +136,8 @@ function readlistQueryString(state: Partial<ReadlistUrlState>, extraParams: Link
 
 export function buildReadlistUrl(state: Partial<ReadlistUrlState>, extraParams: LinkParams = []): string {
 	const qs = readlistQueryString(state, extraParams);
-	return qs ? `${READLIST_PATH}?${qs}` : READLIST_PATH;
+	if (qs) return `${READLIST_PATH}?${qs}`;
+	return state.readlist === DEFAULT_READLIST_SLUG ? ALL_READLIST_PATH : READLIST_PATH;
 }
 
 export function readlistReturnQuery(state: Partial<ReadlistUrlState>): string {
@@ -160,6 +159,10 @@ export const READLIST_EMAIL_STEP_DONE_PATH = `${READLIST_PATH}/onboarding/email/
 
 export const READLIST_GMAIL_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/gmail/dismiss`;
 
+export const READLIST_SMART_SECTION_ID = "readlist-smart";
+
+export const READLIST_SMART_READLIST_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/smart-readlist/dismiss`;
+
 export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }
@@ -179,6 +182,12 @@ export function readlistPreferencesPath(readlist: ReadlistSlug): string {
 export const PURPOSE_ORIGINS = [...TAB_IDS, "preferences"] as const;
 
 export type PurposeOrigin = (typeof PURPOSE_ORIGINS)[number];
+
+export function readlistPreferencesSetupPath(readlist: ReadlistSlug, from: TabId): string {
+	return `${readlistPreferencesPath(readlist)}?setup_from=${from}`;
+}
+
+export const PREFERENCES_SETUP_SAVED = "preferences_setup_saved";
 
 export function readlistPurposeActionPath(input: { readlist: ReadlistSlug; from: PurposeOrigin }): string {
 	const path = readlistPreferencesPath(input.readlist);

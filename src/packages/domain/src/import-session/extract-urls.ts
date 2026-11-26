@@ -15,7 +15,7 @@ function decodeBuffer(buffer: Buffer): string {
 	return utf8;
 }
 
-export function extractUrls(buffer: Buffer): ImportLinksResult {
+export function extractUrls(buffer: Buffer, limit?: number): ImportLinksResult {
 	const text = decodeBuffer(buffer).replace(BOOKMARK_ICON_URI, "");
 	const matches = text.match(URL_REGEX);
 	if (!matches) return { urls: [], truncated: false, totalFound: 0 };
@@ -26,5 +26,5 @@ export function extractUrls(buffer: Buffer): ImportLinksResult {
 	const stripped = candidates.map((raw) =>
 		raw.replace(TRAILING_PUNCTUATION, ""),
 	);
-	return collectImportLinks(stripped);
+	return collectImportLinks(stripped, limit);
 }

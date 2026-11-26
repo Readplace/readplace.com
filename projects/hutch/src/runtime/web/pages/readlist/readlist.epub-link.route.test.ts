@@ -29,7 +29,7 @@ const useApp = useTestServer();
 async function openReaderHarness(opts: { ready: boolean; query?: string; headers?: Record<string, string> }) {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+	const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

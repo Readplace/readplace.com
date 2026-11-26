@@ -5,6 +5,8 @@ struct ReadlistMenuItem: Identifiable, Equatable {
 	let href: String
 	let isSelected: Bool
 	let isShareTarget: Bool
+	let isHome: Bool
+	var displayedLabel: String { isHome ? "\(label) · Home" : label }
 	var id: String { href }
 
 	var badgeSystemImage: String {
@@ -16,7 +18,8 @@ struct ReadlistMenuItem: Identifiable, Equatable {
 		selectedHref: String?,
 		mainlineHref: String?,
 		shareTargetHrefs: Set<String>,
-		baseURL: String
+		baseURL: String,
+		homeHref: String? = nil
 	) -> [ReadlistMenuItem] {
 		readlists.map { readlist in
 			ReadlistMenuItem(
@@ -25,7 +28,8 @@ struct ReadlistMenuItem: Identifiable, Equatable {
 				isSelected: Href.matches(readlist.href, anyOf: [selectedHref].compactMap { $0 }, baseURL: baseURL),
 				isShareTarget: Href.matches(
 					readlist.href, anyOf: [mainlineHref].compactMap { $0 } + Array(shareTargetHrefs), baseURL: baseURL
-				)
+				),
+				isHome: Href.matches(readlist.href, anyOf: [homeHref].compactMap { $0 }, baseURL: baseURL)
 			)
 		}
 	}

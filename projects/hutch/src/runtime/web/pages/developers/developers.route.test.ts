@@ -49,7 +49,7 @@ async function openAll(harness: Harness, token: string): Promise<request.Respons
 interface Action {
 	name: string;
 	href: string;
-	fields?: { name: string; value?: string }[];
+	fields?: { name: string; type?: string; value?: string }[];
 }
 
 function actionNamed(body: { actions?: Action[] }, name: string): Action {
@@ -388,13 +388,8 @@ describe("/developers documents what the API emits", () => {
 			.send({ fileName: "dune.epub", byteLength: "1024" });
 		expect(staged.body.class).toEqual(["upload-staged"]);
 
-		const unpick = actionNamed(all.body.entities[0], "remove-from-hand-picked");
-		await request(harness.server).post(unpick.href).set("Authorization", `Bearer ${token}`)
-			.set("Accept", SIREN_MEDIA_TYPE).type("form").send({ membership: "remove" }).expect(303);
-		const afterUnpick = await openAll(harness, token);
 		const emitted = [
 			...new Set([
-				...namesOf(afterUnpick.body),
 				...namesOf(all.body),
 				...namesOf(named.body),
 				...namesOf(namedPinned.body),
@@ -415,6 +410,17 @@ describe("/developers documents what the API emits", () => {
 		const search = actionNamed((await openAll(harness, token)).body, "search");
 
 		expect(marked(root, "data-test-field").sort()).toEqual((search.fields ?? []).map((field) => field.name).sort());
+	});
+
+	it("documents exactly the find-articles fields a client fills in", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const root = await readPage(harness);
+
+		const findArticles = actionNamed((await openAll(harness, token)).body, "find-articles");
+		const filledIn = (findArticles.fields ?? []).filter((field) => field.type !== "hidden").map((field) => field.name);
+
+		expect(marked(root, "data-test-find-articles-field").sort()).toEqual(filledIn.sort());
 	});
 
 	it("documents every property an article entity carries", async () => {
@@ -536,6 +542,8 @@ describe("/developers copy", () => {
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",
 			"article-original":
 				"An article whose source is public also carries an original link of type text/html, with no title: the page it came from, to open in a browser without the token. An uploaded file or other private item has none, even though its url is set. An upload Readplace couldn't use carries an untitled upload-again link of type text/html to the signed-in upload page, until the next version of the article drops it. Show each only while it's present.",
+			"hand-picked":
+				"Every article a reader saves themselves joins Hand Picked, including each page sent through save-articles. Imports and newsletter links stay in “All” only. The home link opens Hand Picked, and properties.browseReadlists lists it first, then “All” and each named readlist. The add-to-hand-picked and remove-from-hand-picked actions are gone: a reader adds an older article with “Add to readlist” on the web and removes one from the Hand Picked readlist there.",
 			storefront:
 				"A client installed from an app store may send its storefront's three-letter code in an X-Readplace-Storefront header, or in a readplace_storefront cookie from a web view. For China mainland (CHN), responses leave out text a model wrote: summaries, Next read and Already read.",
 			"markdown-layout":
@@ -568,6 +576,8 @@ describe("/developers copy", () => {
 				"Follow every redirect yourself, sending the token and the Accept header again. Some HTTP clients drop Authorization when they follow a redirect, and the API then answers 401.",
 			"field-limits":
 				"Each action also states its limits in its fields, as maxItems, maxBytes and maxRequestBytes, Readplace's own additions to Siren's fields. Read them from the answer rather than hard-coding these numbers.",
+			"find-articles":
+				"find-articles searches and filters the readlist and tab you're on. Send every hidden field with its value, and fill in these:",
 			vary: "A collection, and the 303 that moves an older collection href to its current form, answer Vary: Accept, Authorization, User-Agent, X-Readplace-Client, X-Readplace-Save-Continuity. Key any copy you keep on the token and the Accept header too, so one reader's collection is never served for another's token.",
 			delete:
 				"Deleting an article stays in the Readplace app. The API advertises no delete action, and remove-from-readlist takes nothing out of All.",
@@ -600,6 +610,7 @@ describe("/developers copy", () => {
 		expect({
 			pages: itemOf("data-test-collection-property", "pages"),
 			readlists: itemOf("data-test-collection-property", "readlists"),
+			hint: itemOf("data-test-collection-property", "hint"),
 			status: itemOf("data-test-field", "status"),
 			order: itemOf("data-test-field", "order"),
 			url: itemOf("data-test-field", "url"),
@@ -612,6 +623,9 @@ describe("/developers copy", () => {
 			],
 			readlists: [
 				"readlists: All and each named readlist, each a {label, rel, href, pinned}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
+			],
+			hint: [
+				"hint: for Readplace's own apps only, on the Hand Picked collection: a {text, link: {label, href}} note the app shows with its link. Skip it.",
 			],
 			status: ["status: unread or read. Without it, search lists unread articles."],
 			order: [

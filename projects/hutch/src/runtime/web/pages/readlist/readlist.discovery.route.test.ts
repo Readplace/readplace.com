@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
-import type { UserId } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture, createFakeSummaryProvider } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
@@ -10,7 +10,7 @@ import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbo
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { createAccessToken, saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { createAccessToken, saveAccessTokenForClient, saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -457,6 +457,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				]);
 			}
 			expect([...params(element(doc, '[data-test-readlist="default"]').getAttribute("href")).keys()]).toEqual([
+				"queue",
 				"utm_source",
 				"utm_medium",
 				"utm_content",
@@ -581,7 +582,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			const deleted = await agent.post(`/queue/queues/${work}/delete?queue=${work}&q=focus`).type("form").send({});
 
 			expect([renamed.status, renamed.headers.location]).toEqual([303, `/queue?queue=${work}`]);
-			expect([deleted.status, deleted.headers.location]).toEqual([303, "/queue"]);
+			expect([deleted.status, deleted.headers.location]).toEqual([303, "/queue?queue=default"]);
 		});
 
 		it("lands a save from a narrowed listing on the whole listing", async () => {
@@ -593,7 +594,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				.type("form")
 				.send({ url: "https://example.com/new-save" });
 
-			expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+			expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default#latest-saved"]);
 		});
 
 		it("keeps the search when the setup guide is dismissed or its email step is done", async () => {
@@ -701,7 +702,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 				"/queue/filters?utm_source=queue-empty&utm_medium=internal&utm_content=clear-discovery",
 			]);
 			const cleared = await agent.post(actionOf(form)).type("form").send("");
-			expect([cleared.status, cleared.headers.location]).toEqual([303, "/queue"]);
+			expect([cleared.status, cleared.headers.location]).toEqual([303, "/queue?queue=default"]);
 			expect(await listedOn(agent, "/queue")).toEqual(["https://example.com/focus"]);
 		});
 
@@ -846,7 +847,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			const response = await agent.post("/queue/filters");
 
-			expect([response.status, response.headers.location]).toEqual([303, "/queue"]);
+			expect([response.status, response.headers.location]).toEqual([303, "/queue?queue=default"]);
 			expect(await listedOn(agent, "/queue")).toEqual([SHORT.url, MEDIUM.url]);
 		});
 
@@ -933,5 +934,296 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 
 			expect([response.status, response.headers.location]).toEqual([303, "/queue?tab=done&time=5-10&saved=week"]);
 		});
+	});
+});
+
+interface FindArticlesOption {
+	value: string;
+	title: string;
+	selected: boolean;
+}
+
+interface FindArticlesField {
+	name: string;
+	type: string;
+	title?: string;
+	value?: string;
+	options?: FindArticlesOption[];
+}
+
+interface SirenAction {
+	name: string;
+	href: string;
+	method: string;
+	title?: string;
+	fields?: FindArticlesField[];
+}
+
+interface TitledHref {
+	title: string;
+	href: string;
+}
+
+interface SirenListing {
+	entities: { properties: { url: string } }[];
+	links: { rel: string[]; href: string }[];
+	actions: SirenAction[];
+	properties: {
+		total?: { label: string };
+		tabs: { label: string; rel: string[]; href: string }[];
+		sort?: { order: string; rel: string[]; href: string }[];
+		readlists: { label: string; href: string }[];
+		findArticles?: { clear: TitledHref; clearSearch?: TitledHref; clearFilters?: TitledHref; noMatches?: { title: string } };
+	};
+}
+
+describe("find-articles (Siren search and filters for the apps)", () => {
+	async function appToken(harness: TestHarness): Promise<string> {
+		return saveAccessTokenForClient(harness, { userId: await readerId(harness), clientId: "ios-app" });
+	}
+
+	async function sirenAt(harness: TestHarness, token: string, href: string): Promise<SirenListing> {
+		const response = await request(harness.server)
+			.get(href)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Accept", SIREN_MEDIA_TYPE);
+		expect(response.status).toBe(200);
+		return response.body;
+	}
+
+	function findArticlesOf(listing: SirenListing): SirenAction {
+		const action = listing.actions.find((candidate) => candidate.name === "find-articles");
+		assert(action, "the listing must advertise find-articles");
+		return action;
+	}
+
+	function fieldOf(action: SirenAction, name: string): FindArticlesField {
+		const field = action.fields?.find((candidate) => candidate.name === name);
+		assert(field, `find-articles must declare ${name}`);
+		return field;
+	}
+
+	function submit(action: SirenAction, input: { q?: string; time?: string[]; saved?: string[] }): string {
+		expect(action.method).toBe("GET");
+		const query = new URLSearchParams();
+		for (const field of action.fields ?? []) {
+			if (field.type === "hidden" && field.value !== undefined) query.append(field.name, field.value);
+		}
+		if (input.q !== undefined) query.append("q", input.q);
+		for (const value of input.time ?? []) query.append("time", value);
+		for (const value of input.saved ?? []) query.append("saved", value);
+		return `${new URL(action.href, TEST_APP_ORIGIN).pathname}?${query}`;
+	}
+
+	async function find(
+		harness: TestHarness,
+		token: string,
+		input: { q?: string; time?: string[]; saved?: string[] },
+	): Promise<SirenListing> {
+		const entry = await sirenAt(harness, token, "/queue");
+		return sirenAt(harness, token, submit(findArticlesOf(entry), input));
+	}
+
+	function urlsOf(listing: SirenListing): string[] {
+		return listing.entities.map((entity) => entity.properties.url);
+	}
+
+	function linkOf(listing: SirenListing, rel: string): string | undefined {
+		return listing.links.find((link) => link.rel.includes(rel))?.href;
+	}
+
+	function criteriaOf(href: string | undefined): [string, string][] {
+		return [...params(href ?? null)].filter(([name]) => ["find", "q", "time", "saved"].includes(name));
+	}
+
+	const RUST_OLD: SeededArticle = { url: "https://blog.example.net/rust-ownership", title: "Rust ownership explained", minutes: 7, savedAt: new Date(NOW.getTime() - 40 * DAY) };
+	const RUST_NEW: SeededArticle = { url: "https://rust-lang.org/news", title: "This week in Rust", siteName: "Rust Lang", minutes: 3, savedAt: new Date(NOW.getTime() - 2 * DAY) };
+	const QUICK: SeededArticle = { url: "https://example.com/quick", title: "Quick read", minutes: 3, savedAt: new Date(NOW.getTime() - 2 * HOUR) };
+	const MID: SeededArticle = { url: "https://example.com/mid", title: "Mid read", minutes: 7, savedAt: new Date(NOW.getTime() - 3 * DAY) };
+	const LONG: SeededArticle = { url: "https://example.com/long", title: "Long read", minutes: 15, savedAt: new Date(NOW.getTime() - 3 * DAY) };
+	const UNTIMED: SeededArticle = { url: "https://example.com/untimed", title: "Untimed read", savedAt: new Date(NOW.getTime() - 4 * DAY) };
+
+	it("advertises a title-less action whose fields carry their labels, choices and the listing's place", async () => {
+		const harness = useApp(pinnedFixture());
+		await loginAgent(harness.server, harness.auth);
+		const token = await appToken(harness);
+
+		const action = findArticlesOf(await sirenAt(harness, token, "/queue?status=read&order=asc"));
+
+		expect(action.title).toBeUndefined();
+		expect(action.fields?.filter((field) => field.type === "hidden").map((field) => [field.name, field.value])).toEqual([
+			["find", "articles"],
+			["status", "read"],
+			["order", "asc"],
+		]);
+		expect([fieldOf(action, "q").type, fieldOf(action, "q").title]).toEqual(["search", "Search articles or sources"]);
+		expect(fieldOf(action, "time").title).toBe("Reading time");
+		expect(fieldOf(action, "time").options?.map((option) => [option.value, option.title, option.selected])).toEqual([
+			["under-5", "Under 5 min", false],
+			["5-10", "5–10 min", false],
+			["10-20", "10–20 min", false],
+			["20-plus", "20+ min", false],
+		]);
+		expect(fieldOf(action, "saved").title).toBe("Saved date");
+		expect(fieldOf(action, "saved").options?.map((option) => option.value)).toEqual(["today", "week", "month", "older"]);
+	});
+
+	it("finds matches the first unfiltered page does not hold, counted over the whole readlist", async () => {
+		const harness = useApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		const newer: SeededArticle[] = [];
+		for (let index = 0; index < 22; index += 1) {
+			newer.push({ url: `https://example.com/filler-${index}`, title: `Filler ${index}`, savedAt: new Date(NOW.getTime() - (index + 1) * HOUR) });
+		}
+		await seedAll(harness, [...newer, RUST_NEW, RUST_OLD]);
+		const token = await appToken(harness);
+
+		const unfiltered = await sirenAt(harness, token, "/queue");
+		const found = await find(harness, token, { q: "RUST" });
+
+		expect(urlsOf(unfiltered)).not.toContain(RUST_NEW.url);
+		expect(urlsOf(found)).toEqual([RUST_NEW.url, RUST_OLD.url]);
+		expect(urlsOf(found)).toEqual(await listedOn(agent, "/queue?q=RUST"));
+		expect(found.properties.total?.label).toBe(unfiltered.properties.total?.label.replace(/^\d+/, "2"));
+		expect(fieldOf(findArticlesOf(found), "q").value).toBe("RUST");
+	});
+
+	it("narrows by reading time and saved date: any choice within a group, every group at once", async () => {
+		const harness = useApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [QUICK, MID, LONG, UNTIMED, RUST_OLD]);
+		const token = await appToken(harness);
+
+		const found = await find(harness, token, { time: ["under-5", "5-10"], saved: ["week"] });
+
+		expect(urlsOf(found)).toEqual([QUICK.url, MID.url]);
+		expect(urlsOf(found)).toEqual(await listedOn(agent, "/queue?time=under-5&time=5-10&saved=week"));
+		const action = findArticlesOf(found);
+		expect(fieldOf(action, "time").options?.filter((option) => option.selected).map((option) => option.value)).toEqual(["under-5", "5-10"]);
+		expect(fieldOf(action, "saved").options?.filter((option) => option.selected).map((option) => option.value)).toEqual(["week"]);
+	});
+
+	it("pages through every match on next links that keep the search", async () => {
+		const harness = useApp(pinnedFixture());
+		await loginAgent(harness.server, harness.auth);
+		const articles: SeededArticle[] = [];
+		for (let index = 0; index < 23; index += 1) {
+			articles.push({ url: `https://example.com/match-${index}`, title: `Match ${index}`, savedAt: new Date(NOW.getTime() - (index + 1) * HOUR) });
+		}
+		articles.push({ url: "https://example.com/other", title: "Other", savedAt: new Date(NOW.getTime() - 2 * HOUR) });
+		await seedAll(harness, articles);
+		const token = await appToken(harness);
+
+		const first = await find(harness, token, { q: "match" });
+		const next = linkOf(first, "next");
+		const second = await sirenAt(harness, token, next ?? "");
+
+		expect(urlsOf(first)).toHaveLength(20);
+		expect(criteriaOf(next)).toEqual([["find", "articles"], ["q", "match"]]);
+		expect(urlsOf(second)).toEqual(["https://example.com/match-20", "https://example.com/match-21", "https://example.com/match-22"]);
+		expect(linkOf(second, "next")).toBeUndefined();
+		expect(criteriaOf(linkOf(second, "self"))).toEqual([["find", "articles"], ["q", "match"]]);
+	});
+
+	it("keeps the search and filters on tab and sort links, and only the filters on readlist links", async () => {
+		const harness = useApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await createReadlist(agent, "Later");
+		await seedAll(harness, [QUICK, MID]);
+		const token = await appToken(harness);
+
+		const found = await find(harness, token, { q: "read", time: ["under-5"] });
+
+		for (const tab of found.properties.tabs) {
+			expect(criteriaOf(tab.href)).toEqual([["find", "articles"], ["q", "read"], ["time", "under-5"]]);
+		}
+		for (const sort of found.properties.sort ?? []) {
+			expect(criteriaOf(sort.href)).toEqual([["find", "articles"], ["q", "read"], ["time", "under-5"]]);
+		}
+		expect(found.properties.readlists.map((readlist) => criteriaOf(readlist.href))).toEqual([
+			[["find", "articles"], ["time", "under-5"]],
+			[["find", "articles"], ["time", "under-5"]],
+		]);
+		const ascending = found.properties.sort?.find((sort) => sort.order === "asc");
+		expect(urlsOf(await sirenAt(harness, token, ascending?.href ?? ""))).toEqual([QUICK.url]);
+	});
+
+	it("searches only the named readlist it was advertised on", async () => {
+		const harness = useApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "Systems");
+		await seedAll(harness, [RUST_NEW, { ...RUST_OLD, readlist: slug }, { ...QUICK, readlist: slug }]);
+		const token = await appToken(harness);
+
+		const entry = await sirenAt(harness, token, "/queue");
+		const named = entry.properties.readlists.find((readlist) => readlist.label === "Systems");
+		const action = findArticlesOf(await sirenAt(harness, token, named?.href ?? ""));
+		const found = await sirenAt(harness, token, submit(action, { q: "rust" }));
+
+		expect(urlsOf(found)).toEqual([RUST_OLD.url]);
+		expect(urlsOf(found)).toEqual(await listedOn(agent, `/queue?queue=${slug}&q=rust`));
+	});
+
+	it("searches only Hand Picked when it was advertised on Hand Picked", async () => {
+		const harness = useApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [RUST_NEW, RUST_OLD]);
+		const picked = articleIdOf(await page(agent, "/queue"), RUST_NEW.url);
+		await agent.post(`/queue/${picked}/move`).type("form").send({ from: "default", to: "~hand-picked" }).expect(303);
+		const token = await appToken(harness);
+
+		const action = findArticlesOf(await sirenAt(harness, token, "/queue?scope=hand-picked"));
+		const found = await sirenAt(harness, token, submit(action, { q: "rust" }));
+
+		expect(urlsOf(found)).toEqual([RUST_NEW.url]);
+		expect(urlsOf(found)).toEqual(await listedOn(agent, "/queue?scope=hand-picked&q=rust"));
+		expect(params(linkOf(found, "self") ?? null).get("scope")).toBe("hand-picked");
+	});
+
+	it("tells a tab with no match from an empty tab, and offers the clears that apply", async () => {
+		const harness = useApp(pinnedFixture());
+		await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [QUICK, MID]);
+		const token = await appToken(harness);
+
+		const unread = await find(harness, token, { q: "nothing-like-this", time: ["under-5"] });
+		const read = await sirenAt(harness, token, unread.properties.tabs.find((tab) => tab.label === "Read")?.href ?? "");
+
+		expect([urlsOf(unread), unread.properties.findArticles?.noMatches?.title]).toEqual([[], "No matching articles"]);
+		expect(unread.properties.findArticles?.clear.title).toBe("Clear search and filters");
+		expect(criteriaOf(unread.properties.findArticles?.clear.href)).toEqual([["find", "articles"]]);
+		expect(criteriaOf(unread.properties.findArticles?.clearSearch?.href)).toEqual([["find", "articles"], ["time", "under-5"]]);
+		expect(criteriaOf(unread.properties.findArticles?.clearFilters?.href)).toEqual([["find", "articles"], ["q", "nothing-like-this"]]);
+		expect(urlsOf(await sirenAt(harness, token, unread.properties.findArticles?.clear.href ?? ""))).toEqual([QUICK.url, MID.url]);
+		expect([urlsOf(read), read.properties.findArticles?.noMatches]).toEqual([[], undefined]);
+	});
+
+	it("leaves out the clear links when nothing is searched or filtered", async () => {
+		const harness = useApp(pinnedFixture());
+		await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [QUICK]);
+		const token = await appToken(harness);
+
+		const found = await find(harness, token, {});
+
+		expect([urlsOf(found), found.properties.findArticles]).toEqual([[QUICK.url], undefined]);
+	});
+
+	it("never finds another reader's article with the same title", async () => {
+		const harness = useApp(pinnedFixture());
+		await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [QUICK]);
+		await harness.articleStore.saveArticle({
+			userId: UserIdSchema.parse("another-reader"),
+			url: "https://example.com/someone-elses-quick",
+			metadata: { title: QUICK.title, siteName: "example.com", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(3),
+			provenance: { kind: "web" },
+			savedAt: new Date(NOW.getTime() - HOUR),
+			saveTrigger: "manual",
+		});
+		const token = await appToken(harness);
+
+		expect(urlsOf(await find(harness, token, { q: "quick read" }))).toEqual([QUICK.url]);
 	});
 });

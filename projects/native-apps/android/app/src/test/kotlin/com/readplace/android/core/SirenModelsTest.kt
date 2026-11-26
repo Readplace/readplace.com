@@ -228,6 +228,26 @@ class SirenModelsTest {
 	}
 
 	@Test
+	fun `an article is ready to read only when the server said its content is available`() {
+		val articles = listOf("\"available\"", "\"processing\"", "\"unavailable\"", "\"later\"", "3", null).map { state ->
+			val property = state?.let { ", \"contentState\": $it" }.orEmpty()
+			decodedArticle("""{ "properties": { "id": "a1", "url": "https://example.com/a1"$property } }""")
+		}
+
+		assertEquals(
+			listOf(
+				ContentState.Available to true,
+				ContentState.Processing to false,
+				ContentState.Unavailable to false,
+				null to false,
+				null to false,
+				null to false,
+			),
+			articles.map { it.contentState to it.isReadyToRead },
+		)
+	}
+
+	@Test
 	fun `a non-array where the server should send an array carries nothing`() {
 		val entity = decodedEntity(
 			"""
@@ -1294,6 +1314,46 @@ class SirenModelsTest {
 
 		assertNull(properties.tabs)
 		assertNull(properties.readlists)
+	}
+
+	@Test
+	fun `decodes a collection hint with its link`() {
+		val page = decodedPage(
+			"""
+			{
+				"class": ["collection"],
+				"properties": {
+					"hint": { "text": "Older saves stay elsewhere.", "link": { "label": "Open it", "href": "/queue" } }
+				}
+			}
+			""",
+		)
+
+		assertEquals(CollectionHint(text = "Older saves stay elsewhere.", linkLabel = "Open it", linkHref = "/queue"), page.hint)
+	}
+
+	@Test
+	fun `drops a hint that has no link and keeps the collection`() {
+		val malformed = listOf(
+			""""hint": { "text": "Older saves stay elsewhere." }""",
+			""""hint": "Older saves stay elsewhere."""",
+			""""hint": { "link": { "label": "Open it", "href": "/queue" } }""",
+			""""hint": { "text": "Older saves stay elsewhere.", "link": { "href": "/queue" } }""",
+			""""hint": { "text": "Older saves stay elsewhere.", "link": { "label": "Open it" } }""",
+		)
+
+		val decoded = malformed.map { hint ->
+			decodedCollection("""{ "class": ["collection"], "properties": { "appearance": "dark", $hint }, "entities": [] }""").properties?.let { it.hint to it.appearance }
+		}
+
+		assertEquals(List(malformed.size) { null to "dark" }, decoded)
+	}
+
+	@Test
+	fun `decodes a collection that carries no hint`() {
+		val page = decodedPage("""{ "class": ["collection"], "properties": { "total": 1 } }""")
+
+		assertNull(page.hint)
 	}
 
 	@Test

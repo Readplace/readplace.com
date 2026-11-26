@@ -654,7 +654,7 @@ describe("POST /queue (Siren save article)", () => {
 	it("returns 201 with fallback article when fetch fails", async () => {
 		const crawlArticle = async () => ({ status: "failed" as const, decision: undefined });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+		const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 		const applyParseResult = createFakeApplyParseResult({
 			articleStore: fixture.articleStore,
 			articleCrawl: fixture.articleCrawl,
@@ -1351,7 +1351,7 @@ describe("Article sub-entity actions", () => {
 			.set("Authorization", `Bearer ${accessToken}`);
 
 		expect(response.status).toBe(200);
-		expect(itemActionNames(response.body)).toEqual([["update-status", "remove-from-hand-picked"]]);
+		expect(itemActionNames(response.body)).toEqual([["update-status"]]);
 	});
 
 	it("withholds add-to-readlist from the rows of the 422 collection a Firefox extension's rejected save returns", async () => {
@@ -1362,7 +1362,7 @@ describe("Article sub-entity actions", () => {
 		const response = await saveWithBearer(harness, { accessToken, url: "chrome://newtab/" });
 
 		expect(response.status).toBe(422);
-		expect(itemActionNames(response.body)).toEqual([["update-status", "remove-from-hand-picked"]]);
+		expect(itemActionNames(response.body)).toEqual([["update-status"]]);
 	});
 
 	it("keeps add-to-readlist on the article a Firefox extension's save returns, whose saved view renders its messages and links but no actions", async () => {
@@ -1374,7 +1374,6 @@ describe("Article sub-entity actions", () => {
 		expect(response.status).toBe(201);
 		expect(response.body.actions.map((action: { name: string }) => action.name)).toEqual([
 			"update-status",
-			"remove-from-hand-picked",
 			"add-to-readlist",
 		]);
 	});
@@ -1392,7 +1391,7 @@ describe("Article sub-entity actions", () => {
 				.set("Authorization", `Bearer ${accessToken}`);
 
 			expect(response.status).toBe(200);
-			expect(itemActionNames(response.body)).toEqual([["update-status", "remove-from-hand-picked", "add-to-readlist"]]);
+			expect(itemActionNames(response.body)).toEqual([["update-status", "add-to-readlist"]]);
 		},
 	);
 });

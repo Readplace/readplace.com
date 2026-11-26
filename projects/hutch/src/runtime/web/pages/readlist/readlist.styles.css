@@ -160,6 +160,18 @@
   outline-offset: 2px;
 }
 
+.readlist-nav__smart {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-inline-start: 4px;
+  color: var(--primary-text);
+}
+
+.readlist-nav__smart-label {
+  flex-shrink: 0;
+  margin-inline-start: 6px;
+}
+
 .readlist-nav__switcher-chevron {
   display: inline-flex;
   justify-content: center;
@@ -289,6 +301,12 @@
 .readlist-more__close:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+.readlist-nav__home {
+  flex: none;
+  margin-inline-end: 6px;
+  color: var(--muted-foreground);
 }
 
 .readlist-nav__link,
@@ -1621,6 +1639,10 @@
 .readlist__heading,
 .readlist__manage > summary {
   line-height: 1.5;
+}
+
+.readlist__older-saves {
+  margin-block: 12px;
 }
 
 .readlist__manage {

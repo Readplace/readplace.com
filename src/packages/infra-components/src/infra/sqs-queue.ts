@@ -3,11 +3,10 @@ import * as pulumi from "@pulumi/pulumi";
 import {
 	DEFAULT_DLQ_RETENTION_SECONDS,
 	type DeadLetterQueue,
-	type SharedDlq,
 } from "./shared-dlq";
 
 export type QueueDeadLetterMode =
-	| { sharedDlq?: SharedDlq; fifo?: false }
+	| { sharedDlq?: DeadLetterQueue; fifo?: false }
 	| { fifo: true; sharedDlq?: undefined };
 
 export class SqsQueue extends pulumi.ComponentResource {

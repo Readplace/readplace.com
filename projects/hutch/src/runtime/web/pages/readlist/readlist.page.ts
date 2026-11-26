@@ -1,5 +1,4 @@
 import { bulkArticleRoutes } from "./bulk-articles.page";
-import { personalHomeEnabled } from "./built-in-readlists";
 import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
@@ -24,17 +23,6 @@ import { initBuildArticleEpub } from "../../shared/epub/article-epub";
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const router = express.Router();
-	if (!personalHomeEnabled()) {
-		// A form opened before rollback may still point at the picked scope. Its delete
-		// action removes membership and must never fall through to deleting the save.
-		router.use((req, res, next) => {
-			if (!req.query.readlist && !req.query.queue && (req.query.scope === "hand-picked" || req.query.review === "older")) {
-				res.sendStatus(404);
-				return;
-			}
-			next();
-		});
-	}
 	const shared = initReadlistShared(deps);
 	const { findNonEmptyReadlists, resolveOnboardingSignals } = shared;
 	const buildArticleEpub = initBuildArticleEpub({
@@ -162,8 +150,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(
 		initReadlistPreferencesRoutes({
+			findHomeReadlist: deps.findHomeReadlist,
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			setSmartReadlistRule: deps.setSmartReadlistRule,
+			turnOffSmartReadlistMatching: deps.turnOffSmartReadlistMatching,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
@@ -176,8 +167,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			requirePaidFeatures: deps.requirePaidFeatures,
 			findNonEmptyReadlists,
 			now: deps.now,
-			resolveOnboarding: async (req, userId, access) =>
-				(await resolveOnboardingSignals(req, userId, access)).onboarding,
+			resolveOnboarding: async (req, userId, access, definitions, active) =>
+				(await resolveOnboardingSignals(req, userId, access, definitions, active)).onboarding,
 			loadGmailSenders: readlistGmail?.load,
 		}),
 	);
@@ -185,6 +176,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initReadlistListingRoutes(
 			{
+				findHomeReadlist: deps.findHomeReadlist,
+				setHomeReadlist: deps.setHomeReadlist,
+				listReadlistDefinitions: deps.listReadlistDefinitions,
 				resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 				now: deps.now,
 				setKeepOfferDismissed: deps.setKeepOfferDismissed,
@@ -199,6 +193,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				getEffectiveAccess: deps.getEffectiveAccess,
 				recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
 				recordGmailStepDismissed: deps.recordGmailStepDismissed,
+				recordSmartReadlistStepDismissed: deps.recordSmartReadlistStepDismissed,
 				secureCookies: deps.secureCookies,
 			},
 			shared,
@@ -266,6 +261,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				moveReadlistArticles: deps.moveReadlistArticles,
 				purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,
 				deleteReadlistDefinition: deps.deleteReadlistDefinition,
+				requirePaidFeatures: deps.requirePaidFeatures,
+				setSmartReadlistRule: deps.setSmartReadlistRule,
 				now: deps.now,
 			},
 			shared,

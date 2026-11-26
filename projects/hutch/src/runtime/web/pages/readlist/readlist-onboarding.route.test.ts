@@ -69,10 +69,11 @@ async function loggedInUserId(harness: TestAppHarness): Promise<UserId> {
 	return user.userId;
 }
 
-async function tickEmailStep(
+async function completeAccountSteps(
 	fixture: { onboardingSignals: OnboardingSignalsBundle },
 	harness: TestAppHarness,
 ): Promise<void> {
+	await fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId: await loggedInUserId(harness) });
 	await fixture.onboardingSignals.recordInboxArticleQueued({
 		userId: await loggedInUserId(harness),
 	});
@@ -84,7 +85,7 @@ async function markSeenOutstanding(
 ): Promise<void> {
 	await fixture.onboardingSignals.recordOnboardingOutstandingVersion({
 		userId: await loggedInUserId(harness),
-		version: ONBOARDING_VERSION,
+		version: "2ad99d2b",
 	});
 }
 
@@ -178,7 +179,7 @@ describe("Readlist onboarding", () => {
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
 		crossing.reachMilestone();
-		await tickEmailStep(crossing.fixture, harness);
+		await completeAccountSteps(crossing.fixture, harness);
 
 		const response = await agent
 			.get("/queue")
@@ -233,7 +234,7 @@ describe("Readlist onboarding", () => {
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME_UA).set("Cookie", cookies);
 		crossing.reachMilestone();
-		await tickEmailStep(crossing.fixture, harness);
+		await completeAccountSteps(crossing.fixture, harness);
 
 		const response = await agent
 			.get("/queue?status=read")
@@ -249,7 +250,7 @@ describe("Readlist onboarding", () => {
 		assert(success, "success section must be rendered");
 	});
 
-	it("renders onboarding hidden when dismiss cookie matches current version and extension is alive", async () => {
+	it("renders outstanding Smart Readlist when dismiss cookie matches current version and extension is alive", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
@@ -262,7 +263,7 @@ describe("Readlist onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must still be rendered so visibility is encoded as a state class");
-		expect(onboarding.classList.contains("setup-guide--hidden")).toBe(true);
+		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 	});
 
 	it("re-renders onboarding when dismiss cookie is present but alive cookie is missing", async () => {
@@ -308,7 +309,7 @@ describe("Readlist onboarding", () => {
 		const response = await agent.post("/queue/dismiss-onboarding?utm_source=onboarding&utm_medium=internal&utm_content=dismiss-no-client").set("User-Agent", CHROME_UA);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 		const cookies = response.headers["set-cookie"];
 		assert(cookies, "set-cookie header must be present");
 		const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;
@@ -330,7 +331,7 @@ describe("Readlist onboarding", () => {
 			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await tickEmailStep(fixture, harness);
+			await completeAccountSteps(fixture, harness);
 			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
@@ -347,7 +348,7 @@ describe("Readlist onboarding", () => {
 			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await tickEmailStep(fixture, harness);
+			await completeAccountSteps(fixture, harness);
 			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
@@ -366,7 +367,7 @@ describe("Readlist onboarding", () => {
 			const fixture = fixtureWithSavedCount(NEXT_READ_MINIMUM_SAVES);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await tickEmailStep(fixture, harness);
+			await completeAccountSteps(fixture, harness);
 			await markSeenOutstanding(fixture, harness);
 
 			const response = await agent
@@ -466,7 +467,7 @@ describe("Readlist onboarding — iPhone", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await agent.get("/queue").set("User-Agent", IPHONE_UA);
 		crossing.reachMilestone();
-		await tickEmailStep(crossing.fixture, harness);
+		await completeAccountSteps(crossing.fixture, harness);
 		const token = await bearerForLoggedInUser(harness);
 
 		// A share-sheet save (Bearer-authed, client header) records both signals at once.
@@ -578,7 +579,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const noClient = doc.querySelector("[data-test-onboarding-no-client]");
 		assert(noClient, "no-client card must render for desktop Safari");
 		assert.equal(
-			doc.querySelector("[data-test-onboarding-steps]"),
+			doc.querySelector('[data-test-onboarding-step="install-extension"]'),
 			null,
 			"the completion-gated step checklist must not render",
 		);
@@ -627,7 +628,7 @@ describe("Readlist onboarding — no installable client", () => {
 			.set("Cookie", `${DISMISS_COOKIE_NAME}=${NO_CLIENT_ONBOARDING_VERSION}`);
 
 		const doc = new JSDOM(response.text).window.document;
-		const onboarding = doc.querySelector("[data-test-onboarding]");
+		const onboarding = doc.querySelector("[data-test-onboarding-no-client]");
 		assert(onboarding, "onboarding container must still be rendered so visibility is a state class");
 		expect(onboarding.classList.contains("setup-guide--hidden")).toBe(true);
 	});
@@ -648,7 +649,7 @@ describe("Readlist onboarding — no installable client", () => {
 			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
 
 		const doc = new JSDOM(response.text).window.document;
-		const onboarding = doc.querySelector("[data-test-onboarding]");
+		const onboarding = doc.querySelector("[data-test-onboarding-no-client]");
 		assert(onboarding, "onboarding container must still be rendered");
 		expect(onboarding.classList.contains("setup-guide--visible")).toBe(true);
 		assert(
@@ -683,7 +684,7 @@ describe("Readlist onboarding — no installable client", () => {
 		const response = await agent.get("/queue").set("User-Agent", DESKTOP_SAFARI_UA);
 
 		const doc = new JSDOM(response.text).window.document;
-		const onboarding = doc.querySelector("[data-test-onboarding]");
+		const onboarding = doc.querySelector("[data-test-onboarding-no-client]");
 		assert(onboarding, "onboarding container must still be rendered");
 		expect(onboarding.classList.contains("setup-guide--hidden")).toBe(true);
 	});

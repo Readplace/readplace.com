@@ -80,6 +80,17 @@ data class ArticleVia(
 	val sender: ArticleSender?,
 )
 
+enum class ContentState(val wire: String) {
+	Available("available"),
+	Processing("processing"),
+	Unavailable("unavailable"),
+	;
+
+	companion object {
+		fun of(wire: String?): ContentState? = entries.firstOrNull { it.wire == wire }
+	}
+}
+
 data class ArticleProcessing(
 	val label: String,
 	val estimate: CrawlEstimate?,
@@ -114,6 +125,7 @@ data class ArticleProperties(
 	val kindLabel: String? = null,
 	val suggestion: String? = null,
 	val via: ArticleVia? = null,
+	val contentState: ContentState?,
 )
 
 data class SirenEntity(
@@ -154,7 +166,10 @@ data class CollectionProperties(
 	val tabs: List<CollectionReadlistEntry>?,
 	val readlists: List<CollectionReadlistEntry>?,
 	val browseReadlists: List<CollectionReadlistEntry>?,
+	val hint: CollectionHint?,
 )
+
+data class CollectionHint(val text: String, val linkLabel: String, val linkHref: String)
 
 data class SirenCollection(
 	val classes: List<String>?,
@@ -350,7 +365,17 @@ object SirenDecoding {
 			tabs = lossyList(obj["tabs"], ::readlistEntry),
 			readlists = lossyList(obj["readlists"], ::readlistEntry),
 			browseReadlists = lossyList(obj["browseReadlists"], ::readlistEntry),
+			hint = obj["hint"]?.let(::collectionHint),
 		)
+	}
+
+	fun collectionHint(element: JsonElement): CollectionHint? {
+		val obj = element as? JsonObject ?: return null
+		val text = string(obj["text"]) ?: return null
+		val link = obj["link"] as? JsonObject ?: return null
+		val label = string(link["label"]) ?: return null
+		val href = string(link["href"]) ?: return null
+		return CollectionHint(text = text, linkLabel = label, linkHref = href)
 	}
 
 	/** One `{label, rel, href}` entry from a collection's `tabs`/`readlists` array.
@@ -393,6 +418,7 @@ object SirenDecoding {
 			kindLabel = string(obj["kindLabel"])?.takeIf { it.isNotBlank() },
 			suggestion = string(obj["suggestion"])?.takeIf { it.isNotBlank() },
 			via = runCatching { via(obj["via"]) }.getOrNull(),
+			contentState = ContentState.of(string(obj["contentState"])),
 		)
 	}
 
@@ -512,7 +538,10 @@ data class Article(
 	val via: ArticleVia? = null,
 	val originalUrl: String? = null,
 	val uploadAgainLink: SirenLink? = null,
+	val contentState: ContentState? = null,
 ) {
+	val isReadyToRead: Boolean get() = contentState == ContentState.Available
+
 	/** The item's action controls, one per advertised action the client can invoke
 	 * (an action with a usable href). Built by iterating — not by matching a known
 	 * name — so the loop renders whatever the server offered. */
@@ -547,6 +576,7 @@ data class Article(
 				via = props.via,
 				originalUrl = links.firstOrNull { it.rel.contains("original") }?.href?.takeIf { isWebUrl(it) },
 				uploadAgainLink = links.firstOrNull { it.rel.contains("upload-again") && it.href != null },
+				contentState = props.contentState,
 			)
 		}
 	}

@@ -14,6 +14,7 @@ export { Sqs } from "./sqs";
 export { SharedDlq } from "./shared-dlq";
 export type { AlarmedDeadLetterQueue } from "./shared-dlq";
 export { SqsBackedLambda } from "./sqs-backed-lambda";
+export { DynamoDbStreamBackedLambda } from "./dynamodb-stream-backed-lambda";
 export { MediaProcessor } from "./media-processor";
 export { DLQEventHandler } from "./dlq-event-handler";
 export { attachDlqConsumer } from "./attach-dlq-consumer";

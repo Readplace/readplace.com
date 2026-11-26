@@ -76,9 +76,9 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 	/** The href of the collection's structural `root` link — the mainline readlist
 	 * every save also drops into. Null when the server advertised no root, in which
 	 * case the client never guesses which readlist is mainline. */
+	val rootHref: String?
 	val homeHref: String?
 	val browseReadlists: List<Readlist>
-	val rootHref: String?
 
 	/** The status tabs and sibling readlists the collection advertised, in server
 	 * order. Empty when the server offered none. */
@@ -104,6 +104,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 	 * re-checking. Empty when the server offered none. */
 	val noticeMessages: List<ServerMessage>
 	val appearance: String?
+	val hint: CollectionHint?
 
 	init {
 		articles = collection.entities.orEmpty().mapNotNull { Article.of(it) }
@@ -119,6 +120,7 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 		warning = collection.properties?.warning
 		noticeMessages = collection.properties?.messages.orEmpty().filter { it.isRenderable }
 		appearance = collection.properties?.appearance
+		hint = collection.properties?.hint
 		tabs = collection.properties?.tabs.orEmpty().map { ReadlistTab.of(it) }
 		readlists = collection.properties?.readlists.orEmpty().map { Readlist.of(it) }
 		browseReadlists = collection.properties?.browseReadlists?.map { Readlist.of(it) } ?: readlists
@@ -543,6 +545,7 @@ class ReadplaceApi(
 			// records onboarding completion per-user (a browser on the same phone can't
 			// see the app's cookies, so it can't rely on the extension's cookie signals).
 			.header(AppConfig.CLIENT_HEADER, AppConfig.CLIENT_ANDROID)
+			.header(AppConfig.HOME_READLIST_HEADER, "1")
 			.header(AppConfig.SAVE_CONTINUITY_HEADER, AppConfig.SAVE_CONTINUITY_BACKGROUND)
 			.header("User-Agent", nativeUserAgent)
 			.build()

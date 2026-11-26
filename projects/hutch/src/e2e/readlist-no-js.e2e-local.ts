@@ -74,6 +74,55 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await page.waitForSelector("body.page-readlist");
 	}
 
+	test.describe("Smart Readlist setup on a phone", () => {
+		test.use({
+			userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1",
+			viewport: { width: 390, height: 844 },
+		});
+
+		test("creates, makes smart and files the first article using the keyboard", async ({ page }, testInfo) => {
+			const email = await seedArticle(page, `smart-${testInfo.workerIndex}-${Date.now()}`);
+			await loginAs(page, email);
+			const step = page.locator('[data-test-onboarding-step="create-smart-readlist"]');
+			const openStep = async () => {
+				await page.locator(".setup-guide__progress").press("Enter");
+				await step.locator(".setup-guide__summary").press("Enter");
+			};
+			await openStep();
+			await step.locator(".setup-guide__actions summary").press("Enter");
+			const name = step.getByLabel("Readlist name");
+			await name.fill("Ideas");
+			const createRequest = page.waitForRequest((req) => req.method() === "POST" && new URL(req.url()).pathname === "/queue/queues");
+			await name.press("Enter");
+			expect(new URL((await createRequest).url()).searchParams.get("utm_content")).toBe("create-readlist");
+			await expect(page).toHaveURL(/queue=.+/);
+			const slug = new URL(page.url()).searchParams.get("queue");
+			assert(slug);
+
+			await openStep();
+			await step.getByRole("button", { name: "Set preferences" }).press("Enter");
+			await expect(page).toHaveURL(/#readlist-smart$/);
+			expect(new URL(page.url()).searchParams.get("utm_content")).toBe("set-preferences");
+			const smart = page.locator("#readlist-smart");
+			await smart.locator('[name="purpose"]').fill("Ideas worth reading again");
+			await smart.getByRole("button", { name: "Make this a Smart Readlist" }).press("Enter");
+			await expect(page.locator('[data-test-smart-filing="smart"] [data-test-field="smart-purpose"]')).toHaveValue("Ideas worth reading again");
+
+			await page.goto(`${BASE_URL}/queue?queue=${slug}`);
+			await openStep();
+			await step.getByRole("button", { name: "Open All" }).press("Enter");
+			await page.locator("[data-test-article-title]").first().press("Enter");
+			await page.locator("summary[data-test-readlists-trigger]").press("Enter");
+			await page.locator(`button[data-test-assign-readlist="${slug}"]`).press("Enter");
+			await expect(page.locator(`[data-test-readlist-tag="${slug}"]`).first()).toBeVisible();
+			await page.goto(`${BASE_URL}/queue`);
+			await openStep();
+			await expect(step.locator("[data-test-onboarding-chip]")).toHaveText("1/10 articles saved to Smart Readlists");
+			await step.getByRole("button", { name: "Open Smart Readlist" }).press("Enter");
+			await expect(page).toHaveURL((url) => url.searchParams.get("queue") === slug);
+		});
+	});
+
 	test("previews removal and restores the original page through the shared action menu", async ({ page }, testInfo) => {
 		await loginAs(page, await seedArticle(page, `bulk-${testInfo.workerIndex}-${Date.now()}`));
 		await page.getByText("Manage articles", { exact: true }).click();
@@ -131,6 +180,31 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(page.locator('[data-test-action="mark-unread"]')).toHaveCount(1, {
 			timeout: SETTLE_MS,
 		});
+	});
+
+	test("sets Home with the keyboard from the phone switcher", async ({ page }, testInfo) => {
+		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-home`);
+		await loginAs(page, email);
+		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
+		const slug = new URL(created.url()).searchParams.get("queue");
+		assert(slug, "creating Weekend must return its readlist URL");
+
+		await page.goto(`${BASE_URL}/queue?queue=default`, { waitUntil: "domcontentloaded" });
+		await page.locator('[data-test-action="readlist-switcher"]').press("Enter");
+		const options = page.locator(`[data-test-readlist-menu="${slug}"]`);
+		await options.locator('[data-test-action="readlist-menu"]').press("Enter");
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			options.getByRole("button", { name: "Set as home readlist" }).press("Enter"),
+		]);
+
+		await expect(page.locator('[data-test-readlist="default"]')).toHaveAttribute("aria-current", "page");
+		const status = page.locator('[role="status"][autofocus]');
+		await expect(status).toHaveText("Weekend is now your home readlist.");
+		await expect(status).toBeFocused();
+
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(`[data-test-readlist="${slug}"]`)).toHaveAttribute("aria-current", "page");
 	});
 
 	test("a status toast's Undo works as a plain form submit", async ({ page }, testInfo) => {
@@ -378,6 +452,12 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		]);
 		await expect(preferences).toHaveAttribute("data-test-preferences-state", "set", { timeout: SETTLE_MS });
 		await expect(page.locator("[data-test-readlist-purpose-text]")).toHaveText("Essays on how teams ship software.");
+		const confirmation = page.locator("dialog[data-preferences-saved]");
+		await expect(confirmation).toBeVisible();
+		await expect(confirmation).toContainText("Weekend");
+		await confirmation.locator('button[type="submit"]').focus();
+		await page.keyboard.press("Enter");
+		await expect(confirmation).toBeHidden();
 
 		await page.locator("[data-test-readlist-purpose-text]").click();
 		await expect(wizard).toBeVisible();

@@ -31,6 +31,7 @@ const ALL_STEP_IDS = [
 	"install-extension",
 	"save-first-article-via-extension",
 	"receive-articles-by-email",
+	"create-smart-readlist",
 	"save-enough-for-next-read",
 ] as const;
 
@@ -121,7 +122,7 @@ async function onlyStepOpen(page: Page, id: (typeof ALL_STEP_IDS)[number]): Prom
 	for (const other of ALL_STEP_IDS.filter((stepId) => stepId !== id)) {
 		const row = page.locator(stepSelector(other));
 		await expect(row).toBeVisible();
-		await expect(row.locator("details")).not.toHaveAttribute("open", "");
+		await expect(row.locator(":scope > details")).not.toHaveAttribute("open", "");
 	}
 }
 
@@ -159,7 +160,7 @@ async function completedRowCollapses(page: Page): Promise<void> {
 		"true",
 	);
 	await onlyStepOpen(page, "save-first-article-via-extension");
-	await stepAnatomyHolds(page, 488);
+	await stepAnatomyHolds(page, 535);
 }
 
 async function installStepSettled(page: Page): Promise<void> {
@@ -173,7 +174,7 @@ async function installRowStandsAlone(page: Page): Promise<void> {
 		"false",
 	);
 	await onlyStepOpen(page, "install-extension");
-	await stepAnatomyHolds(page, 508);
+	await stepAnatomyHolds(page, 555);
 }
 
 async function successSettled(page: Page): Promise<void> {
@@ -202,7 +203,7 @@ async function emailStepOutstandingSettled(page: Page): Promise<void> {
 
 async function emailRowStandsAlone(page: Page): Promise<void> {
 	await onlyStepOpen(page, "receive-articles-by-email");
-	await stepAnatomyHolds(page, 595);
+	await stepAnatomyHolds(page, 643);
 
 	const row = await measuredBox(page, EMAIL_STEP);
 	const cta = await measuredBox(page, EMAIL_CTA);
@@ -222,8 +223,8 @@ async function emailRowStandsAlone(page: Page): Promise<void> {
 	);
 }
 
-async function nextReadIsTheOnlyOpenRow(page: Page): Promise<void> {
-	await onlyStepOpen(page, "save-enough-for-next-read");
+async function smartReadlistIsTheOnlyOpenRow(page: Page): Promise<void> {
+	await onlyStepOpen(page, "create-smart-readlist");
 
 	const list = await measuredBox(page, STEPS_LIST);
 	const nextRead = await measuredBox(page, NEXT_READ_STEP);
@@ -235,8 +236,8 @@ async function nextReadIsTheOnlyOpenRow(page: Page): Promise<void> {
 
 async function autoTickedRowCollapses(page: Page): Promise<void> {
 	await expect(page.locator(EMAIL_STEP)).toHaveAttribute("data-test-onboarding-complete", "true");
-	await nextReadIsTheOnlyOpenRow(page);
-	await stepAnatomyHolds(page, 542);
+	await smartReadlistIsTheOnlyOpenRow(page);
+	await stepAnatomyHolds(page, 611);
 }
 
 async function nextReadRowSettled(page: Page): Promise<void> {
@@ -421,6 +422,7 @@ test.describe("Onboarding card", () => {
 		// which is the sighting that makes finishing it worth congratulating; a
 		// readlist seeded deep enough before that would earn no card at all.
 		await loginAs(page, email);
+		assert.equal((await page.request.post(`${BASE_URL}/e2e/seed-smart-readlist-milestone`, { data: { userId } })).status(), 201);
 		await seedSavesReachingMilestone(page, userId);
 		await seedInboxArticleQueued(page, userId);
 		await reloadReadlistWithOnboardingCookies(page, [
