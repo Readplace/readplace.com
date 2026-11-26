@@ -2,6 +2,7 @@ import { READ_TIME_BUCKETS, type ReadTimeBucketId, SAVED_WINDOWS, type SavedWind
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchApi } from "@packages/translations/hutch-api";
+import { HAND_PICKED_SCOPE } from "../pages/readlist/built-in-readlists";
 import type { ReadlistDiscovery } from "../pages/readlist/readlist.url";
 import { type CollectionQueryParams, FIND_ARTICLES_PARAM, buildQueryString } from "./collection-query";
 import type { SirenAction, SirenField } from "./siren";
@@ -46,7 +47,9 @@ export function findArticlesAction(queryParams: CollectionQueryParams): SirenAct
 		hiddenField(FIND_ARTICLES_PARAM.name, FIND_ARTICLES_PARAM.value),
 		...(queryParams.readlist === undefined || queryParams.readlist === DEFAULT_READLIST_SLUG
 			? []
-			: [hiddenField(queryParams.readlistKey, queryParams.readlist)]),
+			: queryParams.readlist === HAND_PICKED_SCOPE
+				? [hiddenField("scope", "hand-picked")]
+				: [hiddenField(queryParams.readlistKey, queryParams.readlist)]),
 		...(queryParams.status === undefined ? [] : [hiddenField("status", queryParams.status)]),
 		...(queryParams.order === undefined ? [] : [hiddenField("order", queryParams.order)]),
 	];

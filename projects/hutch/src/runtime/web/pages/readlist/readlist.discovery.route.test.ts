@@ -1164,6 +1164,22 @@ describe("find-articles (Siren search and filters for the apps)", () => {
 		expect(urlsOf(found)).toEqual(await listedOn(agent, `/queue?queue=${slug}&q=rust`));
 	});
 
+	it("searches only Hand Picked when it was advertised on Hand Picked", async () => {
+		const harness = useApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [RUST_NEW, RUST_OLD]);
+		const picked = articleIdOf(await page(agent, "/queue"), RUST_NEW.url);
+		await agent.post(`/queue/${picked}/move`).type("form").send({ from: "default", to: "~hand-picked" }).expect(303);
+		const token = await appToken(harness);
+
+		const action = findArticlesOf(await sirenAt(harness, token, "/queue?scope=hand-picked"));
+		const found = await sirenAt(harness, token, submit(action, { q: "rust" }));
+
+		expect(urlsOf(found)).toEqual([RUST_NEW.url]);
+		expect(urlsOf(found)).toEqual(await listedOn(agent, "/queue?scope=hand-picked&q=rust"));
+		expect(params(linkOf(found, "self") ?? null).get("scope")).toBe("hand-picked");
+	});
+
 	it("tells a tab with no match from an empty tab, and offers the clears that apply", async () => {
 		const harness = useApp(pinnedFixture());
 		await loginAgent(harness.server, harness.auth);
