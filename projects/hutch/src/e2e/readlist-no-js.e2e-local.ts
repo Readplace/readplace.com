@@ -111,7 +111,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 
 			await page.goto(`${BASE_URL}/queue?queue=${slug}`);
 			await openStep();
-			await step.getByRole("button", { name: "Open All" }).press("Enter");
+			await step.getByRole("button", { name: "Open the default readlist" }).press("Enter");
 			await page.locator("[data-test-article-title]").first().press("Enter");
 			await page.locator("summary[data-test-readlists-trigger]").press("Enter");
 			await page.locator(`button[data-test-assign-readlist="${slug}"]`).press("Enter");
@@ -130,13 +130,13 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		const toggle = page.locator("form[action*='/manage/preview'] summary.menu__toggle");
 		await toggle.focus();
 		await toggle.press("Enter");
-		await page.getByRole("button", { name: "Remove from “All”" }).click();
+		await page.getByRole("button", { name: "Remove from the default readlist" }).click();
 		await expect(page.getByText("Ready to confirm", { exact: true })).toBeVisible();
 		await page.getByRole("button", { name: "Confirm", exact: true }).click();
 		await expect(page.getByText("Finished", { exact: true })).toBeVisible();
 		await page.getByRole("button", { name: "Restore removed articles" }).click();
 		await expect(page.getByText("Restore finished", { exact: true })).toBeVisible();
-		await page.getByRole("link", { name: "Back to All" }).click();
+		await page.getByRole("link", { name: "Open home readlist" }).click();
 		await expect(page.locator("[data-test-article-title]")).toHaveText("A saved article");
 	});
 
@@ -494,7 +494,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 
 		await toggle.click();
 		await page.locator('main [data-test-readlist="default"]').click();
-		await expect(toggle).toContainText("All", { timeout: SETTLE_MS });
+		await expect(toggle).toContainText("Main saves", { timeout: SETTLE_MS });
 		await expect(switcher).toHaveJSProperty("open", false);
 	});
 

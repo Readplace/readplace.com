@@ -157,7 +157,7 @@ test.describe("Mark-as-read confirmation panel", () => {
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openMarkReadConfirm(page, { stamp: `light-${testInfo.workerIndex}-${Date.now()}`, openRail: railIsOpen });
-		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["All", "New Readlist"]);
+		await expect(page.locator(`${PANEL_ITEMS} li`)).toHaveText(["Main saves", "New Readlist"]);
 		await captureCheckpoint(page, MARK_STATUS_CONFIRM_LIGHT);
 		await page.getByRole("button", { name: "Got it", exact: true }).click();
 		await expect(page.locator(MARK_READ_TRIGGER)).toHaveCount(0);

@@ -152,7 +152,7 @@ describe("Inbox emails list route", () => {
 			"No emails yet",
 		);
 		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
-			"Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into All.",
+			"Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into the default readlist.",
 		);
 		const ctas = Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]"));
 		expect(ctas.map((cta) => cta.getAttribute("data-test-inbox-emails-empty-cta"))).toEqual([
@@ -187,7 +187,7 @@ describe("Inbox emails list route", () => {
 			"No emails yet",
 		);
 		expect(empty.querySelector("[data-test-inbox-emails-empty-body]")?.textContent).toBe(
-			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
+			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into the default readlist.",
 		);
 		expect(
 			Array.from(empty.querySelectorAll("[data-test-inbox-emails-empty-cta]")).map((cta) =>

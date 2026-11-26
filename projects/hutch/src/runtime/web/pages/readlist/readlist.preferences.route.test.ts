@@ -1183,10 +1183,10 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(inboxRows(doc)).toEqual([
-			{ name: "deals", destination: "Saves to All", routed: false },
-			{ name: "news", destination: "Saves to All and New Readlist", routed: true },
-			{ name: "old", destination: "Saves to All", routed: false },
-			{ name: "tech", destination: "Saves to All and New Readlist 2", routed: false },
+			{ name: "deals", destination: "Saves to Main saves", routed: false },
+			{ name: "news", destination: "Saves to Main saves and New Readlist", routed: true },
+			{ name: "old", destination: "Saves to Main saves", routed: false },
+			{ name: "tech", destination: "Saves to Main saves and New Readlist 2", routed: false },
 		]);
 	});
 
@@ -1227,7 +1227,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(inboxesDescription(doc)).toEqual([
-			"Send a custom email here and every article each email links to is saved to 'All'.",
+			"Send a custom email here and every article each email links to is saved to the default readlist.",
 			"Only the ones who match your preferences will be saved to 'New Readlist'",
 		]);
 		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe(
@@ -1263,7 +1263,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe(savedInboxesPath(slug));
 		expect(await routingOf(fixture, address)).toBe(slug);
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Saves to All and New Readlist", routed: true },
+			{ name: "news", destination: "Saves to Main saves and New Readlist", routed: true },
 		]);
 	});
 
@@ -1300,7 +1300,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe(savedInboxesPath(slug));
 		expect(await routingOf(fixture, address)).toBeUndefined();
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Saves to All", routed: false },
+			{ name: "news", destination: "Saves to Main saves", routed: false },
 		]);
 	});
 
@@ -1528,7 +1528,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes/create", () => {
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(inboxRows(doc)).toContainEqual({
 			name: "work-news",
-			destination: "Saves to All and New Readlist",
+			destination: "Saves to Main saves and New Readlist",
 			routed: true,
 		});
 		expect(doc.querySelector("#status-toast [data-test-toast-message]")?.textContent).toBe(

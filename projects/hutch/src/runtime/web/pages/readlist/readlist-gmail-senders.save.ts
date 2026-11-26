@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { shownReaderReadlists } from "./built-in-readlists";
 import {
 	type DiscoveredGmailSender,
 	decideGmailReadlistSelection,
@@ -11,7 +12,7 @@ import {
 	type ForwardableSender,
 } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
-import { type ReadlistSlug, readerReadlists } from "@packages/domain/readlist";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import { GMAIL_METADATA_SCOPE, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
@@ -130,7 +131,7 @@ export function initSaveReadlistGmailSenders(deps: {
 		if (!readlistGmailPickerVisible(sources.state)) return { ok: false, reason: "gmail-unavailable" };
 		const accountEmail = sources.connection?.accountEmail;
 		assert(accountEmail, "a picker-visible Gmail section requires a recorded Gmail account");
-		const readlists = readerReadlists(definitions);
+		const readlists = shownReaderReadlists(definitions);
 		const routing: ReadonlyMap<ForwardableSender, GmailSenderRouting> = gmailSenderRoutingFor({
 			mappings: sources.mappings,
 			userId,

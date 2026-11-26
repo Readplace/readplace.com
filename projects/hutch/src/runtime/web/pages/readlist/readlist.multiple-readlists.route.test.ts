@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -171,13 +171,13 @@ describe("POST /queue/queues", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const custom = await createReadlist(agent, "Hand Picked");
 		const named = parse((await agent.get(custom.headers.location)).text);
-		expect(queueLabels(named)).toEqual(["Hand Picked", "All", "Hand Picked"]);
+		expect(queueLabels(named)).toEqual(["Hand Picked", "Main saves", "Hand Picked"]);
 		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
 		expect(picked.querySelector(".readlist__heading p")?.textContent).toBe("Everything you save yourself is added here");
 		expect(picked.querySelector(".readlist-empty__title")?.textContent).toBe("Nothing saved yet");
 		expect(emptyActionKeys(picked)).toEqual(["install"]);
 		const all = parse((await agent.get("/queue")).text);
-		expect(all.querySelector(".readlist__heading p")?.textContent).toBe("Every save is here, including newsletter links and imports");
+		expect(all.querySelector(".readlist__heading p")?.textContent).toBe("New saves arrive here. Removing an article from this readlist keeps any copies in your other readlists.");
 		expect(named.querySelector(".readlist__heading")).toBeNull();
 	});
 
@@ -206,7 +206,7 @@ describe("POST /queue/queues", () => {
 		expect(articleIds(picked)).toHaveLength(1);
 		const button = picked.querySelector('a.btn.btn--neutral[data-test-action="add-older-saves"]');
 		assert(button, "Hand Picked must offer Add older saves from All");
-		expect(button.textContent).toBe("Add older saves from All");
+		expect(button.textContent).toBe("Add older saves from the default readlist");
 		expect(new URL(button.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname).toBe("/queue");
 		expect(olderSavesActionKeys(picked)).toEqual(["add-older-saves"]);
 	});
@@ -221,7 +221,7 @@ describe("POST /queue/queues", () => {
 		const slug = openedSlug(response.headers.location);
 		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
 		const doc = parse((await agent.get(response.headers.location)).text);
-		expect(queueLabels(doc)).toEqual(["Hand Picked", "All", "Ideas & Inspiration"]);
+		expect(queueLabels(doc)).toEqual(["Hand Picked", "Main saves", "Ideas & Inspiration"]);
 		expect(doc.querySelector("[data-test-empty-title]")?.textContent).toBe(
 			"No articles in this readlist yet",
 		);
@@ -233,7 +233,7 @@ describe("POST /queue/queues", () => {
 
 		await createReadlist(agent, "   deep WORK  ");
 
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "deep WORK"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "Main saves", "deep WORK"]);
 	});
 
 	it("refuses a name it cannot store, keeps the reader where they were and says why", async () => {
@@ -266,7 +266,7 @@ describe("POST /queue/queues", () => {
 			{ status: 303, queue: viewed, error: "create_reserved-name", title },
 			{ status: 303, queue: viewed, error: "create_name-taken", title },
 		]);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Finance"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "Main saves", "Finance"]);
 	});
 
 	it("re-renders the dialog's form for a refused name, keeping what the reader typed and the address they posted to", async () => {
@@ -299,10 +299,10 @@ describe("POST /queue/queues", () => {
 		expect(answers).toEqual([
 			{ ...refused, value: "   ", error: tooLong },
 			{ ...refused, value: "a".repeat(READLIST_LABEL_MAX_LENGTH + 1), error: tooLong },
-			{ ...refused, value: "All", error: "Pick a name other than All, the readlist that holds every save." },
+			{ ...refused, value: "All", error: "That name is reserved for the default readlist, so pick another one." },
 			{ ...refused, value: "finance", error: "You already have a readlist with that name, so pick another one." },
 		]);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Finance"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "Main saves", "Finance"]);
 	});
 
 	it("sends the dialog to the new readlist's listing, landing at the top like a page load", async () => {
@@ -323,7 +323,7 @@ describe("POST /queue/queues", () => {
 			select: "main",
 			swap: "outerHTML show:none scroll:html:top",
 		});
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Deep Work"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "Main saves", "Deep Work"]);
 	});
 
 	it("answers a client that asks for JSON with the 303 a browser gets", async () => {
@@ -338,7 +338,7 @@ describe("POST /queue/queues", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(`/queue?queue=${openedSlug(response.headers.location)}`);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Deep Work"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "Main saves", "Deep Work"]);
 	});
 
 	it("offers a create dialog from the rail, backed by a plain form for browsers without popovers", async () => {
@@ -710,7 +710,7 @@ describe("a readlist the reader opened", () => {
 		const empty = onWork.querySelector("[data-test-empty-readlist]");
 		assert(empty, "an untouched readlist must render its empty state");
 		expect(empty.textContent).toContain(
-			"Choose an article from All and add it here to start organising this readlist.",
+			"Choose an article from the default readlist and add it here to start organising this readlist.",
 		);
 	});
 
@@ -785,7 +785,7 @@ describe("the readlist every reader is given", () => {
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		expect(queueLabels(doc)).toEqual(["Hand Picked", "All", "New Readlist"]);
+		expect(queueLabels(doc)).toEqual(["Hand Picked", "Main saves", "New Readlist"]);
 		const workTab = doc.querySelector(`[data-test-readlist="${readlist}"]`);
 		assert(workTab, "the owned readlist must render its tab");
 		expect(workTab.getAttribute("href")).toBe(
@@ -892,5 +892,77 @@ describe("the readlists the reader made, seen from the rail", () => {
 
 		expect(renameable(doc)).toEqual([readlist]);
 		expect(deleteTriggerTargets(doc)).toEqual([`readlist-remove-confirm-${readlist}`]);
+	});
+});
+
+describe("The default readlist's display name", () => {
+	async function signedInWith(labels: readonly string[]) {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user);
+		const slugs: string[] = [];
+		for (const [index, label] of labels.entries()) {
+			const slug = ReadlistSlugSchema.parse(`custom-${index}`);
+			await harness.articleStore.createReadlistDefinition({ userId: user.userId, slug, label, createdAt: new Date(Date.UTC(2026, 10, 1, index)) });
+			slugs.push(slug);
+		}
+		return { harness, agent, slugs };
+	}
+
+	function entry(doc: Document, slug: string) {
+		const link = doc.querySelector<HTMLAnchorElement>(`a[data-test-readlist="${slug}"]`);
+		assert(link, `the rail must offer ${slug}`);
+		return { name: link.textContent?.trim(), href: link.getAttribute("href") };
+	}
+
+	it("shows Main saves with the agreed caption, and lists only what is still filed there", async () => {
+		const { harness, agent } = await signedInWith(["Research"]);
+		await agent.post("/queue/save").type("form").send({ url: "https://example.com/default-only" });
+		await agent.post("/queue/save").type("form").send({ url: "https://example.com/shared" });
+		await seedInto(harness, { readlist: "custom-0", url: "https://example.com/shared" });
+		await seedInto(harness, { readlist: "custom-0", url: "https://example.com/research-only" });
+
+		const doc = parse((await agent.get("/queue?queue=default").expect(200)).text);
+		expect(entry(doc, "default").name).toBe("Main saves");
+		expect(doc.title).toBe("Main saves — Readplace");
+		expect(doc.body.textContent).toContain("New saves arrive here. Removing an article from this readlist keeps any copies in your other readlists.");
+		expect(doc.body.textContent).not.toContain("research-only");
+		expect(articleIds(doc)).toHaveLength(2);
+		const research = parse((await agent.get("/queue?queue=custom-0").expect(200)).text);
+		expect(articleIds(research)).toHaveLength(2);
+	});
+
+	it.each([["Main saves"], ["MAIN SAVES"], ["Main  saves"], ["Main sa­ves"]])(
+		"qualifies the built-in beside a custom readlist named %j, and each name opens its own readlist",
+		async (label) => {
+			const { harness, agent, slugs } = await signedInWith([label]);
+			const user = await harness.auth.findUserByEmail("test@example.com");
+			assert(user);
+			const doc = parse((await agent.get("/queue").expect(200)).text);
+			const builtIn = entry(doc, "default");
+			const custom = entry(doc, slugs[0]);
+			expect(builtIn.name).toBe("Built-in main saves");
+			expect(custom.name).toBe(label);
+			expect(builtIn.href).not.toBe(custom.href);
+			assert(custom.href);
+			const opened = parse((await agent.get(custom.href).expect(200)).text);
+			expect(opened.querySelector('[data-test-readlist][aria-current="page"]')?.getAttribute("data-test-readlist")).toBe(slugs[0]);
+			if (label.toLowerCase() === "main saves") {
+				const before = await harness.articleStore.listReadlistDefinitions(user.userId);
+				await agent.post("/queue/queues").type("form").send({ label: "Main saves" });
+				expect(await harness.articleStore.listReadlistDefinitions(user.userId)).toHaveLength(before.length);
+			}
+		},
+	);
+
+	it("numbers the built-in when the qualified form is also taken, and drops the qualifier once the collision is renamed", async () => {
+		const { harness, agent, slugs } = await signedInWith(["Main saves", "Built-in  main saves"]);
+		expect(entry(parse((await agent.get("/queue").expect(200)).text), "default").name).toBe("Built-in main saves 2");
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user);
+		await harness.articleStore.renameReadlistDefinition({ userId: user.userId, slug: ReadlistSlugSchema.parse(slugs[0]), label: "Archive" });
+		await harness.articleStore.renameReadlistDefinition({ userId: user.userId, slug: ReadlistSlugSchema.parse(slugs[1]), label: "Later" });
+		expect(entry(parse((await agent.get("/queue").expect(200)).text), "default").name).toBe("Main saves");
 	});
 });

@@ -134,7 +134,7 @@ describe("renderMoveDialogs", () => {
 
 		expect(textOf(panel, ".confirm-popover__title")).toBe("Add to a readlist");
 		expect(textOf(panel, ".confirm-popover__body")).toBe(
-			"Choose a readlist for this article. It also stays in All, which keeps everything you save.",
+			"Choose a readlist. This article also stays in the default readlist.",
 		);
 		expect(textOf(panel, "[data-test-action='move-confirm']")).toBe("Add");
 	});
@@ -364,8 +364,8 @@ describe("renderMoveDialogs", () => {
 				action:
 					"/queue/abc123/move?queue=ideas-inspiration&utm_source=queue-card&utm_medium=internal&utm_content=create-and-move",
 				from: IDEAS,
-				value: "All",
-				error: "Pick a name other than All, the readlist that holds every save.",
+				value: "Main saves",
+				error: "That name is reserved for the default readlist, so pick another one.",
 			}),
 		);
 
@@ -381,9 +381,9 @@ describe("renderMoveDialogs", () => {
 			cancelTarget: form.querySelector("[data-test-action='readlist-create-move-cancel']")?.getAttribute("popovertarget"),
 		});
 		expect(shape(refusedForm)).toEqual(shape(dialogForm));
-		expect(refusedForm.querySelector("input[name='label']")?.getAttribute("value")).toBe("All");
+		expect(refusedForm.querySelector("input[name='label']")?.getAttribute("value")).toBe("Main saves");
 		expect(textOf(refusedForm, "[data-dialog-form-error]")).toBe(
-			"Pick a name other than All, the readlist that holds every save.",
+			"That name is reserved for the default readlist, so pick another one.",
 		);
 	});
 });

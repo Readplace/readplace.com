@@ -9,9 +9,9 @@ import {
 
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
 const PERSONAL = ReadlistSlugSchema.parse("e5f6a7b8");
-const PLAIN_BODY = "This readlist will be permanently deleted. Articles saved in All will remain in your library.";
+const PLAIN_BODY = "This readlist will be permanently deleted. Articles that are also in the default readlist stay saved there.";
 const MOVE_OR_DELETE_BODY =
-	"Before deleting this readlist, choose whether to move its articles to another readlist or delete them.";
+	"Articles that are also in the default readlist stay saved there. Before deleting this readlist, choose whether to move its articles to another readlist or delete them from this readlist.";
 
 function panelFor(input: { holdsArticles: boolean; destinations: readonly ReadlistDeleteDestination[] }) {
 	const { document } = parseHTML(

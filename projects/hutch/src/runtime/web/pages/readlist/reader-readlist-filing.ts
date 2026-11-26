@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { shownReaderReadlists } from "./built-in-readlists";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { withInternalTracking } from "@packages/web-shell";
 import {
@@ -6,7 +7,6 @@ import {
 	READLIST_MAX_PER_USER,
 	type ReadlistSlug,
 	type ReadlistRef,
-	readerReadlists,
 	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
@@ -86,7 +86,7 @@ export function buildReaderReadlistFiling(input: {
 		markStatusConfirmReadlists: input.markStatusConfirmGated
 			? readlistsHoldingArticle({
 					saves: input.saves,
-					readlists: readerReadlists(input.definitions),
+					readlists: shownReaderReadlists(input.definitions),
 				})
 			: undefined,
 		tags:

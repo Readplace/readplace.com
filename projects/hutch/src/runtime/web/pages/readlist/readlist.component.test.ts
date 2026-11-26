@@ -46,7 +46,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 		popoverId: markStatusConfirmPopoverId("abc123"),
 		url: "/queue/abc123/status",
 		status: "read",
-		readlists: [{ slug: ReadlistSlugSchema.parse("default"), label: "All" }],
+		readlists: [{ slug: ReadlistSlugSchema.parse("default"), label: "Main saves" }],
 	},
 	contentState: "available",
 	readerHref: "/queue/abc123/view",
@@ -487,7 +487,7 @@ describe("ReadlistPage", () => {
 		const button = doc.querySelector('[data-test-action="add-older-saves"]');
 		assert(button, "the Add older saves button must be offered");
 		expect(button.className).toBe("btn btn--neutral");
-		expect(button.textContent).toBe("Add older saves from All");
+		expect(button.textContent).toBe("Add older saves from the default readlist");
 		const href = new URL(button.getAttribute("href") ?? "", "https://readplace.com");
 		expect(href.pathname).toBe("/queue");
 		expect(href.searchParams.get("utm_source")).toBe("queue-heading");
@@ -506,7 +506,7 @@ describe("ReadlistPage", () => {
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No hand-picked articles here yet");
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Articles you save from now on appear here. Older saves stay in All.",
+			"Articles you save from now on appear here. Older saves stay in the default readlist.",
 		);
 		expect(emptyActionKeys(doc)).toEqual(["browse-all"]);
 		expect(olderSavesActionKeys(doc)).toEqual([]);
@@ -551,7 +551,7 @@ describe("ReadlistPage", () => {
 			"No articles in this readlist yet",
 		);
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Choose an article from All and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
+			"Choose an article from the default readlist and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
 		);
 		expect(emptyActionKeys(doc)).toEqual(["preferences"]);
 		const action = doc.querySelector('[data-test-empty-action="preferences"]');

@@ -28,7 +28,7 @@ export const enUS = {
 	},
 	automationSavesHeldEmail: {
 		openingAfter:
-			" just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
+			" just arrived in your Readplace Inbox, but the articles weren't saved to your default readlist — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 		reassurancePrefix:
 			"Don't worry, you didn't lose anything. The email and its links stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once ",
 		reassuranceLink: "you upgrade",

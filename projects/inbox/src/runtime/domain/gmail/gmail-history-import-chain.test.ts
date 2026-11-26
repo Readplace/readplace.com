@@ -815,7 +815,7 @@ describe("gmail history import chain (inbox half)", () => {
 		]);
 	});
 
-	it("delivers an imported issue into All with the email as its provenance", async () => {
+	it("delivers an imported issue into the default readlist with the email as its provenance", async () => {
 		const pipeline = makePipeline();
 		const destinationAddress = await pipeline.readlistAddress(
 			DEFAULT_READLIST_SLUG,
@@ -967,7 +967,7 @@ describe("gmail history import chain (inbox half)", () => {
 	jobId: JOB, kind: "history", accountEmail: ACCOUNT, gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: TLDR };
 	const FORWARDED_ORIGIN = { kind: "forwarded", accountEmail: ACCOUNT, senderEmail: TLDR, rfcMessageId: "issue-42@tldr.tech" };
 
-	it("asks for the imported Gmail message to be marked only after its saves are confirmed in All", async () => {
+	it("asks for the imported Gmail message to be marked only after its saves are confirmed in the default readlist", async () => {
 		const pipeline = makePipeline();
 		const destinationAddress = await pipeline.readlistAddress(WORK);
 		await pipeline.startImport({ jobId: JOB, destinationAddress });
@@ -1027,7 +1027,7 @@ describe("gmail history import chain (inbox half)", () => {
 		expect(pipeline.publishedOf(SubmitLinkCommand)).toHaveLength(1);
 	});
 
-	it("marks an issue-mode import once the whole issue is confirmed in All", async () => {
+	it("marks an issue-mode import once the whole issue is confirmed in the default readlist", async () => {
 		const pipeline = makePipeline();
 		const destinationAddress = await pipeline.readlistAddress(WORK);
 		await pipeline.startImport({ jobId: JOB, destinationAddress });
@@ -1064,7 +1064,7 @@ describe("gmail history import chain (inbox half)", () => {
 		);
 	});
 
-	it("repeats nothing when a notification is redelivered after its outputs are confirmed in All", async () => {
+	it("repeats nothing when a notification is redelivered after its outputs are confirmed in the default readlist", async () => {
 		const pipeline = makePipeline();
 		const destinationAddress = await pipeline.readlistAddress(WORK);
 		const gateway = await pipeline.gatewayAddress();
@@ -1136,7 +1136,7 @@ describe("gmail history import chain (inbox half)", () => {
 });
 
 for (const delivery of ["forward", "import"] as const) {
-	it(`keeps a ${delivery} article in All while custom lists accept, reject, and fail independently`, async () => {
+	it(`keeps a ${delivery} article in the default readlist while custom lists accept, reject, and fail independently`, async () => {
 		const pipeline = makePipeline();
 		const failed = ReadlistSlugSchema.parse("science");
 		const destinationAddress = await pipeline.readlistAddress(WORK);

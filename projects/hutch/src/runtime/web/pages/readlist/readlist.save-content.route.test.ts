@@ -313,7 +313,7 @@ describe("POST /queue/save-content with HTML", () => {
 			response.body.properties.messages.map(
 				(message: { content: { body: string } }) => message.content.body,
 			),
-		).toEqual(["Article saved", "Saved to 'All'"]);
+		).toEqual(["Article saved", "Saved to 'Main saves'"]);
 	});
 
 	it("returns 201 and dispatches to the HTML pipeline when mediaType is text/html;charset=utf-8", async () => {

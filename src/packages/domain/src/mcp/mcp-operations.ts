@@ -29,7 +29,7 @@ export const MCP_OPERATIONS = [
 		name: "save_link",
 		title: "Save a link to Readplace",
 		description:
-			"Save a web page (article, blog post, or PDF) to the user's Readplace reading list so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving. A successful save returns its private reader URL. Pass `readlists` — ids from list_readlists — to file the save into those readlists as well as All. " +
+			"Save a web page (article, blog post, or PDF) to the user's Readplace reading list so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving. A successful save returns its private reader URL. Pass `readlists` — ids from list_readlists — to file the save into those readlists as well as the default readlist, which receives every new save. " +
 			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"saves a URL to the user's readlist; the title, excerpt, and clean reader view fill in moments later.",
@@ -39,7 +39,7 @@ export const MCP_OPERATIONS = [
 		name: "list_readlists",
 		title: "List the user's readlists",
 		description:
-			"List the user's Readplace readlists. Each entry carries an opaque `id` and the `name` the user gave it, and the first is All, the built-in readlist that receives every save. An article removed from All can still belong to another readlist. Pass an `id` to list_readlist_articles to list only that readlist, to save_link to file a new save into it, or to add_to_readlist to file an article that is already saved. Read the id from here rather than deriving one from a name.",
+			"List the user's Readplace readlists. Each entry carries an opaque `id` and the `name` the user gave it, and the first is the default readlist, the built-in destination for new saves. Its name depends on the account, so identify it by being first, not by its name. An article removed from the default readlist can still belong to another readlist. Pass an `id` to list_readlist_articles to list only that readlist, to save_link to file a new save into it, or to add_to_readlist to file an article that is already saved. Read the id from here rather than deriving one from a name.",
 		summary: "lists the user's readlists, each with the opaque id every other tool takes.",
 		effect: "read",
 	},
@@ -47,10 +47,10 @@ export const MCP_OPERATIONS = [
 		name: "list_readlist_articles",
 		title: "List saved articles",
 		description:
-			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article or get_article_content, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list. " +
+			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists to list only that one; the first entry is the default readlist. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article or get_article_content, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list. " +
 			ARTICLE_LINK_GUIDANCE,
 		summary:
-			"lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.",
+			"lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including the default readlist), filtered to unread or already-read.",
 		effect: "read",
 	},
 	{
@@ -74,7 +74,7 @@ export const MCP_OPERATIONS = [
 		name: "create_readlist",
 		title: "Create a readlist",
 		description:
-			"Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep a limited number of named readlists beside All; past that, creating one is refused and nothing changes.",
+			"Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep a limited number of named readlists beside the default readlist; past that, creating one is refused and nothing changes.",
 		summary: "creates a readlist under a name the user chooses and returns its id.",
 		effect: "update",
 	},
@@ -82,7 +82,7 @@ export const MCP_OPERATIONS = [
 		name: "add_to_readlist",
 		title: "Add a saved article to a readlist",
 		description:
-			"File one already-saved article into one of the user's readlists, looked up by the id from a list_readlist_articles result. Pass either `readlist` — an id from list_readlists — or `create_name`, a name to file it under, which is created when no readlist carries it yet and reused when one does. Pass exactly one of the two. The article stays everywhere it already is; this adds it, it does not move it. " +
+			"File one already-saved article into one of the user's readlists, looked up by the id from a list_readlist_articles result. Pass either `readlist` — an id from list_readlists — or `create_name`, a name to file it under, which is created when no readlist carries it yet and reused when one does. Pass exactly one of the two. To file into the default readlist, pass the first entry’s ID. Use `create_name` only when the reader requests a custom readlist by name. The article stays everywhere it already is; this adds it, it does not move it. " +
 			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"files one saved article into a readlist, named by id or by a name it reuses or creates.",

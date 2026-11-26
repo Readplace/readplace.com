@@ -1,4 +1,4 @@
-import { HAND_PICKED_SCOPE } from "./built-in-readlists";
+import { HAND_PICKED_SCOPE, shownReaderReadlists } from "./built-in-readlists";
 import {
 	type ReaderSectionInput,
 	requestedReaderSection,
@@ -539,7 +539,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const configured = definitions.filter((list) => list.filing?.mode === "smart");
 		const candidates = configured.length ? configured : definitions;
 		const nav = composeReadlistNav({
-			readlists: readerReadlists(definitions),
+			readlists: shownReaderReadlists(definitions),
 			pinned: pinnedReadlistSlugs(definitions),
 			currentSlug: active,
 		});

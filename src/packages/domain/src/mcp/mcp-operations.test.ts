@@ -11,7 +11,7 @@ describe("MCP operations", () => {
 			name: "list_readlists",
 			title: "List the user's readlists",
 			description:
-				"List the user's Readplace readlists. Each entry carries an opaque `id` and the `name` the user gave it, and the first is All, the built-in readlist that receives every save. An article removed from All can still belong to another readlist. Pass an `id` to list_readlist_articles to list only that readlist, to save_link to file a new save into it, or to add_to_readlist to file an article that is already saved. Read the id from here rather than deriving one from a name.",
+				"List the user's Readplace readlists. Each entry carries an opaque `id` and the `name` the user gave it, and the first is the default readlist, the built-in destination for new saves. Its name depends on the account, so identify it by being first, not by its name. An article removed from the default readlist can still belong to another readlist. Pass an `id` to list_readlist_articles to list only that readlist, to save_link to file a new save into it, or to add_to_readlist to file an article that is already saved. Read the id from here rather than deriving one from a name.",
 		});
 	});
 

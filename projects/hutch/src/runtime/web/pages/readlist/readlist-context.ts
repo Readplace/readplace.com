@@ -1,10 +1,9 @@
-import { HAND_PICKED, HAND_PICKED_SCOPE, isBuiltInReadlist } from "./built-in-readlists";
+import { DEFAULT_READLIST_SHOWN, HAND_PICKED, HAND_PICKED_SCOPE, isBuiltInReadlist, shownReaderReadlists } from "./built-in-readlists";
 import {
 	DEFAULT_READLIST_SLUG,
 	pinnedReadlistSlugs,
 	readerReadlists,
 	type ReadlistSlug,
-	DEFAULT_READLIST,
 	type ReadlistRef,
 } from "@packages/domain/readlist";
 import type { ReadlistFilter } from "@packages/domain/article";
@@ -28,7 +27,7 @@ export interface ReadlistContext {
 	home?: { slug: ReadlistSlug; entry: ReadlistSlug; targets: ReadonlyMap<ReadlistSlug, HomeReadlistPreference> };
 }
 
-const MAINLINE_READLISTS: readonly ReadlistRef[] = [DEFAULT_READLIST];
+const MAINLINE_READLISTS: readonly ReadlistRef[] = [DEFAULT_READLIST_SHOWN];
 
 export function readlistToFileInto(context: ReadlistContext): ReadlistSlug | undefined {
 	const { slug } = context.activeReadlist;
@@ -39,7 +38,7 @@ export function mainlineReadlistContext(query: Record<string, unknown>): Readlis
 	return {
 		definitions: [],
 		state: { ...parseReadlistUrl(query), readlist: DEFAULT_READLIST_SLUG },
-		activeReadlist: DEFAULT_READLIST,
+		activeReadlist: DEFAULT_READLIST_SHOWN,
 		readlists: MAINLINE_READLISTS,
 		activePurpose: undefined,
 		pinnedReadlists: [],
@@ -80,12 +79,12 @@ export function initResolveReadlistContext(deps: {
 			deps.listReadlistDefinitions(userId),
 			rememberedFilterOf(req),
 		]);
-		const readlists = readerReadlists(definitions);
+		const readlists = shownReaderReadlists(definitions);
 		const homeSlug = homeReadlistOf(home?.preference, definitions);
 		const { source: _source, sender: _sender, ...plainQuery } = req.query;
 		const parsed = parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query);
 		const requested = withRememberedFilter({ ...parsed, readlist: (req.query.scope === "home" && req.query.readlist === undefined && req.query.queue === undefined) || (home?.open && homeSlug === home.preference?.slug) ? homeSlug : parsed.readlist }, remembered);
-		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
+		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? readlists[0];
 		return {
 			definitions,
 			state: { ...requested, readlist: activeReadlist.slug },

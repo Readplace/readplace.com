@@ -1,7 +1,7 @@
 import assert from "node:assert";
-import { readerReadlists } from "@packages/domain/readlist";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { AddArticleToReadlist, UpsertReadlist } from "@packages/save-article";
+import { shownReaderReadlists } from "../pages/readlist/built-in-readlists";
 import type { ResolveOwnedArticle } from "./article-lookup";
 import { toMcpArticle } from "./article-operations";
 import type { McpReadlist, McpServerDeps } from "./mcp-ports.types";
@@ -15,7 +15,7 @@ export function initMcpReadlistOperations(deps: {
 	resolveReadlistMembership: ResolveReadlistMembership;
 }): Pick<McpServerDeps, "listReadlists" | "createReadlist" | "addToReadlist"> {
 	const listReadlists: McpServerDeps["listReadlists"] = async ({ userId }) =>
-		readerReadlists(await deps.listReadlistDefinitions(userId))
+		shownReaderReadlists(await deps.listReadlistDefinitions(userId))
 			.map(({ slug, label }) => ({ id: slug, name: label }));
 
 	const createReadlist: McpServerDeps["createReadlist"] = async ({ userId, name }) => {
@@ -28,11 +28,10 @@ export function initMcpReadlistOperations(deps: {
 				};
 			case "invalid-name":
 				return { status: "invalid_name" };
-			case "reserved-name":
-				return {
-					status: "reserved_name",
-					readlist: { id: result.readlist.slug, name: result.readlist.label },
-				};
+			case "reserved-name": {
+				const [shown] = await listReadlists({ userId });
+				return { status: "reserved_name", readlist: shown };
+			}
 			case "limit-reached":
 				return { status: "limit_reached", limit: result.limit };
 		}

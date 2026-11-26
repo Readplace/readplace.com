@@ -225,7 +225,7 @@ const NOTHING_READ: EmptyCopy = {
 
 const CUSTOM_READLIST_EMPTY: EmptyCopy = {
 	title: "No articles in this readlist yet",
-	text: `Choose an article from ${DEFAULT_READLIST.label} and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.`,
+	text: `Choose an article from the default readlist and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.`,
 };
 
 const NO_MATCHES_TITLE = "No matching articles";
@@ -589,7 +589,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 							variant: "info",
 							title: { text: "Your Hacker News picks", element: "p" },
 							message: {
-								text: "Readplace added these ten picks once to All and this readlist. Read, file, or delete them as you like. New links you save go to All.",
+								text: "Readplace added these ten picks once to the default readlist and this readlist. Read, file, or delete them as you like. New links you save go to the default readlist.",
 							},
 						},
 		}),

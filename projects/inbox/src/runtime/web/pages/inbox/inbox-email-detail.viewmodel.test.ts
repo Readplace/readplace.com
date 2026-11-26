@@ -721,7 +721,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 	it("confirms a save in the present tense — the route publishes, a subscriber writes the queue", () => {
 		expect(withConfirmation({ savedConfirmed: true }).statusToast).toEqual({
-			message: "Adding to All…",
+			message: "Adding to the default readlist…",
 			undo: undefined,
 		});
 	});
@@ -730,7 +730,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(
 			withConfirmation({ savedConfirmed: true, feedbackConfirmed: true })
 				.statusToast?.message,
-		).toBe("Adding to All…");
+		).toBe("Adding to the default readlist…");
 	});
 
 	it("labels an excluded link without a recorded reason generically", () => {
@@ -1016,9 +1016,9 @@ describe("toInboxArticlesMoreViewModel", () => {
 
 
 describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => {
-	const SAVED_TO_ALL = { key: "decided", text: "Saved to All.", iconName: undefined };
+	const SAVED_TO_ALL = { key: "decided", text: "Saved to the default readlist.", iconName: undefined };
 	const FAILED_WORK_LINE =
-		"Couldn't choose articles for Work. Its links were saved to All. Use Keep in Work on any article you want there.";
+		"Couldn't choose articles for Work. Its links were saved to the default readlist. Use Keep in Work on any article you want there.";
 
 	function kept(ordinal: string): InboxEmailLinkEntry {
 		return link({
@@ -1058,7 +1058,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		return vm.articles.readlistLines.map(({ text }) => text);
 	}
 
-	it("says every article went to All and keeps polling while the readlist chooses, with counts shown", () => {
+	it("says every article went to the default readlist and keeps polling while the readlist chooses, with counts shown", () => {
 		const vm = build({
 			links: [kept("0000"), kept("0001")],
 			linksMeta: routedMeta({ eligibleArticleCount: 2 }),
@@ -1241,7 +1241,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		});
 
 		expect(lineTexts(vm)).toEqual([
-			"Couldn't choose articles for Day job. Its links were saved to All. Use Keep in Day job on any article you want there.",
+			"Couldn't choose articles for Day job. Its links were saved to the default readlist. Use Keep in Day job on any article you want there.",
 		]);
 	});
 
@@ -1273,7 +1273,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		});
 
 		expect(vm.articles.notices.map(({ text }) => text)).toEqual([
-			"Saved to All.",
+			"Saved to the default readlist.",
 			"1 article saved to Work; 1 didn't fit.",
 		]);
 	});
@@ -1468,12 +1468,12 @@ describe("Gmail filtering results", () => {
 			emptyStates: [],
 		});
 		expect(vm.articles.notices.map(({ text }) => text)).toEqual([
-			"Saved to All.",
+			"Saved to the default readlist.",
 			"Choosing articles for Pending…",
 		]);
 		expect(vm.articles.readlistLines.map(({ text }) => text)).toEqual([
 			"Nothing in this issue fit Work.",
-			"Couldn't choose articles for Science. Its links were saved to All. Use Keep in Science on any article you want there.",
+			"Couldn't choose articles for Science. Its links were saved to the default readlist. Use Keep in Science on any article you want there.",
 		]);
 		expect(vm.articles.panelPollUrl).toContain("poll=1");
 		expect(vm.tabs.map(({ label }) => label)).toEqual([
@@ -1508,7 +1508,7 @@ it("stops polling an unfinished Gmail custom list while the All articles remain 
 		},
 	});
 	expect(vm.articles.notices.map(({ text }) => text)).toEqual([
-		"Saved to All.",
+		"Saved to the default readlist.",
 		"Still choosing articles for Work. Reload later to see the result.",
 	]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
@@ -1531,12 +1531,12 @@ it("reports one accepted Gmail article using the readlist's captured name", () =
 			],
 		},
 	});
-	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to All."]);
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to the default readlist."]);
 	expect(vm.articles.readlistLines.map(({ text }) => text)).toEqual(["All 1 also fit Day job."]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });
 
-it("claims no save to All when the stored count says no Gmail article was eligible", () => {
+it("claims no save to the default readlist when the stored count says no Gmail article was eligible", () => {
 	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [] }] } });
 	expect(vm.articles.notices).toEqual([]);
 	expect(vm.articles.readlistLines.map(({ text }) => text)).toEqual(["Nothing in this issue fit Work."]);
@@ -1576,12 +1576,12 @@ it("keeps the free-plan held line, with no readlist line or filter, when a held 
 });
 
 describe("a Gmail newsletter kept as an issue", () => {
-	it("says the issue went to All when its mapping has no custom readlist", () => {
+	it("says the issue went to the default readlist when its mapping has no custom readlist", () => {
 		const vm = build({
 			links: [link({ status: "crawled" })],
 			linksMeta: { truncated: false, extractionFailed: false, issueSave: { readlists: [], held: false } },
 		});
-		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to All."]);
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to the default readlist."]);
 		expect(vm.articles.readlistLines).toEqual([]);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
 		expect(vm.articles.cards.map((card) => card.actions.map((action) => action.key))).toEqual([["save"]]);
@@ -1598,7 +1598,7 @@ describe("a Gmail newsletter kept as an issue", () => {
 			},
 			filter: { readlist: WORK, show: "fit" },
 		});
-		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to All, Work, and Science."]);
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to the default readlist, Work, and Science."]);
 		expect(vm.articles.readlistLines).toEqual([]);
 	});
 
@@ -1625,16 +1625,16 @@ describe("a Gmail newsletter kept as an issue", () => {
 			},
 		});
 		expect(vm.articles.notices.map(({ text }) => text)).toEqual([
-			"Saved this issue to All and Work.",
-			"Saved to All.",
+			"Saved this issue to the default readlist and Work.",
+			"Saved to the default readlist.",
 		]);
 		expect(vm.articles.readlistLines.map(({ text }) => text)).toEqual(["Nothing in this issue fit Work."]);
 	});
 });
 
-it("confirms eligible Gmail articles retained in All when no custom readlists were selected", () => {
+it("confirms eligible Gmail articles retained in the default readlist when no custom readlists were selected", () => {
 	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] } });
-	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to All."]);
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to the default readlist."]);
 	expect(vm.articles.readlistLines).toEqual([]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });

@@ -340,7 +340,7 @@ describe("Saving Gmail newsletters to a readlist", () => {
 		await agent.post(SAVE).type("form").send({ gmail_selection: "1", routed: TLDR });
 		const doc = load((await agent.get(PREFERENCES)).text);
 		expect(checklistRows(doc)).toEqual([["elsewhere", TLDR, false], ["known", MORNING, false]]);
-		expect(doc.querySelector('[data-test-gmail-checklist-group="elsewhere"] [data-test-gmail-checklist-row]')?.textContent).toContain("In All");
+		expect(doc.querySelector('[data-test-gmail-checklist-group="elsewhere"] [data-test-gmail-checklist-row]')?.textContent).toContain("In Main saves");
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
 	});
 

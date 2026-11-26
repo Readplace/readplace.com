@@ -420,7 +420,7 @@ describe("POST /queue/:id/move", () => {
 				select: "main",
 				swap: "outerHTML show:none",
 			});
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${made}`)).toEqual([articleId]);
 			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
 			expect(toastMessage(await listing(agent, landing.path))).toBe("Added to Finance");
@@ -460,7 +460,7 @@ describe("POST /queue/:id/move", () => {
 				`/queue?utm_source=queue-card&utm_medium=internal&utm_content=create-and-move&moved_article=${articleId}&moved_from=default&moved_to=${made}`,
 			);
 			expect(await listedOn(agent, `/queue?queue=${made}`)).toEqual([articleId]);
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Finance"]);
 		});
 
 		it("re-renders the dialog's form for a refused name, keeping what the reader typed and the readlist the article leaves", async () => {
@@ -501,10 +501,10 @@ describe("POST /queue/:id/move", () => {
 			};
 			expect(answers).toEqual([
 				{ ...refused, value: "   ", error: `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.` },
-				{ ...refused, value: "All", error: "Pick a name other than All, the readlist that holds every save." },
+				{ ...refused, value: "All", error: "That name is reserved for the default readlist, so pick another one." },
 				{ ...refused, value: "finance", error: "You already have a readlist with that name, so pick another one." },
 			]);
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
 		});
 
@@ -530,7 +530,7 @@ describe("POST /queue/:id/move", () => {
 				[303, `/queue?queue=${finance}&queue_error=create_reserved-name`],
 				[303, `/queue?queue=${finance}&queue_error=create_name-taken`],
 			]);
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
 		});
 
@@ -579,7 +579,7 @@ describe("POST /queue/:id/move", () => {
 				select: "main",
 				swap: "outerHTML show:none",
 			});
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Weekend"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Weekend"]);
 		});
 
 		it("lands back where the reader was, creating nothing, when the readlist it leaves no longer holds the article", async () => {
@@ -610,7 +610,7 @@ describe("POST /queue/:id/move", () => {
 			});
 			expect(browser.status).toBe(303);
 			expect(browser.headers.location).toBe(`/queue?queue=${weekend}`);
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Weekend"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Weekend"]);
 		});
 	});
 
@@ -833,7 +833,7 @@ describe("POST /queue/:id/move", () => {
 				[403, "Your account is locked"],
 			]);
 			offset = 0;
-			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "Main saves", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
 		});
 	});

@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { defaultReadlistOf } from "../readlist/built-in-readlists";
 import type {
 	ForwardableSender,
 	GmailConnection,
@@ -16,7 +17,7 @@ import {
 	summarizeGmailHistoryImport,
 } from "@packages/domain/gmail";
 import { type InboxAddressEntry, isLiveAddress, type EmailDeliveryMode } from "@packages/domain/inbox";
-import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { buildReadlistUrl } from "../readlist/readlist.url";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
@@ -182,7 +183,7 @@ function importCounts(summary: GmailHistoryImportSummary | undefined): GmailImpo
 
 function resolveEntry(entry: InboxAddressEntry, readlists: readonly ReadlistRef[]): ReadlistRef {
 	const slug = entry.readlist ?? DEFAULT_READLIST_SLUG;
-	return readlists.find((readlist) => readlist.slug === slug) ?? DEFAULT_READLIST;
+	return readlists.find((readlist) => readlist.slug === slug) ?? defaultReadlistOf(readlists);
 }
 
 export function gmailMappingDestination(input: {
@@ -192,7 +193,7 @@ export function gmailMappingDestination(input: {
 	readlists: readonly ReadlistRef[];
 }): GmailMappingDestination {
 	if (input.sender.mappedAddresses === undefined) return { kind: "unresolved", reason: "legacy" };
-	const selected = [DEFAULT_READLIST];
+	const selected = [defaultReadlistOf(input.readlists)];
 	for (const address of input.sender.mappedAddresses) {
 		const entry = input.destinations.get(address);
 		if (entry === undefined || entry.userId !== input.userId) return { kind: "unresolved", reason: "missing" };

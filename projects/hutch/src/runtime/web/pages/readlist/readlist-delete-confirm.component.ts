@@ -1,6 +1,9 @@
-import { type ReadlistSlug, DEFAULT_READLIST } from "@packages/domain/readlist";
+import type { ReadlistSlug } from "@packages/domain/readlist";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export function readlistDeleteConfirmPopoverId(readlist: ReadlistSlug): string {
 	return `readlist-remove-confirm-${readlist}`;
@@ -43,13 +46,13 @@ const MOVE_OR_DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions r
 
 const PLAIN_QUESTION: ReadlistDeleteQuestion = {
 	title: "Delete this readlist?",
-	body: `This readlist will be permanently deleted. Articles saved in ${DEFAULT_READLIST.label} will remain in your library.`,
+	body: t("defaultReadlist.deleteBody"),
 	actionsTemplate: PLAIN_ACTIONS_TEMPLATE,
 };
 
 const MOVE_OR_DELETE_QUESTION: ReadlistDeleteQuestion = {
 	title: "Move or delete articles",
-	body: "Before deleting this readlist, choose whether to move its articles to another readlist or delete them.",
+	body: "Articles that are also in the default readlist stay saved there. Before deleting this readlist, choose whether to move its articles to another readlist or delete them from this readlist.",
 	actionsTemplate: MOVE_OR_DELETE_ACTIONS_TEMPLATE,
 };
 

@@ -79,7 +79,7 @@ async function setup(input: { origins?: GmailMessageOrigin[]; emailExists?: bool
 }
 
 describe("gmail import completion", () => {
-	it("requests the Gmail update once the issue output is in All", async () => {
+	it("requests the Gmail update once the issue output is in the default readlist", async () => {
 		const { run, select, marks } = await setup();
 		await select([ISSUE_OUTPUT_KEY]);
 
@@ -202,7 +202,7 @@ describe("gmail import completion", () => {
 		assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "m-0" }] });
 	});
 
-	it("updates a duplicate Gmail copy that arrives after the canonical email is already in All", async () => {
+	it("updates a duplicate Gmail copy that arrives after the canonical email is already in the default readlist", async () => {
 		const { run, select, marks, recordDuplicate } = await setup({ origins: [HISTORY] });
 		await select([ISSUE_OUTPUT_KEY]);
 		await run([savedBody(ISSUE_OUTPUT_KEY)]);

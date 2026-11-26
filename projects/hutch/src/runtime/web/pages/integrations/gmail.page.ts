@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { shownReaderReadlists } from "../readlist/built-in-readlists";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { parsePollParam, sendComponent } from "@packages/web-shell";
@@ -10,7 +11,7 @@ import {
 	hasGmailScope,
 } from "@packages/domain/gmail";
 import { isLiveAddress } from "@packages/domain/inbox";
-import { READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { GMAIL_MESSAGE_READ_SCOPES, GMAIL_METADATA_SCOPE, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
@@ -131,7 +132,7 @@ export function registerGmailPageRoutes(
 			connection,
 			senders,
 			destinations: new Map(entries.flatMap((entry) => (entry === undefined ? [] : [[entry.address, entry] as const]))),
-			readlists: readerReadlists(definitions),
+			readlists: shownReaderReadlists(definitions),
 			readlistLimitReached: definitions.length >= READLIST_MAX_PER_USER,
 			gatewayLive: gateway !== undefined && isLiveAddress(gateway),
 			metadataScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_METADATA_SCOPE }),

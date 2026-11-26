@@ -493,7 +493,7 @@ test.describe("GMail Newsletters mapping", () => {
 			reveal: READLIST_PICKER,
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: READLIST_MAX_PER_USER + 1 });
-				await expect(settling.locator(".gmail__readlist-option > span:first-of-type").filter({ hasNotText: "All" })).toHaveText(shelves);
+				await expect(settling.locator(".gmail__readlist-option > span:first-of-type").filter({ hasNotText: "Main saves" })).toHaveText(shelves);
 				await expect(settling.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
 				await expect(settling.locator(CREATE_READLIST)).toHaveCount(0);
 			},
@@ -577,7 +577,7 @@ test.describe("GMail Newsletters mapping", () => {
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 3 });
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(3);
-				await expect(settling.locator(".gmail__readlist-option > span:first-of-type")).toHaveText(["All", "Tech", "Science"]);
+				await expect(settling.locator(".gmail__readlist-option > span:first-of-type")).toHaveText(["Main saves", "Tech", "Science"]);
 				await expect(settling.locator("#gmail-readlist-choice")).toHaveText("All, Tech, Science");
 				await expect(settling.locator('[data-test-gmail-readlist-option="default"]')).toBeDisabled();
 			},

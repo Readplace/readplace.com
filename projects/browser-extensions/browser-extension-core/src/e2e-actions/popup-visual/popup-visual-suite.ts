@@ -83,7 +83,8 @@ async function savedSettled(page: Page): Promise<void> {
 }
 
 async function saveAllSettled(page: Page): Promise<void> {
-	await expect(page.locator("#save-all-view-readlist")).toBeVisible();
+	await expect(page.getByRole("link", { name: "Open home readlist" })).toBeVisible();
+	await expect(page.locator("#save-all-view-readlist")).toHaveAttribute("href", /\/queue\?/);
 	await expect(page.locator("#save-all-failed > li")).toHaveCount(2);
 }
 

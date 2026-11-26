@@ -16,11 +16,11 @@ import {
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
 import {
-	DEFAULT_READLIST_LABEL,
 	DEFAULT_READLIST_SLUG,
 	type ReadlistRef,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
+import { defaultReadlistLabelOf } from "./built-in-readlists";
 import type { UserId } from "@packages/domain/user";
 import { withInternalTracking } from "@packages/web-shell";
 import type { GmailConnectDisclaimerAction } from "../integrations/gmail-connect-disclaimer.component";
@@ -230,7 +230,7 @@ function routedNote(input: { routing: GmailSenderRouting | undefined; readlists:
 		assert(readlist, "a routed sender's readlist resolves to a reader readlist");
 		return readlist.label;
 	});
-	return `In ${LABEL_LIST.format([DEFAULT_READLIST_LABEL, ...labels])}`;
+	return `In ${LABEL_LIST.format([defaultReadlistLabelOf(input.readlists), ...labels])}`;
 }
 
 function checklistIntro(label: string): string {

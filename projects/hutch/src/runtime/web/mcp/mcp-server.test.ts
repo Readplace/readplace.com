@@ -27,9 +27,9 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 			id: "0".repeat(32),
 			title: "Example",
 			url: "https://example.com/",
-			filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+			filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 		}),
-		listReadlists: async () => [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+		listReadlists: async () => [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 		createReadlist: async () => ({ status: "invalid_name" }),
 		addToReadlist: async () => ({ status: "article_not_found" }),
 		listReadlist: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
@@ -64,7 +64,7 @@ function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
 		readTime: { value: "1", label: "1 min read" },
 		status: "unread",
 		savedAt: "2026-01-01T00:00:00.000Z",
-		readlists: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+		readlists: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 		...overrides,
 	};
 }
@@ -264,7 +264,7 @@ describe("initMcpServer", () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
 				id: "a".repeat(32),
-				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 				title: "My Article",
 				url: "https://example.com/a",
 			}));
@@ -377,7 +377,7 @@ describe("initMcpServer", () => {
 				fakeDeps({
 					listReadlists: async () => [
 						{ id: workSlug, name: "Work" },
-						{ id: DEFAULT_READLIST_SLUG, name: "All" },
+						{ id: DEFAULT_READLIST_SLUG, name: "Main saves" },
 					],
 				}),
 			);
@@ -1306,7 +1306,7 @@ describe("initMcpServer", () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
 				id: "x".repeat(32),
-				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 				title: "x",
 				url: "https://e.test/",
 			}));
@@ -1427,7 +1427,7 @@ describe("initMcpServer", () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
 				id: "x".repeat(32),
-				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+				filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 				title: "Saved",
 				url: "https://e.test/a",
 			}));
@@ -1640,7 +1640,7 @@ describe("initMcpServer", () => {
 					saveLink: async () => ({
 						ok: true,
 						id: "a".repeat(32),
-						filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "All" }],
+						filedInto: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }],
 						title: "My Article",
 						url: "https://e.test/a",
 					}),
@@ -1874,7 +1874,7 @@ describe("initMcpServer", () => {
 });
 
 describe("MCP readlist tools", () => {
-	const all = { id: DEFAULT_READLIST_SLUG, name: "All" };
+	const all = { id: DEFAULT_READLIST_SLUG, name: "Main saves" };
 	const work = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
 	const personal = {
 		id: ReadlistSlugSchema.parse("personal"),
@@ -1887,7 +1887,7 @@ describe("MCP readlist tools", () => {
 		expect(await call(server, 1, "list_readlists")).toMatchObject({
 			result: {
 				content: [
-					{ text: "You have 2 readlist(s):\n- All (id default)\n- Work (id work)" },
+					{ text: "You have 2 readlist(s):\n- Main saves (id default)\n- Work (id work)" },
 				],
 				structuredContent: { readlists: [all, work] },
 			},
@@ -2235,7 +2235,7 @@ describe("MCP readlist tools", () => {
 		},
 		{
 			outcome: { status: "reserved_name", readlist: all },
-			message: "All already receives every save",
+			message: "is reserved. To file into the default readlist, use the first ID from list_readlists",
 		},
 		{
 			outcome: { status: "limit_reached", limit: 15 },
@@ -2320,7 +2320,7 @@ describe("MCP readlist tools", () => {
 					},
 				},
 				content: [
-					{ text: expect.stringContaining("In readlists: All, Work") },
+					{ text: expect.stringContaining("In readlists: Main saves, Work") },
 				],
 			},
 		});
@@ -2362,7 +2362,7 @@ describe("MCP readlist tools", () => {
 		},
 		{
 			outcome: { status: "reserved_name", readlist: all },
-			message: "All already receives every save",
+			message: "is reserved. To file into the default readlist, use the first ID from list_readlists",
 		},
 		{
 			outcome: { status: "limit_reached", limit: 15 },

@@ -1,8 +1,9 @@
 import { generatedContentOf } from "../../generated-content-of";
+import { shownReaderReadlists } from "./built-in-readlists";
 import type { NextFunction, Request, Response } from "express";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type ArticleBody, type Highlight, storedHighlightState, viewerFor } from "@packages/domain/article";
-import { readerReadlists, readlistsHoldingArticle } from "@packages/domain/readlist";
+import { readlistsHoldingArticle } from "@packages/domain/readlist";
 import type { ArticleCrawl, FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type {
 	ListReadlistDefinitions,
@@ -108,7 +109,7 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 		const content = stored.kind === "article" ? stored.body : undefined;
 		const readlists = readlistsHoldingArticle({
 			saves,
-			readlists: readerReadlists(definitions),
+			readlists: shownReaderReadlists(definitions),
 		});
 		if (isDeliberateReaderRequest(req))
 			await deps.recordEngagementActivity({

@@ -1,4 +1,12 @@
-import { DEFAULT_READLIST_SLUG, HAND_PICKED_SCOPE, type ReadlistRef, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST,
+	DEFAULT_READLIST_SLUG,
+	HAND_PICKED_SCOPE,
+	presentReaderReadlistLabels,
+	readerReadlists,
+	type ReadlistRef,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 
@@ -22,3 +30,18 @@ export const withHandPickedHolding = <Save extends { readlist?: ReadlistSlug }>(
 	saves: readonly Save[],
 	picked: boolean,
 ): readonly { readlist?: ReadlistSlug }[] => (picked ? [...saves, { readlist: HAND_PICKED_SCOPE }] : saves);
+
+export const DEFAULT_READLIST_NAMES = { name: t("defaultReadlist.name"), qualifiedName: t("defaultReadlist.qualifiedName") };
+
+export const DEFAULT_READLIST_SHOWN: ReadlistRef = { ...DEFAULT_READLIST, label: DEFAULT_READLIST_NAMES.name };
+
+export const presentReadlistLabels = <T extends ReadlistRef>(readlists: readonly T[]): T[] =>
+	presentReaderReadlistLabels({ readlists, names: DEFAULT_READLIST_NAMES });
+
+export const shownReaderReadlists = (definitions: Parameters<typeof readerReadlists>[0]): ReadlistRef[] =>
+	presentReadlistLabels(readerReadlists(definitions));
+
+export const defaultReadlistOf = (readlists: readonly ReadlistRef[]): ReadlistRef =>
+	readlists.find((readlist) => readlist.slug === DEFAULT_READLIST_SLUG) ?? DEFAULT_READLIST_SHOWN;
+
+export const defaultReadlistLabelOf = (readlists: readonly ReadlistRef[]): string => defaultReadlistOf(readlists).label;

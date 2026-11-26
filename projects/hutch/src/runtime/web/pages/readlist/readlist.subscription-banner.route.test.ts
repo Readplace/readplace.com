@@ -219,7 +219,7 @@ describe("Readlist page banner state", () => {
 		const message = banner.querySelector("[data-test-banner-message]");
 		assert(message, "free-plan banner must render its message");
 		expect(message.textContent?.replace(/\s+/g, " ").trim()).toBe(
-			"Your saved articles are all here, and you can keep saving new links within a daily limit. Upgrade for the Inbox, Next read, Past reads, Gmail and no daily limits.",
+			"You keep your saved articles on the free plan. You can keep saving new links within a daily limit. Upgrade for the Inbox, Next read, Past reads, Gmail and no daily limits.",
 		);
 		// An expired/cancelled user must be able to re-subscribe from the readlist
 		// itself, not be dead-ended into hunting for /account.

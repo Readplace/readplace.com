@@ -1,4 +1,4 @@
-import { type ReadlistSlug, DEFAULT_READLIST } from "@packages/domain/readlist";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
@@ -56,7 +56,7 @@ const MOVE_COPY: Record<ArticleMoveViewModel["mode"], MoveCopy> = {
 	add: {
 		itemLabel: "Add to readlist",
 		title: "Add to a readlist",
-		body: `Choose a readlist for this article. It also stays in ${DEFAULT_READLIST.label}, which keeps everything you save.`,
+		body: t("defaultReadlist.moveBody"),
 		commitLabel: "Add",
 		fallbackLabel: "Add to",
 	},

@@ -1050,9 +1050,9 @@ test.describe("Readlist preferences inboxes listed", () => {
 			`inboxes-listed-light-${testInfo.workerIndex}-${Date.now()}`,
 		);
 		await expect(page.locator(`${INBOX_ROWS} [data-test-inbox-destination]`)).toHaveText([
-			"Saves to All",
-			"Saves to All and New Readlist",
-			"Saves to All and New Readlist 2",
+			"Saves to Main saves",
+			"Saves to Main saves and New Readlist",
+			"Saves to Main saves and New Readlist 2",
 		]);
 		await captureCheckpoint(
 			page,

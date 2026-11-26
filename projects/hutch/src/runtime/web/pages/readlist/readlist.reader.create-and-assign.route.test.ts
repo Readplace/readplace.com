@@ -294,7 +294,7 @@ describe("the reader's create dialog, posted through htmx", () => {
 			invalid: "true",
 		};
 		expect(answers).toEqual([
-			{ ...refused, value: "All", error: "Pick a name other than All, the readlist that holds every save." },
+			{ ...refused, value: "All", error: "That name is reserved for the default readlist, so pick another one." },
 			{ ...refused, value: "   ", error: `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.` },
 		]);
 		expect(readlistTagLabels(await openReader(agent, articleId))).toEqual([]);

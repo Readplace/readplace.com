@@ -230,7 +230,7 @@ describe("toReadlistGmailSenders section copy", () => {
 	});
 
 	it("words the lede around the readlist's delivery choice", () => {
-		assert.equal(toReadlistGmailSenders(input()).lede, "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and Design. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.");
+		assert.equal(toReadlistGmailSenders(input()).lede, "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to the default readlist and Design. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.");
 	});
 });
 

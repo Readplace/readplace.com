@@ -9,10 +9,7 @@ import type {
 	InboxReadlistOutcome,
 } from "@packages/domain/inbox";
 import { INBOX_PATH, isExcludedLink } from "@packages/domain/inbox";
-import {
-	DEFAULT_READLIST_LABEL,
-	type ReadlistSlug,
-} from "@packages/domain/readlist";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import {
 	type LocalTime,
 	toAbsoluteDateTime,
@@ -136,7 +133,7 @@ function readlistSaveNotices(input: {
 }): PanelNotice[] {
 	const notices: PanelNotice[] =
 		input.articles > 0 && !input.savesHeld && !input.issueOnly
-			? [{ key: "decided", text: "Saved to All.", iconName: undefined }]
+			? [{ key: "decided", text: "Saved to the default readlist.", iconName: undefined }]
 			: [];
 	for (const { readlist, label, qualification } of input.selectedReadlists) {
 		if (input.savesHeld) {
@@ -360,7 +357,7 @@ function issueSaveNotice(
 		text: issueSave.held
 			? t("emailDetail.savesHeld.issue")
 			: `Saved this issue to ${ISSUE_DESTINATIONS.format([
-					DEFAULT_READLIST_LABEL,
+					"the default readlist",
 					...issueSave.readlists.map(({ label }) => label),
 				])}.`,
 		iconName: undefined,
@@ -375,7 +372,7 @@ const UNAVAILABLE_ALERT: AlertCopy = {
 // Present tense on purpose: the save route only publishes SubmitLinkCommand, and
 // the queue write happens in a downstream subscriber. Claiming "Saved" would
 // promise a row a reader jumping straight to /queue might not find yet.
-const SAVED_TOAST_MESSAGE = "Adding to All…";
+const SAVED_TOAST_MESSAGE = "Adding to the default readlist…";
 const FEEDBACK_TOAST_MESSAGE = "Thanks — your report was logged";
 
 export interface InboxStatusToastUndo {

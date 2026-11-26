@@ -50,7 +50,7 @@ describe("initMcpReadlistOperations", () => {
 		await store.createReadlistDefinition({ userId, slug: first, label: "First", createdAt: new Date("2026-01-01") });
 		await store.createReadlistDefinition({ userId: otherUserId, slug: ReadlistSlugSchema.parse("private"), label: "Private", createdAt: new Date("2025-01-01") });
 		expect(await ops.listReadlists({ userId })).toEqual([
-			{ id: DEFAULT_READLIST_SLUG, name: "All" },
+			{ id: DEFAULT_READLIST_SLUG, name: "Main saves" },
 			{ id: first, name: "First" },
 			{ id: second, name: "Second" },
 		]);
@@ -66,11 +66,11 @@ describe("initMcpReadlistOperations", () => {
 
 	it.each([
 		["", { status: "invalid_name" }],
-		["ALL", { status: "reserved_name", readlist: { id: DEFAULT_READLIST_SLUG, name: "All" } }],
+		["ALL", { status: "reserved_name", readlist: { id: DEFAULT_READLIST_SLUG, name: "Main saves" } }],
 	])("refuses the name %p without creating a readlist", async (name, expected) => {
 		const { ops } = buildOps();
 		expect(await ops.createReadlist({ userId, name })).toEqual(expected);
-		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }]);
 	});
 
 	it("reports the cap on creation and filing without creating or assigning a readlist", async () => {
@@ -92,7 +92,7 @@ describe("initMcpReadlistOperations", () => {
 		assert(result.status === "filed");
 		expect(result.article).toMatchObject({
 			id: saved.id.value,
-			readlists: [{ id: DEFAULT_READLIST_SLUG, name: "All" }, result.readlist],
+			readlists: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }, result.readlist],
 		});
 		const copy = await store.findReadlistArticleById({ userId, id: saved.id, readlist: result.readlist.id });
 		assert(copy);
@@ -123,7 +123,7 @@ describe("initMcpReadlistOperations", () => {
 		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist: weekend.readlist.id } })).toMatchObject({ status: "filed", article: { readlists: [work.readlist, weekend.readlist] } });
 		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist: DEFAULT_READLIST_SLUG } })).toMatchObject({
 			status: "filed",
-			article: { readlists: [{ id: DEFAULT_READLIST_SLUG, name: "All" }, work.readlist, weekend.readlist] },
+			article: { readlists: [{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }, work.readlist, weekend.readlist] },
 		});
 		expect(await store.findArticleById(saved.id, userId)).toMatchObject({ url: saved.url });
 	});
@@ -135,21 +135,21 @@ describe("initMcpReadlistOperations", () => {
 		const result = await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "create", name: "Work" } });
 		assert(result.status === "filed");
 		expect(result.article.url).toBe("https://example.com/destination");
-		expect(result.article.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }, result.readlist]);
+		expect(result.article.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }, result.readlist]);
 		expect(await store.listUserSavesForUrl({ userId, url: saved.url })).toEqual([{}, { readlist: result.readlist.id }]);
 	});
 
 	it.each(["not-a-hash", "0".repeat(32)])("does not create a readlist for a missing or malformed article id %p", async (id) => {
 		const { ops } = buildOps();
 		expect(await ops.addToReadlist({ userId, id, target: { kind: "create", name: "Work" } })).toEqual({ status: "article_not_found" });
-		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }]);
 	});
 
 	it("does not reach another reader's article", async () => {
 		const { store, ops } = buildOps();
 		const { saved } = await store.saveArticle({ ...saveParams(), userId: otherUserId });
 		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "create", name: "Work" } })).toEqual({ status: "article_not_found" });
-		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "Main saves" }]);
 	});
 
 	it("treats an unowned readlist id like an unknown id without assigning any copy", async () => {
@@ -165,7 +165,7 @@ describe("initMcpReadlistOperations", () => {
 
 	it.each([
 		["", { status: "invalid_name" }],
-		["All", { status: "reserved_name", readlist: { id: DEFAULT_READLIST_SLUG, name: "All" } }],
+		["All", { status: "reserved_name", readlist: { id: DEFAULT_READLIST_SLUG, name: "Main saves" } }],
 	])("does not file when the requested name %p is rejected", async (name, expected) => {
 		const { store, ops } = buildOps();
 		const { saved } = await store.saveArticle(saveParams());

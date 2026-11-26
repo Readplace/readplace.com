@@ -248,7 +248,7 @@ test.describe("Removing newsletter links", () => {
 			{ timeout: 15000 },
 		);
 		await expect(page.locator("[data-test-newsletter-links-total]")).toHaveText(
-			"3 unread newsletter links in All will be removed.",
+			"3 unread newsletter links in the default readlist will be removed.",
 		);
 		await page.locator("[data-test-newsletter-links-submit]").click();
 
@@ -262,6 +262,6 @@ test.describe("Removing newsletter links", () => {
 			"result",
 			{ timeout: 15000 },
 		);
-		await expect(line).toContainText("Removed 3 newsletter links from All.");
+		await expect(line).toContainText("Removed 3 newsletter links from the default readlist.");
 	});
 });

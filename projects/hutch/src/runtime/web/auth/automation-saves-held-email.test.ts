@@ -25,14 +25,14 @@ const heldNotice = (inboxAddress: string | undefined) =>
 describe("AutomationSavesHeldEmail", () => {
 	it("names the address the held email was sent to and says what an upgrade brings back", () => {
 		expect(heldNotice("news-3f9a2c@read.place").to("text/plain")).toBe([
-			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
+			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to your default readlist — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 			...AFTER_THE_OPENING,
 		].join("\n\n"));
 	});
 
 	it("opens without an address when the notice carries none", () => {
 		expect(heldNotice(undefined).to("text/plain")).toBe([
-			"An email just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
+			"An email just arrived in your Readplace Inbox, but the articles weren't saved to your default readlist — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 			...AFTER_THE_OPENING,
 		].join("\n\n"));
 	});
@@ -42,7 +42,7 @@ describe("AutomationSavesHeldEmail", () => {
 
 		expect(document.title).toBe("Links sent to your Readplace Inbox are waiting");
 		expect(document.querySelector("p")?.textContent).toBe(
-			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
+			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to your default readlist — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 		);
 		expect([...document.querySelectorAll("a")].map((anchor) => [anchor.textContent, anchor.getAttribute("href")])).toEqual([
 			["you upgrade", REACTIVATE_URL],

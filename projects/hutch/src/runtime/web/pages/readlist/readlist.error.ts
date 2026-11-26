@@ -88,7 +88,7 @@ export const READLIST_CREATE_REJECTIONS: Record<ReadlistCreateDialogRejection, {
 		message: READLIST_NAME_LENGTH_MESSAGE,
 	},
 	"reserved-name": {
-		message: "Pick a name other than All, the readlist that holds every save.",
+		message: "That name is reserved for the default readlist, so pick another one.",
 	},
 	"name-taken": {
 		message: "You already have a readlist with that name, so pick another one.",

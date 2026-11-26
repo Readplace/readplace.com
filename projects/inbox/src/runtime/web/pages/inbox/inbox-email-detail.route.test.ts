@@ -866,7 +866,7 @@ describe("Inbox email detail Skipped tab", () => {
 		expect(excludedRow.querySelector("[data-test-inbox-feedback-include]")).toBeNull();
 
 		const saveButton = excludedRow.querySelector("[data-test-inbox-excluded-save]");
-		assert(saveButton, "a saveable skipped row must offer Save to All");
+		assert(saveButton, "a saveable skipped row must offer Save to the default readlist");
 		expect(saveButton.getAttribute("id")).toBe("inbox-skipped-0001-save");
 		const saveForm = saveButton.closest("form");
 		assert(saveForm, "save must submit as a form");
@@ -1348,7 +1348,7 @@ describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panelNotices(doc)).toEqual(["decided"]);
 		expect(doc.querySelector('[data-test-panel-notice="decided"]')?.textContent).toBe(
-			"Saved this issue to All and Work.",
+			"Saved this issue to the default readlist and Work.",
 		);
 		expect(panelCount(doc)).toBe("2 Extracted Articles");
 		expect(
@@ -1394,7 +1394,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		return Array.from(doc.querySelectorAll("[data-test-readlist-line] p > span"), (line) => line.textContent);
 	}
 
-	it("says every article went to All and keeps polling while the readlist chooses", async () => {
+	it("says every article went to the default readlist and keeps polling while the readlist chooses", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1407,7 +1407,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("hx-get")).toBe(`/inbox/${encodeURIComponent(SK)}/articles?poll=1`);
-		expect(noticeTexts(doc)).toEqual(["Saved to All.", "Choosing articles for Work…"]);
+		expect(noticeTexts(doc)).toEqual(["Saved to the default readlist.", "Choosing articles for Work…"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(2);
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe("Skipped (1)");
 	});
@@ -1426,7 +1426,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to the default readlist."]);
 		expect(readlistLineTexts(doc)).toEqual(["1 of 2 also fit Work."]);
 		expect(doc.querySelector("#inbox-readlist-line-work")).not.toBeNull();
 		expect(
@@ -1456,7 +1456,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);
 
-		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to the default readlist."]);
 		expect(readlistLineTexts(doc)).toEqual(["1 of 2 also fit Work."]);
 	});
 
@@ -1481,7 +1481,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
-		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to the default readlist."]);
 		expect(readlistLineTexts(doc)).toEqual(["1 of 2 also fit Work."]);
 		expect(panel.outerHTML).not.toMatch(/unsure/i);
 		expect(panel.outerHTML).not.toContain("The page gives too little to tell");
@@ -1506,7 +1506,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		).toEqual(["0002"]);
 	});
 
-	it("says the readlist could not choose in place of an alert, keeping every article in All", async () => {
+	it("says the readlist could not choose in place of an alert, keeping every article in the default readlist", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1523,9 +1523,9 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(panelAlerts(doc)).toEqual([]);
-		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to the default readlist."]);
 		expect(readlistLineTexts(doc)).toEqual([
-			"Couldn't choose articles for Work. Its links were saved to All. Use Keep in Work on any article you want there.",
+			"Couldn't choose articles for Work. Its links were saved to the default readlist. Use Keep in Work on any article you want there.",
 		]);
 	});
 });

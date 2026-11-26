@@ -57,7 +57,7 @@ describe("Home readlist", () => {
 			expect(native.body.links).toContainEqual({ rel: ["home"], href: `/queue?readlist=${slug}` });
 			expect(native.body.properties.readlists[0]).toMatchObject({ rel: "current", href: "/queue" });
 			const action = native.body.actions.find(({ name }: { name: string }) => name === "set-home-readlist");
-			expect(action).toMatchObject({ title: "Set All as home", method: "POST" });
+			expect(action).toMatchObject({ title: "Set Main saves as home", method: "POST" });
 			const followed = await siren(`/queue?readlist=${slug}`).set(NATIVE_CLIENT_HEADER, platform).set(HOME_READLIST_HEADER, "1");
 			expect(followed.body.properties.readlists).toContainEqual(expect.objectContaining({ label: "Weekend", rel: "current" }));
 			expect(followed.body.actions).not.toContainEqual(expect.objectContaining({ name: "set-home-readlist" }));
@@ -67,7 +67,7 @@ describe("Home readlist", () => {
 		expect(asking.body.actions.map(({ name }: { name: string }) => name)).toEqual(ASKING_ACTION_NAMES);
 		const extension = await siren("/queue");
 		expect(extension.body.links).toContainEqual({ rel: ["home"], href: HAND_PICKED_HREF });
-		expect(extension.body.properties.readlists[0]).toMatchObject({ label: "All", rel: "current" });
+		expect(extension.body.properties.readlists[0]).toMatchObject({ label: "Main saves", rel: "current" });
 
 		const allForm = view((await agent.get(`/queue?queue=${slug}`)).text)
 			.querySelector<HTMLFormElement>('[data-test-readlist-menu="default"] form:has([data-test-action="readlist-set-home"])');
@@ -78,12 +78,12 @@ describe("Home readlist", () => {
 		expect(reset.status).toBe(303);
 		expect(reset.headers.location).toContain(`queue=${slug}`);
 		const afterReset = view((await agent.get(reset.headers.location)).text);
-		expect(afterReset.querySelector('[role="status"][autofocus]')?.textContent).toBe("All is now your home readlist.");
+		expect(afterReset.querySelector('[role="status"][autofocus]')?.textContent).toBe("Main saves is now your home readlist.");
 		const badged = Array.from(afterReset.querySelectorAll(".readlist-nav__home"), (badge) => badge.previousElementSibling?.getAttribute("data-test-readlist"));
 		expect(badged.length).toBeGreaterThan(0);
 		expect(new Set(badged)).toEqual(new Set(["default"]));
 		expect(afterReset.querySelector('[data-test-readlist-menu="default"] [data-test-action="readlist-set-home"]')).toBeNull();
-		expect(view((await agent.get("/queue")).text).querySelector('[data-test-readlist][aria-current="page"]')?.textContent).toBe("All");
+		expect(view((await agent.get("/queue")).text).querySelector('[data-test-readlist][aria-current="page"]')?.textContent).toBe("Main saves");
 		const nativeAfterReset = await siren("/queue").set(NATIVE_CLIENT_HEADER, "ios").set(HOME_READLIST_HEADER, "1");
 		expect(nativeAfterReset.body.links).toContainEqual({ rel: ["root", "home"], href: "/queue" });
 		expect(nativeAfterReset.body.actions).not.toContainEqual(expect.objectContaining({ name: "set-home-readlist" }));
@@ -283,6 +283,6 @@ describe("Home readlist", () => {
 		await fixture.articleStore.deleteReadlistDefinition({ userId, slug });
 		await fixture.articleStore.createReadlistDefinition({ userId, slug, label: "New Weekend", createdAt: new Date("2026-11-02T01:00:00Z") });
 		expect((await set()).headers.location).toContain("queue_error=unknown_readlist");
-		expect(await active()).toBe("All");
+		expect(await active()).toBe("Main saves");
 	});
 });

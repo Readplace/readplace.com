@@ -424,7 +424,7 @@ describe("Inbox link fit route", () => {
 		});
 	});
 
-	describe("a link no longer in All", () => {
+	describe("a link no longer in the default readlist", () => {
 		const leaveCopyInWork = (fixture: Fixture, input: { userId: UserId; url: string }) =>
 			fileOnlyIntoWork(fixture, input);
 		const leaveNothing = async (_fixture: Fixture, _input: { userId: UserId; url: string }) => {};
@@ -451,14 +451,14 @@ describe("Inbox link fit route", () => {
 			expect(harness.dequeuedLinks).toEqual([{ userId, url: KEPT_URL }]);
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
-			expect(save.textContent?.trim()).toBe("Save to All");
+			expect(save.textContent?.trim()).toBe("Save to the default readlist");
 			expect((await overrides()).map(({ readerVerdict }) => readerVerdict)).toEqual(["drop"]);
 		});
 
 		it.each([
 			{ name: "whose readlist copy remains", seedWork: leaveCopyInWork },
 			{ name: "the readlist never held", seedWork: leaveNothing },
-		])("keeps a link $name by saving it to All by hand, filing it and polling for the save", async ({ seedWork }) => {
+		])("keeps a link $name by saving it to the default readlist by hand, filing it and polling for the save", async ({ seedWork }) => {
 			const { fixture, harness, userId, choose } = await setUp();
 			await seedWork(fixture, { userId, url: DROPPED_URL });
 
@@ -490,7 +490,7 @@ describe("Inbox link fit route", () => {
 		it.each([
 			{ name: "whose readlist copy remains", seedWork: leaveCopyInWork },
 			{ name: "the readlist never held", seedWork: leaveNothing },
-		])("undoes a drop of an engine keep $name by saving the link to All by hand before filing it", async ({ seedWork }) => {
+		])("undoes a drop of an engine keep $name by saving the link to the default readlist by hand before filing it", async ({ seedWork }) => {
 			const { fixture, harness, userId, choose } = await setUp();
 			await choose("0000", "drop");
 			await seedWork(fixture, { userId, url: KEPT_URL });

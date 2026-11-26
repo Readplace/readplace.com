@@ -367,7 +367,7 @@ describe("empty states", () => {
 		const text = empty.querySelector(".readlist-empty__text");
 		assert(text, "the empty state text must be rendered");
 		expect(text.textContent).toBe(
-			"Choose an article from All and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
+			"Choose an article from the default readlist and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
 		);
 		expect(emptyActionKeys(empty)).toEqual(["preferences"]);
 		const form = empty.querySelector('[data-test-empty-action="preferences"]')?.closest("form");

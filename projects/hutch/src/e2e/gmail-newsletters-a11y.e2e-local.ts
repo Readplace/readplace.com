@@ -509,7 +509,7 @@ test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-import-state]")).toHaveAttribute("data-test-gmail-import-state", "running");
 
 		await page.goBack();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Main saves");
 		await expect(addedTick(page, KALE)).toBeChecked();
 		await expect(page.locator("#gmail-sender-search")).toHaveValue("news");
 		await page.goForward();

@@ -277,7 +277,7 @@ function removeForm(params: {
 }
 
 describe("Newsletter links line on the inbox", () => {
-	it("is hidden when the inbox holds no mail, even with newsletter links in All", async () => {
+	it("is hidden when the inbox holds no mail, even with newsletter links in the default readlist", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -380,7 +380,7 @@ describe("Newsletter links line on the inbox", () => {
 		const line = lineOf(doc);
 		assert(line, "the working line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("working");
-		expect(sentencesOf(line)).toEqual(["Removing newsletter links from All…"]);
+		expect(sentencesOf(line)).toEqual(["Removing newsletter links from the default readlist…"]);
 		expect(
 			line
 				.querySelector("[data-test-newsletter-links-working] svg")
@@ -413,9 +413,9 @@ describe("Newsletter links line on the inbox", () => {
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("result");
 		expect(line.hasAttribute("hx-get")).toBe(false);
 		expect(sentencesOf(line)).toEqual([
-			"Removed 3 newsletter links from All.",
+			"Removed 3 newsletter links from the default readlist.",
 			"Skipped 2 links you used or that couldn't be read.",
-			"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
+			"Later emails from these newsletters still save their links to the default readlist. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
 		]);
 		expect(line.querySelector("form")).toBeNull();
 	});
@@ -437,8 +437,8 @@ describe("Newsletter links line on the inbox", () => {
 
 		assert(line, "the result line must render");
 		expect(sentencesOf(line).slice(0, 2)).toEqual([
-			"Removed 1 newsletter link from All.",
-			"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
+			"Removed 1 newsletter link from the default readlist.",
+			"Later emails from these newsletters still save their links to the default readlist. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
 		]);
 		expect(
 			line.querySelector("[data-test-newsletter-links-remove]"),
@@ -460,7 +460,7 @@ describe("Newsletter links line on the inbox", () => {
 		const line = lineOf(documentOf((await agent.get("/inbox")).text));
 
 		assert(line, "the result line must render");
-		expect(sentencesOf(line)[0]).toBe("Removed 0 newsletter links from All.");
+		expect(sentencesOf(line)[0]).toBe("Removed 0 newsletter links from the default readlist.");
 	});
 
 	it("reports a restore with the links that could not be restored", async () => {
@@ -479,7 +479,7 @@ describe("Newsletter links line on the inbox", () => {
 
 		assert(line, "the result line must render");
 		expect(sentencesOf(line)).toEqual([
-			"Restored 4 links to All.",
+			"Restored 4 links to the default readlist.",
 			"1 link couldn't be restored, because its article is no longer stored.",
 		]);
 	});
@@ -499,7 +499,7 @@ describe("Newsletter links line on the inbox", () => {
 		const line = lineOf(documentOf((await agent.get("/inbox")).text));
 
 		assert(line, "the result line must render");
-		expect(sentencesOf(line)).toEqual(["Restored 0 links to All."]);
+		expect(sentencesOf(line)).toEqual(["Restored 0 links to the default readlist."]);
 	});
 
 	it("says a failed removal can be restored, and offers again while a newsletter link remains", async () => {
@@ -584,7 +584,7 @@ describe("Newsletter links confirm page", () => {
 				?.getAttribute("data-newsletter-links-count"),
 		).toBe("none");
 		expect(textsOf(doc, "[data-test-newsletter-links-count-message]")).toEqual([
-			"Count the newsletter links in All to see what would be removed.",
+			"Count the newsletter links in the default readlist to see what would be removed.",
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-count-button]")).toEqual([
 			"Count newsletter links",
@@ -620,7 +620,7 @@ describe("Newsletter links confirm page", () => {
 		const notice = doc.querySelector("[data-test-newsletter-links-counting]");
 		assert(notice, "the counting notice must render");
 		expect(notice.textContent?.replace(/\s+/g, " ").trim()).toBe(
-			"Counting the newsletter links in All… Check again",
+			"Counting the newsletter links in the default readlist… Check again",
 		);
 		expect(notice.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
 			"true",
@@ -663,7 +663,7 @@ describe("Newsletter links confirm page", () => {
 		expect(section.getAttribute("data-newsletter-links-count")).toBe("counted");
 		expect(section.hasAttribute("hx-get")).toBe(false);
 		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
-			"5 unread newsletter links in All will be removed.",
+			"5 unread newsletter links in the default readlist will be removed.",
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-skipped]")).toEqual([
 			"4 links will be skipped:",
@@ -685,7 +685,7 @@ describe("Newsletter links confirm page", () => {
 		const details = doc.querySelector("[data-test-newsletter-links-details]");
 		assert(details, "the details group must render");
 		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
-			"All holds 2 newsletter issues. Every one stays.",
+			"The default readlist holds 2 newsletter issues. Every one stays.",
 			"Links you saved yourself from an issue or its email page before Nov 18, 2026, and links you saved by hand before a newsletter linked them, are in the total.",
 			"Removed links can be restored for 30 days.",
 			OTHER_READLISTS,
@@ -696,8 +696,8 @@ describe("Newsletter links confirm page", () => {
 		expect(
 			Array.from(lead.children).map((el) => [el.tagName, el.textContent]),
 		).toEqual([
-			["H2", "Remove these links from All?"],
-			["P", "5 unread newsletter links in All will be removed."],
+			["H2", "Remove these links from the default readlist?"],
+			["P", "5 unread newsletter links in the default readlist will be removed."],
 		]);
 		expect(
 			Array.from(
@@ -742,12 +742,12 @@ describe("Newsletter links confirm page", () => {
 		const doc = documentOf((await agent.get(REMOVE_PATH)).text);
 
 		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
-			"0 unread newsletter links in All will be removed.",
+			"0 unread newsletter links in the default readlist will be removed.",
 		]);
 		const details = doc.querySelector("[data-test-newsletter-links-details]");
 		assert(details, "the details group must render");
 		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
-			"All holds 1 newsletter issue. It stays.",
+			"The default readlist holds 1 newsletter issue. It stays.",
 		]);
 		const lead = doc.querySelector("[data-test-newsletter-links-lead]");
 		assert(lead, "the counted section must open with its lead");
@@ -773,7 +773,7 @@ describe("Newsletter links confirm page", () => {
 		const doc = documentOf((await agent.get(REMOVE_PATH)).text);
 
 		expect(failedCountOf(doc)).toEqual({
-			alert: "Couldn't count the newsletter links in All.",
+			alert: "Couldn't count the newsletter links in the default readlist.",
 			button: "Try again",
 			alertBeforeButton: true,
 		});
@@ -1092,7 +1092,7 @@ describe("Restore on the newsletter links line", () => {
 		assert(line, "the offer line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("offer");
 		expect(sentencesOf(line)).toEqual([
-			"Newsletter links you removed can be restored to All for 30 days.",
+			"Newsletter links you removed can be restored to the default readlist for 30 days.",
 		]);
 		expect(line.querySelector("[data-test-newsletter-links-remove]")).toBeNull();
 		const button = line.querySelector("[data-test-newsletter-links-restore]");
@@ -1110,7 +1110,7 @@ describe("Restore on the newsletter links line", () => {
 		).toBe("restore");
 	});
 
-	it("offers Remove and Restore together while a newsletter link is in All and links are held", async () => {
+	it("offers Remove and Restore together while a newsletter link is in the default readlist and links are held", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1279,7 +1279,7 @@ describe("Newsletter links restore page", () => {
 		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
 
 		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
-			"4 removed links can be restored to All.",
+			"4 removed links can be restored to the default readlist.",
 		]);
 		const form = doc.querySelector("[data-test-newsletter-links-restore-form]");
 		assert(form, "the restore form must render");
@@ -1301,7 +1301,7 @@ describe("Newsletter links restore page", () => {
 			["checkbox", true],
 		]);
 		expect(scopeLabelOf(doc, form)).toBe(
-			"4 removed links can be restored to All.",
+			"4 removed links can be restored to the default readlist.",
 		);
 		const unrestorable = doc.querySelector(
 			"[data-test-newsletter-links-unrestorable]",
@@ -1336,7 +1336,7 @@ describe("Newsletter links restore page", () => {
 		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
 
 		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
-			"0 removed links can be restored to All.",
+			"0 removed links can be restored to the default readlist.",
 		]);
 		expect(doc.querySelector("[data-test-newsletter-links-restore-form]")).toBeNull();
 		expect(doc.querySelector("[data-test-newsletter-links-unrestorable]")).toBeNull();
@@ -1360,7 +1360,7 @@ describe("Newsletter links restore page", () => {
 		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
 
 		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
-			"1 removed link can be restored to All.",
+			"1 removed link can be restored to the default readlist.",
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-unrestorable]")).toEqual([
 			"1 removed link can't be restored, because its article is no longer stored. To keep it, save it again:",

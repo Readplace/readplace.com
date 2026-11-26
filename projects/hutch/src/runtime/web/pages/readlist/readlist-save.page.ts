@@ -1,4 +1,5 @@
 
+import { defaultReadlistOf } from "./built-in-readlists";
 import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import {
@@ -53,7 +54,6 @@ import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import {
 	DEFAULT_READLIST_SLUG,
 	type ReadlistSlug,
-	DEFAULT_READLIST,
 } from "@packages/domain/readlist";
 import { READLIST_TAB_STATUSES, } from "./readlist.tabs";
 import { readlistPageSizeForClient } from "./readlist-page-size";
@@ -375,7 +375,7 @@ export function initReadlistSaveRoutes(
 					wroteUserArticle: filings.some((filing) => filing.wroteUserArticle),
 					resurfacedFromRead: filings.some((filing) => filing.resurfacedFromRead),
 					destination: {
-						filedInto: destinations.length > 0 ? destinations : [context.state.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST : context.activeReadlist],
+						filedInto: destinations.length > 0 ? destinations : [context.state.readlist === HAND_PICKED_SCOPE ? defaultReadlistOf(context.readlists) : context.activeReadlist],
 						readlists: context.readlists,
 					},
 					readlistKey: readlistQueryKeyOf(req),
@@ -764,7 +764,7 @@ export function initReadlistSaveRoutes(
 						createdUserArticle: result.createdUserArticle,
 						wroteUserArticle: result.wroteUserArticle,
 						resurfacedFromRead: result.resurfacedFromRead,
-						destination: { filedInto: [DEFAULT_READLIST], readlists: context.readlists },
+						destination: { filedInto: [defaultReadlistOf(context.readlists)], readlists: context.readlists },
 						readlistKey: readlistQueryKeyOf(req),
 						now: deps.now(),
 					}),

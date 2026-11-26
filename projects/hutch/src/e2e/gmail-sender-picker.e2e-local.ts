@@ -189,7 +189,7 @@ test.describe("Gmail sender picker", () => {
 			await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(TLDR)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 			await waitForBrandFonts(page, ["Inter"]);
-			await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+			await expect(page.locator("#gmail-readlist-choice")).toHaveText("Main saves");
 			const save = page.locator("[data-test-gmail-save]");
 			await expect(save).toBeDisabled();
 			await expect(page.locator("[data-gmail-notification-highlight]")).toHaveCount(1);
@@ -259,10 +259,10 @@ test.describe("Gmail sender picker", () => {
 		await expect(page.locator(READLIST_PICKER)).toHaveJSProperty("open", false);
 		await openReadlistPicker(page);
 		await page.locator(CUSTOM_READLIST_OPTION).uncheck();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Main saves");
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
-		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toContainText("All");
+		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toContainText("Main saves");
 
 		const rows = page.locator("[data-test-gmail-mapping-row]");
 		await expect(rows).toHaveCount(2);
@@ -955,7 +955,7 @@ test.describe("Gmail sender picker without JavaScript", () => {
 		await expect(page.locator("#gmail-readlist-choice")).toHaveText(/^All, (Tech, Work|Work, Tech)$/);
 		await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
 		await saveMapping(page, TLDR);
-		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mapping-destination]")).toHaveText(/^Saved to All, (Tech, Work|Work, Tech)$/);
+		await expect(mappingRow(page, TLDR).locator("[data-test-gmail-mapping-destination]")).toHaveText(/^Saved to Main saves, (Tech, Work|Work, Tech)$/);
 	});
 
 	test("opens a notification, chooses among readlists, searches and saves through ordinary forms", async ({
@@ -964,11 +964,11 @@ test.describe("Gmail sender picker without JavaScript", () => {
 		await openGmail(page, `nojs-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false, readlists: ["Tech"] });
 		await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(KALE)}&notification=1&discovery=started`, { waitUntil: "domcontentloaded" });
 		await expect(addedTick(page, KALE)).toBeChecked();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Main saves");
 		await expect(page.locator("[data-test-gmail-save]")).toBeDisabled();
 		await page.locator(`${READLIST_PICKER} summary`).click();
 		await page.locator("[data-gmail-confirm-readlists]").click();
-		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("Main saves");
 		await expect(page.locator("[data-test-gmail-save]")).toBeEnabled();
 		await page.locator("#gmail-load-senders-button").click();
 		await page.locator(`${SENDER_PICKER} summary`).click();

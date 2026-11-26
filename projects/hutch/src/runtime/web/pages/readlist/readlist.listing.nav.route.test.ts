@@ -88,7 +88,7 @@ describe("Readlist nav", () => {
 
 			const links = readlistNavLinks(doc);
 			expect(links.map((el) => el.getAttribute("data-test-readlist"))).toEqual(["~hand-picked", "default"]);
-			expect(links.map((el) => el.textContent)).toEqual(["Hand Picked", "All"]);
+			expect(links.map((el) => el.textContent)).toEqual(["Hand Picked", "Main saves"]);
 			expect(links.map((el) => el.getAttribute("aria-current"))).toEqual([null, "page"]);
 		});
 
@@ -98,7 +98,7 @@ describe("Readlist nav", () => {
 
 			const doc = parse((await agent.get("/queue")).text);
 
-			expect(doc.title).toBe("All — Readplace");
+			expect(doc.title).toBe("Main saves — Readplace");
 		});
 
 		it("should pair the readlist nav with the listing it scopes", async () => {
@@ -163,7 +163,7 @@ describe("Readlist nav", () => {
 			expect(readlistNavLinks(doc).map((el) => el.getAttribute("data-test-readlist"))).toEqual([
 				"~hand-picked", "default",
 			]);
-			expect(readlistNavLinks(doc).map((el) => el.textContent)).toEqual(["Hand Picked", "All"]);
+			expect(readlistNavLinks(doc).map((el) => el.textContent)).toEqual(["Hand Picked", "Main saves"]);
 		});
 
 		it("should keep the read-state filter selectable while the URL names the readlist", async () => {

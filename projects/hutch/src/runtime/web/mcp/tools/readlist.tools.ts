@@ -244,7 +244,7 @@ export function initReadlistTools(
 					);
 				case "reserved_name":
 					return toolError(
-						`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
+						reservedNameRefusal(args.data.name),
 					);
 				case "limit_reached":
 					return toolError(
@@ -320,7 +320,7 @@ export function initReadlistTools(
 					);
 				case "reserved_name":
 					return toolError(
-						`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
+						reservedNameRefusal(args.data.create_name ?? result.readlist.name),
 					);
 				case "limit_reached":
 					return toolError(
@@ -337,4 +337,8 @@ export function initReadlistTools(
 	}
 
 	return { resolveReadlistIds, runListReadlistArticles, runListReadlists, runCreateReadlist, runAddToReadlist };
+}
+
+function reservedNameRefusal(typed: string): string {
+	return `The name ‘${typed.trim()}’ is reserved. To file into the default readlist, use the first ID from list_readlists, or choose a different name.`;
 }

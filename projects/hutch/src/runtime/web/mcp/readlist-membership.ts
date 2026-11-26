@@ -1,9 +1,10 @@
-import { readerReadlists, readlistsHoldingArticle } from "@packages/domain/readlist";
+import { readlistsHoldingArticle } from "@packages/domain/readlist";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
 	ListReadlistDefinitions,
 	ListUserSavesForUrls,
 } from "@packages/provider-contracts/article-store";
+import { shownReaderReadlists } from "../pages/readlist/built-in-readlists";
 import type { McpReadlist } from "./mcp-ports.types";
 
 export type ResolveReadlistMembership = (params: {
@@ -17,7 +18,7 @@ export function initResolveReadlistMembership(deps: {
 }): ResolveReadlistMembership {
 	return async ({ userId, urls }) => {
 		if (urls.length === 0) return new Map();
-		const readlists = readerReadlists(await deps.listReadlistDefinitions(userId));
+		const readlists = shownReaderReadlists(await deps.listReadlistDefinitions(userId));
 		const saves = await deps.listUserSavesForUrls({
 			userId,
 			urls,

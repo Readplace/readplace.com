@@ -1,4 +1,5 @@
 import { newSelection } from "../../../bulk-articles/selection";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
@@ -29,7 +30,7 @@ it("previews the visible owned identities and only requests work after an explic
 	const location = preview.headers.location;
 	const html = new JSDOM((await agent.get(location).expect(200)).text).window.document;
 	expect(html.querySelector("dd")?.textContent).toBe("1");
-	expect(html.querySelector("main")?.textContent).toContain("Remove from “All”");
+	expect(html.querySelector("main")?.textContent).toContain("Remove from the default readlist");
 	expect(dispatch).not.toHaveBeenCalled();
 	await agent.post(`${location}/confirm`).expect(303);
 	expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ id: location.split("/").at(-1), generation: 1, intent: "confirm" }));
@@ -76,7 +77,7 @@ it("previews all matching articles across pages, retains later arrivals and rest
 	expect(await fixture.articleStore.countArticlesByUser({ userId: user.userId })).toBe(24);
 }, 30000);
 
-it("names the filing destination in the preview and keeps its copy unread when All is marked read", async () => {
+it("names the filing destination in the preview and keeps its copy unread when the default readlist is marked read", async () => {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { server, auth } = useLocalApp(fixture);
 	const agent = await loginAgent(server, auth);
@@ -98,4 +99,30 @@ it("names the filing destination in the preview and keeps its copy unread when A
 	assert(saved);
 	expect(await fixture.articleStore.findArticleById(saved.id, user.userId)).toMatchObject({ status: "read" });
 	expect(await fixture.articleStore.findReadlistArticleById({ id: saved.id, userId: user.userId, readlist: destination.slug })).toMatchObject({ status: "unread" });
+});
+
+it("names the job's return link for the home readlist it opens", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const { server, auth } = useLocalApp(fixture);
+	const agent = await loginAgent(server, auth);
+	await agent.post("/queue/save").type("form").send({ url: "https://example.org/default-only" });
+	const user = await fixture.auth.findUserByEmail("test@example.com");
+	assert(user);
+	const slug = ReadlistSlugSchema.parse("weekend");
+	const createdAt = new Date("2026-11-01T01:00:00Z");
+	await fixture.articleStore.createReadlistDefinition({ userId: user.userId, slug, label: "Weekend", createdAt });
+	await agent.post(`/queue/queues/${slug}/home?createdAt=${encodeURIComponent(createdAt.toISOString())}`)
+		.type("form").send({ returnTo: "/queue?queue=default" }).expect(303);
+	const explicitDefault = new JSDOM((await agent.get("/queue?queue=default").expect(200)).text).window.document;
+	expect(explicitDefault.querySelector('[data-test-readlist][aria-current="page"]')?.getAttribute("data-test-readlist")).toBe("default");
+	const preview = await agent.post("/queue/manage/preview").type("form").send({ extent: "all", action: "read" }).expect(303);
+	const status = new JSDOM((await agent.get(preview.headers.location).expect(200)).text).window.document;
+	expect(status.querySelector(".bulk-status p")?.textContent?.trim()).toBe("Mark as read in the default readlist");
+	const back = [...status.querySelectorAll<HTMLAnchorElement>("main a")].find((link) => link.textContent === "Open home readlist");
+	assert(back, "the job page must link back to the home readlist");
+	const href = new URL(back.href, TEST_APP_ORIGIN);
+	expect(href.pathname).toBe("/queue");
+	expect(href.searchParams.get("utm_content")).toBe("back");
+	const followed = new JSDOM((await agent.get(`${href.pathname}${href.search}`).expect(200)).text).window.document;
+	expect(followed.querySelector('[data-test-readlist][aria-current="page"]')?.getAttribute("data-test-readlist")).toBe(slug);
 });

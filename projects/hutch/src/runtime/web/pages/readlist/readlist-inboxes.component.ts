@@ -7,11 +7,8 @@ import {
 	isLiveAddress,
 	normalizeAliasName,
 } from "@packages/domain/inbox";
-import {
-	DEFAULT_READLIST_LABEL,
-	type ReadlistRef,
-	type ReadlistSlug,
-} from "@packages/domain/readlist";
+import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
+import { defaultReadlistLabelOf } from "./built-in-readlists";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
@@ -50,10 +47,10 @@ const ROUTING_TRACKING: Record<InboxRouting, string> = {
 
 const DESCRIPTION_LINES: Record<PurposeState, (label: string) => readonly string[]> = {
 	unset: (label) => [
-		`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}' and '${label}'.`,
+		`Send a custom email here and every article each email links to is saved to the default readlist and '${label}'.`,
 	],
 	set: (label) => [
-		`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}'.`,
+		`Send a custom email here and every article each email links to is saved to the default readlist.`,
 		`Only the ones who match your preferences will be saved to '${label}'`,
 	],
 };
@@ -138,8 +135,8 @@ export function buildReadlistInboxes(input: {
 				address: inbox.address,
 				destinationText:
 					routedTo === undefined
-						? `Saves to ${DEFAULT_READLIST_LABEL}`
-						: `Saves to ${DEFAULT_READLIST_LABEL} and ${routedTo.label}`,
+						? `Saves to ${defaultReadlistLabelOf(input.readlists)}`
+						: `Saves to ${defaultReadlistLabelOf(input.readlists)} and ${routedTo.label}`,
 				routing,
 				routedHere: routing === "here",
 				action: withInternalTracking(action, {

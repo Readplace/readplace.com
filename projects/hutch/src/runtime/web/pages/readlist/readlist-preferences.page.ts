@@ -1,4 +1,5 @@
 import type { FindHomeReadlist } from "@packages/provider-contracts/auth";
+import { shownReaderReadlists } from "./built-in-readlists";
 import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./readlist-home";
 import assert from "node:assert";
 import {
@@ -164,7 +165,7 @@ export function initReadlistPreferencesRoutes(deps: {
 
 		const parsed = PreferencesQuerySchema.parse(req.query);
 		const purpose = readlistPurposeOf(definition);
-		const readlists = readerReadlists(definitions);
+		const readlists = shownReaderReadlists(definitions);
 		const accessPromise = deps.getEffectiveAccess(userId);
 		const { loadGmailSenders } = deps;
 		const [access, onboarding, inboxes, nonEmptyReadlists, choices, gmailSenders] = await Promise.all([

@@ -861,12 +861,12 @@ test.describe("Inbox visual checkpoints", () => {
 							/\/articles\?poll=1$/,
 						);
 						await expect(settling.locator("[data-test-panel-notice]")).toHaveText([
-							"Saved to All.",
+							"Saved to the default readlist.",
 							"Choosing articles for Weekend reading…",
 						]);
 						await expect(settling.locator("[data-test-readlist-line] span")).toHaveText([
 							"1 of 2 also fit Work.",
-							"Couldn't choose articles for Science. Its links were saved to All. Use Keep in Science on any article you want there.",
+							"Couldn't choose articles for Science. Its links were saved to the default readlist. Use Keep in Science on any article you want there.",
 						]);
 						await expect(settling.locator("[data-test-inbox-article-card]")).toHaveCount(2);
 					},

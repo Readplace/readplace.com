@@ -107,7 +107,7 @@ export const SAVE_LINK_TOOL: McpToolDefinition = {
 				items: { type: "string" },
 				maxItems: READLIST_MAX_PER_USER,
 				description:
-					"Readlist ids from a list_readlists result to file the save into, as well as All.",
+					"Readlist ids from a list_readlists result to file the save into, as well as the default readlist.",
 			},
 		},
 		required: ["url"],
@@ -143,7 +143,7 @@ export const LIST_READLIST_ARTICLES_TOOL: McpToolDefinition = {
 			readlist: {
 				type: "string",
 				description:
-					"A readlist id from a list_readlists result — including All — to list only that readlist. Omit to list every saved article once, combined across all your readlists.",
+					"Omit `readlist` to include every saved article once across your readlists. For a single readlist, pass its ID from `list_readlists`. The first entry is the default readlist.",
 			},
 			status: {
 				type: "string",

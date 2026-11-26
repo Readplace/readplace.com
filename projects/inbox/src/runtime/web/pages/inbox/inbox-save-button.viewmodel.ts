@@ -15,17 +15,17 @@ const SAVE_BUTTON_COPY: Record<
 > = {
 	saved: {
 		label: "Save again",
-		ariaLabelPrefix: "Saved to All — save again",
+		ariaLabelPrefix: "Saved to the default readlist — save again",
 		iconName: "check",
 	},
 	saving: {
 		label: "Saving…",
-		ariaLabelPrefix: "Saving to All",
+		ariaLabelPrefix: "Saving to the default readlist",
 		iconName: undefined,
 	},
 	unsaved: {
-		label: "Save to All",
-		ariaLabelPrefix: "Save to All",
+		label: "Save to the default readlist",
+		ariaLabelPrefix: "Save to the default readlist",
 		iconName: undefined,
 	},
 };

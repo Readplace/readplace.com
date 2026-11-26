@@ -26,10 +26,10 @@ const NOW = new Date("2026-11-05T10:03:20.000Z");
 
 const WORK = ReadlistSlugSchema.parse("work");
 
-const readlists = [{ slug: DEFAULT_READLIST_SLUG, label: "All" }];
+const readlists = [{ slug: DEFAULT_READLIST_SLUG, label: "Main saves" }];
 
 const twoReadlists = [
-	{ slug: DEFAULT_READLIST_SLUG, label: "All" },
+	{ slug: DEFAULT_READLIST_SLUG, label: "Main saves" },
 	{ slug: WORK, label: "Work" },
 ];
 
@@ -421,7 +421,7 @@ describe("toArticleCollectionEntity", () => {
 			);
 
 			expect(entity.properties?.readlists).toEqual([
-				{ label: "All", rel: "readlist", href: "/queue", pinned: false },
+				{ label: "Main saves", rel: "readlist", href: "/queue", pinned: false },
 				{
 					label: "Work",
 					rel: "current",
@@ -444,7 +444,7 @@ describe("toArticleCollectionEntity", () => {
 
 			expect(entity.properties?.readlists).toEqual([
 				{
-					label: "All",
+					label: "Main saves",
 					rel: "current",
 					href: "/queue",
 					pinned: false,
@@ -946,8 +946,8 @@ describe("toArticleCollectionEntity", () => {
 			);
 
 			expect(entity.properties?.hint).toEqual({
-				text: "Older saves stay in All. To add one to Hand Picked, use “Add to readlist” on the web.",
-				link: { label: "Open All on the web", href: "/queue" },
+				text: "Older saves stay in the default readlist. To add one to Hand Picked, use “Add to readlist” on the web.",
+				link: { label: "Open the default readlist on the web", href: "/queue" },
 			});
 		});
 
@@ -1052,7 +1052,7 @@ describe("toArticleCollectionEntity", () => {
 		);
 
 		expect(entity.properties?.readlists).toEqual([
-			{ label: "All", rel: "readlist", href: "/queue", pinned: false },
+			{ label: "Main saves", rel: "readlist", href: "/queue", pinned: false },
 			{ label: "Work", rel: "current", href: "/queue?readlist=work", pinned: true },
 		]);
 	});
@@ -1069,7 +1069,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists: twoReadlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
 		expect(entity.properties?.readlists).toEqual([
-			{ label: "All", rel: "current", href: "/queue", pinned: false },
+			{ label: "Main saves", rel: "current", href: "/queue", pinned: false },
 			{ label: "Work", rel: "readlist", href: "/queue?readlist=work", pinned: false },
 		]);
 	});

@@ -154,7 +154,7 @@ const INTRO_PARAGRAPH: Record<QueueDigestKind, (count: number) => string> = {
 			: `These ${count} articles are ready and have been in your readlist for some time but are still unread. This is a one-time reminder about them.`,
 	pay: (count) => `${count} ${count === 1 ? "article you saved is" : "articles you saved are"} ready to read.`,
 	starter: (count) =>
-		`Readplace selected ten articles from Hacker News for you once. ${count} ${count === 1 ? "pick is" : "picks are"} still unread. They're in All and Hacker News picks; you can read, file, or delete them.`,
+		`Readplace selected ten articles from Hacker News for you once. ${count} ${count === 1 ? "pick is" : "picks are"} still unread. They're in the default readlist and Hacker News picks; you can read, file, or delete them.`,
 };
 
 function attachmentLine(count: number): string {

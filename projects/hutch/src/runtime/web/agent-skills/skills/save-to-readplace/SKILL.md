@@ -58,7 +58,7 @@ Once connected, these are the operations:
 
 - save_link: saves a URL to the user's readlist; the title, excerpt, and clean reader view fill in moments later.
 - list_readlists: lists the user's readlists, each with the opaque id every other tool takes.
-- list_readlist_articles: lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.
+- list_readlist_articles: lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including the default readlist), filtered to unread or already-read.
 - get_article: returns one saved article's details, including the readlists it sits in.
 - get_article_content: returns one saved article's clean reader text.
 - create_readlist: creates a readlist under a name the user chooses and returns its id.
@@ -71,9 +71,14 @@ Once connected, these are the operations:
 
 Call list_readlists to discover readlist names and ids. Pass its ids unchanged:
 use readlist to list one readlist, or readlists to save_link to file a new save
-into several. Every save also lands in All. All is a readlist of its own, so an
-article removed from All can still belong to another readlist. Article results
-include their current readlist memberships.
+into several. Every save also lands in the default readlist, which is the first
+entry list_readlists returns. Its name depends on the account, so identify it by
+that first id, never by its name. It is a readlist of its own, so an article
+removed from it can still belong to another readlist. Omit readlist to include
+every saved article once across the user's readlists. To file into the default
+readlist, pass the first entry's id. Use create_name only when the user asks for
+a custom readlist by name. Article results include their current readlist
+memberships.
 
 Saved-article results expose `url` for the user's private Readplace reader.
 Always link `url` when showing or recommending an article.
@@ -82,7 +87,7 @@ Use create_readlist for a name the user chooses, or add_to_readlist with
 create_name to create or reuse a name and file an existing article in one call.
 With add_to_readlist, pass exactly one of readlist or create_name. Names are
 matched without regard to case. Readers can create up to 15 named readlists
-beside All. An unknown id or a reached limit is a refusal, so do not report a
+beside the default readlist. An unknown id or a reached limit is a refusal, so do not report a
 successful save or filing when the tool returns an error.
 
 An assistant saves links, organises readlists, marks articles read or unread,

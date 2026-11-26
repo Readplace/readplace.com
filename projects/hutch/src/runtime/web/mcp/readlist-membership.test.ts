@@ -21,7 +21,7 @@ describe("initResolveReadlistMembership", () => {
 
 		expect(await resolve({ userId, urls })).toEqual(new Map([
 			[urls[0], [
-				{ id: DEFAULT_READLIST_SLUG, name: "All" },
+				{ id: DEFAULT_READLIST_SLUG, name: "Main saves" },
 				{ id: work, name: "Work" },
 				{ id: weekend, name: "Weekend" },
 			]],

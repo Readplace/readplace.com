@@ -22,8 +22,8 @@ export const enUS = {
 		integrations: "Connectors",
 	},
 	handPickedHint: {
-		text: "Older saves stay in All. To add one to Hand Picked, use “Add to readlist” on the web.",
-		link: "Open All on the web",
+		text: "Older saves stay in the default readlist. To add one to Hand Picked, use “Add to readlist” on the web.",
+		link: "Open the default readlist on the web",
 	},
 	findArticles: {
 		search: "Search articles or sources",

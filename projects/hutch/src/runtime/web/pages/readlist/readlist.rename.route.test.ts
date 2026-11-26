@@ -191,7 +191,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		});
 	});
 
-	it("numbers a name the built-in readlist carries", async () => {
+	it("numbers the built-in readlist's reserved name, All", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
@@ -206,7 +206,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 				),
 				(el) => el.textContent,
 			),
-		).toEqual(["Hand Picked", "All", "All 2"]);
+		).toEqual(["Hand Picked", "Main saves", "All 2"]);
 	});
 
 	it("refuses a name too long to render in full, keeping what the reader typed", async () => {
@@ -287,7 +287,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 				parse((await agent.get("/queue")).text).querySelectorAll("[data-test-readlist]"),
 				(el) => el.textContent,
 			),
-		).toEqual(["Hand Picked", "All"]);
+		).toEqual(["Hand Picked", "Main saves"]);
 	});
 
 	it("redirects a readlist address that could never have been minted, since no dialog carries it", async () => {

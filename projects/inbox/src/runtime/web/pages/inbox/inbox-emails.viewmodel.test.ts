@@ -86,7 +86,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.key).toBe("no-mail");
 		expect(empty?.title).toBe("No emails yet");
 		expect(empty?.body).toBe(
-			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
+			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into the default readlist.",
 		);
 		expect(empty?.actions).toEqual([]);
 		expect(empty?.addresses).toEqual([ADDRESS]);
@@ -106,7 +106,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.key).toBe("no-address");
 		expect(empty?.title).toBe("No emails yet");
 		expect(empty?.body).toBe(
-			"Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into All.",
+			"Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into the default readlist.",
 		);
 		expect(empty?.actions).toEqual([
 			{
@@ -127,7 +127,7 @@ describe("toInboxEmailsViewModel", () => {
 		expect(empty?.key).toBe("paid-plan");
 		expect(empty?.title).toBe("Custom emails are part of a paid plan");
 		expect(empty?.body).toBe(
-			"Emails already sent to your custom emails stay in your Inbox, but their links aren't saved to All on the free plan.",
+			"Emails already sent to your custom emails stay in your Inbox, but their links aren't saved to the default readlist on the free plan.",
 		);
 		expect(empty?.actions).toEqual([
 			{

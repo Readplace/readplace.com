@@ -38,7 +38,7 @@ describe("readlistAlertFor", () => {
 		expect(readlistAlertFor({ queue_error: "create_reserved-name" })).toEqual({
 			variant: "error",
 			title: { text: "Couldn't create the readlist", element: "p" },
-			message: { text: "Pick a name other than All, the readlist that holds every save." },
+			message: { text: "That name is reserved for the default readlist, so pick another one." },
 		});
 		expect(readlistAlertFor({ queue_error: "create_name-taken" })).toEqual({
 			variant: "error",

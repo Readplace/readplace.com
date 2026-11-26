@@ -257,7 +257,7 @@ describe("pin and unpin over Siren", () => {
 
 		expect([pinned.status, pinned.headers.location]).toEqual([303, href]);
 		expect(afterPin.body.properties.readlists).toEqual([
-			expect.objectContaining({ label: "All", pinned: false }),
+			expect.objectContaining({ label: "Main saves", pinned: false }),
 			expect.objectContaining({ label: "Work", rel: "current", pinned: true }),
 		]);
 		expect(
@@ -267,7 +267,7 @@ describe("pin and unpin over Siren", () => {
 		).toEqual(["unpin-readlist"]);
 		expect([unpinned.status, unpinned.headers.location]).toEqual([303, href]);
 		expect(afterUnpin.body.properties.readlists).toEqual([
-			expect.objectContaining({ label: "All", pinned: false }),
+			expect.objectContaining({ label: "Main saves", pinned: false }),
 			expect.objectContaining({ label: "Work", rel: "current", pinned: false }),
 		]);
 	});

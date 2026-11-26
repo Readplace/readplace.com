@@ -1,5 +1,6 @@
 import type { EmailDeliveryMode } from "@packages/domain/inbox";
 import type { AlertVariant } from "@packages/web-shell";
+import { defaultReadlistOf } from "../readlist/built-in-readlists";
 import type {
 	DiscoveredGmailSender,
 	ForwardableSender,
@@ -14,7 +15,6 @@ import { gmailConnectionState, pickerDeliveryMode } from "@packages/domain/gmail
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
 import {
-	DEFAULT_READLIST,
 	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
@@ -216,7 +216,7 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	sender_invalid: "Tick at least one newsletter to save.",
 	sender_unknown: "I couldn't find one of those senders. Load your Gmail senders and try again.",
 	metadata_required: "Reconnect Gmail to choose senders from your mailbox.",
-	readlist_invalid: "Choose your readlists. All is always included.",
+	readlist_invalid: "Choose your readlists. The default readlist is always included.",
 	readlist_choice_required: "Confirm the readlists for this newsletter before saving.",
 	readlist_name_invalid: `Give the readlist a name of up to ${READLIST_LABEL_MAX_LENGTH} characters.`,
 	readlist_limit: `You can keep up to ${READLIST_MAX_PER_USER} readlists. Choose an existing readlist.`,
@@ -243,17 +243,17 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, { message: string; awai
 	confirmed: { message: "Forwarding confirmed.", variant: "success" },
 	sender_removed: { message: "Newsletter removed. Articles you already saved stay in your readlists.", variant: "success" },
 	sender_mapped: {
-		message: "Newsletter added. Gmail will forward its new issues, and what you chose to save goes to All and any readlists you picked.",
+		message: "Newsletter added. Gmail will forward its new issues, and what you chose to save goes to the default readlist and any readlists you picked.",
 		awaitingConfirmation: "Newsletter added. Its new issues will be forwarded once Gmail confirms the forwarding address.",
 		variant: "success",
 	},
 	sender_remapped: {
-		message: "Newsletter updated. From its next issue, what you chose to save goes to All and any readlists you picked.",
+		message: "Newsletter updated. From its next issue, what you chose to save goes to the default readlist and any readlists you picked.",
 		awaitingConfirmation: "Newsletter updated. Its new issues will be forwarded once Gmail confirms the forwarding address.",
 		variant: "success",
 	},
 	senders_saved: {
-		message: "{count} newsletters saved. Gmail will forward their new issues, and what you chose to save goes to All and any readlists you picked.",
+		message: "{count} newsletters saved. Gmail will forward their new issues, and what you chose to save goes to the default readlist and any readlists you picked.",
 		awaitingConfirmation: "{count} newsletters saved. Their new issues will be forwarded once Gmail confirms the forwarding address.",
 		variant: "success",
 	},
@@ -376,7 +376,7 @@ function readlistPicker(input: {
 	return {
 		open: input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error),
 		choiceLabel: input.selected.map((readlist) => readlist.label).join(", "),
-		options: [DEFAULT_READLIST, ...input.page.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG)].map((readlist) => ({
+		options: [defaultReadlistOf(input.page.readlists), ...input.page.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG)].map((readlist) => ({
 			slug: readlist.slug,
 			label: readlist.label,
 			selected: input.selected.some((selected) => selected.slug === readlist.slug),
@@ -481,13 +481,13 @@ function deliveryChoice(input: { state: GmailPickerState; sender: GmailMapping |
 function readlistChoice(input: GmailPageInput, sender: GmailMapping | undefined): readonly ReadlistRef[] {
 	if (input.state.readlist !== undefined) {
 		const selected = new Set(gmailSelectedReadlists(input.state));
-		return [DEFAULT_READLIST, ...input.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG && selected.has(readlist.slug))];
+		return [defaultReadlistOf(input.readlists), ...input.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG && selected.has(readlist.slug))];
 	}
 	if (sender?.mappedAddresses !== undefined) {
 		const destination = gmailMappingDestination({ ...input, sender });
 		if (destination.kind === "readlist") return destination.readlists;
 	}
-	return [DEFAULT_READLIST];
+	return [defaultReadlistOf(input.readlists)];
 }
 
 const LIVE_FIELDS: ReadonlySet<string> = new Set(["sender", "added"]);

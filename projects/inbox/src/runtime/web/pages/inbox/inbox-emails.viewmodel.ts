@@ -86,7 +86,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
 		title: "No emails yet",
-		body: "Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into All.",
+		body: "Create a custom email and subscribe to a newsletter with it. Each issue appears here, and Readplace saves the articles it links to into the default readlist.",
 		actions: [
 			{
 				key: "create-first-address",
@@ -102,7 +102,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-mail": {
 		key: "no-mail",
 		title: "No emails yet",
-		body: "Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
+		body: "Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into the default readlist.",
 		actions: [],
 		addresses: [],
 	},

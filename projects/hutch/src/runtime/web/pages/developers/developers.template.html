@@ -202,7 +202,7 @@ Content-Type: {{sirenMediaType}}</code></pre>
                   <li class="developers__item"><code data-test-field>{{name}}</code>: {{{description}}}</li>
                   {{/each}}
                 </ul>
-                <p class="developers__text">A value Readplace doesn't accept is dropped, not refused. <code>search</code> always lists All, so inside a named readlist, follow its <code>tabs</code> and <code>pages</code> hrefs instead.</p>
+                <p class="developers__text">A value Readplace doesn't accept is dropped, not refused. <code>search</code> always lists the default readlist, so inside a named readlist, follow its <code>tabs</code> and <code>pages</code> hrefs instead.</p>
                 <p class="developers__text" data-test-copy="find-articles"><code data-test-action>find-articles</code> searches and filters the readlist and tab you're on. Send every <code>hidden</code> field with its <code>value</code>, and fill in these:</p>
                 <ul class="developers__list">
                   {{#each findArticlesFields}}
@@ -251,7 +251,7 @@ Accept: {{markdownMediaType}}</code></pre>
             <div class="developers__row">
               <div class="developers__prose">
                 <h2 class="developers__heading">Save links and pages</h2>
-                <p class="developers__text"><code data-test-action>save-article</code> saves a link, and every save lands in All. To file it in other readlists too, send their hrefs from <code>properties.readlists</code> in its <code>readlists</code> field, which takes several values, as an array in JSON, up to the field's <code>maxItems</code>. A save from a named readlist's collection also files it in that readlist.</p>
+                <p class="developers__text"><code data-test-action>save-article</code> saves a link, and every save lands in the default readlist. To file it in other readlists too, send their hrefs from <code>properties.readlists</code> in its <code>readlists</code> field, which takes several values, as an array in JSON, up to the field's <code>maxItems</code>. A save from a named readlist's collection also files it in that readlist.</p>
                 <ul class="developers__list">
                   <li class="developers__item" data-test-copy="created"><code>201</code>: the saved article, with <code>messages</code> to show and a <code>collection</code> link, and a <code>Location</code> header with the same address as the article's <code>self</code> link. Saving a link again answers <code>201</code> too, with a message that it was already saved.</li>
                   <li class="developers__item" data-test-copy="conflict"><code>409</code>: Readplace accepted the save and is still finding the original article behind a wrapper link, such as a redirect or tracking link. It isn't a failure, though the body is an entity of class <code>error</code>: its one <code>warning</code> message says the link is queued. The article appears later. Show the message and don't send the save again: each resubmission starts another save.</li>
@@ -263,7 +263,7 @@ Accept: {{markdownMediaType}}</code></pre>
                 <p class="developers__text" data-test-copy="save-articles-parts">Name each page's part <code>content-</code> followed by the page's index in the manifest, counting from 0, such as <code>content-0</code>. The action's <code>content</code> field names that family of parts and gives each part's <code>maxBytes</code>.</p>
                 <p class="developers__text" data-test-copy="save-articles-link-only">A page is saved as a link alone, and still counts as <code>created</code> or <code>merged</code>, when its part is missing, its <code>mediaType</code> isn't HTML or PDF, its bytes say PDF without a PDF header, or its URL isn't an article, such as a webmail page.</p>
                 <p class="developers__text" data-test-copy="save-articles-result">The <code>200</code> answer is an entity of class <code>save-articles-result</code>. <code>saved</code>, <code>queued</code>, <code>skipped</code> and <code>failed</code> count pages, where <code>saved</code> includes the queued ones. <code>skippedUrls</code> lists each skipped page as <code>{url, code, message}</code>, and <code>tooBig</code> is always an empty list. <code>results</code> holds a <code>{url, outcome, code}</code> for each manifest entry, in manifest order. <code>outcome</code> is <code>created</code>, <code>merged</code>, <code>skipped</code> or <code>failed</code>. <code>code</code> is <code>queued</code> on a page Readplace is still resolving behind a wrapper link, or says why a page was skipped: <code>unsupported_scheme</code>, <code>private_network</code>, <code>malformed_url</code> or <code>private_item</code>.</p>
-                <p class="developers__text" data-test-copy="save-articles"><code>save-articles</code> files every page into All and records each one as a page the reader chose, so send only pages a reader picked.</p>
+                <p class="developers__text" data-test-copy="save-articles"><code>save-articles</code> files every page into the default readlist and records each one as a page the reader chose, so send only pages a reader picked.</p>
                 <p class="developers__text" data-test-copy="hand-picked">Every article a reader saves themselves joins Hand Picked, including each page sent through <code>save-articles</code>. Imports and newsletter links stay in “All” only. The <code>home</code> link opens Hand Picked, or the readlist the reader chose as home when the request sends <code>X-Readplace-Home-Readlist: 1</code>. <code>properties.browseReadlists</code> lists Hand Picked first, then “All” and each named readlist. The <code>add-to-hand-picked</code> and <code>remove-from-hand-picked</code> actions are gone: a reader adds an older article with “Add to readlist” on the web and removes one from the Hand Picked readlist there.</p>
                 <p class="developers__text"><code data-test-action>save-content</code> saves a page or file you already hold, so Readplace keeps what the reader saw. It's a multipart request with <code>url</code>, <code>content</code> (the file), <code>mediaType</code> (<code>text/html</code> or <code>application/pdf</code>), an optional <code>title</code>, and <code>captureTrigger</code>. It files into All only, and answers <code>201</code> with the saved article, or <code>409</code> as <code>save-article</code> does.</p>
                 <p class="developers__text" data-test-copy="save-content-link-only">When <code>content</code> holds the bytes, a <code>mediaType</code> other than HTML or PDF, a URL that isn't an article, or a PDF without a PDF header doesn't refuse the save: it answers <code>201</code> and saves the link alone.</p>
@@ -320,7 +320,7 @@ Content-Type: application/json
             <div class="developers__row">
               <div class="developers__prose">
                 <h2 class="developers__heading">Manage readlists</h2>
-                <p class="developers__text">A readlist is a named list of the reader's articles. All holds every save, and the reader can create up to {{readlistLimit}} named readlists besides it.</p>
+                <p class="developers__text">A readlist is a named list of the reader's articles. The default readlist is the built-in destination for new saves, usually labeled Main saves, and the reader can create up to {{readlistLimit}} named readlists besides it. The default readlist, formerly the ‘All’ readlist, usually appears as Main saves. Identify it by its href, never by its label.</p>
                 <ul class="developers__list">
                   <li class="developers__item"><code data-test-action>create-readlist</code>, on every collection: a form with <code>label</code>. It answers <code>303</code> to the new readlist's collection, which is where you learn the new readlist's href.</li>
                   <li class="developers__item"><code data-test-action>rename-readlist</code>, on a named readlist's collection: a form with <code>label</code>. It answers <code>303</code> to the renamed readlist's collection. A label another readlist already has gets a number added.</li>
@@ -335,7 +335,7 @@ Content-Type: application/json
                   <li class="developers__item"><code>404 unknown-readlist</code>: the readlist no longer exists, or <code>add-to-readlist</code> named none of the reader's named readlists.</li>
                   <li class="developers__item"><code>404 unknown-article</code>: the article isn't in that readlist any more, for example because it was already removed.</li>
                   <li class="developers__item"><code>422 invalid-name</code>: the label is empty or longer than {{readlistNameLimit}} characters.</li>
-                  <li class="developers__item"><code>422 reserved-name</code>: <code>create-readlist</code> was sent the label All, in any letter case.</li>
+                  <li class="developers__item"><code>422 reserved-name</code>: <code>create-readlist</code> was sent the default readlist's former name, All, in any letter case.</li>
                   <li class="developers__item"><code>422 name-taken</code>: for <code>create-readlist</code>, the reader already has a readlist with that label. For <code>rename-readlist</code>, the numbered label would be longer than {{readlistNameLimit}} characters.</li>
                   <li class="developers__item"><code>422 limit-reached</code>: the reader already has {{readlistLimit}} named readlists.</li>
                   <li class="developers__item"><code>422 pin-limit-reached</code>: <code>pin-readlist</code> was sent while {{readlistPinLimit}} readlists are already pinned. Unpin one first.</li>
@@ -402,7 +402,7 @@ WWW-Authenticate: Bearer error="invalid_token", resource_metadata="https://readp
               <div class="developers__prose">
                 <h2 class="developers__heading">Limits</h2>
                 <ul class="developers__list">
-                  <li class="developers__item" data-test-limit>Up to {{readlistLimit}} named readlists, besides All.</li>
+                  <li class="developers__item" data-test-limit>Up to {{readlistLimit}} named readlists, besides the default readlist.</li>
                   <li class="developers__item" data-test-limit>Readlist names up to {{readlistNameLimit}} characters.</li>
                   <li class="developers__item" data-test-limit>Up to {{inlineFileLimit}} per file sent with <code>save-content</code>. A larger file goes through an upload slot.</li>
                   <li class="developers__item" data-test-limit>Up to {{pdfUploadLimit}} per PDF and {{htmlUploadLimit}} per HTML page through an upload slot.</li>
@@ -438,7 +438,7 @@ WWW-Authenticate: Bearer error="invalid_token", resource_metadata="https://readp
                   <li class="developers__step">Invoke <code>create-readlist</code> with a label, once, and follow its <code>303</code>. On the collection it lands on, the new readlist is the <code>properties.readlists</code> entry with the rel <code>current</code>. Keep its href.</li>
                   <li class="developers__step">Save each link with <code>save-article</code>, sending that href in <code>readlists</code>.</li>
                   <li class="developers__step">Later, follow the readlist's href. For each entry in its <code>properties.tabs</code>, open that tab's page 1. For each article, follow <code>read</code> with the Markdown media type, hand the document on, and invoke <code>remove-from-readlist</code>. Follow the <code>303</code> back to page 1, and repeat until the tab is empty.</li>
-                  <li class="developers__step">All still holds every article you saved.</li>
+                  <li class="developers__step">The default readlist still holds every article you saved.</li>
                   <li class="developers__step">When a request answers <code>401</code>, refresh the token, store the new pair, and send the request again.</li>
                 </ol>
               </div>

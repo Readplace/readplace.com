@@ -372,7 +372,7 @@ describe("toArticleSubEntity", () => {
 		});
 
 		it.each([
-			{ where: "All", readlist: DEFAULT_READLIST_SLUG },
+			{ where: "Main saves", readlist: DEFAULT_READLIST_SLUG },
 			{ where: "Hand Picked", readlist: HAND_PICKED_SCOPE },
 		])("offers update-status as an article's only titled action in $where", ({ readlist }) => {
 			const actions = toArticleSubEntity(makeArticle(), {
@@ -643,7 +643,7 @@ describe("toArticleEntity", () => {
 	});
 });
 
-const ALL = { slug: DEFAULT_READLIST_SLUG, label: "All" };
+const ALL = { slug: DEFAULT_READLIST_SLUG, label: "Main saves" };
 const WORK = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
 const RECIPES = { slug: ReadlistSlugSchema.parse("recipes"), label: "Recipes" };
 const WEEKEND = { slug: ReadlistSlugSchema.parse("weekend"), label: "Weekend" };
@@ -913,7 +913,7 @@ describe("toSavedArticleEntity", () => {
 
 		expect(messageBodies(entity)).toEqual([
 			{ type: "success", content: { type: "text/html", body: "Article saved" } },
-			{ type: "success", content: { type: "text/html", body: "Saved to 'All'" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to 'Main saves'" } },
 		]);
 	});
 

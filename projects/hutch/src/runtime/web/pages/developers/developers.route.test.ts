@@ -561,7 +561,7 @@ describe("/developers copy", () => {
 			"save-articles-result":
 				"The 200 answer is an entity of class save-articles-result. saved, queued, skipped and failed count pages, where saved includes the queued ones. skippedUrls lists each skipped page as {url, code, message}, and tooBig is always an empty list. results holds a {url, outcome, code} for each manifest entry, in manifest order. outcome is created, merged, skipped or failed. code is queued on a page Readplace is still resolving behind a wrapper link, or says why a page was skipped: unsupported_scheme, private_network, malformed_url or private_item.",
 			"save-articles":
-				"save-articles files every page into All and records each one as a page the reader chose, so send only pages a reader picked.",
+				"save-articles files every page into the default readlist and records each one as a page the reader chose, so send only pages a reader picked.",
 			"capture-trigger":
 				"captureTrigger is automatic or manual, and any other value answers 422 invalid-save-content with the message captureTrigger must be automatic or manual. Send automatic for any capture no reader tapped: Readplace weighs it like a copy it fetched itself, so it can be set aside as unreadable. manual, or no captureTrigger, counts as a capture the reader chose, which Readplace keeps when it's the article's first content.",
 			"save-content-link-only":
@@ -624,7 +624,7 @@ describe("/developers copy", () => {
 				"pages: one {label, rel, href} per page, where the page you're on has the rel current, every earlier page prev and every later page next. An empty tab lists page 1 as current. The next and prev links step one page at a time, and the self link is the page you're on.",
 			],
 			readlists: [
-				"readlists: All and each named readlist, each a {label, rel, href, pinned}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on All, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
+				"readlists: The default readlist and each named readlist, each a {label, rel, href, pinned}. Follow an href to open that readlist, or send it in a save's readlists field. For Readplace's own apps only, the current entry may also carry preferences on a named readlist or integrations on the default readlist, each a {label, href} to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 			],
 			hint: [
 				"hint: for Readplace's own apps only, on the Hand Picked collection: a {text, link: {label, href}} note the app shows with its link. Skip it.",
@@ -673,7 +673,7 @@ describe("/developers copy", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		expect(marked(await readPage(harness), "data-test-limit")).toEqual([
-			"Up to 15 named readlists, besides All.",
+			"Up to 15 named readlists, besides the default readlist.",
 			"Readlist names up to 24 characters.",
 			"Up to 3 MB per file sent with save-content. A larger file goes through an upload slot.",
 			"Up to 500 MB per PDF and 28 MB per HTML page through an upload slot.",

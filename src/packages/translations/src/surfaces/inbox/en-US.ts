@@ -8,7 +8,7 @@ export const enUS = {
 		},
 		paidPlanLocked: "Saving links from the Inbox is part of a paid plan.",
 		readlistLine: {
-			failed: "Couldn't choose articles for {label}. Its links were saved to All. Use Keep in {label} on any article you want there.",
+			failed: "Couldn't choose articles for {label}. Its links were saved to the default readlist. Use Keep in {label} on any article you want there.",
 		},
 	},
 	excludedLink: {
@@ -26,12 +26,12 @@ export const enUS = {
 	},
 	inboxDelivery: {
 		emails: "Newsletters sent to your Readplace inboxes or forwarded from enabled Gmail senders appear here. Readplace checks their article links against your saved readlist preferences. Your Gmail delivery choice controls whether it also saves the issue itself or every article link.",
-		addresses: "Subscribe with one of these custom emails or forward an issue to it. The issue stays in Inbox. Readplace saves its article links to All and checks them against your saved readlist preferences.",
+		addresses: "Subscribe with one of these custom emails or forward an issue to it. The issue stays in Inbox. Readplace saves its article links to the default readlist and checks them against your saved readlist preferences.",
 	},
 	customEmails: {
 		paidPlanLocked: {
 			title: "Custom emails are part of a paid plan",
-			body: "Emails already sent to your custom emails stay in your Inbox, but their links aren't saved to All on the free plan.",
+			body: "Emails already sent to your custom emails stay in your Inbox, but their links aren't saved to the default readlist on the free plan.",
 			link: "See plans",
 		},
 	},
@@ -40,25 +40,25 @@ export const enUS = {
 	},
 	newsletterLinks: {
 		line: {
-			offerHeld: "Newsletter links you removed can be restored to All for 30 days.",
+			offerHeld: "Newsletter links you removed can be restored to the default readlist for 30 days.",
 			removeButton: "Newsletter Links Removal",
 			restoreButton: "Restore removed links",
 			working: {
-				remove: "Removing newsletter links from All…",
-				restore: "Restoring removed links to All…",
+				remove: "Removing newsletter links from the default readlist…",
+				restore: "Restoring removed links to the default readlist…",
 			},
 			result: {
 				removed: {
-					one: "Removed {count} newsletter link from All.",
-					other: "Removed {count} newsletter links from All.",
+					one: "Removed {count} newsletter link from the default readlist.",
+					other: "Removed {count} newsletter links from the default readlist.",
 				},
 				skipped: {
 					one: "Skipped {count} link you used or that couldn't be read.",
 					other: "Skipped {count} links you used or that couldn't be read.",
 				},
 				restored: {
-					one: "Restored {count} link to All.",
-					other: "Restored {count} links to All.",
+					one: "Restored {count} link to the default readlist.",
+					other: "Restored {count} links to the default readlist.",
 				},
 				unrestorable: {
 					one: "{count} link couldn't be restored, because its article is no longer stored.",
@@ -70,21 +70,21 @@ export const enUS = {
 				restore: "Couldn't finish restoring removed links. Restore again to finish the rest.",
 			},
 			laterEmails:
-				"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
+				"Later emails from these newsletters still save their links to the default readlist. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.",
 		},
 		confirm: {
 			title: "Newsletter Links Removal",
-			counting: "Counting the newsletter links in All…",
+			counting: "Counting the newsletter links in the default readlist…",
 			countingLink: "Check again",
-			none: "Count the newsletter links in All to see what would be removed.",
-			failed: "Couldn't count the newsletter links in All.",
+			none: "Count the newsletter links in the default readlist to see what would be removed.",
+			failed: "Couldn't count the newsletter links in the default readlist.",
 			countButton: "Count newsletter links",
 			tryAgain: "Try again",
 			total: {
-				one: "{count} unread newsletter link in All will be removed.",
-				other: "{count} unread newsletter links in All will be removed.",
+				one: "{count} unread newsletter link in the default readlist will be removed.",
+				other: "{count} unread newsletter links in the default readlist will be removed.",
 			},
-			decision: "Remove these links from All?",
+			decision: "Remove these links from the default readlist?",
 			scopeLegend: "Which links to remove:",
 			sendersLegend: "Newsletters with the most links",
 			allSenders: "From every newsletter",
@@ -105,8 +105,8 @@ export const enUS = {
 				unreadable: "{count} that couldn't be read",
 			},
 			issues: {
-				one: "All holds {count} newsletter issue. It stays.",
-				other: "All holds {count} newsletter issues. Every one stays.",
+				one: "The default readlist holds {count} newsletter issue. It stays.",
+				other: "The default readlist holds {count} newsletter issues. Every one stays.",
 			},
 			restoreWindow: "Removed links can be restored for 30 days.",
 			otherReadlists: "Copies in your other readlists stay there.",
@@ -122,8 +122,8 @@ export const enUS = {
 			failed: "Couldn't count the links you removed.",
 			countButton: "Count removed links",
 			total: {
-				one: "{count} removed link can be restored to All.",
-				other: "{count} removed links can be restored to All.",
+				one: "{count} removed link can be restored to the default readlist.",
+				other: "{count} removed links can be restored to the default readlist.",
 			},
 			sendersLegend: "Newsletters the links came from",
 			unrestorable: {

@@ -378,7 +378,7 @@ test.describe("The readlists rail on a desktop", () => {
 		await makeReadlist(page, "New Readlist");
 
 		const nav = page.getByRole("navigation", { name: "Readlists" });
-		await expect(nav.getByRole("link", { name: "All" })).toBeVisible();
+		await expect(nav.getByRole("link", { name: "Main saves" })).toBeVisible();
 		await expect(page.locator(SWITCHER_TOGGLE)).toBeHidden();
 
 		await page.locator(ACTIVE_RAIL_LINK).focus();
@@ -423,7 +423,7 @@ test.describe("The readlist switcher on a phone", () => {
 		await openReadlist(page);
 
 		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
-		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("All");
+		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("Main saves");
 		await expect(page.locator(`${MAIN} ${NEW_READLIST}`)).toBeHidden();
 
 		await openReadlistSwitcher(page);
@@ -436,7 +436,7 @@ test.describe("The readlist switcher on a phone", () => {
 		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
 		await clickAndWaitForPageReload(page, page.locator(DEFAULT_RAIL_LINK));
 		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
-		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("All");
+		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("Main saves");
 
 		await openReadlistSwitcher(page);
 		await clickAndWaitForPageReload(page, page.locator(`${RAIL_LINK}:not(${DEFAULT_RAIL_LINK}):not([data-test-readlist="~hand-picked"])`));
@@ -472,7 +472,7 @@ test.describe("Creating a readlist from the rail", () => {
 		const dialog = page.locator(`${CREATE_POPOVER}:popover-open`);
 		const field = dialog.locator(CREATE_INPUT);
 		await expect(dialog.locator(CREATE_ERROR)).toHaveText(
-			"Pick a name other than All, the readlist that holds every save.",
+			"That name is reserved for the default readlist, so pick another one.",
 		);
 		await expect(field).toHaveValue("All");
 		await expect(field).toHaveAttribute("aria-invalid", "true");

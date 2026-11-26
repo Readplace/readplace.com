@@ -261,7 +261,7 @@ for (const viewport of VIEWPORTS) {
 				control: CREATE_SAVE,
 				arrived: () =>
 					expect(page.locator(CREATE_ERROR)).toHaveText(
-						"Pick a name other than All, the readlist that holds every save.",
+						"That name is reserved for the default readlist, so pick another one.",
 					),
 			});
 		});

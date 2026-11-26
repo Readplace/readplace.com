@@ -158,7 +158,7 @@ describe("toInboxLinkCardViewModel", () => {
 			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savedDestinations: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.actions[0]?.ariaLabel).toBe(
-			"Save to All: https://destination.test/the-actual-article",
+			"Save to the default readlist: https://destination.test/the-actual-article",
 		);
 	});
 
@@ -246,7 +246,7 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(
 			[...crawled.actions, ...crawled.menuActions].map((action) => action.ariaLabel),
 		).toEqual([
-			"Save to All: https://destination.test/article?ref=nodeweekly",
+			"Save to the default readlist: https://destination.test/article?ref=nodeweekly",
 			"Not an article (report): https://destination.test/article?ref=nodeweekly",
 		]);
 	});
@@ -480,7 +480,7 @@ describe("toInboxLinkCardViewModel", () => {
 			const action = saveAction(new Map());
 
 			expect(action.saveState).toBe("unsaved");
-			expect(action.label).toBe("Save to All");
+			expect(action.label).toBe("Save to the default readlist");
 			expect(action.iconName).toBeUndefined();
 		});
 
@@ -496,7 +496,7 @@ describe("toInboxLinkCardViewModel", () => {
 			const action = saveAction(new Map([["https://example.com/post", "failed"]]));
 
 			expect(action.saveState).toBe("unsaved");
-			expect(action.label).toBe("Save to All");
+			expect(action.label).toBe("Save to the default readlist");
 		});
 
 		it("keeps a saved link's action posting the same save route", () => {
@@ -512,7 +512,7 @@ describe("toInboxLinkCardViewModel", () => {
 		it("names the link in the saved button's accessible label", () => {
 			const action = saveAction(new Map([["https://example.com/post", "saved"]]));
 
-			expect(action.ariaLabel).toBe("Saved to All \u2014 save again: https://example.com/post");
+			expect(action.ariaLabel).toBe("Saved to the default readlist \u2014 save again: https://example.com/post");
 		});
 
 		it("keys save state on the stored url, not the crawled destination", () => {
@@ -570,7 +570,7 @@ describe("toInboxLinkCardViewModel", () => {
 				{
 					key: "save",
 					label: "Saving…",
-					ariaLabel: "Saving to All: https://example.com/post",
+					ariaLabel: "Saving to the default readlist: https://example.com/post",
 					saveState: "saving",
 					iconName: undefined,
 					buttonId: "inbox-card-0002-save",
@@ -607,7 +607,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 			expect(vm.cardPollUrl).toBeUndefined();
 			expect(vm.actions[0]?.saveState).toBe("unsaved");
-			expect(vm.actions[0]?.label).toBe("Save to All");
+			expect(vm.actions[0]?.label).toBe("Save to the default readlist");
 		});
 
 		it("keeps polling on the last tick the settle budget allows", () => {

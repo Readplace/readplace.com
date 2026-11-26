@@ -397,7 +397,7 @@ describe("GMail Newsletters newly found newsletters", () => {
 describe("GMail Newsletters saved notice", () => {
 	it("counts the saved newsletters, with the confirmation variant during Step 2", () => {
 		assert.deepEqual(toGmailPageViewModel(input({ notice: "senders_saved", saved: 3 })).notices.map((notice) => notice.message), [
-			"3 newsletters saved. Gmail will forward their new issues, and what you chose to save goes to All and any readlists you picked.",
+			"3 newsletters saved. Gmail will forward their new issues, and what you chose to save goes to the default readlist and any readlists you picked.",
 		]);
 		const awaiting = toGmailPageViewModel(input({ notice: "senders_saved", saved: 2, connection: connection({ forwardingConfirmedAt: undefined }) }));
 		assert.deepEqual(awaiting.notices.map((notice) => notice.message), ["2 newsletters saved. Their new issues will be forwarded once Gmail confirms the forwarding address."]);

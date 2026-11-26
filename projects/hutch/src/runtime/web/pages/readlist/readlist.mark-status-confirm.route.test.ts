@@ -144,8 +144,8 @@ describe("Mark-as-read confirmation", () => {
 			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),
 		);
 
-		expect(listed).toContainEqual(["All", "New Readlist"]);
-		expect(listed).toContainEqual(["All"]);
+		expect(listed).toContainEqual(["Main saves", "New Readlist"]);
+		expect(listed).toContainEqual(["Main saves"]);
 		const bodies = panels(doc).map((panel) => panel.querySelector(".confirm-popover__body")?.textContent);
 		expect(bodies).toContain("When you mark this article as read, it’s marked as read in every readlist where you’ve saved it.");
 		for (const panel of panels(doc)) {
@@ -242,7 +242,7 @@ describe("Mark-as-read confirmation", () => {
 		);
 		expect(
 			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),
-		).toEqual(["All", "New Readlist"]);
+		).toEqual(["Main saves", "New Readlist"]);
 		const triggers = [...doc.querySelectorAll(".article-body__confirm-trigger")];
 		expect(triggers).not.toHaveLength(0);
 		for (const trigger of triggers) {

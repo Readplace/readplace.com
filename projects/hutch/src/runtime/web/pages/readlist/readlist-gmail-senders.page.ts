@@ -1,5 +1,6 @@
 import assert from "node:assert";
-import { DEFAULT_READLIST_SLUG, type ReadlistRef, type ReadlistSlug, ReadlistSlugSchema, readerReadlists } from "@packages/domain/readlist";
+import { shownReaderReadlists } from "./built-in-readlists";
+import { DEFAULT_READLIST_SLUG, type ReadlistRef, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
@@ -71,7 +72,7 @@ export function initReadlistGmailSenders(deps: {
 		const definitions = await deps.listReadlistDefinitions(ownerOf(req));
 		const definition = definitions.find((owned) => owned.slug === requested.data);
 		if (definition === undefined) return undefined;
-		return { definition, readlists: readerReadlists(definitions) };
+		return { definition, readlists: shownReaderReadlists(definitions) };
 	};
 
 	router.get("/queues/:slug/preferences/gmail/senders", async (req: Request, res: Response) => {

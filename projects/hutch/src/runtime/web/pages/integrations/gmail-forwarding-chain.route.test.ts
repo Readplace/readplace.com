@@ -212,7 +212,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 		const { document } = new JSDOM(page.text).window;
 		const mapping = document.querySelector(`[data-test-gmail-mapping-row="${senderEmail}"]`);
 		assert(mapping, "the mapped newsletter must appear in the mapping list");
-		assert.equal(mapping.querySelector("[data-test-gmail-mapping-destination]")?.textContent, "Saved to All");
+		assert.equal(mapping.querySelector("[data-test-gmail-mapping-destination]")?.textContent, "Saved to Main saves");
 		assert.equal(mapping.querySelector("[data-test-gmail-forwarding-state]")?.getAttribute("data-test-gmail-forwarding-state"), "live");
 	});
 });

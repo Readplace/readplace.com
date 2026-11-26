@@ -26,7 +26,7 @@ describe("GmailNewsletterNoticeEmail", () => {
 		expect(email.subject).toBe("Choose readlists for Example Letter");
 		expect(email.to("text/plain")).toBe([
 			"Readplace recognizes Example Letter in your Gmail: letter@example.com. It is ready to connect to your readlists.",
-			`Choose readlists and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`,
+			`Choose readlists and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to the default readlist and any readlists you pick. ${IMPORT_SENTENCE}`,
 			"Choose readlists: https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 			REPLY,
 			SIGNOFF,
@@ -53,7 +53,7 @@ describe("GmailNewsletterNoticeEmail", () => {
 			"Readplace recognizes 2 newsletters in your Gmail that are ready to connect to your readlists:",
 			"Example Letter (letter@example.com): https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 			"news@wildcard.example: https://readplace.com/newsletters/gmail?sender=news%40wildcard.example",
-			`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`,
+			`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to the default readlist and any readlists you pick. ${IMPORT_SENTENCE}`,
 			`Choose readlists: ${GMAIL_URL}`,
 			REPLY,
 			SIGNOFF,
@@ -66,7 +66,7 @@ describe("GmailNewsletterNoticeEmail", () => {
 			["news@wildcard.example", "https://readplace.com/newsletters/gmail?sender=news%40wildcard.example"],
 			["Choose readlists", GMAIL_URL],
 		]);
-		expect(new JSDOM(email.to("text/html")).window.document.querySelector("a")?.closest("table")?.nextElementSibling?.textContent).toBe(`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`);
+		expect(new JSDOM(email.to("text/html")).window.document.querySelector("a")?.closest("table")?.nextElementSibling?.textContent).toBe(`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to the default readlist and any readlists you pick. ${IMPORT_SENTENCE}`);
 	});
 
 	it.each([
@@ -85,7 +85,7 @@ describe("GmailNewsletterNoticeEmail", () => {
 			"Example Letter (letter@example.com): https://readplace.com/newsletters/gmail?sender=letter%40example.com",
 			"news@wildcard.example: https://readplace.com/newsletters/gmail?sender=news%40wildcard.example",
 			sentence,
-			`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to All and any readlists you pick. ${IMPORT_SENTENCE}`,
+			`Choose readlists for a newsletter and Save to send its future emails to Readplace. What you choose to save — the issue itself, the articles it links to, or both — goes to the default readlist and any readlists you pick. ${IMPORT_SENTENCE}`,
 			`Choose readlists: ${GMAIL_URL}`,
 			REPLY,
 			SIGNOFF,

@@ -262,7 +262,7 @@ describe("buildReadlistInboxes", () => {
 		const doc = renderInboxes({ inboxes: [] });
 
 		expect(descriptionLines(doc)).toEqual([
-			"Send a custom email here and every article each email links to is saved to 'All' and 'Work Reading'.",
+			"Send a custom email here and every article each email links to is saved to the default readlist and 'Work Reading'.",
 		]);
 		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe("The articles it links to");
 	});
@@ -271,7 +271,7 @@ describe("buildReadlistInboxes", () => {
 		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
 
 		expect(descriptionLines(doc)).toEqual([
-			"Send a custom email here and every article each email links to is saved to 'All'.",
+			"Send a custom email here and every article each email links to is saved to the default readlist.",
 			"Only the ones who match your preferences will be saved to 'Work Reading'",
 		]);
 		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe(

@@ -200,7 +200,7 @@ describe("Inbox link save route", () => {
 		// Present tense: the route only publishes SubmitLinkCommand — the queue row
 		// is written by a downstream subscriber.
 		expect(doc.querySelector("[data-test-toast-message]")?.textContent?.trim()).toBe(
-			"Adding to All…",
+			"Adding to the default readlist…",
 		);
 		// data-dismiss is what the global toast script reads to fade the toast out,
 		// so a stale flag can't pin it on screen.
@@ -355,7 +355,7 @@ describe("Inbox link save route", () => {
 			new JSDOM(confirmation.text).window.document
 				.querySelector("[data-test-toast-message]")
 				?.textContent?.trim(),
-		).toBe("Adding to All…");
+		).toBe("Adding to the default readlist…");
 	});
 
 	it("returns 404 for a skipped link the save pipeline would reject, publishing nothing", async () => {
@@ -563,7 +563,7 @@ describe("Inbox link save route answering htmx in place", () => {
 			"[data-test-inbox-live-status]",
 		);
 		assert(live, "a save that settled inside the request must announce itself");
-		expect(live.textContent).toBe("Saved to All: https://example.com/post");
+		expect(live.textContent).toBe("Saved to the default readlist: https://example.com/post");
 	});
 
 	it("retracts a kept card's recorded failure before retrying, so the retry reads as in flight rather than dead", async () => {
@@ -737,7 +737,7 @@ describe("Inbox link save route moving a skipped link to Extracted Articles", ()
 		expect(harness.savedLinkTriages).toEqual([]);
 	});
 
-	it("saves a link from an email routed to no readlist to All only", async () => {
+	it("saves a link from an email routed to no readlist to the default readlist only", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);

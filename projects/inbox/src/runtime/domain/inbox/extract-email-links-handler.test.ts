@@ -1274,7 +1274,7 @@ describe("initExtractEmailLinksHandler", () => {
 	describe("an inbox routed to a readlist", () => {
 		const routedInbox = makeInboxAddress({ readlist: WORK });
 
-		it("saves every article link to All and hands them to the readlist's filter", async () => {
+		it("saves every article link to the default readlist and hands them to the readlist's filter", async () => {
 			const harness = makeHarness({
 				derivedHtml:
 					'<a href="https://a.test/x">Ship small PRs</a> <a href="https://b.test/y">Our spring sale</a>',
@@ -1599,7 +1599,7 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(harness.submitted).toEqual([]);
 		});
 
-		it("saves to All when the address was handed to a deleted account after the mail arrived", async () => {
+		it("saves to the default readlist when the address was handed to a deleted account after the mail arrived", async () => {
 			const harness = makeHarness({
 				derivedHtml: "https://a.test/x",
 				inboxAddress: makeInboxAddress({
@@ -1622,7 +1622,7 @@ describe("initExtractEmailLinksHandler", () => {
 			]);
 		});
 
-		it("saves to All when the address is routed to All itself", async () => {
+		it("saves to the default readlist when the address is routed to the default readlist itself", async () => {
 			const harness = makeHarness({
 				derivedHtml: "https://a.test/x",
 				inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }),
@@ -1885,7 +1885,7 @@ describe("Gmail destination snapshots", () => {
 		expect(meta?.extractionFailed).toBe(false);
 	});
 
-	it("saves eligible articles to All from the frozen selection and filters each distinct custom list", async () => {
+	it("saves eligible articles to the default readlist from the frozen selection and filters each distinct custom list", async () => {
 		const second = ReadlistSlugSchema.parse("science");
 		const workAddress = InboxAddressSchema.parse("work-abc123@read.place");
 		const secondAddress = InboxAddressSchema.parse("science-def456@read.place");
@@ -2325,7 +2325,7 @@ describe("direct social links in forwarded mail", () => {
 describe("a frozen selection replayed after some outputs reached All", () => {
 	const twoLinks = { outputs: [linkOutputKey(formatEmailLinkOrdinal(0)), linkOutputKey(formatEmailLinkOrdinal(1))], truncated: false, selectedAt: NOW };
 
-	it("skips an output already saved to All and submits the rest", async () => {
+	it("skips an output already saved to the default readlist and submits the rest", async () => {
 		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), frozenSelection: twoLinks, savedOutputs: new Set([linkOutputKey(formatEmailLinkOrdinal(0))]) });
 
 		await harness.run(eventBody({ routing: gmailLinks }));
@@ -2368,7 +2368,7 @@ describe("a frozen selection replayed after some outputs reached All", () => {
 		]);
 	});
 
-	it("does not resubmit an output the reader removed from All after it was saved", async () => {
+	it("does not resubmit an output the reader removed from the default readlist after it was saved", async () => {
 		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), frozenSelection: twoLinks, savedOutputs: new Set([linkOutputKey(formatEmailLinkOrdinal(0))]) });
 
 		await harness.run(eventBody({ routing: gmailLinks }));
@@ -2446,7 +2446,7 @@ describe("an inbox-routed redrive after some links reached All", () => {
 		expect(harness.completionReads).toEqual([{ userId: USER, receivedAtMessageId: RAM }]);
 	});
 
-	it("does not resubmit a pending inbox link already saved to All, and still publishes its preview", async () => {
+	it("does not resubmit a pending inbox link already saved to the default readlist, and still publishes its preview", async () => {
 		const harness = makeHarness({ derivedHtml: ONE_LINK, savedOutputs: new Set([LINK_0]) });
 		await seedLink(harness, { ordinal: "0000", url: ONE_LINK, status: "pending" });
 
@@ -2479,7 +2479,7 @@ describe("an inbox-routed redrive after some links reached All", () => {
 		expect(harness.published).toHaveLength(2);
 	});
 
-	it("does not bring back a saved link the reader removed from All", async () => {
+	it("does not bring back a saved link the reader removed from the default readlist", async () => {
 		const harness = makeHarness({ derivedHtml: ONE_LINK, savedOutputs: new Set([LINK_0]) });
 
 		await harness.run(eventBody());
