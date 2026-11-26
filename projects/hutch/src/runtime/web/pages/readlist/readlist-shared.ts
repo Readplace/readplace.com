@@ -456,15 +456,6 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		};
 	};
 
-	const readerPathFor =
-		(req: Request) =>
-		(articleId: string): string => {
-			const surface = nativeSurfaceQuery(req);
-			return surface === ""
-				? `${READLIST_PATH}/${articleId}/view`
-				: `${READLIST_PATH}/${articleId}/view?${surface}`;
-		};
-
 	// A past-read match opens where the reader owns it: the destination readlist
 	// (resolved server-side, absent for the default list) rides the `queue` param
 	// alongside the preserved native-surface markers.
@@ -885,7 +876,6 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		reader,
 		pollUrlBuilderFor,
 		ownerReaderSection,
-		readerPathFor,
 		readerPathForReadlist,
 		readerReturnPath,
 		epubGuideFor,
