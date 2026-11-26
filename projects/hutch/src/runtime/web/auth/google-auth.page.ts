@@ -32,17 +32,13 @@ import { sessionCookie } from "../session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
-import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
+import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
-import { consumeLastViewUrl } from "../last-view";
 import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
-import { resolvePostSignupRedirect } from "./post-signup-redirect";
-import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";
-import { viewerOf } from "@packages/viewer-identity";
 import type { Logger, LogError } from "@packages/logger";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
@@ -82,8 +78,6 @@ interface GoogleAuthDependencies {
 	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
-	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
-	salt: string;
 	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
@@ -292,13 +286,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					},
 				),
 			);
-			const lastViewUrl = consumeLastViewUrl({ req, res });
-			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
-			emitFirstArticleAutosaved(
-				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
-			);
-			res.redirect(303, redirect.location);
+			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 			return;
 		}
 
@@ -354,13 +342,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				},
 			),
 		);
-		const lastViewUrl = consumeLastViewUrl({ req, res });
-		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
-		emitFirstArticleAutosaved(
-			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
-		);
-		res.redirect(303, redirect.location);
+		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 	});
 
 	return router;

@@ -75,9 +75,7 @@ import type { FoundingAllocation } from "../shared/founding-progress/founding-al
 import { readClickAttribution } from "@packages/web-analytics";
 import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
-import { consumeLastViewUrl, LAST_VIEW_COOKIE_NAME } from "../last-view";
-import { resolvePostSignupRedirect } from "./post-signup-redirect";
-import { emitFirstArticleAutosaved } from "./first-article-autosaved";
+import { LAST_VIEW_COOKIE_NAME } from "../last-view";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
@@ -431,13 +429,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					},
 				),
 			);
-			const lastViewUrl = consumeLastViewUrl({ req, res });
-			const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
-			emitFirstArticleAutosaved(
-				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
-			);
-			res.redirect(303, redirect.location);
+			res.redirect(303, parseReturnUrl({ return: returnUrl }));
 			return;
 		}
 
@@ -479,13 +471,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				},
 			),
 		);
-		const lastViewUrl = consumeLastViewUrl({ req, res });
-		const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
-		emitFirstArticleAutosaved(
-			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
-		);
-		res.redirect(303, redirect.location);
+		res.redirect(303, parseReturnUrl({ return: returnUrl }));
 	});
 
 	router.get("/auth/checkout/success", async (req: Request, res: Response) => {

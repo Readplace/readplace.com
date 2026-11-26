@@ -586,10 +586,6 @@ function handleViewArticle(
 				);
 			}
 		}
-		// Deliberately outside the analytics gate: hutch_lastview is the only input
-		// to the post-signup first-article autosave, so a reader whose headers the
-		// analytics gate rejects must still get the cookie or they sign up and land
-		// on an empty queue.
 		if (req.userId === undefined && !isPrefetchOrBot(req)) {
 			setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
 		}

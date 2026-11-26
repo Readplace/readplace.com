@@ -29,22 +29,17 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { oauthClientIdFrom } from "./oauth-client-id";
 import { defineCookie } from "@packages/web-analytics";
-import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
+import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { sessionCookie } from "../session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
-import { viewerOf } from "@packages/viewer-identity";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
-import { LAST_VIEW_COOKIE_NAME, readLastViewUrl } from "../last-view";
 import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
-import { resolvePostSignupRedirect } from "./post-signup-redirect";
-import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
-import { verifyState } from "./oauth-state";
-import { signAppleState } from "./apple-state";
+import { signState, verifyState } from "./oauth-state";
 import type { Logger, LogError } from "@packages/logger";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
@@ -67,7 +62,6 @@ const StatePayloadSchema = z.object({
 	visitorId: z.string().optional(),
 	homepageVariant: z.string().optional(),
 	pendingSaveId: z.string().optional(),
-	lastViewUrl: z.string().optional(),
 });
 
 const STATE_COOKIE = "hutch_astate";
@@ -97,8 +91,6 @@ interface AppleAuthDependencies {
 	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
-	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
-	salt: string;
 	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
@@ -145,9 +137,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const visitorId = req.visitorId;
 		const homepageVariant = readHomepageVariantSlug(req);
 		const pendingSaveId = readPendingSaveId(req);
-		const lastViewUrl = readLastViewUrl(req);
-		const signedState = signAppleState({
-			payload: {
+		const signedState = signState({
+			payload: JSON.stringify({
 				nonce,
 				returnUrl,
 				createdAt,
@@ -155,8 +146,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				...(visitorId ? { visitorId } : {}),
 				...(homepageVariant ? { homepageVariant } : {}),
 				...(pendingSaveId ? { pendingSaveId } : {}),
-			},
-			lastViewUrl,
+			}),
 			secret: deps.stateSigningSecret,
 		});
 
@@ -304,11 +294,6 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		 * the response Set-Cookie still applies to readplace.com — clear it so the
 		 * consumed save cannot re-attach to a later signup. */
 		const clearPendingSave = () => res.clearCookie(PENDING_SAVE_COOKIE_NAME, { path: "/" });
-		/* Same rationale as clearPendingSave: hutch_lastview is same-site Lax so it
-		 * is not sent on this cross-site POST, but the response Set-Cookie still
-		 * applies to readplace.com — clear it so the tunneled URL cannot auto-save
-		 * onto a later signup. */
-		const clearLastView = () => res.clearCookie(LAST_VIEW_COOKIE_NAME, { path: "/" });
 
 		const allowance = await claimSignupAllowance(req);
 		if (!allowance.allowed) {
@@ -346,7 +331,6 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			signIn(res, sessionId);
 			clearPendingSave();
-			clearLastView();
 			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "free" });
 			deps.recordConversionEvent(
 				req,
@@ -361,12 +345,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 					},
 				),
 			);
-			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
-			emitFirstArticleAutosaved(
-				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
-			);
-			res.redirect(303, redirect.location);
+			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 			return;
 		}
 
@@ -410,7 +389,6 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		signIn(res, sessionId);
 		clearPendingSave();
-		clearLastView();
 		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
@@ -425,12 +403,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				},
 			),
 		);
-		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
-		emitFirstArticleAutosaved(
-			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
-		);
-		res.redirect(303, redirect.location);
+		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 	});
 
 	return router;

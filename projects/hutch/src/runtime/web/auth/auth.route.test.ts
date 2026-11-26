@@ -1674,89 +1674,14 @@ describe("Auth routes", () => {
 		});
 	});
 
-	describe("POST /signup — first-article autosave", () => {
-		const ARTICLE_URL = "https://example.com/post";
-		const VIEW_PATH = "/view/example.com/post";
-		const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;
-
-		function lastViewSetCookie(response: request.Response): string | undefined {
-			const setCookie = response.headers["set-cookie"];
-			const cookies = Array.isArray(setCookie) ? setCookie : [];
-			return cookies.find((c) => c.startsWith("hutch_lastview="));
-		}
-
-		it("redirects a free signup to auto-save the article the visitor just viewed, and clears the cookie", async () => {
+	describe("POST /signup — a recently viewed article", () => {
+		it("lands a signup with a hutch_lastview cookie and no ?return= on the queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = request.agent(harness.server);
-			await agent.get(VIEW_PATH);
+			await agent.get("/view/example.com/post");
 
 			const response = await agent.post("/signup").type("form").send({
-				email: "autosave-free@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
-			});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
-			const cleared = lastViewSetCookie(response);
-			assert(cleared, "signup must clear hutch_lastview after consuming it");
-			expect(cleared.startsWith("hutch_lastview=;")).toBe(true);
-		}, 30000);
-
-		it("emits a single discrete first_article_autosaved event carrying the new user and article host", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
-			await agent.get(VIEW_PATH);
-
-			await agent.post("/signup").type("form").send({
-				email: "autosave-event@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
-			});
-
-			const autosaves = harness.analytics.events.filter(
-				(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
-			);
-			expect(autosaves).toHaveLength(1);
-			expect(autosaves[0]).toMatchObject({
-				stream: "analytics",
-				event: ANALYTICS_EVENTS.firstArticleAutosaved,
-				article_host: "example.com",
-				user_id: expect.any(String),
-				visitor_hash: expect.any(String),
-				visitor_id: expect.any(String),
-			});
-		}, 30000);
-
-		it("lets an explicit ?return= win over the autosave even when the cookie is present", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
-			await agent.get(VIEW_PATH);
-
-			const response = await agent.post("/signup?return=%2Foauth%2Fauthorize").type("form").send({
-				email: "autosave-return@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
-			});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/oauth/authorize");
-			expect(
-				harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
-			).toHaveLength(0);
-		}, 30000);
-
-		it("sends a returning reader the signup form signed in to a plain /queue, not the autosave of the article they just viewed", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = request.agent(harness.server);
-			await agent.get(VIEW_PATH);
-			await harness.auth.createUser({ email: "autosave-returning@example.com", password: "password123" });
-
-			const response = await agent.post("/signup").type("form").send({
-				email: "autosave-returning@example.com",
+				email: "lastview@example.com",
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
@@ -1764,96 +1689,6 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?scope=home");
-		}, 30000);
-
-		it("redirects a free signup to a plain /queue when no hutch_lastview cookie is present", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-			const response = await request(harness.server).post("/signup").type("form").send({
-				email: "autosave-none@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
-			});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=home");
-		}, 30000);
-
-		it("ignores a tampered hutch_lastview cookie and redirects to a plain /queue", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-			const response = await request(harness.server)
-				.post("/signup")
-				.type("form")
-				.set("Cookie", "hutch_lastview=not-a-url")
-				.send({
-					email: "autosave-tampered@example.com",
-					password: "password123",
-					confirmPassword: "password123",
-					loadedAt: freshLoadedAt(),
-				});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=home");
-		}, 30000);
-
-		it("auto-saves through the trial signup branch when the founding allocation is exhausted", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
-			const agent = request.agent(harness.server);
-			await agent.get(VIEW_PATH);
-
-			const response = await agent.post("/signup").type("form").send({
-				email: "autosave-trial@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
-			});
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
-		}, 30000);
-
-		it("still auto-saves for a crawler-submitted signup but emits no first_article_autosaved, so the event stays a count of readers the autosave actually rescued", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const lastViewCookie = `hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`;
-			const autosaves = () =>
-				harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved);
-
-			const crawled = await request(harness.server)
-				.post("/signup")
-				.set("User-Agent", GOOGLEBOT)
-				.set("Cookie", lastViewCookie)
-				.type("form")
-				.send({
-					email: "autosave-crawler@example.com",
-					password: "password123",
-					confirmPassword: "password123",
-					loadedAt: freshLoadedAt(),
-				});
-
-			expect(crawled.status).toBe(303);
-			expect(crawled.headers.location).toBe(AUTOSAVE_LOCATION);
-			assert.equal(autosaves().length, 0, "no first_article_autosaved for a crawler user-agent");
-
-			const human = await request(harness.server)
-				.post("/signup")
-				.set("User-Agent", BROWSER_USER_AGENT)
-				.set("Cookie", lastViewCookie)
-				.type("form")
-				.send({
-					email: "autosave-browser@example.com",
-					password: "password123",
-					confirmPassword: "password123",
-					loadedAt: freshLoadedAt(),
-				});
-
-			expect(human.headers.location).toBe(AUTOSAVE_LOCATION);
-			assert.equal(autosaves().length, 1, "exactly one first_article_autosaved, from the browser signup");
-			expect(autosaves()[0]).toMatchObject({ article_host: "example.com" });
 		}, 30000);
 	});
 
@@ -2219,7 +2054,7 @@ describe("Auth routes", () => {
 			const cookies = Array.isArray(setCookie) ? setCookie : [];
 			assert(
 				cookies.some((c) => c.startsWith("hutch_lastview=;")),
-				"logout must clear hutch_lastview so it cannot auto-save onto a later signup",
+				"logout must clear hutch_lastview",
 			);
 		});
 
