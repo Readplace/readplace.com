@@ -474,24 +474,6 @@ describe("toArticleCollectionEntity", () => {
 		});
 	});
 
-	it("advertises a titled add-links-help link so already-installed clients resolve the help URL", () => {
-		const result: FindArticlesResult = {
-			articles: [],
-			total: 0,
-			hasMore: false,
-			page: 1,
-			pageSize: 20,
-		};
-
-		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
-
-		expect(entity.links).toContainEqual({
-			rel: ["add-links-help"],
-			title: "How to add links",
-			href: "/help/add-links",
-		});
-	});
-
 	it("includes next link when more pages exist", () => {
 		const result: FindArticlesResult = {
 			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
@@ -566,7 +548,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist", page: 2 }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "home", "account", "add-links-help", "upload", "prev"]);
+		expect(linkRels).toEqual(["self", "root", "home", "account", "upload", "prev"]);
 	});
 
 	it("single page omits both pagination links", () => {
@@ -581,7 +563,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "home", "account", "add-links-help", "upload"]);
+		expect(linkRels).toEqual(["self", "root", "home", "account", "upload"]);
 	});
 
 	it("preserves query params in pagination links", () => {

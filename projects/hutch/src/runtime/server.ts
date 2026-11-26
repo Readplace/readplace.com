@@ -1314,10 +1314,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	// Bare (HtmlPage, not Base) so the iOS Share-help sheet can render it in a
-	// WKWebView without site chrome; public like /privacy. The current iOS client
-	// holds this path client-side; the /queue collection still advertises it via the
-	// add-links-help rel so older installed clients resolve the help URL from there.
-	// Either way the copy ships via a hutch deploy rather than an App Store review.
+	// WKWebView without site chrome; public like /privacy.
 	//
 	// The app sheet appends ?shell=app, which earns the same chromeless "← Back to
 	// queue" deep link the account page renders — so both surfaces the sheet hosts
