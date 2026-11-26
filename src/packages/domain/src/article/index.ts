@@ -70,6 +70,7 @@ export {
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
+export { personalDecisionKey, personalReadlistPartition, personalReadlistOrder, type PersonalPickRequest, type PersonalReadlist } from "./personal-readlist";
 export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
 export {
 	REMOVAL_SKIP_REASONS,
@@ -264,3 +265,25 @@ export {
 	type GeneratedContentAccess,
 	type StorefrontCountryCode,
 } from "./generated-content";
+export {
+	COVERAGE_RULE_VERSIONS,
+	CoverageRuleIdSchema,
+	CoverageRuleModeSchema,
+	CoverageRuleModesSchema,
+	ALL_COVERAGE_RULES_OFF,
+	parseCoverageRuleModes,
+	CoverageReasonSchema,
+	CoverageScopeSchema,
+	CoverageAssessmentSchema,
+	ArticleCoverageSchema,
+	certifiesArticle,
+	isConfirmedArticleLoss,
+	isWorseOutcome,
+	type CoverageRuleId,
+	type CoverageRuleModes,
+	type CoverageReason,
+	type CoverageScope,
+	type CoverageOutcome,
+	type CoverageAssessment,
+	type ArticleCoverage,
+} from "./article-coverage";

@@ -82,11 +82,44 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		assert.equal(await updates.find({ userId: USER, origin: ORIGIN }), undefined);
 	});
 
+	it("claims only a pending update without an active lease", async () => {
+		const { updates, sent } = store();
+		const claimUntil = await updates.claimPending({ userId: USER, origin: ORIGIN, now: NOW });
+		assert.equal(claimUntil, "2026-10-27T01:01:30.000Z");
+		assert.deepEqual(sent[0].input.Key, KEY);
+		assert.match(String(sent[0].input.ConditionExpression), /#status = :pending.*claimUntil <= :now/);
+		assert.equal(sent[0].input.ExpressionAttributeValues?.[":until"], claimUntil);
+	});
+
+	it("does not acquire a lease already held by another delivery", async () => {
+		const { updates } = store(() => { throw conditionFailed(); });
+		assert.equal(await updates.claimPending({ userId: USER, origin: ORIGIN, now: NOW }), undefined);
+	});
+
+	it("releases only the lease acquired by this delivery", async () => {
+		const { updates, sent } = store();
+		const claimUntil = "2026-10-27T01:01:30.000Z";
+		await updates.releaseClaim({ userId: USER, origin: ORIGIN, claimUntil });
+		assert.equal(sent[0].input.UpdateExpression, "REMOVE claimUntil");
+		assert.equal(sent[0].input.ConditionExpression, "claimUntil = :until");
+		assert.equal(sent[0].input.ExpressionAttributeValues?.[":until"], claimUntil);
+	});
+
 	it("marks a record completed", async () => {
 		const { updates, sent } = store();
 		await updates.markCompleted({ userId: USER, origin: ORIGIN, now: NOW });
 		assert.deepEqual(sent[0].input.Key, KEY);
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":completed"], "completed");
+	});
+
+	it("persists an already-read completion without requiring that field on older rows", async () => {
+		const { updates, sent } = store(() => ({
+			Item: { ...PENDING_ROW, status: "completed", completedAt: NOW.toISOString(), alreadyRead: true },
+		}));
+		await updates.markCompleted({ userId: USER, origin: ORIGIN, now: NOW, alreadyRead: true });
+		assert.equal(sent[0].input.ExpressionAttributeValues?.[":alreadyRead"], true);
+		const completed = await updates.find({ userId: USER, origin: ORIGIN });
+		assert.equal(completed?.status === "completed" && completed.alreadyRead, true);
 	});
 
 	it("ignores completion of an update that was discarded", async () => {

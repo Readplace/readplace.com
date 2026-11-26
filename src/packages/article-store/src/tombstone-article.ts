@@ -73,7 +73,7 @@ export function initTombstoneArticle(deps: {
 		await writeIfCondition(() => articleTable.update({
 			Key: { url: id.value },
 			UpdateExpression:
-				"SET purgedAt = if_not_exists(purgedAt, :now), " /* 2 */ +
+				"SET purgedAt = if_not_exists(purgedAt, :now), lastPurgedAt = :now, " /* 2 */ +
 				"crawlStatus = :ready, summaryStatus = :skipped, summarySkippedReason = :skippedReason, " /* 1 */ +
 				"title = :hostname, siteName = :hostname, excerpt = :empty, wordCount = :zero, estimatedReadTime = :zero" +
 				` REMOVE ${CONTENT_BEARING_COLUMNS.join(", ")} ADD contentSelectionRevision :one`,

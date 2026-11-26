@@ -120,6 +120,7 @@ describe("Readlist onboarding — Connect your Gmail", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		expect(documentOf((await agent.get("/queue").set("User-Agent", CHROME)).text).querySelector(GMAIL_STEP)).toBeNull();
+		expect(documentOf((await agent.get("/queue").set("User-Agent", CHROME)).text).querySelector('[data-test-onboarding-step="create-smart-readlist"]')).toBeNull();
 		expect(documentOf((await agent.post(DISMISS).set("Accept", "text/html")).text).querySelector("h1")?.textContent).toBe("Your account is locked");
 	});
 
@@ -129,6 +130,20 @@ describe("Readlist onboarding — Connect your Gmail", () => {
 		const response = await agent.get("/queue").set("User-Agent", CHROME).set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
 		gmailStep(response.text);
 		expect(documentOf(response.text).querySelector("[data-test-onboarding]")?.classList.contains("setup-guide--visible")).toBe(true);
+	});
+
+	it("preserves the issued Gmail cookie while a paid reader still has Smart Readlist setup to do", async () => {
+		const fixture = fixtureWithGmail();
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await userIdOf(harness);
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_paid", customerId: "cus_paid" });
+		await fixture.onboardingSignals.recordGmailStepDismissed({ userId });
+		const get = async () => documentOf((await agent.get("/queue").set("User-Agent", CHROME)
+			.set("Cookie", `${DISMISS_COOKIE_NAME}=0e5d4ccc; ${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`)).text);
+		expect((await get()).querySelector('.setup-guide--visible [data-test-onboarding-step="create-smart-readlist"]')).toBeTruthy();
+		await fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
+		expect((await get()).querySelector(".setup-guide--hidden")).toBeTruthy();
 	});
 
 	it("keeps Gmail independent of the unsupported-device notice's dismissal", async () => {
@@ -204,6 +219,7 @@ describe("Readlist onboarding — Connect your Gmail", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await userIdOf(harness);
 		await fixture.onboardingSignals.recordInboxArticleQueued({ userId });
+		await fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId });
 		await fixture.onboardingSignals.recordNextReadMinimumReached({ userId });
 		const cookies = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`;
 		await agent.get("/queue").set("User-Agent", CHROME).set("Cookie", cookies);

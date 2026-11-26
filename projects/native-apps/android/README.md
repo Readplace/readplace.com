@@ -232,8 +232,13 @@ downloaded reader page in the WebKit cache. On 2026-11-20 an Android article bad
 "Saved offline" failed to open offline because Chromium had evicted its cache entry, so
 the download keeps each reader page's HTML with its Content-Type and
 Content-Security-Policy under the app's files, and the reader serves it from there when
-offline. A kept page opens for 30 days after it was saved, and the "Saved offline" badge
-comes from the pages on disk. Its images are still served from the WebView cache, so an
+offline. A kept page opens for 30 days after it was saved. The "Saved offline" badge
+comes from the pages on disk and needs three things: the row's `contentState` is
+`available`, a page is kept under the exact reader URL the row opens (its readlist
+query included), and that page was kept at the row's `contentVersion` within the last
+30 days. Age is checked whenever the badge is drawn, so a badge disappears at 30 days
+even while the app stays open. A page kept by a build that did not record its reader
+URL still opens, but earns no badge until the next download replaces it. Its images are still served from the WebView cache, so an
 evicted image shows blank. A page the reader opened online but never downloaded still
 depends on the cache and the age record above.
 
@@ -284,9 +289,11 @@ login screen holds for its replay tap target (grep the Kotlin sources for
 
 **"Download unread for offline reading" differs from iOS in four ways.**
 - The download does not wait for the first two pages' rows to settle, and shows no
-  "open online to get content" banner. A row still processing is stored as served;
-  the reader URL carries no `v=`, so the server answers it `private, no-cache` and the
-  next online open replaces it. Both wait for the iOS step of the same design to run first.
+  "open online to get content" banner. A row whose `contentState` is not `available`
+  is neither fetched nor badged: until 2026-11 it was stored as served, so the badge
+  promised a page that could be only a processing notice. The run reports those rows
+  apart from failures ("N articles aren't ready to read yet, so they weren't
+  downloaded") and leaves them out of its count; the next run picks them up once ready.
 - A run lives only as long as the main Activity. It keeps going through a trip to
   another app, but a rotation, closing the app or the process being killed ends it.
   There is no foreground service or background task behind it. The run's progress is
@@ -304,6 +311,9 @@ login screen holds for its replay tap target (grep the Kotlin sources for
   cannot await a promise from `evaluateJavascript`, so iOS's single eager-images script
   is two here: one marks lazy images eager, the other is polled until every image is
   complete.
+- A page is kept at the row's `contentVersion`, as iOS badges, not the reader's
+  `Readplace-Article-Version` header: that header folds the reader's highlights in, so
+  a highlighted article kept at it never matched its row and was fetched again on every run.
 - The download fetches an article again when its kept page is of the current version
   but older than 30 days; iOS skips on the version alone. The reader refuses a kept
   page older than 30 days, so skipping it would leave a "Saved offline" badge on an

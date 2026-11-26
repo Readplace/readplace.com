@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 
 import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
@@ -62,6 +63,7 @@ import { requestCanCapture } from "../../onboarding/capture-capable-request";
 import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
+import type { HighlightRefusal } from "../../shared/article-body/highlights/highlight-toolbar.component";
 import { offlineContentBannerScript } from "../../shared/offline-reader/offline-content-banner-script";
 import {
 	extensionInstallUrlIfMissing,
@@ -177,7 +179,7 @@ export type RenderOwnerReader = (
 	res: Response,
 	options: {
 		statusCode: 200 | 422;
-		toast: string | undefined;
+		highlightRefusal: HighlightRefusal | undefined;
 		markViewed: boolean;
 	},
 ) => Promise<void>;
@@ -299,6 +301,7 @@ export function initReaderPageRoutes(deps: Pick<
 			articleId: input.articleId,
 			query: query === "" ? "" : `?${query}`,
 			acknowledged: input.acknowledged,
+			removePick: requestReadlistContext(req).state.readlist === HAND_PICKED_SCOPE,
 		});
 	};
 
@@ -388,7 +391,7 @@ export function initReaderPageRoutes(deps: Pick<
 		}
 
 		const [related, storedPreviouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
-			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, generatedContentOf(req), deps.logError),
+			readerReadlist === HAND_PICKED_SCOPE ? { status: "skipped" as const } : loadRelatedArticles(deps.findRelatedArticles, ownedArticle, generatedContentOf(req), deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, generatedContentOf(req), deps.logError),
 			readerStateOnOpen(req, ownedArticle),
 			readerOwnerControlsFor({
@@ -400,7 +403,7 @@ export function initReaderPageRoutes(deps: Pick<
 			deps.resolveReaderProvenance(ownedArticle.provenance),
 		]);
 		const relatedPollUrl =
-			ownedArticle.relatedDismissedAt === undefined
+			readerReadlist !== HAND_PICKED_SCOPE && ownedArticle.relatedDismissedAt === undefined
 				? relatedPollUrlFor({
 						articleId: ownedArticle.id.value,
 						pollCount: 1,
@@ -418,6 +421,7 @@ export function initReaderPageRoutes(deps: Pick<
 			: pastReadsPollUrlFor({
 					articleId: ownedArticle.id.value,
 					pollCount: 1,
+					readlist: readerReadlist,
 					surfaceQuery: nativeSurfaceQuery(req),
 				});
 		const contentVersion = computeArticleContentVersion({
@@ -566,7 +570,7 @@ export function initReaderPageRoutes(deps: Pick<
 				: withStatusCode(component, options.statusCode);
 		const access = await deps.getEffectiveAccess(ownedArticle.userId);
 		const paidFeaturesLocked = !hasPaidFeatures(access);
-		const nextReadLocks = paidFeaturesLocked ? nextReadLocksFor({ req, access }) : undefined;
+		const nextReadLocks = paidFeaturesLocked && requestReadlistContext(req).state.readlist !== HAND_PICKED_SCOPE ? nextReadLocksFor({ req, access }) : undefined;
 		const pastReadsOptions = {
 			previouslyRead: paidFeaturesLocked ? NO_PAST_READS : previouslyRead,
 			previouslyReadPollUrl: paidFeaturesLocked ? undefined : previouslyReadPollUrl,
@@ -632,6 +636,7 @@ export function initReaderPageRoutes(deps: Pick<
 				issueLinks,
 				deletion,
 				highlights,
+				highlightRefusal: options.highlightRefusal,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -723,7 +728,7 @@ export function initReaderPageRoutes(deps: Pick<
 					issueLinks,
 					deletion,
 					highlights,
-					statusToast: options.toast,
+					highlightRefusal: options.highlightRefusal,
 				}), cspNonce), {
 					...(await deps.buildBannerState(req, { preFetchedAccess: access })),
 					currentPath,
@@ -736,7 +741,7 @@ export function initReaderPageRoutes(deps: Pick<
 	};
 
 	router.get("/:id/view", noindexMiddleware, (req: Request<{ id: string }>, res: Response) =>
-		renderOwnerReader(req, res, { statusCode: 200, toast: undefined, markViewed: true }),
+		renderOwnerReader(req, res, { statusCode: 200, highlightRefusal: undefined, markViewed: true }),
 	);
 
 	return { router, renderOwnerReader };

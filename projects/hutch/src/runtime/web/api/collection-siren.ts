@@ -1,9 +1,12 @@
+import { HAND_PICKED, HAND_PICKED_SCOPE, builtInCaption, READER_HOME_HREF } from "../pages/readlist/built-in-readlists";
 import assert from "node:assert";
 import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { type EnclosureRead, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
+import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
+import { setHomeReadlistPath } from "../pages/readlist/readlist-home";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
@@ -15,12 +18,13 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchApi } from "@packages/translations/hutch-api";
 import { buildReadlistList, type CurrentReadlistDestination, type ReadlistListEntry, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
-import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistPreferencesPath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import { READLIST_CREATE_PATH, READLIST_PATH, readlistDeletePath, readlistPinPath, readlistPreferencesPath, readlistRenamePath, readlistUnpinPath } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 import { AGE_RANGE_PATH } from "../pages/age-lock/age-range.page";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
+import type { ReaderProvenance } from "../shared/article-body/article-header/provenance-label";
 import { saveInProgressNotice } from "./save-notice-siren";
 import { isOfflinePrefetchPage } from "../shared/offline-prefetch";
 
@@ -30,6 +34,7 @@ interface CollectionWarning {
 }
 
 export type CollectionProperties = {
+	browseReadlists: { rel: string; label: string; href: string; description?: string }[];
 	pageSize: number;
 	pages: PageListEntry[];
 	tabs: TabListEntry[];
@@ -39,6 +44,7 @@ export type CollectionProperties = {
 	appearance?: AppearancePreference;
 	warning?: CollectionWarning;
 	messages?: SirenMessage[];
+	hint?: { text: string; link: { label: string; href: string } };
 };
 
 const { t } = translator(hutchApi, DEFAULT_LOCALE);
@@ -60,21 +66,36 @@ export const SEARCH_FIELDS = [
 
 export type SearchFieldName = (typeof SEARCH_FIELDS)[number]["name"];
 
+function setHomeAction(input: { target: HomeReadlistPreference; label: string; returnTo: string }) {
+	const homePath = new URL(setHomeReadlistPath(input.target), "https://readlist.invalid");
+	homePath.searchParams.set("returnTo", input.returnTo);
+	return {
+		name: "set-home-readlist",
+		title: t("homeReadlist.setAction", { label: input.label }),
+		href: homePath.pathname + homePath.search,
+		method: "POST",
+	};
+}
+
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
 	options: {
 		tabs: readonly StatusTab[];
 		readlists: readonly ReadlistOption[];
+		pinnedReadlists: readonly ReadlistSlug[];
 		addToReadlist: AddToReadlistOffer;
 		now: Date;
 		warning?: CollectionWarning;
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
 		appearance?: AppearancePreference;
+		homeHref?: string;
+		setHome?: { target: HomeReadlistPreference; label: string };
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
+		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		totalLabel?: (input: { total: number }) => string;
 		sort?: { options: readonly SortOption[]; current: SortOrder };
 	},
@@ -92,9 +113,11 @@ export function toArticleCollectionEntity(
 	const accountHref = surfacePlatform
 		? `/account?${PLATFORM_QUERY}=${surfacePlatform}`
 		: "/account";
+	const homeHref = options.homeHref ?? READER_HOME_HREF;
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
-		{ rel: ["root"], href: "/queue" },
+		{ rel: homeHref === "/queue" ? ["root", "home"] : ["root"], href: "/queue" },
+		...(homeHref === "/queue" ? [] : [{ rel: ["home"], href: homeHref }]),
 		{ rel: ["account"], title: "Account", href: accountHref },
 	];
 
@@ -124,7 +147,27 @@ export function toArticleCollectionEntity(
 		});
 	}
 
+	const filingReadlists = buildReadlistList({
+		readlists: options.readlists,
+		pinnedReadlists: options.pinnedReadlists,
+		currentReadlist: queryParams.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : queryParams.readlist ?? DEFAULT_READLIST_SLUG,
+		hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
+		destinationForCurrent: surfacePlatform === undefined
+			? undefined
+			: (readlist) => readlistDestination({ readlist, platform: surfacePlatform }),
+	});
 	const properties: CollectionProperties = {
+		browseReadlists: [
+			{
+				label: HAND_PICKED.label, href: READER_HOME_HREF, description: builtInCaption(HAND_PICKED_SCOPE),
+				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "current" : "readlist",
+			},
+			...filingReadlists.map((entry, index) => ({
+				...entry,
+				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "readlist" : entry.rel,
+				description: builtInCaption(options.readlists[index].slug),
+			})),
+		],
 		pageSize,
 		pages: buildPageList({
 			currentPage: page,
@@ -136,14 +179,7 @@ export function toArticleCollectionEntity(
 			currentStatus: queryParams.status,
 			hrefForStatus: (status) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status, order: queryParams.order })}`,
 		}),
-		readlists: buildReadlistList({
-			readlists: options.readlists,
-			currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
-			hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
-			destinationForCurrent: surfacePlatform === undefined
-				? undefined
-				: (readlist) => readlistDestination({ readlist, platform: surfacePlatform }),
-		}),
+		readlists: filingReadlists,
 	};
 	if (options.totalLabel) properties.total = { label: options.totalLabel({ total }) };
 	if (options.sort) {
@@ -155,13 +191,17 @@ export function toArticleCollectionEntity(
 	}
 	if (options.appearance) properties.appearance = options.appearance;
 	if (options.warning) properties.warning = options.warning;
+	if (surfacePlatform !== undefined && queryParams.readlist === HAND_PICKED_SCOPE) {
+		properties.hint = { text: t("handPickedHint.text"), link: { label: t("handPickedHint.link"), href: "/queue" } };
+	}
 	// Offered only to a native app's own requests (header-gated, never `?platform=`),
 	// so its share sheet can render "don't close this" beneath its spinner. Every
 	// other client — including those apps' in-app web surfaces — simply never
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
-	const namedReadlist = queryParams.readlist === DEFAULT_READLIST_SLUG ? undefined : queryParams.readlist;
+	const setHomeActions = options.setHome ? [setHomeAction({ ...options.setHome, returnTo: `/queue${buildQueryString(queryParams)}` })] : [];
+	const namedReadlist = (queryParams.readlist === DEFAULT_READLIST_SLUG || queryParams.readlist === HAND_PICKED_SCOPE) ? undefined : queryParams.readlist;
 	return {
 		class: ["collection", "articles"],
 		properties,
@@ -172,11 +212,13 @@ export function toArticleCollectionEntity(
 				crawl: options.crawlByUrl?.get(article.url),
 				summary: options.summaryByUrl?.get(article.url),
 				enclosure: options.enclosureByUrl?.get(article.url),
+				readerProvenance: options.readerProvenanceByUrl?.get(article.url),
 				collectionQuery: { readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
 			}),
 		),
 		links,
 		actions: [
+			...setHomeActions,
 			{
 				name: "save-article",
 				title: "Save a link",
@@ -219,11 +261,27 @@ export function toArticleCollectionEntity(
 				],
 			},
 			{
+				name: "stage-upload",
+				href: "/upload",
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [
+					{ name: "fileName", type: "text" },
+					{ name: "byteLength", type: "number" },
+				],
+			},
+			{
 				name: "search",
 				title: "Search",
 				href: "/queue",
 				method: "GET",
 				fields: [...SEARCH_FIELDS],
+			},
+			{
+				name: "lookup-article",
+				href: "/queue?lookup=1",
+				method: "GET",
+				fields: [{ name: "url", type: "url" }],
 			},
 			// Mints a browser session cookie from the bearer token so a client's
 			// in-app reader can load the cookie-authenticated reader page. Advertised
@@ -274,6 +332,19 @@ export function toArticleCollectionEntity(
 							method: "POST",
 							type: "application/x-www-form-urlencoded",
 						},
+						options.pinnedReadlists.includes(namedReadlist)
+							? {
+									name: "unpin-readlist",
+									href: readlistUnpinPath(namedReadlist),
+									method: "POST",
+									type: "application/x-www-form-urlencoded",
+								}
+							: {
+									name: "pin-readlist",
+									href: readlistPinPath(namedReadlist),
+									method: "POST",
+									type: "application/x-www-form-urlencoded",
+								},
 					]),
 		],
 	};

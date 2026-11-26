@@ -57,9 +57,6 @@ function items(rowCount: number): unknown[] {
 	});
 }
 
-/** Deliberately holds a pinned tab and two pages the save filters out, because
- * the control counts every tab present and the summary reports an outcome for
- * each — including the ones skipped before the request. */
 function openTabs(): unknown[] {
 	const ordinary = Array.from({ length: 7 }, (_tab, index) => ({
 		id: index + 2,

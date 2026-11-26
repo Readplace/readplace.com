@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Locator, Page } from "@playwright/test";
 import { z } from "zod";
-import { expect, test } from "@packages/e2e-harness";
+import { expect, measuredBox, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -100,6 +100,29 @@ for (const viewport of CARD_VIEWPORTS) {
 		});
 	});
 }
+
+test.describe("Create a readlist from the phone sheet", () => {
+	test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+	test("a tap over the sheet’s Close button dismisses only the open Create dialog", async ({ page }, testInfo) => {
+		await signInWithReadlists(page, `nested-${testInfo.workerIndex}-${Date.now()}`);
+		await page.locator('[data-test-action="readlist-sheet"]').click();
+		const sheet = page.locator('[data-test-readlist-popover="sheet"]');
+		await sheet.locator('[data-test-action="new-readlist-in-sheet"]').click();
+		const create = page.locator('[data-test-confirm-popover="readlist-create"]');
+		await expect(create).toBeVisible();
+		await expect(sheet).toBeVisible();
+
+		const close = await measuredBox(page, '[data-test-readlist-popover="sheet"] [data-test-action="readlist-more-close"]');
+		const x = close.x + close.width / 2;
+		const y = close.y + close.height / 2;
+		await page.touchscreen.tap(x, y);
+		await expect(create).toBeHidden();
+		await expect(sheet).toBeVisible();
+		await page.touchscreen.tap(x, y);
+		await expect(sheet).toBeHidden();
+	});
+});
 
 for (const surface of SURFACES) {
 	test.describe(`Readlist options in the ${surface.name}`, () => {

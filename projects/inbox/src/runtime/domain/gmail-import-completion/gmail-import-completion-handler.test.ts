@@ -70,7 +70,11 @@ async function setup(input: { origins?: GmailMessageOrigin[]; emailExists?: bool
 		handler(buildSqsEvent(bodies.map((body, index) => ({ messageId: `m-${index}`, body }))), buildLambdaContext(), () => {});
 	const select = (outputs: EmailOutputKey[], truncated = false) =>
 		completion.selectOutputs({ userId, receivedAtMessageId, selection: { outputs, truncated, selectedAt: "2026-10-27T00:00:01.000Z" } });
-	const recordDuplicate = initRecordDuplicateGmailOrigin({ addGmailOrigins: completion.addGmailOrigins, evaluate });
+	const recordDuplicate = initRecordDuplicateGmailOrigin({
+		findCompletion: completion.findCompletion,
+		addGmailOrigins: completion.addGmailOrigins,
+		evaluate,
+	});
 	return { run, select, marks, recordDuplicate, evaluate, findCompletion: completion.findCompletion };
 }
 

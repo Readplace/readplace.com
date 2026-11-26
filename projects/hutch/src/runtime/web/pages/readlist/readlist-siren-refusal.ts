@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
-import { READLIST_RENAME_REJECTIONS, READLIST_UNKNOWN_ARTICLE_MESSAGE } from "./readlist.error";
+import { READLIST_PIN_LIMIT_MESSAGE, READLIST_RENAME_REJECTIONS, READLIST_UNKNOWN_ARTICLE_MESSAGE } from "./readlist.error";
 
 type ReadlistRefusalCode =
 	| "unknown-readlist"
@@ -8,7 +8,9 @@ type ReadlistRefusalCode =
 	| "invalid-name"
 	| "reserved-name"
 	| "name-taken"
-	| "limit-reached";
+	| "invalid-purpose"
+	| "limit-reached"
+	| "pin-limit-reached";
 
 const REFUSAL_STATUS: Record<ReadlistRefusalCode, 404 | 422> = {
 	"unknown-readlist": 404,
@@ -16,7 +18,9 @@ const REFUSAL_STATUS: Record<ReadlistRefusalCode, 404 | 422> = {
 	"invalid-name": 422,
 	"reserved-name": 422,
 	"name-taken": 422,
+	"invalid-purpose": 422,
 	"limit-reached": 422,
+	"pin-limit-reached": 422,
 };
 
 export interface ReadlistRefusal {
@@ -32,6 +36,11 @@ export const UNKNOWN_READLIST_REFUSAL: ReadlistRefusal = {
 export const UNKNOWN_ARTICLE_REFUSAL: ReadlistRefusal = {
 	code: "unknown-article",
 	message: READLIST_UNKNOWN_ARTICLE_MESSAGE,
+};
+
+export const PIN_LIMIT_REFUSAL: ReadlistRefusal = {
+	code: "pin-limit-reached",
+	message: READLIST_PIN_LIMIT_MESSAGE,
 };
 
 export function refuseOverSiren(res: Response, refusal: ReadlistRefusal): void {

@@ -11,6 +11,7 @@ import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { toReadlistArticleViewModel, toReadlistViewModel, toSubscriptionBannerState } from "./readlist.viewmodel";
+import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
 
 const ARTICLE_URL = "https://example.com/post";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -31,8 +32,14 @@ function makeArticle(overrides?: Partial<SavedArticle>): SavedArticle {
 		estimatedReadTime: 3 as Minutes,
 		status: "unread",
 		savedAt: new Date("2025-06-01T12:00:00Z"),
+		personalPickedAt: new Date("2025-06-01T12:00:00Z"),
 		...overrides,
 	};
+}
+
+function makeUnpickedArticle(): SavedArticle {
+	const { personalPickedAt: _personalPickedAt, ...unpicked } = makeArticle();
+	return unpicked;
 }
 
 function makeResult(articles: SavedArticle[]): FindArticlesResult {
@@ -262,7 +269,7 @@ describe("toReadlistViewModel", () => {
 		};
 		const vm = toReadlistViewModel(result, { ...DEFAULT_FILTERS, page: 2 }, { now: NOW });
 
-		expect(vm.paginationUrls.prev).toBe("/queue");
+		expect(vm.paginationUrls.prev).toBe("/queue?queue=default");
 	});
 
 	it("should not generate next pagination URL when no more rows exist", () => {
@@ -820,6 +827,53 @@ describe("toReadlistViewModel — move", () => {
 		expect(vm.articles[0].move?.create).toBeUndefined();
 		expect(vm.articles[0].move?.destinations).toHaveLength(READLIST_MAX_PER_USER);
 		expect(vm.articles[0].move?.opens).toBe(`readlist-move-${ARTICLE_ID}`);
+	});
+
+	it("lists Hand Picked first among the destinations of an unpicked article in All", () => {
+		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map([[ARTICLE_URL, [{}, { readlist: finance.slug }]]]),
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }, work, weekend]);
+	});
+
+	it("opens the dialog, not the create popover, when Hand Picked is the only destination", () => {
+		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists: [DEFAULT_READLIST],
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }]);
+		expect(vm.articles[0].move?.opens).toBe(`readlist-move-${ARTICLE_ID}`);
+	});
+
+	it("leaves Hand Picked out for a picked article", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			readlists,
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([work, finance, weekend]);
+	});
+
+	it("leaves Hand Picked out inside a named readlist", () => {
+		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), onWork, {
+			now: NOW,
+			readlists,
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([finance, weekend]);
+	});
+
+	it("leaves Hand Picked out on the Hand Picked page", () => {
+		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE }, {
+			now: NOW,
+			readlists,
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([work, finance, weekend]);
 	});
 
 	it("offers no move at the cap once every other custom readlist holds the article", () => {

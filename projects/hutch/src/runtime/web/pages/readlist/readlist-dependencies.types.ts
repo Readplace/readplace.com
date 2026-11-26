@@ -9,7 +9,7 @@ import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type {
 	CreateRoutedInboxAddress,
 	InboxAddressStore,
-	InboxEmailLinkStore,
+	InboxEmailStore, InboxEmailLinkStore,
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type {
@@ -27,6 +27,7 @@ import type {
 	PurgeReadlistFitOverrides,
 	ListReadlistFitOverrides,
 	DeleteReadlistFitOverride,
+	ChangePersonalPick,
 	DeleteArticle,
 	DeleteReadlistArticle,
 	PurgeReadlistArticle,
@@ -46,8 +47,11 @@ import type {
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
@@ -80,6 +84,8 @@ import type {
 	FindUserById,
 	SetSessionReadlistFilter,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 } from "@packages/provider-contracts/auth";
 import type {
 	FindArticleCrawlStatus,
@@ -126,6 +132,8 @@ import type {
 	RecordGmailStepDismissed,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordOnboardingOutstandingVersion,
@@ -151,6 +159,7 @@ export interface ReadlistDependencies {
 	saveArticle: SaveArticle;
 	saveArticleWithoutActivity: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	changePersonalPick: ChangePersonalPick;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
@@ -162,6 +171,7 @@ export interface ReadlistDependencies {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
@@ -178,6 +188,8 @@ export interface ReadlistDependencies {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
@@ -200,6 +212,10 @@ export interface ReadlistDependencies {
 	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	listReceivedSenders: InboxEmailStore["listReceivedSenders"];
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
+	bulkArticles?: import("./bulk-articles.page").BulkArticleOperations;
+	listSenderIssues: InboxEmailStore["listEmailsByUserId"];
 	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
 	findIssueLink: InboxEmailLinkStore["getLink"];
 	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];
@@ -250,6 +266,8 @@ export interface ReadlistDependencies {
 	/** Stamps the account the first time its save count reaches the Next Read
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;
@@ -283,4 +301,6 @@ export interface ReadlistDependencies {
 	now: () => Date;
 	keepOffer: ReturnType<typeof initKeepOffer>;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 }

@@ -1,8 +1,8 @@
+import { isBuiltInReadlist } from "./built-in-readlists";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-	DEFAULT_READLIST_SLUG,
 	READLIST_LABEL_MAX_LENGTH,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
@@ -14,6 +14,8 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import type { Readlist } from "./readlist.nav";
+import type { ReadlistRailViewModel } from "./readlist-rail";
+import { setHomeReadlistPath } from "./readlist-home";
 import { composeReadlistNav } from "./readlist-nav-layout";
 import {
 	buildReadlistUrl,
@@ -120,6 +122,7 @@ interface ReadlistNavMenu {
 
 export interface ReadlistNavItem {
 	menuHtml: string;
+	isHome: boolean;
 	autofocus: boolean;
 	href: string;
 	title: string;
@@ -128,6 +131,9 @@ export interface ReadlistNavItem {
 	itemClass: string;
 	linkClass: string;
 	isActive: boolean;
+	smart: boolean;
+	smartLabel: boolean;
+	accessibleName: string;
 }
 
 interface ReadlistNavPopover {
@@ -143,7 +149,8 @@ export interface ReadlistNavDisplayModel {
 	items: readonly ReadlistNavItem[];
 	popovers: readonly ReadlistNavPopover[];
 	moreCount: number;
-	current: { title: string; iconName: IconName };
+	homeStatus?: string;
+	current: { title: string; iconName: IconName; smart: boolean };
 	createForms: readonly ReadlistCreateForm[];
 	limitForms: readonly ReadlistLimitForm[];
 }
@@ -190,7 +197,7 @@ function navMenu(input: {
 	pinState: ReadlistPinState;
 	inputSuffix: string;
 }): ReadlistNavMenu {
-	const isDeletable = input.slug !== DEFAULT_READLIST_SLUG;
+	const isDeletable = !isBuiltInReadlist(input.slug);
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
@@ -233,6 +240,7 @@ function limitFormsOf(input: {
 }
 
 interface ReadlistNavInput {
+	home?: ReadlistRailViewModel["home"];
 	readlists: readonly Readlist[];
 	pinnedReadlists: readonly ReadlistSlug[];
 	activeSlug: ReadlistSlug;
@@ -251,14 +259,16 @@ function navItem(input: {
 	const { nav, readlist } = input;
 	const classes = PLACEMENT_CLASSES[input.placement];
 	const isActive = readlist.slug === nav.activeSlug;
-	const kind = readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom";
+	const kind = isBuiltInReadlist(readlist.slug) ? "default" : "custom";
 	const menu = navMenu({
 		slug: readlist.slug,
 		viewedSlug: nav.activeSlug,
 		pinState: input.pinState,
 		inputSuffix: classes.inputSuffix,
 	});
+	const target = nav.home?.targets.get(readlist.slug);
 	return {
+		isHome: nav.home?.slug === readlist.slug,
 		href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
 			source: NAV_SOURCE,
 			content: `queue-${readlist.slug}`,
@@ -269,9 +279,15 @@ function navItem(input: {
 		itemClass: `${classes.item}${isActive ? classes.selected : ""}`,
 		linkClass: classes.link,
 		isActive,
+		smart: readlist.smart === true,
+		smartLabel: readlist.smart === true && isActive,
+		accessibleName: readlist.smart === true ? t("readlistSmart.accessibleName", { name: readlist.label }) : readlist.label,
 		autofocus: input.autofocus,
 		menuHtml: render(MENU_TEMPLATE, {
 			...menu,
+			hasMenu: menu.isDeletable || target !== undefined,
+			homeAction: target && withInternalTracking(setHomeReadlistPath(target), { source: NAV_SOURCE, content: isBuiltInReadlist(readlist.slug) ? "set-home-built-in" : "set-home-readlist" }),
+			returnTo: nav.home?.returnTo,
 			name: readlist.slug,
 			title: readlist.label,
 		}),
@@ -342,11 +358,12 @@ export function buildReadlistNav(
 					},
 				];
 	return {
+		homeStatus: input.home?.status,
 		mode: layout.mode,
 		items,
 		popovers,
 		moreCount: layout.moreCount,
-		current: { title: current.title, iconName: current.iconName },
+		current: { title: current.title, iconName: current.iconName, smart: current.smart },
 		createForms: input.canCreate
 			? [
 					{

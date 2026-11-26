@@ -217,8 +217,9 @@ jobs:
     # Expose detection results so downstream jobs can conditionally run
     outputs:
       platform-affected: ${{ steps.detect.outputs.platform-affected }}
-      non-platform-projects-hex: ${{ steps.detect.outputs.non-platform-projects-hex }}
-      has-non-platform: ${{ steps.detect.outputs.has-non-platform }}
+      save-link-affected: ${{ steps.detect.outputs.save-link-affected }}
+      matrix-projects-hex: ${{ steps.detect.outputs.matrix-projects-hex }}
+      has-matrix-projects: ${{ steps.detect.outputs.has-matrix-projects }}
       ff-affected: ${{ steps.detect.outputs.ff-affected }}
       chrome-affected: ${{ steps.detect.outputs.chrome-affected }}
     steps:
@@ -331,10 +332,10 @@ jobs:
 
           # Final deploy list: code-affected + infra-drifted
           PROJECTS=$(echo "$ALREADY_DEPLOY" "$DRIFTED" | jq -s '.[0] + .[1] | unique')
-          NON_PLATFORM=$(echo "$PROJECTS" | jq -c '[.[] | select(. != "platform")]')
+          MATRIX_PROJECTS=$(echo "$PROJECTS" | jq -c '. - ["platform", "save-link"]')
 
           echo "Final deploy list: $PROJECTS"
-          echo "Non-platform: $NON_PLATFORM"
+          echo "Deploy matrix after platform and save-link: $MATRIX_PROJECTS"
 
           # Extension publish gates fire on compile-affected, which does NOT consult
           # compile's ^production inputs -- it is project-graph reachability plus the
@@ -347,24 +348,23 @@ jobs:
           COMPILE_AFFECTED=$(pnpm nx show projects --affected --target=compile --json)
 
           # Set outputs for downstream jobs to use in their `if:` conditions
-          echo "platform-affected=$(echo "$PROJECTS" | jq -e 'index("platform")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "non-platform-projects-hex=$(printf '%s' "$NON_PLATFORM" | od -An -v -tx1 | tr -d ' \n')" >> "$GITHUB_OUTPUT"
-          echo "has-non-platform=$(echo "$NON_PLATFORM" | jq -e 'length > 0' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "ff-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("firefox-extension")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "chrome-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("chrome-extension")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          {
+            echo "platform-affected=$(echo "$PROJECTS" | jq -e 'index("platform")' > /dev/null 2>&1 && echo true || echo false)"
+            echo "save-link-affected=$(echo "$PROJECTS" | jq 'index("save-link") != null')"
+            echo "matrix-projects-hex=$(printf '%s' "$MATRIX_PROJECTS" | od -An -v -tx1 | tr -d ' \n')"
+            echo "has-matrix-projects=$(echo "$MATRIX_PROJECTS" | jq 'length > 0')"
+            echo "ff-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("firefox-extension")' > /dev/null 2>&1 && echo true || echo false)"
+            echo "chrome-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("chrome-extension")' > /dev/null 2>&1 && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
 
-  # iOS change detection. Unlike detect-projects (which needs AWS secrets + Pulumi
-  # to check infra drift and therefore only runs on main pushes), this job only
-  # diffs paths, so it is cheap and safe to run on PRs too — which is what lets
-  # ios-tests gate pre-merge, exactly like web-tests runs `pnpm check` on every
-  # PR. affected-base anchors the diff: the PR's merge base on PRs, the newest
-  # commit with a green push run on pushes.
-  detect-ios:
+  detect-clients:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     outputs:
+      android-affected: ${{ steps.detect.outputs.android-affected }}
+      android-test-affected: ${{ steps.detect.outputs.android-test-affected }}
       ios-affected: ${{ steps.detect.outputs.ios-affected }}
       ios-test-affected: ${{ steps.detect.outputs.ios-test-affected }}
     steps:
@@ -377,28 +377,23 @@ jobs:
 
       - id: detect
         run: |
-          # iOS TestFlight gate: fire only when the app's SHIPPING source changed
-          # (App/Shared/ShareExtension/project.yml). The iOS unit tests live in
-          # the SAME nx project, so nx affected would also fire on test/doc/CI
-          # changes — a path diff over NX_BASE..NX_HEAD is what keeps a build from
-          # shipping when "the code itself" didn't change.
-          IOS_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            projects/native-apps/ios/App \
-            projects/native-apps/ios/Shared \
-            projects/native-apps/ios/ShareExtension \
-            projects/native-apps/ios/project.yml)
-          echo "ios-affected=$([ -n "$IOS_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-          # iOS test gate: a superset of ios-affected that also fires on test
-          # changes, so a test-only change still runs the macOS suite (which gates
-          # the publish) without shipping a build.
-          IOS_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            projects/native-apps/ios/App \
-            projects/native-apps/ios/Shared \
-            projects/native-apps/ios/ShareExtension \
-            projects/native-apps/ios/Tests \
-            projects/native-apps/ios/project.yml)
-          echo "ios-test-affected=$([ -n "$IOS_TEST_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          ios_shipping=(projects/native-apps/ios/{App,Shared,ShareExtension,project.yml})
+          android_shipping=(projects/native-apps/android/{app/src/main,app/build.gradle.kts,build.gradle.kts,settings.gradle.kts,gradle})
+          changed() {
+            local paths
+            paths=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- "$@") || return 1
+            if [[ -n "$paths" ]]; then echo true; else echo false; fi
+          }
+          ios=$(changed "${ios_shipping[@]}")
+          ios_tests=$(changed "${ios_shipping[@]}" projects/native-apps/ios/Tests)
+          android=$(changed "${android_shipping[@]}")
+          android_tests=$(changed "${android_shipping[@]}" projects/native-apps/android/app/src/test)
+          {
+            echo "ios-affected=$ios"
+            echo "ios-test-affected=$ios_tests"
+            echo "android-affected=$android"
+            echo "android-test-affected=$android_tests"
+          } >> "$GITHUB_OUTPUT"
 
   # Platform (EventBridge bus, shared infra) must deploy before any other project
   # because other projects depend on platform resources (e.g. event bus ARN)
@@ -413,6 +408,25 @@ jobs:
     with:
       project: platform
 
+  # Hutch and Inbox can emit new SubmitLinkCommand fields as soon as they deploy.
+  # Finish rolling out the consumer on both stacks before either producer starts.
+  deploy-save-link:
+    if: >-
+      !cancelled()
+      && needs.web-tests.result == 'success'
+      && needs.perf-tests.result == 'success'
+      && needs.detect-projects.result == 'success'
+      && needs.detect-projects.outputs.save-link-affected == 'true'
+      && (needs.detect-projects.outputs.platform-affected == 'false' || needs.deploy-platform.result == 'success')
+    needs: [web-tests, perf-tests, detect-projects, deploy-platform]
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/project-deployment.yaml
+    secrets: inherit
+    with:
+      project: save-link
+
   # detect-projects exports every repository secret (so check-infra can evaluate
   # each Pulumi program), which registers them all as masks in that job. When the
   # affected list is broad enough that a project name shares a substring with a
@@ -422,7 +436,7 @@ jobs:
   # a base64 secret, so it is never masked); this secret-free job decodes it back
   # to JSON for the matrix.
   resolve-deploy-matrix:
-    if: needs.detect-projects.outputs.has-non-platform == 'true'
+    if: needs.detect-projects.outputs.has-matrix-projects == 'true'
     needs: [detect-projects]
     runs-on: ubuntu-latest
     outputs:
@@ -430,24 +444,25 @@ jobs:
     steps:
       - id: decode
         run: |
-          DECODED=$(printf '%s' '${{ needs.detect-projects.outputs.non-platform-projects-hex }}' \
+          DECODED=$(printf '%s' '${{ needs.detect-projects.outputs.matrix-projects-hex }}' \
             | python3 -c 'import sys; sys.stdout.write(bytes.fromhex(sys.stdin.read().strip()).decode())')
           echo "projects=$DECODED" >> "$GITHUB_OUTPUT"
 
-  # Deploy all non-platform projects in parallel using a dynamic matrix
+  # Deploy the remaining projects in parallel using a dynamic matrix
   # Each project goes through staging → post-deploy verification → prod
   # via the reusable project-deployment.yaml workflow
   pipeline:
     name: ${{ matrix.project }}
     if: >-
-      always()
+      !cancelled()
       && needs.web-tests.result == 'success'
       && needs.perf-tests.result == 'success'
       && needs.detect-projects.result == 'success'
-      && needs.deploy-platform.result != 'failure'
+      && (needs.detect-projects.outputs.platform-affected == 'false' || needs.deploy-platform.result == 'success')
+      && (needs.detect-projects.outputs.save-link-affected == 'false' || needs.deploy-save-link.result == 'success')
       && needs.resolve-deploy-matrix.result == 'success'
-      && needs.detect-projects.outputs.has-non-platform == 'true'
-    needs: [web-tests, perf-tests, detect-projects, deploy-platform, resolve-deploy-matrix]
+      && needs.detect-projects.outputs.has-matrix-projects == 'true'
+    needs: [web-tests, perf-tests, detect-projects, deploy-platform, deploy-save-link, resolve-deploy-matrix]
     permissions:
       contents: read
       actions: read
@@ -487,56 +502,13 @@ jobs:
     uses: ./.github/workflows/publish-chrome-extension.yml
     secrets: inherit
 
-  # Run the iOS unit/integration test bundle on a macOS runner. Gates the
-  # TestFlight publish below, so a red test blocks the build. Mirrors the publish
-  # job's toolchain. Gated by
-  # detect-ios, which — unlike detect-projects — runs on PRs too, so iOS
-  # regressions are caught pre-merge like every other test suite. Fires whenever
-  # Android change detection, mirroring detect-ios: a cheap path diff so
-  # android-tests can gate pre-merge on PRs too.
-  detect-android:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      android-affected: ${{ steps.detect.outputs.android-affected }}
-      android-test-affected: ${{ steps.detect.outputs.android-test-affected }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          # Full history needed for affected-base to resolve the diff base
-          fetch-depth: 0
-
-      - uses: ./.github/actions/affected-base
-
-      - id: detect
-        run: |
-          # Play publish gate: fire only when the app's SHIPPING
-          # source or its build inputs changed. Same reasoning as the iOS gate —
-          # the unit tests live in the same nx project, so nx affected would fire
-          # on test/doc/CI changes too.
-          ANDROID_SRC='projects/native-apps/android/app/src/main
-            projects/native-apps/android/app/build.gradle.kts
-            projects/native-apps/android/build.gradle.kts
-            projects/native-apps/android/settings.gradle.kts
-            projects/native-apps/android/gradle'
-          ANDROID_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- $ANDROID_SRC)
-          echo "android-affected=$([ -n "$ANDROID_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-          # Test gate: a superset of android-affected that also fires on test
-          # changes, so a test-only change still runs the suite without shipping.
-          ANDROID_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            $ANDROID_SRC projects/native-apps/android/app/src/test)
-          echo "android-test-affected=$([ -n "$ANDROID_TEST_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
   # Android unit tests. Unlike ios-tests these are plain JVM tests — no emulator,
   # no macOS — so they run on the free GitHub-hosted Linux runner for everyone.
   # That also makes the fork-PR split unnecessary: no self-hosted runner is
   # involved, so untrusted PR code has nothing to reach.
   android-tests:
-    if: needs.detect-android.outputs.android-test-affected == 'true'
-    needs: [detect-android]
+    if: needs.detect-clients.outputs.android-test-affected == 'true'
+    needs: [detect-clients]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -568,12 +540,16 @@ jobs:
 
   android-play-publish:
     if: >-
-      always()
-      && github.event_name != 'pull_request'
+      !cancelled()
       && needs.web-tests.result == 'success'
+      && needs.perf-tests.result == 'success'
       && needs.android-tests.result == 'success'
-      && needs.detect-android.outputs.android-affected == 'true'
-    needs: [web-tests, detect-android, android-tests]
+      && needs.detect-clients.outputs.android-affected == 'true'
+      && needs.detect-projects.result == 'success'
+      && (needs.detect-projects.outputs.platform-affected == 'false' || needs.deploy-platform.result == 'success')
+      && (needs.detect-projects.outputs.save-link-affected == 'false' || needs.deploy-save-link.result == 'success')
+      && (needs.detect-projects.outputs.has-matrix-projects == 'false' || needs.pipeline.result == 'success')
+    needs: [web-tests, perf-tests, detect-clients, android-tests, detect-projects, deploy-platform, deploy-save-link, pipeline]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-android-play.yml
@@ -582,8 +558,8 @@ jobs:
   # iOS code OR tests change; publish stays scoped to shipping code via
   # ios-affected (⊆ ios-test-affected), so this always runs when publish would.
   ios-tests:
-    if: needs.detect-ios.outputs.ios-test-affected == 'true'
-    needs: [detect-ios]
+    if: needs.detect-clients.outputs.ios-test-affected == 'true'
+    needs: [detect-clients]
     # Fork PRs fall back to the free GitHub-hosted macOS runner: on a public repo,
     # untrusted PR code must never touch the self-hosted M5 (RCE + secret exposure).
     # Own pushes and same-repo PRs use the M5, which keeps Xcode, xcodegen and
@@ -622,17 +598,19 @@ jobs:
           retention-days: 7
 
   # Build + upload the iOS app (and its embedded share extension, in one build)
-  # to TestFlight. Independent of the infra deploy pipeline — gated on the web
-  # test suite passing, the iOS test bundle passing, and the iOS shipping code
-  # having changed.
+  # to TestFlight once the same push's server changes have reached production.
   ios-testflight-publish:
     if: >-
-      always()
+      !cancelled()
       && needs.web-tests.result == 'success'
+      && needs.perf-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.ios-tests.result == 'success'
-      && needs.detect-ios.outputs.ios-affected == 'true'
-    needs: [web-tests, detect-projects, detect-ios, ios-tests]
+      && needs.detect-clients.outputs.ios-affected == 'true'
+      && (needs.detect-projects.outputs.platform-affected == 'false' || needs.deploy-platform.result == 'success')
+      && (needs.detect-projects.outputs.save-link-affected == 'false' || needs.deploy-save-link.result == 'success')
+      && (needs.detect-projects.outputs.has-matrix-projects == 'false' || needs.pipeline.result == 'success')
+    needs: [web-tests, perf-tests, detect-projects, detect-clients, ios-tests, deploy-platform, deploy-save-link, pipeline]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-ios-testflight.yml

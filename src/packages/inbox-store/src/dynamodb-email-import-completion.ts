@@ -10,6 +10,7 @@ import { GmailDeliveryModeSchema, GmailMessageOriginSchema } from "@packages/dom
 import {
 	type EmailImportCompletionStore,
 	EmailOutputKeySchema,
+	amendEmailSelection,
 	type EmailOutputSelection,
 	InboxAddressSchema,
 	InboxEmailStatusSchema,
@@ -24,6 +25,8 @@ const SelectionSchema = z.object({
 	outputs: z.array(EmailOutputKeySchema),
 	truncated: z.boolean(),
 	selectedAt: z.string(),
+	nextLinkIndex: z.number().optional(),
+	matches: z.record(z.string(), z.array(EmailOutputKeySchema).nullable()).optional(),
 });
 
 const CompletionRow = z.object({
@@ -119,6 +122,21 @@ export function initDynamoDbEmailImportCompletion(deps: {
 			}));
 			if (outcome.kind === "condition-failed") return findSelection({ userId, receivedAtMessageId }, field);
 			return selection;
+		},
+		amendSelection: async ({ userId, receivedAtMessageId, change }) => {
+			const Key = { userId, receivedAtMessageId };
+			for (;;) {
+				const current = await findSelection(Key, "outputSelection");
+				const next = amendEmailSelection(current, change);
+				if (next === current) return current;
+				const written = await writeIfCondition(() => table.update({
+					Key,
+					ConditionExpression: "outputSelection = :previous",
+					UpdateExpression: "SET outputSelection = :next",
+					ExpressionAttributeValues: { ":previous": current, ":next": next },
+				}));
+				if (written.kind === "written") return next;
+			}
 		},
 		acknowledgeOutput: async ({ userId, receivedAtMessageId, output }) => {
 			await writeIfCondition(() => table.update({

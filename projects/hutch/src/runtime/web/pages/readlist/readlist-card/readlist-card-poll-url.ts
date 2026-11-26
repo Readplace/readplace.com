@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE } from "../built-in-readlists";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { discoveryParams, type ReadlistUrlState } from "../readlist.url";
 import { tabQuery } from "../readlist.tabs";
@@ -19,9 +20,12 @@ export function buildCardPollUrl(params: {
 }): string {
 	const search = new URLSearchParams();
 	search.set("poll", String(params.pollCount));
-	if (params.filters.readlist && params.filters.readlist !== DEFAULT_READLIST_SLUG) {
+	if (params.filters.readlist === HAND_PICKED_SCOPE) search.set("scope", "hand-picked");
+	else if (params.filters.readlist && params.filters.readlist !== DEFAULT_READLIST_SLUG) {
 		search.set("queue", params.filters.readlist);
 	}
+	if (params.filters.managedSource) search.set("source", params.filters.managedSource);
+	if (params.filters.sender) search.set("sender", params.filters.sender);
 	const tab = params.filters.tab ?? "queue";
 	if (tab !== "queue") search.set("tab", tab);
 	const { defaultOrder } = tabQuery(tab);

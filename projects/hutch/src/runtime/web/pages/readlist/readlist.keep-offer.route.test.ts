@@ -164,7 +164,7 @@ describe("Keep Readplace panel on the queue", () => {
 		const dismissed = await agent.post("/queue/keep-offer/dismiss");
 
 		expect(dismissed.status).toBe(303);
-		expect(dismissed.headers.location).toBe("/queue");
+		expect(dismissed.headers.location).toBe("/queue?queue=default");
 		const response = await agent.get("/queue");
 		expect(keepOfferAside(response.text).classList.contains("readlist-keep-offer--hidden")).toBe(true);
 		expect(keepOfferShownEvents(harness)).toEqual([]);

@@ -147,8 +147,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(listed).toContainEqual(["All", "New Readlist"]);
 		expect(listed).toContainEqual(["All"]);
 		const bodies = panels(doc).map((panel) => panel.querySelector(".confirm-popover__body")?.textContent);
-		expect(bodies).toContain("This article also appears in other readlists. Marking it as read will update it everywhere:");
-		expect(bodies).toContain("This article will be marked as read in all readlists it belongs to:");
+		expect(bodies).toContain("When you mark this article as read, it’s marked as read in every readlist where you’ve saved it.");
 		for (const panel of panels(doc)) {
 			expect(panel.querySelectorAll(".confirm-popover__items li svg").length).toBe(panel.querySelectorAll(".confirm-popover__items li").length);
 		}
@@ -185,7 +184,7 @@ describe("Mark-as-read confirmation", () => {
 		).toEqual([articleId]);
 	});
 
-	it("keeps showing the panel after a plain confirmation", async () => {
+	it("keeps showing the notice after a status change without acknowledgment", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, articleId } = await readerWithTwoReadlists(harness);
 
@@ -194,7 +193,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(panels(parse((await agent.get("/queue?tab=done")).text))).toHaveLength(1);
 	});
 
-	it("performs the change and silences the panel for good on the second button", async () => {
+	it("performs the change and silences the panel for good on acknowledgment", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, readlist, articleId } = await readerWithTwoReadlists(harness);
 
@@ -239,7 +238,7 @@ describe("Mark-as-read confirmation", () => {
 		expect(rendered).toHaveLength(1);
 		expect(panel.parentElement?.tagName).toBe("MAIN");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"This article also appears in other readlists. Marking it as read will update it everywhere:",
+			"When you mark this article as read, it’s marked as read in every readlist where you’ve saved it.",
 		);
 		expect(
 			[...panel.querySelectorAll(".confirm-popover__items li")].map((li) => li.textContent),

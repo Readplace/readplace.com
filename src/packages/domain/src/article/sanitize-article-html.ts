@@ -130,7 +130,7 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedAttributes: {
 		...Object.fromEntries(MATHML_TAGS.map((tag) => [tag, MATHML_ATTRIBUTES])),
 		a: ["href", "target", "rel", "title"],
-		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading", READER_IMAGE_SIZE_ATTRIBUTE, "style"],
+		img: ["src", "srcset", "sizes", "alt", "title", "width", "height", "loading", READER_IMAGE_SIZE_ATTRIBUTE, "style"],
 		td: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
 		th: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
 		tr: [READER_HEADER_ROW_ATTRIBUTE],

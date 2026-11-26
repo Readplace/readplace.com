@@ -918,11 +918,10 @@ export function initPopup(deps: {
 		const advertised = advertisesBulkSave(
 			parseStoredCapabilities(stored[ADVERTISED_CAPABILITIES_STORAGE_KEY]),
 		);
-		/** Unfiltered on purpose: the save reports an outcome for every tab counted
-		 * here, skips included, so a filtered count would under-report its own scope. */
 		const tabs = await browser.tabs.query({ currentWindow: true });
+		const { saveable, skipped } = classifyTabs(tabs, appDomains);
 		const count = document.querySelector(".list-view__save-all-count");
-		if (count) count.textContent = saveAllTabsLabel(tabs.length);
+		if (count) count.textContent = saveAllTabsLabel(saveable.length + skipped.length);
 		const button = document.getElementById("save-all-tabs-button");
 		if (button) button.hidden = !advertised;
 		const hint = document.getElementById("save-all-shortcut-hint");
@@ -953,10 +952,6 @@ export function initPopup(deps: {
 		}
 		await saveOrShowList(active.target);
 	}
-
-	elementById("save-all-view-readlist").addEventListener("click", async () => {
-		await showListView().catch(showListLoadFailure);
-	});
 
 	elementById("login-button").addEventListener("click", async () => {
 		const loginError = elementById("login-error");

@@ -18,7 +18,7 @@ import {
 	createNoopLogError,
 	TEST_APP_ORIGIN,
 } from "@packages/test-fixtures";
-import type { HighlightCreatedEvent } from "@packages/web-analytics";
+import type { HighlightCopiedEvent, HighlightCreatedEvent } from "@packages/web-analytics";
 import { JSDOM } from "jsdom";
 import { loginAgent, useTestServer } from "../../../test-app";
 
@@ -40,6 +40,7 @@ function parsedFixture(): TestAppFixture {
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
@@ -299,6 +300,35 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		).toEqual([id]);
 	});
 
+	it("offers Copy highlight with the quote, the copy status and a copied beacon carrying the platform", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-copy`);
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+
+		expect(
+			page
+				.querySelector(`[data-highlight-popover="${id}"] [data-test-action="highlight-panel-copy"]`)
+				?.getAttribute("data-highlight-copy"),
+		).toBe("readability parser");
+		const status = page.querySelector("[data-highlight-copy-status]");
+		expect({
+			copied: status?.getAttribute("data-copied-text"),
+			failed: status?.getAttribute("data-copy-failed-text"),
+			hidden: status?.hasAttribute("hidden"),
+			inPanel: status?.closest("[data-highlight-popover]") !== null,
+		}).toEqual({
+			copied: "Highlight copied",
+			failed: "Couldn't copy the highlight. Select its text to copy it.",
+			hidden: true,
+			inPanel: false,
+		});
+		expect(page.querySelector("[data-test-highlight-toolbar]")?.getAttribute("data-highlight-copied-url")).toBe(
+			`/queue/${articleId}/highlights/copied?platform=${platform}`,
+		);
+	});
+
 	it("shows a locked account its highlights without a panel", async () => {
 		const { fixture: lockable, lock } = lockedFixture();
 		const harness = useApp(lockable);
@@ -333,13 +363,14 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		}
 	});
 
-	it("loads the highlight script for a locked account's noted highlight, and not for highlights without a note", async () => {
+	it("loads the highlight script for a locked account with or without highlights and notes", async () => {
 		const { fixture: lockable, lock } = lockedFixture();
 		const harness = useApp(lockable);
 		const noted = await saveArticle(harness, `https://example.com/app-${platform}-read-only-script`);
 		await createHighlight(noted.agent, { articleId: noted.articleId, exact: "readability parser", note: "Script note" });
 		const bare = await saveArticle(harness, `https://example.com/app-${platform}-read-only-bare`);
 		await createHighlight(bare.agent, { articleId: bare.articleId, exact: "readability parser" });
+		const empty = await saveArticle(harness, `https://example.com/app-${platform}-read-only-empty`);
 		lock();
 
 		const scriptsOf = async (input: { agent: Agent; articleId: string }) =>
@@ -347,11 +378,38 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 				doc((await input.agent.get(`/queue/${input.articleId}/view?platform=${platform}`)).text).querySelectorAll("script[src]"),
 				(script) => script.getAttribute("src"),
 			);
-		const notedScripts = await scriptsOf(noted);
-		const bareScripts = await scriptsOf(bare);
 
-		expect(notedScripts).toContain("/client-dist/highlight-toolbar.client.js");
-		expect(bareScripts).toEqual(notedScripts.filter((src) => src !== "/client-dist/highlight-toolbar.client.js"));
+		for (const reader of [noted, bare, empty]) {
+			expect(await scriptsOf(reader)).toContain("/client-dist/highlight-toolbar.client.js");
+		}
+	});
+
+	it("offers a locked account Copy on each rail row and counts the copy against the app surface", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-copy`);
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+		lock();
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+
+		expect(page.querySelectorAll('[data-test-highlights-rail] [data-test-action="highlight-copy"]')).toHaveLength(1);
+		const status = page.querySelector("[data-test-highlight-rail-copy-status]");
+		assert(status, "the reader renders the copy status region");
+		expect(status.parentElement?.tagName).toBe("MAIN");
+		const copiedUrl = status.getAttribute("data-copied-url");
+		assert(copiedUrl, "the status region names the copied beacon");
+		const highlightId = page.querySelector("[data-test-highlights-rail] [data-highlight-row]")?.getAttribute("data-highlight-row");
+		assert(highlightId, "the rail row names its highlight");
+
+		const response = await agent.post(`${copiedUrl}&highlight=${highlightId}`);
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events
+				.filter((event): event is HighlightCopiedEvent => event.event === "highlight_copied")
+				.map((event) => event.surface),
+		).toEqual([platform]);
 	});
 
 	it("keeps the marks and the surface on the reader poll's rail", async () => {
@@ -533,6 +591,10 @@ describe("Highlight refusals and notes in the iOS app reader", () => {
 		const createAction = page.querySelector("[data-test-highlight-create-form]")?.getAttribute("action");
 		expect(createAction).toContain("platform=ios");
 		expect(createAction).toContain("utm_source=highlight-toolbar");
+		const status = page.querySelector("[data-highlight-status]");
+		expect(status?.getAttribute("data-highlight-refusal")).toBe("passage-changed");
+		expect(status?.hasAttribute("data-highlight-status-shown")).toBe(true);
+		expect(page.querySelector("[data-test-highlight-status]")?.textContent).toBe("That passage changed; select it again");
 	});
 
 	it("answers an htmx create with a note with an HX-Location that keeps the surface and does not push", async () => {

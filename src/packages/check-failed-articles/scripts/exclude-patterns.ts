@@ -326,6 +326,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// production. Anchored to the host so a page that only links to a video
 	// still surfaces.
 	/^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be)(?:[/:?#]|$)/i,
+	/^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:economist\.com|wsj\.com|nytimes\.com|ft\.com|derekthompson\.org|newcomer\.co|tomshardware\.com|nationalreview\.com)(?:[/:?#]|$)/i,
 	/^https:\/\/substack\.com\/inbox\?redirect_url=https%3A%2F%2Fnewsletter\.pragmaticengineer\.com%2Fp%2Fbuilding-resilient-systems-with-sam%2Fcomments%3Futm_source%3Dsubstack%252Csubstack%26publication_id%3D458709%26post_id%3D218980052%26utm_medium%3Demail%252Cemail%26isFreemail%3Dfalse%26comments%3Dtrue%26utm_campaign%3Demail-half-magic-comments%26action%3Dpost-comment%26r%3D[^&#]*$/i,
 	/^https:\/\/medium\.com\/hackernoon\/$/i,
 	/^https:\/\/fagnerbrack\.com\/mailto:$/i,

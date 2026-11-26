@@ -139,6 +139,9 @@ export const SubmitLinkCommand = defineEvent({
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
 			saveTrigger: z.enum(["automatic", "manual"]),
+			requestedAt: z.iso.datetime().optional(),
+			personalPickAt: z.iso.datetime().optional(),
+			bulkSave: z.literal(true).optional(),
 			rawHtml: z.string().optional(),
 			emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 		}),
@@ -187,6 +190,7 @@ export const FileArticleIntoReadlistCommand = defineEvent({
 		userId: UserIdSchema,
 		url: z.string(),
 		readlist: z.string(),
+		requestedAt: z.iso.datetime().optional(),
 		provenance: z.looseObject({ kind: z.string() }),
 		fit: z.union([
 			z.object({
@@ -449,6 +453,11 @@ export const LinkDequeuedEvent = defineEvent({
 	}),
 });
 export type LinkDequeuedDetail = z.infer<typeof LinkDequeuedEvent.detailSchema>;
+
+export const ReleaseHeldUploadCommand = defineEvent({
+	name: "release-held-upload", source: "hutch.user-data-jobs", detailType: "ReleaseHeldUploadCommand",
+	detailSchema: z.object({ marker: z.string().regex(/^readplace:removed-article\/[a-f0-9]{64}$/) }),
+});
 
 export const AnonymousLinkSavedEvent = defineEvent({
 	name: "anonymous-link-saved",
@@ -781,6 +790,14 @@ const SavedLinksJobSendersSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("all") }),
 	z.object({ kind: z.literal("chosen"), senderEmails: z.array(z.string()) }),
 ]);
+
+const BulkArticlesStep = z.object({ userId: UserIdSchema, id: z.uuid(), generation: z.number().int().nonnegative() });
+export const RunBulkArticlesCommand = defineEvent({
+	name: "run-bulk-articles-command", source: "hutch.api", detailType: "RunBulkArticlesCommand", detailSchema: BulkArticlesStep.extend({ intent: z.enum(["confirm", "restore", "retry"]).optional() }),
+});
+export const BulkArticlesProgressedEvent = defineEvent({
+	name: "bulk-articles-progressed", source: "hutch.user-data-jobs", detailType: "BulkArticlesProgressed", detailSchema: BulkArticlesStep,
+});
 
 export const RunSavedLinksJobCommand = defineEvent({
 	name: "run-saved-links-job-command",
@@ -1167,6 +1184,7 @@ export const EmailReceivedEvent = defineEvent({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		recipientAddress: z.string(),
+		startIndex: z.number().int().positive().optional(),
 		routing: z.discriminatedUnion("kind", [
 			z.object({ kind: z.literal("inbox") }),
 			z.object({
@@ -1211,6 +1229,7 @@ export const EmailLinksTriagedEvent = defineEvent({
 	detailSchema: z.discriminatedUnion("scope", [
 		z.object({
 			scope: z.literal("email"),
+			startIndex: z.number().int().positive().optional(),
 			userId: UserIdSchema,
 			receivedAtMessageId: z.string(),
 			readlist: z.string(),
@@ -1236,6 +1255,7 @@ export const SaveEmailIssueCommand = defineEvent({
 	source: "hutch.inbox",
 	detailType: "SaveEmailIssueCommand",
 	detailSchema: z.object({
+		requestedAt: z.iso.datetime().optional(),
 		userId: UserIdSchema,
 		saveAttemptId: SaveAttemptIdSchema,
 		receivedAtMessageId: z.string(),
@@ -1254,11 +1274,12 @@ export const EmailLinksFilteredEvent = defineEvent({
 	detailType: "EmailLinksFiltered",
 	detailSchema: z.object({
 		scope: z.enum(["email", "link"]),
+		startIndex: z.number().int().positive().optional(),
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
 		readlistLabel: z.string(),
-		decision: z.enum(["filtered", "no-purpose", "readlist-missing"]),
+		decision: z.enum(["filtered", "no-purpose", "readlist-missing", "smart-matching"]),
 		fit: z.array(
 			z.object({
 				ordinal: z.string(),
@@ -1284,6 +1305,7 @@ export const EmailLinksFilterFailedEvent = defineEvent({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
+		startIndex: z.number().int().positive().optional(),
 		reason: z.string(),
 		receiveCount: z.number(),
 	}),
@@ -1556,7 +1578,7 @@ export const GmailHistoryImportFailedEvent = defineEvent({
 export type GmailHistoryImportFailedDetail = z.infer<typeof GmailHistoryImportFailedEvent.detailSchema>;
 
 const GmailMessageOriginDetail = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("history"), accountEmail: z.string(), gmailMessageId: z.string(), senderEmail: z.string() }),
+	z.object({ kind: z.literal("history"), accountEmail: z.string(), gmailMessageId: z.string(), jobId: z.string().optional(), senderEmail: z.string() }),
 	z.object({ kind: z.literal("forwarded"), accountEmail: z.string(), rfcMessageId: z.string(), senderEmail: z.string() }),
 ]);
 
@@ -1655,37 +1677,6 @@ export const GmailModifyPermissionGrantedEvent = defineEvent({
 	detailSchema: z.object({ userId: UserIdSchema, accountEmail: z.string() }),
 });
 export type GmailModifyPermissionGrantedDetail = z.infer<typeof GmailModifyPermissionGrantedEvent.detailSchema>;
-
-const GmailMarkBackfillRefSchema = z.object({ userId: UserIdSchema, accountEmail: z.string(), senderEmail: z.string() });
-
-export const StartGmailMarkBackfillCommand = defineEvent({
-	name: "start-gmail-mark-backfill",
-	source: "hutch.app",
-	detailType: "StartGmailMarkBackfill",
-	detailSchema: GmailMarkBackfillRefSchema.extend({ generation: z.number().int().positive() }),
-});
-export type StartGmailMarkBackfillDetail = z.infer<typeof StartGmailMarkBackfillCommand.detailSchema>;
-
-export const ProcessGmailMarkBackfillPageCommand = defineEvent({
-	name: "process-gmail-mark-backfill-page",
-	source: "hutch.app",
-	detailType: "ProcessGmailMarkBackfillPage",
-	detailSchema: GmailMarkBackfillRefSchema.extend({
-		generation: z.number().int().positive(),
-		page: z.number().int().nonnegative(),
-	}),
-});
-export type ProcessGmailMarkBackfillPageDetail = z.infer<typeof ProcessGmailMarkBackfillPageCommand.detailSchema>;
-
-export const GmailMarkBackfillPageProcessedEvent = defineEvent({
-	name: "gmail-mark-backfill-page-processed",
-	source: "hutch.app",
-	detailType: "GmailMarkBackfillPageProcessed",
-	detailSchema: GmailMarkBackfillRefSchema.extend({
-		nextPage: z.object({ generation: z.number().int().positive(), page: z.number().int().nonnegative() }),
-	}),
-});
-export type GmailMarkBackfillPageProcessedDetail = z.infer<typeof GmailMarkBackfillPageProcessedEvent.detailSchema>;
 
 export type { EventDefinition, CommandDefinition };
 
@@ -1834,3 +1825,35 @@ export const HighlightsReanchoredEvent = defineEvent({
 	}),
 });
 export type HighlightsReanchoredDetail = z.infer<typeof HighlightsReanchoredEvent.detailSchema>;
+
+export const MatchSmartReadlistsCommand = defineEvent({
+	name: "match-smart-readlists-command",
+	source: "hutch.app",
+	detailType: "MatchSmartReadlistsCommand",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		storedKey: z.string().min(1),
+		savedAt: z.iso.datetime(),
+	}),
+});
+export type MatchSmartReadlistsDetail = z.infer<typeof MatchSmartReadlistsCommand.detailSchema>;
+
+export const SmartReadlistsMatchedEvent = defineEvent({
+	name: "smart-readlists-matched",
+	source: "hutch.save-link",
+	detailType: "SmartReadlistsMatched",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		storedKey: z.string().min(1),
+		outcome: z.enum(["matched", "paid-plan-required", "not-in-all", "nothing-to-match", "not-an-article"]),
+		readlists: z.array(
+			z.object({
+				readlist: z.string(),
+				revision: z.number().int().nonnegative(),
+				verdict: z.enum(["keep", "drop", "unsure"]),
+				filing: z.enum(["filed", "newer-row-won", "readlist-gone", "removed-after-request", "not-in-all", "smart-rule-changed"]).optional(),
+			}),
+		),
+	}),
+});
+export type SmartReadlistsMatchedDetail = z.infer<typeof SmartReadlistsMatchedEvent.detailSchema>;

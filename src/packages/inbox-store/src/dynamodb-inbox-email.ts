@@ -55,6 +55,11 @@ export function initDynamoDbInboxEmail(deps: {
 		tableName: deps.tableName,
 		schema: InboxEmailRow,
 	});
+	const receivedSenders = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: InboxEmailRow.pick({ senderEmail: true }),
+	});
 	const messageIdIndex = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
@@ -79,7 +84,22 @@ export function initDynamoDbInboxEmail(deps: {
 			if (outcome.kind === "condition-failed") return "duplicate";
 			return "stored";
 		},
-		listEmailsByUserId: async ({ userId, cursor, pageSize }) => {
+		listReceivedSenders: async (userId) => {
+			const senders = new Set<string>();
+			await forEachQueryPage(receivedSenders, {
+				KeyConditionExpression: "userId = :uid",
+				FilterExpression: "#status = :received",
+				ProjectionExpression: "senderEmail",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":uid": userId, ":received": "received" },
+			}, async (rows) => {
+				for (const { senderEmail } of rows) {
+					if (senderEmail !== "") senders.add(senderEmail);
+				}
+			});
+			return [...senders].sort();
+		},
+		listEmailsByUserId: async ({ userId, cursor, pageSize, sender }) => {
 			assert(Number.isInteger(pageSize), "pageSize must be an integer");
 			assert(pageSize >= 1, "pageSize must be >= 1");
 			assert(
@@ -97,9 +117,13 @@ export function initDynamoDbInboxEmail(deps: {
 			do {
 				const { items, lastEvaluatedKey } = await table.query({
 					KeyConditionExpression: "userId = :uid",
-					ExpressionAttributeValues: { ":uid": userId },
+					...(sender === undefined ? { ExpressionAttributeValues: { ":uid": userId } } : {
+						FilterExpression: "senderEmail = :sender AND #status = :received",
+						ExpressionAttributeNames: { "#status": "status" },
+						ExpressionAttributeValues: { ":uid": userId, ":sender": sender, ":received": "received" },
+					}),
 					ScanIndexForward: !descending,
-					Limit: probeLimit - collected.length,
+					Limit: sender === undefined ? probeLimit - collected.length : 100,
 					ExclusiveStartKey: exclusiveStartKey,
 				});
 				collected.push(...items);
@@ -115,7 +139,21 @@ export function initDynamoDbInboxEmail(deps: {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }, { consistentRead: true }),
-		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts }) => {
+		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts, window }) => {
+			if (window) {
+				const first = window.start === 0;
+				await writeIfCondition(() => table.update({
+					Key: { userId, receivedAtMessageId },
+					ConditionExpression: first
+						? "attribute_exists(receivedAtMessageId) AND attribute_not_exists(countedThrough)"
+						: "countedThrough = :start",
+					UpdateExpression: first ? "SET countedThrough = :end, linkCounts = :counts"
+						: "SET countedThrough = :end, linkCounts.kept = linkCounts.kept + :kept, linkCounts.skipped = linkCounts.skipped + :skipped, linkCounts.truncated = :truncated",
+					ExpressionAttributeValues: first ? { ":end": window.end, ":counts": linkCounts }
+						: { ":end": window.end, ":start": window.start, ":kept": linkCounts.kept, ":skipped": linkCounts.skipped, ":truncated": linkCounts.truncated },
+				}));
+				return;
+			}
 			await table.update({
 				Key: { userId, receivedAtMessageId },
 				ConditionExpression: "attribute_exists(receivedAtMessageId)",

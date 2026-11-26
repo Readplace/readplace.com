@@ -5,11 +5,18 @@ import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt,
 import { type CrawlArticle, type YouTubeEmbed, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
+import type {
+	ActiveCoverageRules,
+	CoverageAlternative,
+	CoverageInspection,
+	SourceInspection,
+} from "./coverage-rules/coverage-rule.types";
 
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;
 	siteRules: readonly SiteRules[];
 	readabilityAdditions: ReadabilityAdditions;
+	coverageRules: ActiveCoverageRules;
 	logError: (message: string, error?: Error) => void;
 }): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
@@ -26,17 +33,19 @@ export function initReadabilityParser(deps: {
 			excerpt: contentSavedFromHostExcerpt(hostname),
 		};
 
+		const html = deps.readabilityAdditions.normalizeMalformedTitleEndTag(params.html);
 		const extracted = tryExtractFromSiteRules({
 			siteRules: deps.siteRules,
-			html: params.html,
+			html,
 			url: params.url,
 			documentUrl: params.documentUrl,
 			fetchedDocument: params.fetchedDocument,
 			logError: deps.logError,
 		});
+		const inspected = extracted === undefined ? inspectCoverage({ html, documentUrl: params.documentUrl }) : [];
 
 		const { document } = parseHTML(
-			extracted ? buildSyntheticHtml(extracted) : params.html,
+			extracted ? buildSyntheticHtml(extracted) : html,
 		);
 		if (!document.documentElement) {
 			return { ok: false, reason: "no <html> element in response body" };
@@ -46,10 +55,12 @@ export function initReadabilityParser(deps: {
 		// the caller can mark the crawl failed immediately — otherwise
 		// it escapes the whole pipeline and the reader slot is stuck on
 		// "pending" until the dead-letter path ticks over.
+		let restoreTitleHeading = (html: string) => html;
 		let parsed: ReturnType<Readability["parse"]>;
 		let phase: "Article normalization" | "Readability parse" = "Article normalization";
 		try {
 			deps.readabilityAdditions.normalizeImplicitBody(document);
+			if (!extracted && html !== params.html) restoreTitleHeading = deps.readabilityAdditions.preserveQualifiedTitleHeading(document);
 			deps.readabilityAdditions.preserveSubstackImagePreview({ document, savedUrl: params.url, documentUrl: params.documentUrl });
 			deps.readabilityAdditions.unwrapArticleBodyTemplates(document);
 			deps.readabilityAdditions.replaceVideosWithPlaceholder({
@@ -65,6 +76,7 @@ export function initReadabilityParser(deps: {
 				siteRules: deps.siteRules,
 				document,
 				url: params.url,
+				documentUrl: params.documentUrl,
 				logError: deps.logError,
 			});
 			deps.readabilityAdditions.demoteBodyHeadings(document);
@@ -98,6 +110,7 @@ export function initReadabilityParser(deps: {
 					content: "",
 					imageUrl: params.thumbnailUrl ?? undefined,
 				},
+				coverage: inspected.map((source) => toCoverageInspection({ source, url: params.url, documentUrl: params.documentUrl })),
 			};
 		}
 
@@ -113,12 +126,82 @@ export function initReadabilityParser(deps: {
 				siteName: parsed.siteName || fallback.siteName,
 				excerpt: clipMetadataExcerpt(parsed.excerpt || fallback.excerpt),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
+				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(restoreTitleHeading(parsed.content)), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
 				publishedOn: deps.readabilityAdditions.publishedOnFrom(parsed.publishedTime),
 			},
+			coverage: inspected.map((source) => toCoverageInspection({ source, url: params.url, documentUrl: params.documentUrl })),
 		};
 	};
+
+	function inspectCoverage(source: { html: string; documentUrl: string }): readonly SourceInspection[] {
+		try {
+			return deps.coverageRules.inspect(source);
+		} catch (error) {
+			deps.logError(`[ReadabilityParser] Coverage inspection threw for ${source.documentUrl}`, toError(error));
+			return [];
+		}
+	}
+
+	function toCoverageInspection(params: { source: SourceInspection; url: string; documentUrl: string }): CoverageInspection {
+		const { source } = params;
+		if (source.kind === "abstained") {
+			return source;
+		}
+		const { recoveredBodyHtml, verify, ...assessed } = source;
+		return {
+			...assessed,
+			verify: (reader) => {
+				try {
+					return verify(reader);
+				} catch (error) {
+					deps.logError(`[ReadabilityParser] Coverage verify threw for ${params.documentUrl}`, toError(error));
+					return { outcome: "unknown", reasons: ["rule-failed"] };
+				}
+			},
+			alternative:
+				recoveredBodyHtml === undefined
+					? undefined
+					: () => {
+							try {
+								return materialiseAlternative({ bodyHtml: recoveredBodyHtml, url: params.url, documentUrl: params.documentUrl });
+							} catch (error) {
+								deps.logError(`[ReadabilityParser] Coverage alternative threw for ${params.documentUrl}`, toError(error));
+								return undefined;
+							}
+						},
+		};
+	}
+
+	function materialiseAlternative(params: { bodyHtml: string; url: string; documentUrl: string }): CoverageAlternative {
+		const { document } = parseHTML(`<!DOCTYPE html><html><head></head><body><article>${params.bodyHtml}</article></body></html>`);
+		deps.readabilityAdditions.unwrapArticleBodyTemplates(document);
+		deps.readabilityAdditions.replaceVideosWithPlaceholder({
+			document,
+			originalUrl: params.url,
+			renderPlaceholder: renderVideoPlaceholder,
+		});
+		deps.readabilityAdditions.replaceEmbedsWithFacade({ document, renderFacade: renderEmbedFacade });
+		applyTransforms({
+			siteRules: deps.siteRules,
+			document,
+			url: params.url,
+			documentUrl: params.documentUrl,
+			logError: deps.logError,
+		});
+		deps.readabilityAdditions.demoteBodyHeadings(document);
+		const article = document.querySelector("article");
+		assert(article, "the alternative document is built around an <article>");
+		const text = article.textContent;
+		assert(text !== null, "an element always has textContent");
+		return {
+			content: deps.readabilityAdditions.resolveRelativeUrls({
+				html: deps.readabilityAdditions.restoreRetaggedTables(article.innerHTML),
+				baseUrl: params.documentUrl,
+			}),
+			wordCount: Array.from(text.matchAll(/\S+/g)).length,
+		};
+	}
 
 	const parseArticle: ParseArticle = async (url) => {
 		try {
@@ -176,12 +259,13 @@ function applyTransforms(params: {
 	siteRules: readonly SiteRules[];
 	document: Document;
 	url: string;
+	documentUrl: string;
 	logError: (message: string, error?: Error) => void;
 }): void {
 	for (const site of params.siteRules) {
 		if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
 		try {
-			site.transform({ document: params.document });
+			site.transform({ document: params.document }, { savedUrl: params.url, documentUrl: params.documentUrl });
 		} catch (error) {
 			params.logError(
 				`[ReadabilityParser] Site transform threw for ${params.url}`,

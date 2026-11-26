@@ -1,4 +1,5 @@
-import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { SaveAttemptIdSchema, CandidateIdSchema, ALL_COVERAGE_RULES_OFF, type CoverageAssessment, type CoverageRuleModes } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
@@ -93,6 +94,7 @@ type Dependencies = Omit<Parameters<typeof initPrepareContentSelection>[0], "jud
 };
 function setup(overrides: Partial<Dependencies> = {}) {
 	const deps: Dependencies = {
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [],
 		selectMostCompleteContent: async () => ({ kind: "none", reason: "No readable article" }),
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: ARCHIVE }),
@@ -749,6 +751,7 @@ describe("initPrepareContentSelection", () => {
 		live.metadata.httpStatus = 200;
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
+			coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
 			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
@@ -765,6 +768,7 @@ describe("initPrepareContentSelection", () => {
 		blank.metadata.httpStatus = 200;
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
+			coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
 			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
@@ -1530,5 +1534,200 @@ describe("candidates whose prose is identical", () => {
 		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });
 
 		expect(JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1])).toMatchObject({ selectionRule: "judge", judgedBodies: 1 });
+	});
+});
+
+describe("coverage losses in content selection", () => {
+	const ENFORCE: CoverageRuleModes = { "section-coverage": "enforce" };
+	const SHADOW: CoverageRuleModes = { "section-coverage": "shadow" };
+	const verifiedSections = (units: number): CoverageAssessment => ({ ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "verified-for-scope", scope: { kind: "article", units }, covered: units });
+	const lostSections = (params: { units: number; covered: number }): CoverageAssessment => ({ ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "known-partial", scope: { kind: "article", units: params.units }, covered: params.covered, unresolved: params.units - params.covered, reasons: ["missing-section"] });
+	const withCoverage = (candidate: VerifiedTierSource, assessments: CoverageAssessment[]): VerifiedTierSource => {
+		candidate.metadata.coverage = { schemaVersion: 1, sourceDigest: candidate.metadata.contentHash, outputDigest: createHash("sha256").update(candidate.html).digest("hex"), assessments };
+		return candidate;
+	};
+	const judgeFake = () => jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+	const judgedIds = (select: ReturnType<typeof judgeFake>) => select.mock.calls.map(([params]) => params.candidates.map((candidate) => candidate.id));
+	const canonicalOf = (assessments: CoverageAssessment[]) => {
+		const canonical = withCoverage(source("tier-1", "canonical", { html: "<p>The canonical guide in fourteen sections</p>" }), assessments);
+		canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		return canonical;
+	};
+	const rowFor = (canonical: VerifiedTierSource) => article({ contentSelection: { revision: 1, candidateId: canonical.metadata.id, tier: canonical.tier }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(canonical.html) } });
+	const lossyFresh = () => withCoverage(source("tier-1", "fresh", { html: "<p>The guide with one section left</p>" }), [lostSections({ units: 14, covered: 1 })]);
+	const recrawlOf = (candidate: string) => ({ url: URL, mode: "recrawl" as const, candidates: [{ id: cid(candidate), tier: "tier-1" as const }] });
+
+	it("keeps a verified canonical over a recrawled copy that lost its sections without asking the judge", async () => {
+		const canonical = canonicalOf([verifiedSections(14)]);
+		const select = judgeFake();
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, lossyFresh()], selectMostCompleteContent: select });
+
+		const result = await prepare(recrawlOf("fresh"));
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ outcome: "retained", selectionRule: "coverage-loss-retained", reason: "every other candidate lost sections its own source holds", judgedBodies: 0 });
+		expect(result.selected?.metadata.id).toBe("canonical");
+		expect(result.coverage.excludedIds).toEqual([cid("fresh")]);
+	});
+
+	it("keeps a lossy canonical when every recrawled candidate was fetched before it", async () => {
+		const canonical = canonicalOf([lostSections({ units: 14, covered: 1 })]);
+		const stale = withCoverage(source("tier-1", "stale", { html: "<p>An older copy with every section</p>" }), [verifiedSections(14)]);
+		stale.metadata.fetchedAt = "2026-10-04T00:00:00.000Z";
+		const select = judgeFake();
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, stale], selectMostCompleteContent: select });
+
+		const result = await prepare(recrawlOf("stale"));
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ outcome: "retained", selectionRule: "superseded-by-canonical" });
+		expect(result.selected?.metadata.id).toBe("canonical");
+	});
+
+	it("lets a verified fresh copy replace a lossy canonical and shows the judge the coverage note", async () => {
+		const canonical = canonicalOf([lostSections({ units: 14, covered: 1 })]);
+		const fresh = withCoverage(source("tier-1", "fresh", { html: "<p>The repaired guide with every section</p>" }), [verifiedSections(14)]);
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Complete" });
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, fresh], selectMostCompleteContent: select });
+
+		const result = await prepare(recrawlOf("fresh"));
+
+		expect(judgedIds(select)).toEqual([["fresh"]]);
+		expect(select.mock.calls[0]?.[0].candidates[0]).toMatchObject({ coverage: "section-coverage@1 verified-for-scope 14/14" });
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge" });
+		expect(result.selected?.metadata.id).toBe("fresh");
+		expect(result.coverage.excludedIds).toEqual([cid("canonical")]);
+	});
+
+	it("excludes the lossy copy before the lone-body shortcut on a first save", async () => {
+		const lossy = withCoverage(source("tier-1", "lossy", { html: "<p>The guide with one section left</p>" }), [lostSections({ units: 14, covered: 1 })]);
+		const full = withCoverage(source("tier-1", "full", { html: "<p>The guide with every section</p>" }), [verifiedSections(14)]);
+		const select = judgeFake();
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, listAvailableTierSources: async () => [lossy, full], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("lossy"), tier: "tier-1" }, { id: cid("full"), tier: "tier-1" }] });
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "lone-body", judgedBodies: 0 });
+		expect(result.selected?.metadata.id).toBe("full");
+	});
+
+	it("does not take the near-identical refresh shortcut when the fresh body lost sections", async () => {
+		const facts = (count: number) => Array.from({ length: count }, (_, index) => `<p>Fact ${index + 1} holds.</p>`).join("");
+		const canonical = withCoverage(source("tier-1", "canonical", { html: facts(200) }), [verifiedSections(14)]);
+		canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		const fresh = withCoverage(source("tier-1", "fresh", { html: `${facts(199)}<p>Fact 200 holds today.</p>` }), [lostSections({ units: 14, covered: 13 })]);
+		const select = judgeFake();
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, fresh], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, mode: "refresh", refresh: { contentFetchedAt: NOW }, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ outcome: "retained", selectionRule: "coverage-loss-retained" });
+		expect(result.selected?.metadata.id).toBe("canonical");
+	});
+
+	it("asks the judge about a verified refreshed body instead of taking the near-identical shortcut past a lossy canonical", async () => {
+		const facts = (count: number) => Array.from({ length: count }, (_, index) => `<p>Fact ${index + 1} holds.</p>`).join("");
+		const canonical = withCoverage(source("tier-1", "canonical", { html: facts(200) }), [lostSections({ units: 14, covered: 1 })]);
+		canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		const fresh = withCoverage(source("tier-1", "fresh", { html: `${facts(199)}<p>Fact 200 holds today.</p>` }), [verifiedSections(14)]);
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Complete" });
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, fresh], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, mode: "refresh", refresh: { contentFetchedAt: NOW }, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+		expect(judgedIds(select)).toEqual([["fresh"]]);
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge" });
+		expect(result.selected?.metadata.id).toBe("fresh");
+	});
+
+	it("asks the judge instead of keeping a lossy canonical whose prose a verified copy shares", async () => {
+		const prose = "<p>The guide in fourteen sections</p>";
+		const lossyCanonical = withCoverage(source("tier-1", "canonical", { html: prose }), [lostSections({ units: 14, covered: 1 })]);
+		lossyCanonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		const fresh = withCoverage(source("tier-1", "fresh", { html: prose }), [verifiedSections(14)]);
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Complete" });
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(lossyCanonical), listAvailableTierSources: async () => [lossyCanonical, fresh], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+		expect(judgedIds(select)).toEqual([["fresh"]]);
+		expect(result.selectionRule).toBe("judge");
+		expect(result.selected?.metadata.id).toBe("fresh");
+	});
+
+	it("falls back on a judge-provider rejection to the verified copy, never the lossy one", async () => {
+		const lossy = withWordCount(withCoverage(source("tier-1", "lossy", { html: "<p>The guide with one section left</p>" }), [lostSections({ units: 14, covered: 1 })]), 99);
+		lossy.metadata.httpStatus = 200;
+		const archived = withWordCount(withCoverage(source("tier-2", "archived", { html: "<p>The archived guide with every section</p>" }), [verifiedSections(14)]), 99);
+		archived.metadata.httpStatus = 200;
+		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
+		const prepare = initPrepareContentSelection({
+			coverageRuleModes: ENFORCE,
+			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [lossy, archived],
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: ARCHIVE }),
+		});
+
+		const result = await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save", candidates: [{ tier: "tier-1", id: cid("lossy") }, { tier: "tier-2", id: cid("archived") }] });
+
+		expect(result.audit?.responseStatus).toBe("rejected");
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "provider-rejected-fallback" });
+		expect(result.selected?.metadata.id).toBe("archived");
+	});
+
+	it("excludes nothing when the only verified copy answered an error status, and asks the judge about both", async () => {
+		const lossy = withWordCount(withCoverage(source("tier-1", "lossy", { html: "<p>The guide with one section left</p>" }), [lostSections({ units: 14, covered: 1 })]), 900);
+		lossy.metadata.httpStatus = 200;
+		const blocked = withCoverage(source("tier-1", "blocked", { html: "<p>The guide with every section behind a block</p>" }), [verifiedSections(14)]);
+		blocked.metadata.httpStatus = 403;
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("lossy"), reason: "Readable" });
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, listAvailableTierSources: async () => [lossy, blocked], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("lossy"), tier: "tier-1" }, { id: cid("blocked"), tier: "tier-1" }] });
+
+		expect(judgedIds(select)).toEqual([["lossy", "blocked"]]);
+		expect(result.coverage.excludedIds).toEqual([]);
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge" });
+		expect(result.selected?.metadata.id).toBe("lossy");
+	});
+
+	it("selects exactly as with coverage off under shadow, and logs what it would exclude", async () => {
+		const canonical = canonicalOf([verifiedSections(14)]);
+		const fresh = lossyFresh();
+		const run = async (coverageRuleModes: CoverageRuleModes) => {
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Newer" });
+			const { prepare } = setup({ coverageRuleModes, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, fresh], selectMostCompleteContent: select });
+			return { select, result: await prepare(recrawlOf("fresh")) };
+		};
+
+		const off = await run(ALL_COVERAGE_RULES_OFF);
+		const shadow = await run(SHADOW);
+
+		expect(shadow.select).toHaveBeenCalledTimes(1);
+		expect(shadow.select.mock.calls[0]?.[0].candidates.every((candidate) => !("coverage" in candidate))).toBe(true);
+		expect({ ...shadow.result, coverage: undefined }).toEqual({ ...off.result, coverage: undefined });
+		expect(shadow.result.coverage.wouldExcludeIds).toEqual([cid("fresh")]);
+		const info = jest.fn();
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: shadow.result });
+		const logged = JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1]);
+		expect(logged).toMatchObject({ coverageWouldExcludeIds: ["fresh"] });
+		expect(logged.coverageExcludedIds).toBeUndefined();
+	});
+
+	it("logs each candidate's coverage and the candidates it excluded under enforce", async () => {
+		const canonical = canonicalOf([verifiedSections(14)]);
+		const { prepare } = setup({ coverageRuleModes: ENFORCE, loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, lossyFresh()] });
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare(recrawlOf("fresh")) });
+
+		const logged = JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1]);
+		expect(logged).toMatchObject({ selectionRule: "coverage-loss-retained", coverageExcludedIds: ["fresh"] });
+		expect(logged.coverageWouldExcludeIds).toBeUndefined();
+		expect(logged.candidates).toMatchObject([
+			{ id: "canonical", coverage: { assessments: [{ outcome: "verified-for-scope" }] } },
+			{ id: "fresh", coverage: { assessments: [{ outcome: "known-partial", covered: 1 }] } },
+		]);
 	});
 });

@@ -1,3 +1,4 @@
+import { READER_HOME_HREF } from "./web/pages/readlist/built-in-readlists";
 import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { initKeepOffer } from "./domain/engagement/keep-offer";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
@@ -48,6 +49,8 @@ import type {
 	SaveAppleRefreshToken,
 	MarkActivationThresholdReached,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -115,6 +118,8 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -123,6 +128,7 @@ import type {
 	AllocateSavedAtSequence,
 	FindSavedUrls,
 	CountArticlesByUser,
+	ChangePersonalPick,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -144,12 +150,15 @@ import type {
 	SaveReadlistArticle,
 	MoveReadlistArticles,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -316,7 +325,7 @@ import type {
 	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -478,6 +487,8 @@ export interface AppDependencies {
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	keepOfferCouponId: string;
 	keepOfferEndsAt: Date;
 	findUserPasswordStatus: FindUserPasswordStatus;
@@ -514,6 +525,7 @@ export interface AppDependencies {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
+	changePersonalPick: ChangePersonalPick;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
@@ -525,6 +537,7 @@ export interface AppDependencies {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
@@ -540,6 +553,8 @@ export interface AppDependencies {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
@@ -581,6 +596,9 @@ export interface AppDependencies {
 	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
+	listReceivedSenders: InboxEmailStore["listReceivedSenders"];
+	bulkArticles?: import("./web/pages/readlist/bulk-articles.page").BulkArticleOperations;
+	listSenderIssues: InboxEmailStore["listEmailsByUserId"];
 	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
 	findIssueLink: InboxEmailLinkStore["getLink"];
 	findIssueLinkSaveStates: InboxSavedLinkStore["findSavedLinks"];
@@ -621,6 +639,8 @@ export interface AppDependencies {
 	getOnboardingSignals: GetOnboardingSignals;
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;
@@ -1241,7 +1261,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	);
 	app.get("/", async (req: Request, res: Response) => {
 		if (req.userId) {
-			res.redirect(303, READLIST_PATH);
+			res.redirect(303, READER_HOME_HREF);
 			return;
 		}
 
@@ -1779,6 +1799,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			findPendingViewHighlights: deps.findPendingViewHighlights,
 			releasePendingViewHighlights: deps.releasePendingViewHighlights,
 			claimViewHighlights: initClaimViewHighlights({
+				now: deps.now,
 				validateNewSaveUrl,
 				claimDailySaves,
 				refreshArticleIfStale: deps.refreshArticleIfStale,

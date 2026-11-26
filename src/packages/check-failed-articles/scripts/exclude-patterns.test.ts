@@ -360,16 +360,6 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			label: "same directory different file",
 		},
 		{
-			url: "https://www.wsj.com/world/china/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180",
-			excluded: false,
-			label: "wsj china piece without the mod query param",
-		},
-		{
-			url: "https://www.nytimes.com/2026/05/06/business/media/bbc-guy-goma-interview",
-			excluded: false,
-			label: "nyt bbc-guy-goma article missing .html",
-		},
-		{
 			url: "https://cutlefish.substack.com/p/tbm-1352-asking-better-questions?utm_source=substack&utm_medium=email",
 			excluded: true,
 			label: "cutlefish tbm-1352 exact with utm suffix",
@@ -1004,6 +994,29 @@ describe("EXCLUDE_PATTERNS — YouTube, every host and path shape", () => {
 		{ url: "https://youtube.com.evil.com/watch", excluded: false, label: "subdomain trick (should NOT match)" },
 		{ url: "https://blog.test/post?ref=https://www.youtube.com/watch?v=abcdefghijk", excluded: false, label: "a page that only links to a video — must still surface" },
 		{ url: "https://click.newsletter.test/c/abc123", excluded: false, label: "a click-tracking link that redirects to YouTube — the canary cannot see the destination" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
+describe("EXCLUDE_PATTERNS — subscription publishers (issue #1497)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.economist.com/finance/2026/01/01/a-story", excluded: true, label: "economist article" },
+		{ url: "https://www.wsj.com/tech/a-story-1234", excluded: true, label: "wsj article" },
+		{ url: "https://www.nytimes.com/2026/01/01/us/a-story.html", excluded: true, label: "nytimes article" },
+		{ url: "https://www.ft.com/content/0000-1111", excluded: true, label: "ft article" },
+		{ url: "https://www.derekthompson.org/p/a-post", excluded: true, label: "derekthompson post" },
+		{ url: "https://www.newcomer.co/p/a-post", excluded: true, label: "newcomer post" },
+		{ url: "https://www.tomshardware.com/news/a-story", excluded: true, label: "tomshardware article" },
+		{ url: "https://www.nationalreview.com/2026/01/a-story/", excluded: true, label: "nationalreview article" },
+		{ url: "nytimes.com/a-story", excluded: true, label: "schemeless bare host" },
+		{ url: "https://cooking.nytimes.com/recipes/1", excluded: true, label: "publisher subdomain" },
+		{ url: "https://www.microsoft.com/a-page", excluded: false, label: "host ending in ft.com without a dot boundary" },
+		{ url: "https://nytimes.com.evil.test/a", excluded: false, label: "suffix trick" },
+		{ url: "https://blog.test/?ref=https://www.nytimes.com/a", excluded: false, label: "publisher only linked in the query" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

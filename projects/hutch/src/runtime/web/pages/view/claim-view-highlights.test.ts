@@ -44,6 +44,7 @@ function freeAccountAllowance(limit: number): ClaimDailySaves {
 function claimWith(input: { unresolved: boolean }) {
 	const refreshed: string[] = [];
 	const claim = initClaimViewHighlights({
+		now: () => new Date("2026-11-18T00:00:00.000Z"),
 		validateNewSaveUrl: withPrivateItemRefusal(validateSaveableUrl),
 		claimDailySaves: grantAll,
 		refreshArticleIfStale: async ({ url }) => {
@@ -65,9 +66,11 @@ function claimWith(input: { unresolved: boolean }) {
 	return { claim, refreshed };
 }
 
+type Picks = { requestedAt: string | undefined; personalPickAt: string | undefined }[];
+
 function claimAnswering(
 	outcome: CreateHighlightByQuoteOutcome,
-	allowance: { claimDailySaves: ClaimDailySaves; savedUrls: string[] } = { claimDailySaves: grantAll, savedUrls: [] },
+	allowance: { claimDailySaves: ClaimDailySaves; savedUrls: string[]; picks: Picks } = { claimDailySaves: grantAll, savedUrls: [], picks: [] },
 ) {
 	const url = SaveableUrlSchema.parse(ARTICLE_URL);
 	const destinationUrl = articleDestinationUrl({ url, displayUrl: undefined });
@@ -94,6 +97,7 @@ function claimAnswering(
 		savedAt: new Date("2026-11-18T00:00:00.000Z"),
 	};
 	return initClaimViewHighlights({
+		now: () => new Date("2026-11-18T00:00:00.000Z"),
 		validateNewSaveUrl: withPrivateItemRefusal(validateSaveableUrl),
 		claimDailySaves: allowance.claimDailySaves,
 		refreshArticleIfStale: async () => ({
@@ -102,6 +106,7 @@ function claimAnswering(
 		}),
 		saveArticleAtReadlistTop: async (input) => {
 			allowance.savedUrls.push(input.url);
+			allowance.picks.push({ requestedAt: input.requestedAt, personalPickAt: input.personalPickAt });
 			return {
 			saved,
 			canonicalUrl: ARTICLE_URL,
@@ -215,7 +220,7 @@ describe("initClaimViewHighlights", () => {
 		const savedUrls: string[] = [];
 		const claim = claimAnswering(
 			{ status: "unchanged", highlight: EXISTING },
-			{ claimDailySaves: freeAccountAllowance(0), savedUrls },
+			{ claimDailySaves: freeAccountAllowance(0), savedUrls, picks: [] },
 		);
 
 		const claimed = await claim({
@@ -236,7 +241,7 @@ describe("initClaimViewHighlights", () => {
 		const savedUrls: string[] = [];
 		const claim = claimAnswering(
 			{ status: "unchanged", highlight: EXISTING },
-			{ claimDailySaves: freeAccountAllowance(1), savedUrls },
+			{ claimDailySaves: freeAccountAllowance(1), savedUrls, picks: [] },
 		);
 
 		const claimed = await claim({
@@ -259,5 +264,25 @@ describe("initClaimViewHighlights", () => {
 			dropped: 1,
 		});
 		assert.deepEqual(savedUrls, [ARTICLE_URL]);
+	});
+
+	it("saves a claimed highlight's article into Hand Picked", async () => {
+		const picks: Picks = [];
+		const claim = claimAnswering(
+			{ status: "unchanged", highlight: EXISTING },
+			{ claimDailySaves: grantAll, savedUrls: [], picks },
+		);
+
+		await claim({
+			userId: READER,
+			provenance: { kind: "web" },
+			pending: {
+				articleUrl: ARTICLE_URL,
+				returnTo: undefined,
+				items: [{ url: ARTICLE_URL, exact: "the quote", prefix: "", suffix: "" }],
+			},
+		});
+
+		assert.deepEqual(picks, [{ requestedAt: "2026-11-18T00:00:00.000Z", personalPickAt: "2026-11-18T00:00:00.000Z" }]);
 	});
 });

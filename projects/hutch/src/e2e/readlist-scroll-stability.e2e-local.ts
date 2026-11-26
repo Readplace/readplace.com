@@ -59,7 +59,7 @@ async function seedQueue(page: Page, stamp: string): Promise<string> {
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(OWNER_PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -273,6 +273,7 @@ for (const viewport of VIEWPORTS) {
 			const dialog = `#readlist-create-move-${articleId}`;
 			await page.click(`${card} [data-test-action="article-menu"]`);
 			await page.click(`${card} [data-test-action="move"]`);
+			await page.click(`#readlist-move-${articleId} [data-test-action="move-create"]`);
 			await page.waitForSelector(`${dialog}:popover-open`);
 			await page.locator(`${dialog} input[name="label"]`).fill("Finance");
 

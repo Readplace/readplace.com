@@ -4,6 +4,7 @@ import express from 'express'
 import { z } from 'zod'
 import { Logger, consoleLogger, noopLogger } from '@packages/logger'
 import {
+	ALL_COVERAGE_RULES_OFF,
 	calculateReadTime,
 	CRAWL_STAGES,
 	ItemMediaSchema,
@@ -25,10 +26,7 @@ import {
 	GmailHistoryImportFailureReasonSchema,
 	type GmailHistoryImportJobId,
 	GmailHistoryImportMessageOutcomeSchema,
-	GmailMarkBackfillCountsSchema,
-	GmailMarkBackfillFailureReasonSchema,
 	GmailMessageIdSchema,
-	ZERO_GMAIL_MARK_BACKFILL_COUNTS,
 	gmailHistoryImportRawKey,
 	settledCount,
 } from '@packages/domain/gmail'
@@ -81,7 +79,7 @@ import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget
 import type { ChargeOcrPages, CrawlArticle, ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
-import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
+import { activateCoverageRules, initArticleCoverageRules, initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
@@ -146,7 +144,13 @@ const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().w
 const crawlWithoutSaver = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const chargeSaverOcrPages: ChargeOcrPages = async () => ({ allowed: true })
 const crawlArticle: CrawlArticle = (params) => crawlWithoutSaver({ ...params, chargeOcrPages: chargeSaverOcrPages })
-const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
+const { parseArticle, parseHtml } = initReadabilityParser({
+	crawlArticle,
+	siteRules,
+	readabilityAdditions,
+	logError,
+	coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
+})
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
 	parseHtml,
@@ -765,6 +769,12 @@ server.post('/e2e/seed-inbox-article-queued', async (req, res) => {
 	res.status(201).json({ ok: true })
 })
 
+server.post('/e2e/seed-smart-readlist-milestone', async (req, res) => {
+	const { userId } = z.object({ userId: UserIdSchema }).parse(req.body)
+	await fixture.onboardingSignals.recordSmartReadlistMinimumReached({ userId })
+	res.status(201).json({ ok: true })
+})
+
 const SeedInboxAddressesBody = z.object({
 	userId: UserIdSchema,
 	inboxes: z.array(z.object({ name: AliasNameSchema, readlist: ReadlistSlugSchema.optional() })).min(1),
@@ -974,15 +984,6 @@ const SeedGmailImportBody = z.union([
 	z.object({ ...SeedGmailImportCommon, state: z.literal('cancelled'), cancelReason: GmailHistoryImportCancelReasonSchema }),
 ])
 
-const SeedGmailMarkBackfillCommon = {
-	sender: ForwardableSenderSchema,
-	counts: GmailMarkBackfillCountsSchema.partial().default({}),
-}
-const SeedGmailMarkBackfillBody = z.union([
-	z.object({ ...SeedGmailMarkBackfillCommon, state: z.enum(['running', 'complete']) }),
-	z.object({ ...SeedGmailMarkBackfillCommon, state: z.literal('failed'), failureReason: GmailMarkBackfillFailureReasonSchema }),
-])
-
 const SeedGmailStateBody = z
 	.object({
 		userId: UserIdSchema,
@@ -1013,7 +1014,6 @@ const SeedGmailStateBody = z
 			.default([]),
 		mappings: z.array(SeedGmailMappingBody).default([]),
 		imports: z.array(SeedGmailImportBody).default([]),
-		backfills: z.array(SeedGmailMarkBackfillBody).default([]),
 		completeImportsOnStart: GmailImportOutcomeCountsSchema.optional(),
 	})
 	.superRefine((body, context) => {
@@ -1180,32 +1180,6 @@ async function seedGmailImports(input: {
 	}
 }
 
-async function seedGmailMarkBackfills(input: {
-	userId: UserId
-	backfills: SeedGmailState['backfills']
-}): Promise<void> {
-	const { userId } = input
-	const { gmailMappingStore, gmailMarkBackfillStore } = gmailIntegration.bundle
-	for (const entry of input.backfills) {
-		const ref = { userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: entry.sender }
-		const mapping = await gmailMappingStore.findMapping(ref)
-		assert(mapping?.markImportedAt, `a seeded backfill for ${entry.sender} needs that sender mapped with mark in the same seed`)
-		const start = await gmailMarkBackfillStore.startBackfill({ ...ref, optionEnabledAt: mapping.markImportedAt, now: gmailNow() })
-		assert(start.started, `the backfill for ${entry.sender} must start`)
-		const { generation } = start.job
-		const counts = { ...ZERO_GMAIL_MARK_BACKFILL_COUNTS, ...entry.counts }
-		assert(await gmailMarkBackfillStore.claimPage({ ...ref, generation, page: 0, now: gmailNow() }))
-		if (entry.state === 'complete') {
-			assert(await gmailMarkBackfillStore.complete({ ...ref, generation, page: 0, counts, now: gmailNow() }))
-			continue
-		}
-		assert(await gmailMarkBackfillStore.savePage({ ...ref, generation, page: 0, cursor: 'e2e-next', counts, now: gmailNow() }))
-		if (entry.state === 'failed') {
-			assert.equal(await gmailMarkBackfillStore.failBackfill({ ...ref, generation, reason: entry.failureReason, now: gmailNow() }), 'failed')
-		}
-	}
-}
-
 server.post('/e2e/seed-gmail-state', async (req, res) => {
 	const parsed = SeedGmailStateBody.safeParse(req.body)
 	if (!parsed.success) {
@@ -1246,7 +1220,6 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		senderCount: filterSenderCount,
 	})
 	await seedGmailImports({ userId, gatewayAddress, imports: body.imports })
-	await seedGmailMarkBackfills({ userId, backfills: body.backfills })
 	await connection.afterSenders(userId)
 	res.status(201).json({ ok: true, gatewayAddress })
 })

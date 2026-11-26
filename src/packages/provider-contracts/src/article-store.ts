@@ -4,6 +4,8 @@ import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
 	ArticleStatus,
+	PersonalPickRequest,
+	PersonalReadlist,
 	SaveProvenance,
 	SaveTrigger,
 	SuggestionAttribution,
@@ -38,7 +40,17 @@ import type {
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
 
+export type ChangePersonalPick = (input: {
+	userId: UserId;
+	url: string;
+	picked: boolean;
+	request: PersonalPickRequest;
+}) => Promise<"updated" | "superseded" | "missing">;
+
 export interface SaveArticleParams {
+	requestedAt?: Date;
+	personalPick?: PersonalPickRequest;
+	bulkSave?: true;
 	suggestionAttribution?: SuggestionAttribution;
 	userId: UserId;
 	url: string;
@@ -53,6 +65,8 @@ export type SortField = "savedAt" | "readAt";
 export type SortOrder = "asc" | "desc";
 
 export interface FindArticlesQuery {
+	personalScope?: PersonalReadlist;
+	managedOrigin?: "bulk" | "unknown";
 	userId: UserId;
 	status?: ArticleStatus;
 	sort?: SortField;
@@ -66,6 +80,8 @@ export interface FindArticlesQuery {
 }
 
 export interface CountArticlesQuery {
+	personalScope?: PersonalReadlist;
+	managedOrigin?: "bulk" | "unknown";
 	userId: UserId;
 	status?: ArticleStatus;
 	countLimit?: number;
@@ -187,6 +203,7 @@ export type UpdateArticleStatus = (
 	id: ReaderArticleHashId,
 	userId: UserId,
 	status: ArticleStatus,
+	expected?: Pick<SavedArticle, "savedAt" | "readAt" | "statusRevision">,
 ) => Promise<SavedArticle | null>;
 
 export interface ArticleFreshnessData {
@@ -380,6 +397,10 @@ export type DeleteReadlistArticleByUrl = (params: {
  * partition-key form) so they can be fed back into the URL-keyed content ops. */
 export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
 
+export type ReadlistFiling =
+	| { mode: "manual" }
+	| { mode: "smart"; revision: number; effectiveAt: Date };
+
 export interface ReadlistDefinitionData {
 	starterCampaignId?: string;
 	slug: ReadlistSlug;
@@ -387,7 +408,32 @@ export interface ReadlistDefinitionData {
 	createdAt: Date;
 	purpose?: string;
 	pinnedAt?: Date;
+	filing?: ReadlistFiling;
 }
+
+export type SetSmartReadlistRule = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+	purpose: string;
+	effectiveAt: Date;
+}) => Promise<{ kind: "set"; revision: number } | { kind: "readlist-gone" }>;
+
+export type TurnOffSmartReadlistMatching = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+}) => Promise<{ turnedOff: boolean }>;
+
+export type FindSmartMatchRevisions = (params: {
+	userId: UserId;
+	storedKey: string;
+}) => Promise<{ kind: "not-in-all" } | { kind: "in-all"; savedAt: Date; revisions: ReadonlyMap<ReadlistSlug, number> }>;
+
+export type RecordSmartMatchRevision = (params: {
+	userId: UserId;
+	storedKey: string;
+	readlist: ReadlistSlug;
+	revision: number;
+}) => Promise<{ recorded: boolean }>;
 
 export type CreateReadlistDefinition = (params: {
 	userId: UserId;
@@ -419,7 +465,7 @@ export type SetReadlistDefinitionPurpose = (params: {
 	userId: UserId;
 	slug: ReadlistSlug;
 	purpose: string;
-}) => Promise<{ updated: boolean }>;
+}) => Promise<{ updated: true; firstSetup: boolean } | { updated: false }>;
 
 export type ClearReadlistDefinitionPurpose = (params: {
 	userId: UserId;
@@ -495,7 +541,8 @@ export type FileIntoLiveReadlistOutcome =
 	| "newer-row-won"
 	| "readlist-gone"
 	| "removed-after-request"
-	| "not-in-all";
+	| "not-in-all"
+	| "smart-rule-changed";
 
 export type FileIntoLiveReadlist = (params: {
 	userId: UserId;
@@ -506,6 +553,7 @@ export type FileIntoLiveReadlist = (params: {
 	suggestionAttribution?: SuggestionAttribution;
 	requestedAt: Date;
 	landsAs: ReadlistFilingLandsAs;
+	smartRule?: { revision: number };
 }) => Promise<{ outcome: FileIntoLiveReadlistOutcome }>;
 
 export type MarkReadlistArticleViewed = (params: {
@@ -537,6 +585,12 @@ export type ListUserSavesForUrl = (params: {
 export type QueueRowKey = { userId: string; url: string };
 
 export type FindQueueRowKeys = (input: { userId: UserId; urls: readonly string[] }) => Promise<QueueRowKey[]>;
+
+/** Returns ten only after confirming the memberships and purposes in a single snapshot. */
+export type CountSmartReadlistArticles = (params: {
+	userId: UserId;
+	readlists: readonly ReadlistSlug[];
+}) => Promise<number>;
 
 export type ListUserSavesForUrls = (params: {
 	userId: UserId;

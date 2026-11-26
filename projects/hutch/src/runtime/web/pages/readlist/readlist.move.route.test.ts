@@ -47,6 +47,12 @@ async function fileInto(agent: TestAgent, input: { articleId: string; readlist: 
 	expect(response.status).toBe(303);
 }
 
+async function saveUnpicked(agent: TestAgent, url: string): Promise<string> {
+	const articleId = await saveArticle(agent, url);
+	await agent.post(`/queue/${articleId}/delete?scope=hand-picked`).expect(303);
+	return articleId;
+}
+
 function moveArticle(
 	agent: TestAgent,
 	input: { articleId: string; query?: string; from: string; to: string },
@@ -362,7 +368,7 @@ describe("POST /queue/:id/move", () => {
 			expect(undoFieldPairs(doc)).toEqual([
 				["queue", finance],
 				["queue", weekend],
-				["returnTo", "/queue"],
+				["returnTo", "/queue?queue=default"],
 			]);
 
 			const undone = await agent
@@ -414,7 +420,7 @@ describe("POST /queue/:id/move", () => {
 				select: "main",
 				swap: "outerHTML show:none",
 			});
-			expect(await readlistLabels(agent)).toEqual(["All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${made}`)).toEqual([articleId]);
 			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
 			expect(toastMessage(await listing(agent, landing.path))).toBe("Added to Finance");
@@ -454,7 +460,7 @@ describe("POST /queue/:id/move", () => {
 				`/queue?utm_source=queue-card&utm_medium=internal&utm_content=create-and-move&moved_article=${articleId}&moved_from=default&moved_to=${made}`,
 			);
 			expect(await listedOn(agent, `/queue?queue=${made}`)).toEqual([articleId]);
-			expect(await readlistLabels(agent)).toEqual(["All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
 		});
 
 		it("re-renders the dialog's form for a refused name, keeping what the reader typed and the readlist the article leaves", async () => {
@@ -498,7 +504,7 @@ describe("POST /queue/:id/move", () => {
 				{ ...refused, value: "All", error: "Pick a name other than All, the readlist that holds every save." },
 				{ ...refused, value: "finance", error: "You already have a readlist with that name, so pick another one." },
 			]);
-			expect(await readlistLabels(agent)).toEqual(["All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
 		});
 
@@ -524,7 +530,7 @@ describe("POST /queue/:id/move", () => {
 				[303, `/queue?queue=${finance}&queue_error=create_reserved-name`],
 				[303, `/queue?queue=${finance}&queue_error=create_name-taken`],
 			]);
-			expect(await readlistLabels(agent)).toEqual(["All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
 		});
 
@@ -550,7 +556,7 @@ describe("POST /queue/:id/move", () => {
 			});
 			expect(browser.status).toBe(303);
 			expect(browser.headers.location).toBe("/queue?queue_error=limit");
-			expect(await readlistLabels(agent)).toHaveLength(READLIST_MAX_PER_USER + 1);
+			expect(await readlistLabels(agent)).toHaveLength(READLIST_MAX_PER_USER + 2);
 		});
 
 		it("lands back where the reader was, creating nothing, for an article that is gone", async () => {
@@ -573,7 +579,7 @@ describe("POST /queue/:id/move", () => {
 				select: "main",
 				swap: "outerHTML show:none",
 			});
-			expect(await readlistLabels(agent)).toEqual(["All", "Weekend"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Weekend"]);
 		});
 
 		it("lands back where the reader was, creating nothing, when the readlist it leaves no longer holds the article", async () => {
@@ -604,7 +610,7 @@ describe("POST /queue/:id/move", () => {
 			});
 			expect(browser.status).toBe(303);
 			expect(browser.headers.location).toBe(`/queue?queue=${weekend}`);
-			expect(await readlistLabels(agent)).toEqual(["All", "Weekend"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Weekend"]);
 		});
 	});
 
@@ -827,7 +833,7 @@ describe("POST /queue/:id/move", () => {
 				[403, "Your account is locked"],
 			]);
 			offset = 0;
-			expect(await readlistLabels(agent)).toEqual(["All", "Finance"]);
+			expect(await readlistLabels(agent)).toEqual(["Hand Picked", "All", "Finance"]);
 			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
 		});
 	});
@@ -954,6 +960,131 @@ describe("POST /queue/:id/move", () => {
 			const doc = await listing(agent, "/queue");
 
 			expect(cardMenuControls(doc, articleId)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
+		});
+	});
+
+	describe("Hand Picked", () => {
+		it("offers Hand Picked first among the Add to readlist destinations for an unpicked article in All", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const finance = await createReadlist(agent, "Finance");
+			const articleId = await saveUnpicked(agent, "https://example.com/pick-first");
+
+			const doc = await listing(agent, "/queue");
+
+			const trigger = moveTrigger(doc, articleId);
+			expect(destinationsOf(doc, trigger.getAttribute("popovertarget"))).toEqual(["~hand-picked", finance]);
+		});
+
+		it("opens the dialog with Hand Picked as a one-click destination for a reader with no named readlist", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveUnpicked(agent, "https://example.com/pick-only");
+
+			const doc = await listing(agent, "/queue");
+
+			const trigger = moveTrigger(doc, articleId);
+			expect(trigger.getAttribute("popovertarget")).toBe(`readlist-move-${articleId}`);
+			expect(destinationsOf(doc, `readlist-move-${articleId}`)).toEqual(["~hand-picked"]);
+			const added = await moveArticle(agent, { articleId, from: "default", to: "~hand-picked" });
+			expect(toastMessage(await listing(agent, added.headers.location))).toBe("Added to Hand Picked");
+		});
+
+		it("leaves Hand Picked out of the dialog for an article already in Hand Picked", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const finance = await createReadlist(agent, "Finance");
+			const articleId = await saveArticle(agent, "https://example.com/pick-already");
+
+			const doc = await listing(agent, "/queue");
+
+			const trigger = moveTrigger(doc, articleId);
+			expect(destinationsOf(doc, trigger.getAttribute("popovertarget"))).toEqual([finance]);
+		});
+
+		it("adds an older save to Hand Picked from the dialog and confirms it with an Undo", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveUnpicked(agent, "https://example.com/pick-add");
+
+			const added = await moveArticle(agent, { articleId, from: "default", to: "~hand-picked" });
+
+			expect(added.status).toBe(303);
+			expect(new URL(added.headers.location, TEST_APP_ORIGIN).searchParams.getAll("moved_to")).toEqual(["~hand-picked"]);
+			expect(await listedOn(agent, "/queue?scope=hand-picked")).toEqual([articleId]);
+			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
+			const doc = await listing(agent, added.headers.location);
+			expect(toastMessage(doc)).toBe("Added to Hand Picked");
+			expect(toastUndo(doc).action).toBe(
+				`/queue/${articleId}/unassign?utm_source=queue-toast&utm_medium=internal&utm_content=undo-move`,
+			);
+			expect(undoFieldPairs(doc)).toEqual([
+				["queue", "~hand-picked"],
+				["returnTo", "/queue?queue=default"],
+			]);
+		});
+
+		it("Undo takes the article back out of Hand Picked and leaves it in All", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveUnpicked(agent, "https://example.com/pick-undo");
+			const added = await moveArticle(agent, { articleId, from: "default", to: "~hand-picked" });
+
+			const undone = await undo(agent, added.headers.location);
+
+			expect(undone.status).toBe(303);
+			expect(await listedOn(agent, "/queue?scope=hand-picked")).toEqual([]);
+			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
+		});
+
+		it("adds to Hand Picked and a named readlist in one submission, and Undo reverses both", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const finance = await createReadlist(agent, "Finance");
+			const articleId = await saveUnpicked(agent, "https://example.com/pick-several");
+
+			const added = await addToSeveral(agent, { articleId, from: "default", to: ["~hand-picked", finance] });
+
+			expect(new URL(added.headers.location, TEST_APP_ORIGIN).searchParams.getAll("moved_to")).toEqual(["~hand-picked", finance]);
+			expect(await listedOn(agent, "/queue?scope=hand-picked")).toEqual([articleId]);
+			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([articleId]);
+			const doc = await listing(agent, added.headers.location);
+			expect(toastMessage(doc)).toBe("Added to 2 readlists");
+			expect(undoFieldPairs(doc)).toEqual([
+				["queue", finance],
+				["queue", "~hand-picked"],
+				["returnTo", "/queue?queue=default"],
+			]);
+
+			const undone = await agent
+				.post(toastUndo(doc).action)
+				.type("form")
+				.send(new URLSearchParams(undoFieldPairs(doc).map(([name, value]) => [String(name), String(value)])).toString());
+
+			expect(undone.status).toBe(303);
+			expect(await listedOn(agent, "/queue?scope=hand-picked")).toEqual([]);
+			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
+			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
+		});
+
+		it("answers the unknown-readlist error when a move out of a named readlist names Hand Picked", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const weekend = await createReadlist(agent, "Weekend");
+			const articleId = await saveUnpicked(agent, "https://example.com/pick-from-named");
+			await fileInto(agent, { articleId, readlist: weekend });
+
+			const response = await moveArticle(agent, {
+				articleId,
+				query: `?queue=${weekend}`,
+				from: weekend,
+				to: "~hand-picked",
+			});
+
+			expect(response.status).toBe(303);
+			expect(new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue_error")).toBe("unknown_readlist");
+			expect(await listedOn(agent, `/queue?queue=${weekend}`)).toEqual([articleId]);
+			expect(await listedOn(agent, "/queue?scope=hand-picked")).toEqual([]);
 		});
 	});
 });

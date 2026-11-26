@@ -59,8 +59,9 @@ const NEW_READLIST_BUTTON = '[data-test-action="new-readlist"]';
 const ACTIVE_READLIST_LINK = '[data-test-readlist][aria-current="page"]';
 const ACTIVE_READLIST_LABEL = `${ACTIVE_READLIST_LINK} [data-test-readlist-label]`;
 const READLIST_SWITCHER_TOGGLE = '[data-test-action="readlist-switcher"]';
-const READLIST_MENU_SUMMARY = '[data-test-action="readlist-menu"]';
-const READLIST_MENU_PANEL = "[data-test-readlist-menu]";
+const READLIST_MENU_TOGGLE = '[data-test-action="readlist-menu"]';
+const READLIST_MENU_PANEL = '[data-test-readlist-menu]:has([data-test-action="readlist-rename"])';
+const READLIST_MENU_SUMMARY = `${READLIST_MENU_PANEL} ${READLIST_MENU_TOGGLE}`;
 const READLIST_MENU_FLYOUT = `${READLIST_MENU_PANEL} .menu__panel`;
 const READLIST_MENU_RENAME = '[data-test-action="readlist-rename"]';
 const READLIST_MENU_DELETE = '[data-test-action="readlist-delete"]';
@@ -130,7 +131,7 @@ const KEEP_OFFER_TRIAL_END = "2099-03-01T12:00:00.000Z";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const TOAST = "[data-test-toast]";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
-const ONBOARDING_CHIP = "[data-test-onboarding-chip]";
+const ONBOARDING_CHIP = '[data-test-onboarding-step="save-enough-for-next-read"] [data-test-onboarding-chip]';
 const SUBSCRIPTION_CHIP = "[data-test-subscription-chip]";
 const PAGE_READLIST = "body.page-readlist";
 
@@ -238,7 +239,7 @@ async function seedKeepOffer(page: Page, params: { userId: string; saves: number
 
 async function loginAs(page: Page, email: string): Promise<void> {
 	await page.addInitScript(disableLocalTimeTick);
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -345,7 +346,7 @@ async function railMenuGeometry(page: Page): Promise<void> {
 	await openMenuGeometry(page, {
 		panel: READLIST_MENU_FLYOUT,
 		toggle: READLIST_MENU_SUMMARY,
-		rows: 2,
+		rows: 3,
 	});
 }
 
@@ -403,11 +404,11 @@ async function pageFromTopGeometry(page: Page): Promise<void> {
 async function columnTopsAlign(page: Page): Promise<void> {
 	await pageFromTopGeometry(page);
 	await addLinkSitsBesideTheTabs(page);
-	const bar = await measuredBox(page, TABS_BAR);
+	const heading = await measuredBox(page, ".readlist__browse");
 	const rail = await measuredBox(page, RAIL);
 	const side = await measuredBox(page, SIDE);
-	assert.ok(near({ actual: bar.y, expected: rail.y }), `the tabs and rail must start together, measured ${bar.y}px and ${rail.y}px`);
-	assert.ok(near({ actual: bar.y, expected: side.y }), `the tabs and side column must start together, measured ${bar.y}px and ${side.y}px`);
+	assert.ok(near({ actual: heading.y, expected: rail.y }), `the readlist heading and rail must start together, measured ${heading.y}px and ${rail.y}px`);
+	assert.ok(near({ actual: heading.y, expected: side.y }), `the readlist heading and side column must start together, measured ${heading.y}px and ${side.y}px`);
 }
 
 async function emptyColumnGeometry(page: Page): Promise<void> {
@@ -448,8 +449,8 @@ async function listTakesTheEmptySideTrack(page: Page): Promise<void> {
 async function alertLimitGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const alert = await measuredBox(page, ALERT);
-	const bar = await measuredBox(page, TABS_BAR);
-	assert.ok(near({ actual: bar.y - (alert.y + alert.height), expected: 32 }), "the tabs must sit 32px below the readlist alert");
+	const browse = await measuredBox(page, ".readlist__browse");
+	assert.ok(near({ actual: browse.y - (alert.y + alert.height), expected: 32 }), "the readlist heading must sit 32px below the readlist alert");
 }
 
 async function addLinkSitsBesideTheTabs(page: Page): Promise<void> {
@@ -748,33 +749,35 @@ async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
 	await stackedDialogButtons(page, { panelSelector: OPEN_DELETE_ARTICLE_POPOVER, dismissSelector: DELETE_ARTICLE_NEVER, commitSelector: DELETE_ARTICLE_CONFIRM });
 }
 
-async function moveArticleDialogGeometry(page: Page): Promise<void> {
-	await railBesideMainBesideSide(page);
-	const panel = await measuredBox(page, OPEN_MOVE_ARTICLE_POPOVER);
-	const form = await measuredBox(page, MOVE_ARTICLE_FORM);
-	const cancel = await measuredBox(page, MOVE_ARTICLE_CANCEL);
-	const commit = await measuredBox(page, MOVE_ARTICLE_CONFIRM);
-	assertDialogMeasurement({ description: "the move dialog's width", actual: panel.width, expected: 600, tolerance: 1 });
-	const rows = page.locator(`${MOVE_ARTICLE_DESTINATION}, ${MOVE_ARTICLE_CREATE}`);
-	await expect(rows).toHaveCount(3);
-	for (const row of await rows.all()) {
-		const box = await row.boundingBox();
-		assert.ok(box, "a visible move-dialog row must have a box");
-		assertDialogMeasurement({ description: "a move-dialog row's height", actual: box.height, expected: 56, tolerance: 0.5 });
-	}
-	assertDialogMeasurement({ description: "Cancel's top", actual: cancel.y, expected: commit.y, tolerance: 0.5 });
-	assertDialogMeasurement({
-		description: "the commit button's left edge",
-		actual: commit.x,
-		expected: cancel.x + cancel.width + 8,
-		tolerance: 0.5,
-	});
-	assertDialogMeasurement({
-		description: "the commit button's right edge",
-		actual: commit.x + commit.width,
-		expected: form.x + form.width,
-		tolerance: 1,
-	});
+function moveArticleDialogGeometry(input: { rows: number }): (page: Page) => Promise<void> {
+	return async (page) => {
+		await railBesideMainBesideSide(page);
+		const panel = await measuredBox(page, OPEN_MOVE_ARTICLE_POPOVER);
+		const form = await measuredBox(page, MOVE_ARTICLE_FORM);
+		const cancel = await measuredBox(page, MOVE_ARTICLE_CANCEL);
+		const commit = await measuredBox(page, MOVE_ARTICLE_CONFIRM);
+		assertDialogMeasurement({ description: "the move dialog's width", actual: panel.width, expected: 600, tolerance: 1 });
+		const rows = page.locator(`${MOVE_ARTICLE_DESTINATION}, ${MOVE_ARTICLE_CREATE}`);
+		await expect(rows).toHaveCount(input.rows);
+		for (const row of await rows.all()) {
+			const box = await row.boundingBox();
+			assert.ok(box, "a visible move-dialog row must have a box");
+			assertDialogMeasurement({ description: "a move-dialog row's height", actual: box.height, expected: 56, tolerance: 0.5 });
+		}
+		assertDialogMeasurement({ description: "Cancel's top", actual: cancel.y, expected: commit.y, tolerance: 0.5 });
+		assertDialogMeasurement({
+			description: "the commit button's left edge",
+			actual: commit.x,
+			expected: cancel.x + cancel.width + 8,
+			tolerance: 0.5,
+		});
+		assertDialogMeasurement({
+			description: "the commit button's right edge",
+			actual: commit.x + commit.width,
+			expected: form.x + form.width,
+			tolerance: 1,
+		});
+	};
 }
 
 async function moveArticleDialogPhoneGeometry(page: Page): Promise<void> {
@@ -1140,7 +1143,7 @@ async function openTwoReadlistsWithAFiledArticle(
 	await clickAndWaitForCounts(page, await nameNewReadlist(page, "Ideas & Inspiration"));
 	await input.openRail(page);
 	await clickAndWaitForCounts(page, await nameNewReadlist(page, "Finance"));
-	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(3);
+	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(4);
 	const [first, second] = await renameableSlugs(page);
 	await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
 	await gotoReadlistQueue(page, "");
@@ -1187,7 +1190,7 @@ function moveOrDeleteDialog(input: {
 			await waitForBrandFonts(page, ["Inter"]);
 			await neutralise(page);
 			await input.openRail(page);
-			await page.click(`${menu} ${READLIST_MENU_SUMMARY}`);
+			await page.click(`${menu} ${READLIST_MENU_TOGGLE}`);
 			await expect(page.locator(menu)).toHaveAttribute("open", "");
 			await page.click(`${menu} ${READLIST_MENU_DELETE}`);
 			await page.waitForSelector(dialog);
@@ -1366,7 +1369,7 @@ async function setupGuideEmailStepSettled(page: Page): Promise<void> {
 		"data-test-onboarding-current",
 		"true",
 	);
-	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "40");
+	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "33");
 	await settledSetupGuide(page);
 }
 
@@ -1378,7 +1381,7 @@ async function setupGuideNextReadSettled(page: Page): Promise<void> {
 		"data-test-onboarding-current",
 		"true",
 	);
-	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "80");
+	await expect(page.locator(ONBOARDING_PROGRESS)).toHaveAttribute("data-test-onboarding-progress", "83");
 	await expect(page.locator(ONBOARDING_CHIP)).toHaveText(`Saved 4 of ${NEXT_READ_MINIMUM_SAVES}`);
 	await expect(page.locator('[data-test-onboarding-step="save-enough-for-next-read"] .setup-guide__marker')).toHaveClass("setup-guide__marker setup-guide__marker--partial setup-guide__marker--partial-1");
 	await settledSetupGuide(page);
@@ -1566,7 +1569,7 @@ const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
 const MOVE_ARTICLE_DIALOG: VisualCheckpoint = {
 	name: "readlist-move-article-dialog",
 	settled: moveArticleDialogSettled,
-	geometry: moveArticleDialogGeometry,
+	geometry: moveArticleDialogGeometry({ rows: 3 }),
 	target: OPEN_MOVE_ARTICLE_POPOVER,
 	capture: "element",
 	pinnedText: [],
@@ -1582,6 +1585,7 @@ const ADD_ARTICLE_DIALOG: VisualCheckpoint = {
 	...MOVE_ARTICLE_DIALOG,
 	name: "readlist-add-article-dialog",
 	settled: addArticleDialogSettled,
+	geometry: moveArticleDialogGeometry({ rows: 4 }),
 };
 
 const ALERT_LIMIT: VisualCheckpoint = {
@@ -1928,6 +1932,7 @@ test.describe("Readlist page (seeded articles, no side panels, widest desktop)",
 			const userId = await createVerifiedUser(page, email);
 			await seedTwoArticles(page, userId, email);
 			await loginAs(page, email);
+			assert.equal((await page.request.post(`${BASE_URL}/e2e/seed-smart-readlist-milestone`, { data: { userId } })).status(), 201);
 			await page.context().addCookies([{ name: ALIVE_COOKIE_NAME, value: ALIVE_COOKIE_VALUE, url: BASE_URL }]);
 			await gotoReadlistQueue(page, "");
 			const statuses = await page.evaluate(async (paths) => {
@@ -2597,7 +2602,7 @@ test.describe("Readlist setup guide", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
 	for (const theme of THEMES) {
-		test(`shows the email step as current at 40% complete (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the email step as current at 33% complete (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-setup-email-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			await createVerifiedUser(page, email);
@@ -2612,7 +2617,7 @@ test.describe("Readlist setup guide", () => {
 	}
 
 	for (const theme of THEMES) {
-		test(`shows the next-read step as current at 80% complete after dismissing Gmail (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the next-read step as current at 83% complete after dismissing Gmail (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-setup-next-read-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
@@ -2625,6 +2630,7 @@ test.describe("Readlist setup guide", () => {
 					userId,
 				});
 			}
+			assert.equal((await page.request.post(`${BASE_URL}/e2e/seed-smart-readlist-milestone`, { data: { userId } })).status(), 201);
 			await seedInboxArticleQueued(page, userId);
 			await loginAs(page, email);
 			const dismissed = await page.request.post(`${BASE_URL}/queue/onboarding/gmail/dismiss`);

@@ -30,18 +30,32 @@ export interface InboxEmailLinkEntry {
 	anchorText: string | undefined;
 }
 
+export interface InboxArticleDestination {
+	readlist: ReadlistSlug;
+	label: string;
+	/** Older snapshots contain only explicit article routes. */
+	qualification?: "preferences" | "route-and-preferences";
+}
+
+export interface InboxExtractionWindow {
+	start: number;
+	end: number;
+}
+
 /** A small per-email summary co-located in the links partition under a reserved
- * sort key, so it returns from the same single Query as the link rows. Its
- * presence is the "extraction finished" barrier; the link count is derived from
+ * sort key, so it returns from the same Query as the link rows. Its
+ * presence signals that at least the first extraction batch settled; the link count is derived from
  * the row count. */
 export interface InboxEmailLinksMeta {
+	extractionWindow?: InboxExtractionWindow;
+	dispatchedThrough?: number;
 	truncated: boolean;
 	/** True when extraction gave up rather than finished — written only by the
 	 * dead-letter handler once the retries are spent. Terminal like any other
 	 * barrier, so the panel stops polling, but the reader is told the scan failed
 	 * instead of being told the email contained no links. */
 	extractionFailed: boolean;
-	selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
+	selectedReadlists?: InboxArticleDestination[];
 	eligibleArticleCount?: number;
 	savesHeld?: boolean;
 	issueSave?: { readlists: { readlist: ReadlistSlug; label: string }[]; held: boolean };
@@ -86,14 +100,12 @@ export interface InboxEmailLinkStore {
 	putLinksMeta: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
-		meta: {
-			truncated: boolean;
-			extractionFailed: boolean;
-			selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
-			eligibleArticleCount?: number;
-			savesHeld?: boolean;
-			issueSave?: { readlists: { readlist: ReadlistSlug; label: string }[]; held: boolean };
-		};
+		meta: Omit<InboxEmailLinksMeta, "readlistOutcomes" | "dispatchedThrough">;
+	}) => Promise<void>;
+	markWindowDispatched: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		end: number;
 	}) => Promise<void>;
 	/** Record that extraction gave up, as the barrier itself. Conditional on the
 	 * meta row's absence: at-least-once delivery means one attempt can succeed
@@ -118,6 +130,7 @@ export interface InboxEmailLinkStore {
 		receivedAtMessageId: string;
 		readlist: ReadlistSlug;
 		entry: InboxReadlistOutcome["fit"][number];
+		startIndex?: number;
 	}) => Promise<"merged" | "already-decided" | "not-filtered">;
 	putReadlistOutcome: (input: {
 		userId: UserId;
@@ -125,7 +138,7 @@ export interface InboxEmailLinkStore {
 		outcome: InboxReadlistOutcome;
 	}) => Promise<"stored" | "duplicate">;
 	/** Every link for one email, in ordinal order, plus the meta item if present.
-	 * Single Query (partition = the email), no GSI, no scan. */
+	 * Paginated Query on the email partition, with no index lookup or scan. */
 	listLinksByEmail: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;

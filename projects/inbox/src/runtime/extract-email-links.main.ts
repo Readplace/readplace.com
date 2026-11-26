@@ -16,6 +16,7 @@ import {
 import {
 	CrawlEmailLinkPreview,
 	EmailLinksTriagedEvent,
+	EmailReceivedEvent,
 	EmailOutputsSelectedEvent,
 	SaveEmailIssueCommand,
 	SendFirstInboxEmailNoticeCommand,
@@ -49,14 +50,14 @@ const inboxEmailsTable = env.DYNAMODB_INBOX_EMAILS_TABLE;
 const inboxEmailLinksTable = env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE;
 const rawEmailBucketName = env.RAW_EMAIL_BUCKET_NAME;
 const eventBusName = env.EVENT_BUS_NAME;
-const truncationAlertQueueUrl = env.EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL;
+const recoveryQueueUrl = env.EXTRACT_LINKS_RECOVERY_QUEUE_URL;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
 const appOrigin = env.APP_ORIGIN;
-const maxLinks = Number.parseInt(env.INBOX_MAX_LINKS_PER_EMAIL, 10);
+const maxLinks = Number(env.INBOX_MAX_LINKS_PER_EMAIL);
 assert(
-	maxLinks <= EMAIL_LINK_ORDINAL_CAPACITY,
-	`INBOX_MAX_LINKS_PER_EMAIL (${maxLinks}) exceeds the email link ordinal capacity (${EMAIL_LINK_ORDINAL_CAPACITY}); a higher cap would mint ordinals too wide for EmailLinkOrdinalSchema to parse`,
+	Number.isInteger(maxLinks) && maxLinks > 0 && maxLinks <= EMAIL_LINK_ORDINAL_CAPACITY,
+	`INBOX_MAX_LINKS_PER_EMAIL (${maxLinks}) must be an integer from 1 to ${EMAIL_LINK_ORDINAL_CAPACITY} to fit EmailLinkOrdinalSchema`,
 );
 
 const s3Client = new S3Client({});
@@ -123,6 +124,8 @@ export const handler = initExtractEmailLinksHandler({
 	getLink: inboxEmailLinkStore.getLink,
 	listLinksByEmail: inboxEmailLinkStore.listLinksByEmail,
 	putLinksMeta: inboxEmailLinkStore.putLinksMeta,
+	findLinksMeta: inboxEmailLinkStore.findLinksMeta,
+	markWindowDispatched: inboxEmailLinkStore.markWindowDispatched,
 	setEmailLinkCounts: inboxEmailStore.setEmailLinkCounts,
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 	publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
@@ -131,19 +134,14 @@ export const handler = initExtractEmailLinksHandler({
 	publishSaveEmailIssue: (input) => publishEvent(SaveEmailIssueCommand, input),
 	findCompletion: emailImportCompletion.findCompletion,
 	selectOutputs: emailImportCompletion.selectOutputs,
+	amendSelection: emailImportCompletion.amendSelection,
 	publishEmailOutputsSelected: (input) => publishEvent(EmailOutputsSelectedEvent, input),
-	alertTruncated: async (input) => {
-		// Dedicated alert queue, not the failure DLQ: truncation is a successful
-		// degradation, so its send-rate alarm is a distinct signal from genuine faults.
-		await sqsClient.send(
-			new SendMessageCommand({
-				QueueUrl: truncationAlertQueueUrl,
-				MessageBody: JSON.stringify({
-					reason: "inbox-link-cap-truncated",
-					...input,
-				}),
-			}),
-		);
+	publishExtraction: (detail) => publishEvent(EmailReceivedEvent, detail),
+	enqueueContinuation: async (detail) => {
+		await sqsClient.send(new SendMessageCommand({
+			QueueUrl: recoveryQueueUrl,
+			MessageBody: JSON.stringify({ recovery: true, detail }),
+		}));
 	},
 	publishSaveHeldNotice: ({ userId, receivedAtMessageId, inboxAddress }) =>
 		publishEvent(SendTrialFeedbackEmailCommand, {

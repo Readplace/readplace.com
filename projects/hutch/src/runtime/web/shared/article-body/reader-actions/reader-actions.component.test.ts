@@ -63,6 +63,36 @@ const CREATE = {
 };
 
 describe("readlists slot", () => {
+	it.each([["single" as const], ["several" as const]])("marks a smart readlist with the sparkle and its accessible name in the %s picker, and leaves a regular one plain", (choice) => {
+		const { top } = WebReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				readlistPicker: {
+					assignUrl: "/queue/abc/assign",
+					returnTo: "/queue/abc/view",
+					choice,
+					filterHtml: "",
+					options: [
+						{ slug: ReadlistSlugSchema.parse("research"), label: "Research", iconName: "folder", smart: true, accessibleName: "Research, Smart Readlist" },
+						{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder", smart: false, accessibleName: "Work, Smart Readlist" },
+					],
+					create: CREATE,
+				},
+			},
+		});
+
+		const doc = parse(top.to("text/html").body);
+		const smart = doc.querySelector('[data-test-assign-readlist="research"]');
+		assert(smart, "the smart readlist must render as an option");
+		assert.equal(smart.getAttribute("aria-label"), "Research, Smart Readlist");
+		assert.equal(smart.hasAttribute("data-test-readlist-smart"), true);
+		assert.equal(drawingOf(smart.closest(".article-body__readlists-option")?.querySelector(".article-body__readlists-smart svg")), iconDrawing("sparkles"));
+		const plain = doc.querySelector('[data-test-assign-readlist="work"]');
+		assert(plain, "the regular readlist must render as an option");
+		assert.equal(plain.getAttribute("aria-label"), null);
+		assert.equal(plain.closest(".article-body__readlists-option")?.querySelector(".article-body__readlists-smart"), null);
+	});
+
 	it("gives the slot a stable id and no out-of-band swap inline", () => {
 		const { top } = WebReader({
 			actionBtns: { ...ACTION_BTNS, readlistPicker: { assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", choice: "single", filterHtml: "", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE } },

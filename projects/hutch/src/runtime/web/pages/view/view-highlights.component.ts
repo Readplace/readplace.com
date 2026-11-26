@@ -19,6 +19,7 @@ import {
 	highlightDeletePopoverId,
 	renderHighlightDeleteConfirm,
 } from "../../shared/article-body/highlights-rail/highlights-rail.component";
+import { renderHighlightCopyStatus } from "../../shared/article-body/highlights-rail/highlight-copy-status.component";
 import {
 	HIGHLIGHT_TOOLBAR_SCRIPT,
 	renderLocalHighlightToolbar,
@@ -44,7 +45,7 @@ const LOCAL_TARGET: HighlightFormTarget = { kind: "local" };
 function renderTextSurfaces(note: string | undefined): string {
 	return [
 		note === undefined ? "" : renderHighlightPreview({ highlightId: PLACEHOLDER_ID, note }),
-		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note }),
+		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note, quote: "" }),
 		renderHighlightNoteEditDialog({ highlightId: PLACEHOLDER_ID, note, target: LOCAL_TARGET }),
 	].join("");
 }
@@ -78,11 +79,15 @@ export interface LocalViewHighlights {
 	toolbarHtml: string;
 	cardHtml: string;
 	dialogHtml: string;
+	copyStatusHtml: string;
 }
 
 export function renderLocalViewHighlights(input: { articleUrl: string }): LocalViewHighlights {
 	return {
-		toolbarHtml: renderLocalHighlightToolbar({ openedUrl: VIEW_HIGHLIGHTS_EVENT_PATH }),
+		toolbarHtml: renderLocalHighlightToolbar({
+			openedUrl: VIEW_HIGHLIGHTS_EVENT_PATH,
+			copiedUrl: `${VIEW_HIGHLIGHTS_EVENT_PATH}?action=copied`,
+		}),
 		cardHtml: render(CARD_TEMPLATE, {
 			articleUrl: input.articleUrl,
 			eventUrl: VIEW_HIGHLIGHTS_EVENT_PATH,
@@ -110,6 +115,9 @@ export function renderLocalViewHighlights(input: { articleUrl: string }): LocalV
 			title: t("view.highlights.popup.title"),
 			body: t("view.highlights.popup.body", { limit: String(VIEW_HIGHLIGHT_LIMIT) }),
 			actionsHtml: renderKeepForm({ articleUrl: input.articleUrl, placement: "popover" }),
+		}),
+		copyStatusHtml: renderHighlightCopyStatus({
+			copiedUrl: `${VIEW_HIGHLIGHTS_EVENT_PATH}?${new URLSearchParams({ action: "copied" })}`,
 		}),
 	};
 }

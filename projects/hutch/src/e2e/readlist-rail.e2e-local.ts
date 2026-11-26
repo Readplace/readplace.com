@@ -26,7 +26,7 @@ const SWITCHER = `${MAIN} [data-test-readlist-switcher]`;
 const SWITCHER_TOGGLE = `${MAIN} [data-test-action="readlist-switcher"]`;
 const NEW_READLIST = '[data-test-action="new-readlist"]';
 const PHONE = { width: 390, height: 844 };
-const READLIST_MENU = "[data-test-readlist-menu]";
+const READLIST_MENU = '[data-test-readlist-menu]:has([data-test-action="readlist-rename"])';
 const READLIST_MENU_TOGGLE = '[data-test-action="readlist-menu"]';
 const RENAME_TRIGGER = '[data-test-action="readlist-rename"]';
 const DELETE_TRIGGER = '[data-test-action="readlist-delete"]';
@@ -42,7 +42,7 @@ const CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const CREATE_INPUT = "[data-test-readlist-create-input]";
 const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
 const CREATE_ERROR = "[data-test-readlist-create-error]";
-const COMMIT_LABEL = ".readlist-name-form__commit-label";
+const COMMIT_LABEL = ".readlist-name-form__commit-label:not(.readlist-name-form__commit-label--smart)";
 const COMMIT_LOADER = ".readlist-name-form__loader";
 const LIVE_REGION = "#toast-live-region";
 const SAME_DOCUMENT_MARK = "data-test-same-document";
@@ -119,7 +119,7 @@ async function createUserWithArticles(page: Page, email: string): Promise<string
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
-	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/login?return=%2Fqueue`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
@@ -137,7 +137,7 @@ async function makeReadlist(page: Page, name: string): Promise<void> {
 }
 
 async function openRenameDialog(page: Page): Promise<void> {
-	await page.locator(READLIST_MENU_TOGGLE).first().click();
+	await page.locator(`${READLIST_MENU} ${READLIST_MENU_TOGGLE}`).first().click();
 	await page.locator(RENAME_TRIGGER).first().click();
 	await page.waitForSelector(`${RENAME_POPOVER}:popover-open`);
 	await expect(page.locator(`${RENAME_POPOVER}:popover-open ${RENAME_INPUT}`)).toBeFocused();
@@ -218,7 +218,7 @@ test.describe("The readlists rail", () => {
 		await openReadlist(page);
 		await makeReadlist(page, "New Readlist");
 		await makeReadlist(page, "New Readlist 2");
-		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(4);
 
 		const menus = page.locator(READLIST_MENU);
 		const other = menus.first();
@@ -233,7 +233,7 @@ test.describe("The readlists rail", () => {
 		await clickAndWaitForPageReload(page, confirm);
 
 		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("New Readlist 2");
-		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
 	});
 
 	test("moves a readlist's articles to the readlist offered by default before deleting it", async ({
@@ -245,7 +245,7 @@ test.describe("The readlists rail", () => {
 		await openReadlist(page);
 		await makeReadlist(page, "Ideas & Inspiration");
 		await makeReadlist(page, "Finance");
-		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(4);
 		const [first, second] = await renameableSlugs(page);
 
 		await fileArticleIntoReadlist(page, { articleId, readlistSlug: first });
@@ -264,7 +264,7 @@ test.describe("The readlists rail", () => {
 		await expect(page.locator(ACTIVE_RAIL_LINK)).toHaveAttribute("data-test-readlist", second);
 
 		await expect(page.locator(`[data-test-article="${articleId}"]`)).toHaveCount(1);
-		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
 	});
 
 	test("keeps the name when the reader backs out of the rename dialog", async ({
@@ -383,7 +383,7 @@ test.describe("The readlists rail on a desktop", () => {
 
 		await page.locator(ACTIVE_RAIL_LINK).focus();
 		await page.keyboard.press("Tab");
-		await expect(page.locator(`${MAIN} ${READLIST_MENU_TOGGLE}`).first()).toBeFocused();
+		await expect(page.locator(`${MAIN} ${READLIST_MENU} ${READLIST_MENU_TOGGLE}`).first()).toBeFocused();
 	});
 
 	test("keeps the selected row's tint and on-tint ink when the pointer rests on it", async ({
@@ -427,19 +427,19 @@ test.describe("The readlist switcher on a phone", () => {
 		await expect(page.locator(`${MAIN} ${NEW_READLIST}`)).toBeHidden();
 
 		await openReadlistSwitcher(page);
-		await expect(page.locator(RAIL_LINK)).toHaveCount(1);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
 		await expect(page.locator(`${MAIN} ${NEW_READLIST}`)).toBeVisible();
 		await makeReadlist(page, "New Readlist");
 		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
 
 		await openReadlistSwitcher(page);
-		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
 		await clickAndWaitForPageReload(page, page.locator(DEFAULT_RAIL_LINK));
 		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
 		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("All");
 
 		await openReadlistSwitcher(page);
-		await clickAndWaitForPageReload(page, page.locator(`${RAIL_LINK}:not(${DEFAULT_RAIL_LINK})`));
+		await clickAndWaitForPageReload(page, page.locator(`${RAIL_LINK}:not(${DEFAULT_RAIL_LINK}):not([data-test-readlist="~hand-picked"])`));
 		await expect(page.locator(SWITCHER)).toHaveJSProperty("open", false);
 		await expect(page.locator(SWITCHER_TOGGLE)).toContainText("New Readlist");
 	});
@@ -457,7 +457,7 @@ test.describe("Creating a readlist from the rail", () => {
 		await makeReadlist(page, "Ideas & Inspiration");
 
 		await expect(page.locator(ACTIVE_RAIL_LABEL)).toHaveText("Ideas & Inspiration");
-		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(3);
 	});
 
 	test("refuses a reserved name in place and keeps what the reader typed", async ({ page }, testInfo) => {
@@ -478,7 +478,7 @@ test.describe("Creating a readlist from the rail", () => {
 		await expect(field).toHaveAttribute("aria-invalid", "true");
 		await expect(field).toBeFocused();
 		await expect(page).toHaveURL(landedOn);
-		await expect(page.locator(RAIL_LINK)).toHaveCount(1);
+		await expect(page.locator(RAIL_LINK)).toHaveCount(2);
 
 		await markDocument(page);
 		await field.fill("Ideas & Inspiration");
@@ -534,7 +534,7 @@ test.describe("Creating a readlist from the rail", () => {
 			await dismiss(page);
 			await expect(page.locator(`${CREATE_POPOVER}:popover-open`)).toHaveCount(0);
 			await expect(page.locator(NEW_READLIST)).toBeFocused();
-			await expect(page.locator(RAIL_LINK)).toHaveCount(1);
+			await expect(page.locator(RAIL_LINK)).toHaveCount(2);
 		}
 	});
 });

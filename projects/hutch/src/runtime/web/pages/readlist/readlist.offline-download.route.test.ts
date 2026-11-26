@@ -47,6 +47,17 @@ describe("the unread download control on GET /queue", () => {
 		});
 	});
 
+	it("points the download at the bare listing URL when a reader with no chosen Home downloads All", async () => {
+		const agent = await signedIn();
+		await save(agent, "https://example.com/offline-download-entry");
+
+		const control = offlineDownload(await page(agent, "/queue"));
+
+		const href = new URL(control.getAttribute("data-offline-download") ?? "", TEST_APP_ORIGIN);
+		expect(href.pathname).toBe("/queue");
+		expect(href.searchParams.has("queue")).toBe(false);
+	});
+
 	it("withholds the download on the Read tab, even when it lists articles", async () => {
 		const agent = await signedIn();
 		await save(agent, "https://example.com/offline-download-read");

@@ -1,3 +1,4 @@
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 
 import { generatedContentOf } from "../../generated-content-of";
 import { tagSaveRefusal } from "../../shared/save-refusal";
@@ -73,7 +74,7 @@ export function initReaderPanelRoutes(
 	const router = express.Router();
 	const requestRelatedPasses = initRequestRelatedPasses(deps);
 	const readerHighlightOptions = initReaderHighlightOptions(deps);
-	const { saveArticleAtReadlistTop, requestReadlistContext, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
+	const { saveArticleAtReadlistTop, requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
 		isAppPlatform(req)
@@ -106,7 +107,7 @@ export function initReaderPanelRoutes(
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const article = parsedId.success
-			? await deps.findArticleById(parsedId.data, userId)
+			? await storeFor(requestReadlistContext(req).state.readlist).findArticleById(parsedId.data, userId)
 			: null;
 
 		if (!article) {
@@ -147,7 +148,7 @@ export function initReaderPanelRoutes(
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const article = parsedId.success
-			? await deps.findArticleById(parsedId.data, userId)
+			? await storeFor(requestReadlistContext(req).state.readlist).findArticleById(parsedId.data, userId)
 			: null;
 
 		if (!article) {
@@ -186,6 +187,11 @@ export function initReaderPanelRoutes(
 	router.get("/:id/related", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+
+		if (requestReadlistContext(req).state.readlist === HAND_PICKED_SCOPE) {
+			res.status(HTMX_STOP_POLLING_STATUS).type("html").send("");
+			return;
+		}
 
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const article = parsedId.success
@@ -272,6 +278,7 @@ export function initReaderPanelRoutes(
 	router.post("/:id/issue-links", requireNotLocked, async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		const personalPickAt = deps.now().toISOString();
 		const target = await resolveIssueLinkSave(req, userId);
 		if (target === undefined) {
 			res.status(404).type("html").send("");
@@ -289,13 +296,14 @@ export function initReaderPanelRoutes(
 		const freshness = await deps.refreshArticleIfStale({ url: target.url, requester: { account: userId } });
 		const saveAttemptId = newSaveAttemptId();
 		if (freshness.action === "unresolved") {
-			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
+			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, personalPickAt, saveTrigger: "manual", saveAttemptId });
 		} else {
 			await saveArticleAtReadlistTop({
 				userId,
 				url: target.url,
 				freshness,
 				provenance: target.article.provenance,
+				personalPickAt,
 				saveTrigger: "manual",
 				saveAttemptId,
 			});
@@ -351,6 +359,7 @@ export function initReaderPanelRoutes(
 						? pastReadsPollUrlFor({
 								articleId: article.id.value,
 								pollCount: pollCount + 1,
+								readlist: sourceReadlist,
 								surfaceQuery: nativeSurfaceQuery(req),
 							})
 						: undefined,

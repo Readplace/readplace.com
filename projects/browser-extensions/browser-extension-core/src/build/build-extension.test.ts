@@ -386,7 +386,7 @@ describe("plan.buildExtension", () => {
 
 		expect(getLastEsbuildOptions()?.define.__POPUP_VIEWS__).toBe(
 			JSON.stringify(
-				'<a href="https://readplace.com/queue?utm_source=chrome-extension&amp;utm_medium=extension&amp;utm_content=open-readlist">Readplace</a>',
+				'<a href="https://readplace.com/queue?queue=default&amp;utm_source=chrome-extension&amp;utm_medium=extension&amp;utm_content=open-readlist">Readplace</a>',
 			),
 		);
 	});

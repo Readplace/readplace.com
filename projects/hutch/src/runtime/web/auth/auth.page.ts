@@ -197,7 +197,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 	router.get("/login", async (req: Request, res: Response) => {
 		if (req.userId) {
-			res.redirect(303, "/queue");
+			res.redirect(303, parseReturnUrl(req.query));
 			return;
 		}
 		const returnUrl = extractReturnUrl(req.query);
@@ -274,7 +274,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 	router.get("/signup", async (req: Request, res: Response) => {
 		if (req.userId) {
-			res.redirect(303, "/queue");
+			res.redirect(303, parseReturnUrl(req.query));
 			return;
 		}
 		const returnUrl = extractReturnUrl(req.query);

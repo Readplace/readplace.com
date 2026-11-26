@@ -42,6 +42,7 @@ function buildFixture(opts?: { summaryReady?: boolean }): TestAppFixture {
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,

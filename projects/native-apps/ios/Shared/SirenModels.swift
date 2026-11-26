@@ -169,16 +169,43 @@ struct ArticleProperties: Decodable {
 	let messages: [ServerMessage]?
 	let processing: ProcessingProperty?
 	let contentState: ContentState?
+	let kindLabel: String?
+	let suggestion: String?
+	let via: ArticleVia?
 }
 
 enum ContentState: String, Codable {
 	case available, processing, unavailable
 }
 
+struct ArticleSender: Decodable, Hashable {
+	let name: String
+	let address: String
+}
+
+struct ArticleVia: Decodable, Hashable {
+	let label: String
+	let sender: ArticleSender?
+}
+
+extension ArticleVia {
+	private enum CodingKeys: String, CodingKey { case label, sender }
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		label = try container.decode(String.self, forKey: .label)
+		guard !label.isEmpty else {
+			throw DecodingError.dataCorruptedError(forKey: .label, in: container, debugDescription: "empty via label")
+		}
+		sender = try container.decodeLossyIfPresent(ArticleSender.self, forKey: .sender)
+	}
+}
+
 extension ArticleProperties {
 	private enum CodingKeys: String, CodingKey {
 		case id, url, title, siteName, excerpt, wordCount, imageUrl
 		case readTime, status, savedAt, readAt, isRead, contentVersion, messages, processing, contentState
+		case kindLabel, suggestion, via
 	}
 
 	init(from decoder: Decoder) throws {
@@ -199,6 +226,9 @@ extension ArticleProperties {
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
 		processing = try container.decodeLossyIfPresent(ProcessingProperty.self, forKey: .processing)
 		contentState = try container.decodeLossyIfPresent(ContentState.self, forKey: .contentState)
+		kindLabel = try container.decodeLossyIfPresent(String.self, forKey: .kindLabel).flatMap { $0.isEmpty ? nil : $0 }
+		suggestion = try container.decodeLossyIfPresent(String.self, forKey: .suggestion).flatMap { $0.isEmpty ? nil : $0 }
+		via = try container.decodeLossyIfPresent(ArticleVia.self, forKey: .via)
 	}
 }
 
@@ -282,9 +312,20 @@ struct CollectionTab: Decodable, Hashable {
 }
 
 struct CollectionReadlist: Decodable, Hashable {
+	var description: String?
 	let label: String
 	let rel: String
 	let href: String
+}
+
+struct CollectionHintLink: Decodable, Hashable {
+	let label: String
+	let href: String
+}
+
+struct CollectionHint: Decodable, Hashable {
+	let text: String
+	let link: CollectionHintLink
 }
 
 struct CollectionProperties: Decodable {
@@ -295,12 +336,14 @@ struct CollectionProperties: Decodable {
 	/// client, so its absence must decode cleanly rather than fail the collection.
 	let messages: [ServerMessage]?
 	let tabs: [CollectionTab]?
+	var browseReadlists: [CollectionReadlist]? = nil
 	let readlists: [CollectionReadlist]?
 	let appearance: String?
+	var hint: CollectionHint? = nil
 }
 
 extension CollectionProperties {
-	private enum CodingKeys: String, CodingKey { case warning, messages, tabs, readlists, appearance }
+	private enum CodingKeys: String, CodingKey { case warning, messages, tabs, browseReadlists, readlists, appearance, hint }
 
 	/// Decodes the warning and messages leniently so an evolving or malformed value
 	/// degrades to no banner rather than failing the whole collection decode: both
@@ -311,8 +354,10 @@ extension CollectionProperties {
 		warning = try container.decodeLossyIfPresent(SirenWarning.self, forKey: .warning)
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
 		tabs = try container.decodeLossyArrayIfPresent(CollectionTab.self, forKey: .tabs)
+		browseReadlists = try container.decodeLossyArrayIfPresent(CollectionReadlist.self, forKey: .browseReadlists)
 		readlists = try container.decodeLossyArrayIfPresent(CollectionReadlist.self, forKey: .readlists)
 		appearance = try container.decodeLossyIfPresent(String.self, forKey: .appearance)
+		hint = try container.decodeLossyIfPresent(CollectionHint.self, forKey: .hint)
 	}
 }
 
@@ -514,6 +559,11 @@ struct Article: Identifiable, Hashable {
 	let readHref: String?
 	var processing: ArticleProcessing?
 	let notice: String?
+	var kindLabel: String? = nil
+	var suggestion: String? = nil
+	var via: ArticleVia? = nil
+	var originalURL: URL? = nil
+	var uploadAgainLink: SirenLink? = nil
 }
 
 extension Article {
@@ -560,6 +610,17 @@ extension Article {
 			)
 		}
 		notice = props.messages?.first { $0.isRenderable && ($0.type == "warning" || $0.type == "error") }?.plainText
+		kindLabel = props.kindLabel
+		suggestion = props.suggestion
+		via = props.via
+		originalURL = links.first { $0.rel.contains("original") }?.href.flatMap(Self.webURL)
+		uploadAgainLink = links.first { $0.rel.contains("upload-again") && $0.href != nil }
+	}
+
+	private static func webURL(_ raw: String) -> URL? {
+		guard let url = URL(string: raw), let scheme = url.scheme?.lowercased() else { return nil }
+		guard scheme == "http" || scheme == "https", url.host?.isEmpty == false else { return nil }
+		return url
 	}
 }
 
@@ -577,12 +638,14 @@ struct ReadlistTab: Identifiable, Hashable {
 }
 
 struct Readlist: Identifiable, Hashable {
+	let description: String?
 	let label: String
 	let href: String
 	let isCurrent: Bool
 	var id: String { href }
 
 	init(entry: CollectionReadlist) {
+		description = entry.description
 		label = entry.label
 		href = entry.href
 		isCurrent = entry.rel == "current"

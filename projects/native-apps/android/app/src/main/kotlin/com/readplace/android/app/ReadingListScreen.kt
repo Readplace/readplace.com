@@ -32,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,6 +72,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -90,6 +93,7 @@ import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.SharedArticlesDropPresentation
 import com.readplace.android.core.SirenAction
+import com.readplace.android.core.SirenLink
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -107,6 +111,12 @@ private data class PendingDestructive(
 	val label: String,
 	val action: SirenAction,
 )
+
+@Composable
+internal fun ReadlistHint(hint: ReadlistHintContent, onOpen: (String) -> Unit) {
+	Text(text = hint.text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
+	TextButton(onClick = { onOpen(hint.url) }, colors = brandTextButtonColors()) { Text(text = hint.linkLabel) }
+}
 
 @Composable
 fun ReadingListScreen(
@@ -219,6 +229,8 @@ fun ReadingListScreen(
 					if (state.offersReadlistSwitching) {
 						ReadlistSwitcher(
 							menu = state.readlistMenu,
+							setHomeTitle = state.setHomeAction?.title,
+							onSetHome = { state.setHomeAction?.let { action -> scope.launch { viewModel.invoke(action) } } },
 							onSelect = { href -> scope.launch { viewModel.select(href) } },
 						)
 					}
@@ -240,6 +252,10 @@ fun ReadingListScreen(
 				.padding(insets),
 		) {
 			Column(modifier = Modifier.fillMaxSize()) {
+				state.currentReadlistDescription?.let { description ->
+					Text(text = description, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
+				}
+				state.readlistHint?.let { hint -> ReadlistHint(hint = hint, onOpen = onOpenExternally) }
 				if (state.tabs.isNotEmpty()) {
 					TabStrip(
 						tabs = state.tabs,
@@ -290,6 +306,8 @@ fun ReadingListScreen(
 							state = state,
 							clock = clock,
 							onOpen = viewModel::openReader,
+							onOpenOriginal = onOpenExternally,
+							onRecover = viewModel::open,
 							onActivate = ::activate,
 							onLoadMore = viewModel::loadMore,
 						)
@@ -302,6 +320,9 @@ fun ReadingListScreen(
 			val offlineDownloadFailureText = state.offlineDownloadFailureText
 			val warningText = state.warningText
 			val bottom = Modifier.align(Alignment.BottomCenter)
+			state.homeStatus?.let {
+				Text(text = it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+			}
 			if (messages.isNotEmpty()) {
 				Banner(
 					text = messages.joinToString(separator = "\n") { it.plainText },
@@ -390,7 +411,7 @@ fun ReadingListScreen(
 			confirmButton = {
 				TextButton(
 					onClick = { confirmDestructive(pending) },
-					colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+					colors = ButtonDefaults.textButtonColors(contentColor = LocalBrandColors.current.errorText),
 				) {
 					Text(text = pending.label)
 				}
@@ -512,6 +533,8 @@ private fun OfflineDownloadRow(status: OfflineDownloadStatus, onDismiss: () -> U
 @Composable
 private fun ReadlistSwitcher(
 	menu: List<ReadlistMenuItem>,
+	setHomeTitle: String?,
+	onSetHome: () -> Unit,
 	onSelect: (String) -> Unit,
 ) {
 	var open by remember { mutableStateOf(false) }
@@ -521,7 +544,7 @@ private fun ReadlistSwitcher(
 	DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
 		for (item in menu) {
 			DropdownMenuItem(
-				text = { Text(text = item.label) },
+				text = { Text(text = if (item.isHome) "${item.label} · Home" else item.label) },
 				onClick = {
 					open = false
 					onSelect(item.href)
@@ -536,6 +559,16 @@ private fun ReadlistSwitcher(
 					{ Icon(imageVector = Glyph.CHECK, contentDescription = null) }
 				} else {
 					null
+				},
+			)
+		}
+		if (setHomeTitle != null) {
+			HorizontalDivider()
+			DropdownMenuItem(
+				text = { Text(setHomeTitle) },
+				onClick = {
+					open = false
+					onSetHome()
 				},
 			)
 		}
@@ -585,14 +618,15 @@ internal fun ReadingListTitle(currentReadlistLabel: String?) {
 @Composable
 private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	val presentation = affordance.presentation
-	val tint = presentation.tint.resolved()
+	val colors = LocalBrandColors.current
 	if (presentation.showsTitle) {
+		val ink = presentation.tint.ink(colors)
 		TextButton(
 			onClick = onTap,
-			colors = if (tint == null) {
+			colors = if (ink == null) {
 				brandTextButtonColors()
 			} else {
-				ButtonDefaults.textButtonColors(contentColor = tint)
+				ButtonDefaults.textButtonColors(contentColor = ink)
 			},
 		) {
 			Icon(
@@ -608,7 +642,7 @@ private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 			Icon(
 				imageVector = presentation.icon.glyph,
 				contentDescription = affordance.label,
-				tint = tint ?: LocalContentColor.current,
+				tint = presentation.tint.fill(colors) ?: LocalContentColor.current,
 			)
 		}
 	}
@@ -643,6 +677,8 @@ private fun ArticleList(
 	state: ReadingListState,
 	clock: Clock,
 	onOpen: (Article) -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: (SirenLink) -> Unit,
 	onActivate: (Affordance) -> Unit,
 	onLoadMore: suspend () -> Unit,
 ) {
@@ -653,8 +689,10 @@ private fun ArticleList(
 				edge = PanelEdge(isFirst = index == 0, isLast = index == state.articles.lastIndex),
 				clock = clock,
 				processingReceivedAt = state.processingReceivedAt[article.id],
-				isAvailableOffline = state.isAvailableOffline(article),
+				isAvailableOffline = state.isAvailableOffline(article, now = clock.instant()),
 				onOpen = { onOpen(article) },
+				onOpenOriginal = onOpenOriginal,
+				onRecover = { article.uploadAgainLink?.let(onRecover) },
 				onActivate = onActivate,
 			)
 		}
@@ -691,6 +729,8 @@ private fun ArticleItem(
 	processingReceivedAt: Instant?,
 	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
+	onOpenOriginal: (String) -> Unit,
+	onRecover: () -> Unit,
 	onActivate: (Affordance) -> Unit,
 ) {
 	val scope = rememberCoroutineScope()
@@ -720,6 +760,8 @@ private fun ArticleItem(
 					processingReceivedAt = processingReceivedAt,
 					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
+					onOpenOriginal = onOpenOriginal,
+					onRecover = onRecover,
 				)
 			}
 		}
@@ -764,6 +806,8 @@ private fun ArticleItem(
 					processingReceivedAt = processingReceivedAt,
 					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
+					onOpenOriginal = onOpenOriginal,
+					onRecover = onRecover,
 					modifier = Modifier
 						.semantics {
 							customActions = controls.map { affordance ->
@@ -778,7 +822,7 @@ private fun ArticleItem(
 				DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
 					for (affordance in controls) {
 						val presentation = affordance.presentation
-						val tint = presentation.tint.resolved()
+						val tint = presentation.tint.ink(LocalBrandColors.current)
 						DropdownMenuItem(
 							text = { Text(text = affordance.label) },
 							onClick = {
@@ -857,7 +901,7 @@ private fun RowControlsTray(
 			Column(
 				modifier = Modifier
 					.fillMaxHeight()
-					.background(presentation.tint.resolved() ?: MaterialTheme.colorScheme.primary)
+					.background(presentation.tint.trayFill() ?: MaterialTheme.colorScheme.primary)
 					.clickable(onClick = { onActivate(affordance) })
 					.padding(horizontal = 16.dp),
 				verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -932,7 +976,7 @@ private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifi
 	val colors = LocalBrandColors.current
 	val fill = tone.fill(colors)
 	val ink = tone.ink(colors)
-	val backdrop = if (tone == BannerTone.OFFLINE) colors.surface else Color.Transparent
+	val backdrop = tone.backdrop(colors)
 	Row(
 		modifier = modifier
 			.background(backdrop)
@@ -953,14 +997,6 @@ private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifi
 		}
 	}
 }
-
-@Composable
-private fun AffordanceTint.resolved(): Color? =
-	when (this) {
-		AffordanceTint.NEUTRAL -> null
-		AffordanceTint.SUCCESS -> LocalBrandColors.current.success
-		AffordanceTint.DESTRUCTIVE -> LocalBrandColors.current.error
-	}
 
 private val AffordanceIcon.glyph: ImageVector
 	get() = when (this) {

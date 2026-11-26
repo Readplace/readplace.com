@@ -104,7 +104,7 @@ import {
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
 import { parsePollParam } from "@packages/web-shell";
-import {
+import { readlistOutcomeFor,
 	cardReadlistFits,
 	currentReadlistFitOverride,
 	type ReadlistFitOverridesByReadlist,
@@ -141,6 +141,7 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 		url: string;
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
+		personalPickAt?: string;
 		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
 	}) => Promise<void>;
@@ -386,18 +387,17 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const { cursor } = parseInboxEmailsUrl(req.query);
-		const result = await deps.inboxEmailStore.listEmailsByUserId({
-			userId,
-			cursor,
-			pageSize: INBOX_EMAILS_PAGE_SIZE,
-		});
+		const { cursor, sender } = parseInboxEmailsUrl(req.query);
+		const [result, senders] = await Promise.all([
+			deps.inboxEmailStore.listEmailsByUserId({ userId, cursor, sender, pageSize: INBOX_EMAILS_PAGE_SIZE }),
+			deps.inboxEmailStore.listReceivedSenders(userId),
+		]);
 		if (cursor !== undefined && result.emails.length === 0) {
-			res.redirect(302, buildInboxEmailsUrl({}));
+			res.redirect(302, buildInboxEmailsUrl({ sender }));
 			return;
 		}
 		const activeAddresses =
-			result.emails.length === 0
+			result.emails.length === 0 && sender === undefined
 				? (await deps.inboxAddressStore.listAddressesByUserId(userId))
 						.filter((entry) => isLiveAddress(entry) && isCappedAddress(entry))
 						.map((entry) => ({ name: entry.name, address: entry.address }))
@@ -407,7 +407,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			cursor === undefined
 				? Promise.all([
 						deps.findSavedLinksJob({ userId }),
-						result.emails.length > 0 ? deps.hasNewsletterLink({ userId }) : false,
+						(sender !== undefined || result.emails.length > 0) ? deps.hasNewsletterLink({ userId }) : false,
 						deps.hasHeldLinks({ userId, now: deps.now() }),
 					]).then(([job, hasNewsletterLink, hasHeldLinks]) =>
 						newsletterLinksLineOf({ job, hasNewsletterLink, hasHeldLinks }),
@@ -417,6 +417,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const vm = toInboxEmailsViewModel(result, {
 			now: deps.now(),
 			activeAddresses,
+			senders,
+			sender,
 			paidFeaturesLocked: bannerState.paidFeaturesLocked === true,
 			highlight: parseInboxHighlight(req.query),
 		});
@@ -692,6 +694,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
+			const personalPickAt = deps.now().toISOString();
 			const receivedAtMessageId = req.params.id;
 			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
 			const link = parsedOrdinal.success
@@ -722,6 +725,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				url: submittedLinkUrl(link),
 				provenance: { kind: "email", senderEmail: email.senderEmail },
 				readlist: DEFAULT_READLIST_SLUG,
+				personalPickAt,
 				saveTrigger: "manual",
 				saveAttemptId: newSaveAttemptId(),
 			});
@@ -807,6 +811,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
+			const personalPickAt = deps.now().toISOString();
 			const receivedAtMessageId = req.params.id;
 			const notFound = () => res.status(404).type("html").send("");
 			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
@@ -830,7 +835,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			if (!parsedBody.success) return notFound();
 			const { readlist, verdict } = parsedBody.data;
 			const routed = meta?.selectedReadlists?.find((entry) => entry.readlist === readlist);
-			const outcome = meta?.readlistOutcomes?.find((entry) => entry.readlist === readlist);
+			const readlistOutcomes = meta?.readlistOutcomes;
+			const outcome = readlistOutcomes && readlistOutcomeFor({ outcomes: readlistOutcomes, readlist, ordinal });
 			const engineFit = outcome?.fit.find((entry) => entry.ordinal === ordinal);
 			if (
 				meta?.savesHeld === true ||
@@ -865,6 +871,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						url: submittedLinkUrl(link),
 						provenance,
 						readlist: DEFAULT_READLIST_SLUG,
+						personalPickAt,
 						saveTrigger: "manual",
 						saveAttemptId: newSaveAttemptId(),
 					});

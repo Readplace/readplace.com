@@ -29,6 +29,7 @@ export type SelectorCandidate = {
 	wordCount: number;
 	html: string;
 	httpStatus?: number;
+	coverage?: string;
 };
 
 // HTML tokenises denser than prose (~2–3 chars/token vs prose's ~4). Filling a
@@ -74,7 +75,7 @@ export function buildSelectContentUserMessage(params: {
 			body = `${cleaned.slice(0, cap)}\n[truncated: showing the first ${cap} of ${cleaned.length} characters]`;
 		}
 		lines.push(
-			`--- candidate ${labelForIndex(index)} (tier=${candidate.tier}, HTTP=${candidate.httpStatus ?? "unknown"}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
+			`--- candidate ${labelForIndex(index)} (tier=${candidate.tier}, HTTP=${candidate.httpStatus ?? "unknown"}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}${candidate.coverage === undefined ? "" : `, coverage ${candidate.coverage}`}) ---`,
 			body,
 			"",
 		);

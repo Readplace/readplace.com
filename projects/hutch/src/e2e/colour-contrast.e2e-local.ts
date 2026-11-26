@@ -52,6 +52,7 @@ const SAVED_FACT_TOKEN = "--fact-saved";
 const BANNER_AREA_ROOT = ".banner-area";
 const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 function minimumRatio(measured: RenderedInk): number {
 	return measured.role === "text" ? textMinimum(measured) : NON_TEXT_MINIMUM;
@@ -685,16 +686,57 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
 	});
 
-	test("homepage arm C's capabilities clear their contrast minimum", async ({ page }) => {
-		await page.context().addCookies([{
-			name: EXPERIMENT_COOKIE_NAME,
-			value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[1].slug}`,
-			url: BASE_URL,
-		}]);
+	for (const arm of [
+		{ title: "homepage arm B's comparison clears its contrast minimum", variant: HOMEPAGE_SPLIT.variants[0], section: "compare", view: "home-b/compare" },
+		{ title: "homepage arm C's capabilities clear their contrast minimum", variant: HOMEPAGE_SPLIT.variants[1], section: "capabilities", view: "home-c/capabilities" },
+	]) {
+		test(arm.title, async ({ page }) => {
+			await page.context().addCookies([{
+				name: EXPERIMENT_COOKIE_NAME,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${arm.variant.slug}`,
+				url: BASE_URL,
+			}]);
+			const root = `[data-test-section="${arm.section}"]`;
+			for (const theme of ["light", "dark"] as const) {
+				await page.emulateMedia({ colorScheme: theme });
+				await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+				await expect(page.locator(root)).toBeVisible({ timeout: SETTLE_MS });
+				await auditRoot(page, { root, theme, view: arm.view });
+			}
+		});
+	}
+});
+
+const WORDMARK_TAIL = "header.header .header__brand-mark";
+
+test.describe("The header wordmark holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the wordmark tail clears its contrast minimum on the default header", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+
 		await page.emulateMedia({ colorScheme: "light" });
-		await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator('[data-test-section="capabilities"]')).toBeVisible({ timeout: SETTLE_MS });
-		await auditRoot(page, { root: '[data-test-section="capabilities"]', theme: "light", view: "home-c/capabilities" });
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-login");
+		await auditRoot(page, { root: WORDMARK_TAIL, theme: "light", view: "login/wordmark" });
+
+		await signUpFreshUser(page, `colour-contrast-wordmark-${run}@example.com`);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-readlist");
+			await auditRoot(page, { root: WORDMARK_TAIL, theme, view: "queue/wordmark" });
+		}
+	});
+
+	test("the wordmark tail on the landing hero clears its contrast minimum against the navy", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/pocket-alternative`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-landing");
+		const [tail] = await stableMeasurements(page, ".header--transparent .header__brand-mark");
+		assert.ok(tail, "the landing hero's transparent header must render the wordmark tail");
+		const navy = await resolveInk(page, "--color-secondary");
+		assertContrast([{ ...tail, surface: navy }], { theme: "light", view: "landing/wordmark-on-navy" });
 	});
 });
 
@@ -739,6 +781,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 	test("the setup guide's neutral tag clears its contrast minimum", async ({ page }, testInfo) => {
 		const email = `colour-contrast-chip-tag-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createChipReader(page, email);
+		assert.equal((await page.request.post(`${BASE_URL}/e2e/seed-smart-readlist-milestone`, { data: { userId } })).status(), 201);
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-inbox-article-queued`, { data: { userId } });
 		assert.equal(seeded.status(), 201);
 		await page.context().addCookies(
@@ -756,7 +799,7 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-			await expect(page.locator("[data-test-onboarding-chip]")).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator('[data-test-onboarding-step="save-enough-for-next-read"] [data-test-onboarding-chip]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: "[data-test-setup-guide]", theme, view: "chip/setup-guide" });
 		}
 	});
@@ -794,6 +837,32 @@ test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 			await expect(page.locator('[data-test-action="article-version-delete-open"]')).toBeVisible();
 			await auditRoot(page, { root: "#article-header", theme, view: "reader-header" });
 			await auditRoot(page, { root: "[data-test-article-history]", theme, view: "chip/article-history" });
+		}
+	});
+
+	test("the Saved offline badge clears its contrast minimum", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-chip-offline-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-offline-${run}`,
+				title: "A settled article kept for offline reading",
+				content: "<p>Seeded body for the Saved offline badge contrast check.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A concise summary.", excerpt: "Lead line." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		await loginChipReader(page, email);
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await page.locator("[data-test-offline-download-start]").click();
+		await expect(page.locator("[data-offline-tag]")).toBeVisible({ timeout: DOWNLOAD_TIMEOUT_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await auditRoot(page, { root: "[data-offline-tag]", theme, view: "chip/saved-offline" });
 		}
 	});
 });

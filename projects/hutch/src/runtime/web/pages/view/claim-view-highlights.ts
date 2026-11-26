@@ -38,6 +38,7 @@ export type ClaimViewHighlights = (input: {
 }) => Promise<ClaimedViewHighlights>;
 
 export function initClaimViewHighlights(deps: {
+	now: () => Date;
 	validateNewSaveUrl: ValidateSaveableUrl;
 	claimDailySaves: ClaimDailySaves;
 	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
@@ -45,6 +46,7 @@ export function initClaimViewHighlights(deps: {
 	createHighlightByQuote: CreateHighlightByQuote;
 }): ClaimViewHighlights {
 	const saveForClaim = async (input: {
+		requestedAt: string;
 		userId: UserId;
 		provenance: SaveProvenance;
 		url: SaveableUrl;
@@ -56,6 +58,8 @@ export function initClaimViewHighlights(deps: {
 			url: input.url,
 			freshness,
 			provenance: input.provenance,
+			requestedAt: input.requestedAt,
+			personalPickAt: input.requestedAt,
 			saveTrigger: "manual",
 			saveAttemptId: newSaveAttemptId(),
 		});
@@ -63,6 +67,7 @@ export function initClaimViewHighlights(deps: {
 	};
 
 	return async ({ userId, provenance, pending }) => {
+		const requestedAt = deps.now().toISOString();
 		const saveableUrls = new Map<string, SaveableUrl>();
 		for (const url of new Set(pending.items.map((item) => item.url))) {
 			const validation = deps.validateNewSaveUrl(url);
@@ -82,7 +87,7 @@ export function initClaimViewHighlights(deps: {
 			const saveableUrl = saveableUrls.get(url);
 			const saved =
 				saveableUrl !== undefined && granted.has(saveableUrl)
-					? await saveForClaim({ userId, provenance, url: saveableUrl })
+					? await saveForClaim({ userId, provenance, url: saveableUrl, requestedAt })
 					: undefined;
 			if (saved === undefined) {
 				dropped += items.length;

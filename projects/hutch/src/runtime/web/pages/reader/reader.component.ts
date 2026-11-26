@@ -24,7 +24,12 @@ import {
 	renderHighlightsRail,
 } from "../../shared/article-body/highlights-rail/highlights-rail.component";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
-import { HIGHLIGHT_TOOLBAR_SCRIPT, renderHighlightToolbar } from "../../shared/article-body/highlights/highlight-toolbar.component";
+import { renderHighlightCopyStatus } from "../../shared/article-body/highlights-rail/highlight-copy-status.component";
+import {
+	HIGHLIGHT_TOOLBAR_SCRIPT,
+	type HighlightRefusal,
+	renderHighlightToolbar,
+} from "../../shared/article-body/highlights/highlight-toolbar.component";
 import type { ReaderHighlights } from "../../shared/article-body/reader-slot/mark-highlights";
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import {
@@ -150,6 +155,7 @@ export function readerMarkStatusConfirm(input: {
 export interface ReaderPageHighlights extends ReaderHighlights {
 	scope: HighlightFormScope | undefined;
 	openNote: HighlightId | undefined;
+	copiedUrl: string;
 }
 
 function sharingOffReasonFor(articleUrl: string): SharingOffReason | undefined {
@@ -261,7 +267,7 @@ export function ReaderPage(
 		articleHistoryRemoval?: ArticleHistoryRemoval;
 		offlineCopyRow?: boolean;
 		highlights: ReaderPageHighlights;
-		statusToast?: string;
+		highlightRefusal?: HighlightRefusal;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
@@ -380,7 +386,13 @@ export function ReaderPage(
 	const innerContent =
 		highlights.scope === undefined
 			? articleBodyHtml
-			: articleBodyHtml + renderHighlightToolbar({ scope: highlights.scope, rowNoteOpen: openNote !== undefined });
+			: articleBodyHtml +
+				renderHighlightToolbar({
+					scope: highlights.scope,
+					rowNoteOpen: openNote !== undefined,
+					section: options.readerSection.requested,
+					refusal: options.highlightRefusal,
+				});
 	const railLandmark = railLandmarkFor({
 		hasCard:
 			highlightsRail.hasRows ||
@@ -428,8 +440,7 @@ export function ReaderPage(
 					hiddenFields: [{ name: "returnTo", value: picker.returnTo }],
 				});
 	const filingToast = options.readlistFiling.toast;
-	const statusToastHtml =
-		options.statusToast ?? (filingToast === undefined ? "" : renderFilingToast(filingToast));
+	const statusToastHtml = filingToast === undefined ? "" : renderFilingToast(filingToast);
 	const nextRead = options.nextReadLocks !== undefined ? renderLockedNextRead({ locks: options.nextReadLocks }) : renderNextRead({
 		related: options.related
 			? {
@@ -477,6 +488,7 @@ export function ReaderPage(
 		downloadGuideHtml,
 		readlistCreateHtml,
 		statusToastHtml,
+		highlightCopyStatusHtml: renderHighlightCopyStatus({ copiedUrl: highlights.copiedUrl }),
 	});
 
 	return {
@@ -504,9 +516,7 @@ export function ReaderPage(
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				(highlights.scope === undefined && highlights.rows.every((row) => row.note === undefined)
-					? ""
-					: HIGHLIGHT_TOOLBAR_SCRIPT),
+				HIGHLIGHT_TOOLBAR_SCRIPT,
 		}),
 	};
 }

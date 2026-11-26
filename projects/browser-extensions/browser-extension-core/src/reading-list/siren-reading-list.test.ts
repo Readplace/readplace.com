@@ -31,12 +31,12 @@ const COLLECTION_ACTIONS = [
 	},
 ];
 
-function collectionResponse(entities: unknown[] = []) {
+function collectionResponse(entities: unknown[] = [], actions = COLLECTION_ACTIONS) {
 	return JSON.stringify({
 		class: ["collection", "articles"],
 		entities,
 		links: [{ rel: ["self"], href: "/queue" }],
-		actions: COLLECTION_ACTIONS,
+		actions,
 	});
 }
 
@@ -1433,6 +1433,36 @@ describe("initSirenReadingList", () => {
 			expect(found?.title).toBe("Found Article");
 		});
 
+		it("uses the advertised account-wide lookup for previously saved articles", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([], [...COLLECTION_ACTIONS, {
+							name: "lookup-article", href: "/saved-article", method: "GET", fields: [{ name: "url", type: "url" }],
+						}]),
+						headers: { etag: '"v1"' },
+					},
+					"GET http://localhost:3000/saved-article?url=https%3A%2F%2Fexample.com%2Farticle":
+						{
+							status: 200,
+							body: collectionResponse([
+								articleEntity({
+									id: "article-1",
+									url: "https://example.com/article",
+									title: "Found Article",
+									savedAt: "2026-01-15T10:00:00.000Z",
+								}),
+							]),
+						},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const found = await list.findByUrl("https://example.com/article");
+			expect(found?.url).toBe("https://example.com/article");
+			expect(found?.title).toBe("Found Article");
+		});
+
 		it("should carry the server's browser-capture state onto the found item", async () => {
 			const entity = articleEntity({
 				id: "article-1",
@@ -1558,6 +1588,18 @@ describe("initSirenReadingList", () => {
 	});
 
 	describe("getItems", () => {
+		it("follows the advertised home for a neutral list load", async () => {
+			const root = JSON.parse(collectionResponse());
+			root.links.push({ rel: ["home"], href: "/my-home" });
+			const { calls, fetchFn } = createRoutingFetch(withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: JSON.stringify(root) },
+				"GET http://localhost:3000/my-home": { status: 200, body: collectionResponse() },
+			}));
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+			expect(calls.at(-1)).toBe("GET http://localhost:3000/my-home");
+		});
+
 		it("should return all items from the collection", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({

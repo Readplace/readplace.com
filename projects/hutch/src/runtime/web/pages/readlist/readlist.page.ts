@@ -1,3 +1,4 @@
+import { bulkArticleRoutes } from "./bulk-articles.page";
 import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
@@ -81,6 +82,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
+	if (deps.bulkArticles) router.use(bulkArticleRoutes(deps, shared, deps.bulkArticles));
 	router.use(
 		initHighlightRoutes(
 			{
@@ -148,8 +150,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(
 		initReadlistPreferencesRoutes({
+			findHomeReadlist: deps.findHomeReadlist,
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			setSmartReadlistRule: deps.setSmartReadlistRule,
+			turnOffSmartReadlistMatching: deps.turnOffSmartReadlistMatching,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
@@ -162,8 +167,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			requirePaidFeatures: deps.requirePaidFeatures,
 			findNonEmptyReadlists,
 			now: deps.now,
-			resolveOnboarding: async (req, userId, access) =>
-				(await resolveOnboardingSignals(req, userId, access)).onboarding,
+			resolveOnboarding: async (req, userId, access, definitions, active) =>
+				(await resolveOnboardingSignals(req, userId, access, definitions, active)).onboarding,
 			loadGmailSenders: readlistGmail?.load,
 		}),
 	);
@@ -171,9 +176,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initReadlistListingRoutes(
 			{
+				findHomeReadlist: deps.findHomeReadlist,
+				setHomeReadlist: deps.setHomeReadlist,
+				listReadlistDefinitions: deps.listReadlistDefinitions,
+				resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 				now: deps.now,
 				setKeepOfferDismissed: deps.setKeepOfferDismissed,
 				recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
+				resolveReaderProvenances: deps.resolveReaderProvenances,
 				findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
 				logError: deps.logError,
 				findGeneratedSummaries: deps.findGeneratedSummaries,
@@ -183,6 +193,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				getEffectiveAccess: deps.getEffectiveAccess,
 				recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
 				recordGmailStepDismissed: deps.recordGmailStepDismissed,
+				recordSmartReadlistStepDismissed: deps.recordSmartReadlistStepDismissed,
 				secureCookies: deps.secureCookies,
 			},
 			shared,
@@ -250,6 +261,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				moveReadlistArticles: deps.moveReadlistArticles,
 				purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,
 				deleteReadlistDefinition: deps.deleteReadlistDefinition,
+				requirePaidFeatures: deps.requirePaidFeatures,
+				setSmartReadlistRule: deps.setSmartReadlistRule,
 				now: deps.now,
 			},
 			shared,
@@ -292,6 +305,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initReadlistCardRoutes(
 			{
+				changePersonalPick: deps.changePersonalPick,
 				appOrigin: deps.appOrigin,
 				findArticleById: deps.findArticleById,
 				findArticleCrawlStatus: deps.findArticleCrawlStatus,

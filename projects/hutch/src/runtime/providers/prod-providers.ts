@@ -1,4 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
+import { RunBulkArticlesCommand } from "@packages/infra-components";
+import { initDynamoBulkSelections } from "../bulk-articles/selection-store";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { initSsmAdminTotpSecrets } from "./admin-totp-secrets/ssm-admin-totp-secrets";
 import {
@@ -121,14 +123,12 @@ import {
 	initDynamoDbGmailDiscovery,
 	initDynamoDbGmailMonitoring,
 	initDynamoDbGmailHistoryImport,
-	initDynamoDbGmailMarkBackfill,
 	initDynamoDbGmailMessageUpdate,
 } from "@packages/inbox-store";
 import {
 	DisconnectGmailCommand,
 	RewriteGmailFilterCommand,
 	StartGmailHistoryImportCommand,
-	StartGmailMarkBackfillCommand,
 	GmailModifyPermissionGrantedEvent,
 	StartGmailSenderDiscoveryCommand,
 	SubmitNewsletterSenderCommand,
@@ -139,7 +139,6 @@ import {
 	type GmailAccountEmail,
 	type GmailHistoryImportJobId,
 	GmailHistoryImportJobIdSchema,
-	type GmailMarkBackfillRef,
 } from "@packages/domain/gmail";
 import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-history-imports";
 import { NEWSLETTER_CATALOG_OBJECT_KEY, initS3NewsletterCatalog } from "./newsletter-catalog/s3-newsletter-catalog";
@@ -152,8 +151,8 @@ import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/
 import { initDynamoDbSubscriptionWrites } from "./subscription-providers/dynamodb-subscription-writes";
 import { Logger, consoleLogger } from "@packages/logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
-import { requireEnv } from "@packages/require-env";
-import { initDynamoDbInboxAddress, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
+import { getEnv, requireEnv } from "@packages/require-env";
+import { initDynamoDbInboxAddress, initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { CreateRoutedInboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
@@ -462,6 +461,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		tableName: inboxAddressesTable,
 		now: () => new Date(),
 	});
+	const inboxEmailStore = initDynamoDbInboxEmail({ client, tableName: tables.inboxEmails });
 	const inboxEmailLinkStore = initDynamoDbInboxEmailLink({ client, tableName: inboxEmailLinksTable });
 	const inboxSavedLinkStore = initDynamoDbInboxSavedLink({ client, tableName: inboxSavedLinksTable, now: () => new Date() });
 
@@ -555,10 +555,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 			await publishEvent(GmailModifyPermissionGrantedEvent, detail);
 		},
 		gmailMessageUpdateStore: initDynamoDbGmailMessageUpdate({ client, tableName: tables.gmailHistoryImports }),
-		gmailMarkBackfillStore: initDynamoDbGmailMarkBackfill({ client, tableName: tables.gmailHistoryImports }),
-		publishStartGmailMarkBackfill: async (detail: GmailMarkBackfillRef & { generation: number }) => {
-			await publishEvent(StartGmailMarkBackfillCommand, detail);
-		},
 		publishSubmitNewsletterSender: async (detail: { senderEmail: ForwardableSender }) => {
 			await publishEvent(SubmitNewsletterSenderCommand, detail);
 		},
@@ -651,6 +647,12 @@ export function initProdProviders(input: { appOrigin: string }) {
 		createRoutedInboxAddress: (input: Parameters<CreateRoutedInboxAddress>[0]) =>
 			inboxAddressStore.createRoutedAddress({ ...input, domain: inboxAddressDomain, purpose: DEFAULT_INBOX_ADDRESS_PURPOSE }),
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
+		listReceivedSenders: inboxEmailStore.listReceivedSenders,
+		bulkArticles: getEnv("BULK_ARTICLES_ENABLED") === "true" ? {
+			store: initDynamoBulkSelections(client, userArticlesTable),
+			dispatch: (detail: import("zod").z.infer<typeof RunBulkArticlesCommand.detailSchema>) => publishEvent(RunBulkArticlesCommand, detail),
+		} : undefined,
+		listSenderIssues: inboxEmailStore.listEmailsByUserId,
 		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: inboxEmailLinkStore.getLink,
 		findIssueLinkSaveStates: inboxSavedLinkStore.findSavedLinks,
@@ -742,6 +744,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
+		recordSmartReadlistMinimumReached: onboardingSignals.recordSmartReadlistMinimumReached,
+		recordSmartReadlistStepDismissed: onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: onboardingSignals.recordGmailStepDismissed,

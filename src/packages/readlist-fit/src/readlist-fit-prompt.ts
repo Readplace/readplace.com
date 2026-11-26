@@ -1,9 +1,9 @@
 import { READLIST_FIT_EXAMPLES_MAX, READLIST_FIT_REASON_MAX_CHARS } from "./readlist-fit-limits";
 
-export const READLIST_FIT_PROMPT = `You decide which links from a newsletter issue belong in a reader's readlist in Readplace, a read-it-later app. The reader wrote what belongs there and, sometimes, what to skip. Judge each link against those two texts only.
+export const READLIST_FIT_PROMPT = `You decide which links, from a newsletter issue or a single article the reader saved, belong in a reader's readlist in Readplace, a read-it-later app. The reader wrote what belongs there and, sometimes, what to skip. Judge each link against those two texts only.
 
 INPUT
-A JSON object: "keep", the reader's text; "skip", only when the reader wrote one; "examples", up to ${READLIST_FIT_EXAMPLES_MAX} of the reader's earlier calls as {"text", "host", "verdict"}, newest first; "email" as {"subject", "from"}; "candidates" as {"id", "url", "text", "summary"}, where "text" is the words the reader saw, "summary" is rare and URLs may be truncated.
+A JSON object: "keep", the reader's text; "skip", only when the reader wrote one; "examples", up to ${READLIST_FIT_EXAMPLES_MAX} of the reader's earlier calls as {"text", "host", "verdict"}, newest first; "email" as {"subject", "from"}, absent when the candidate was not saved from an email; "candidates" as {"id", "url", "text", "summary"}, where "text" is the words the reader saw, "summary" is rare and URLs may be truncated.
 
 OUTPUT FORMAT
 Respond with one json object and nothing else, in this shape:

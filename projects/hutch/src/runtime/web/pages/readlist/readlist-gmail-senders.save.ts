@@ -14,7 +14,7 @@ import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { type ReadlistSlug, readerReadlists } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
-import { GMAIL_METADATA_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_METADATA_SCOPE, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { z } from "zod";
 import type { MapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
@@ -57,6 +57,7 @@ function tickedSenders(body: z.infer<typeof SaveBodySchema>): ForwardableSender[
 }
 
 export interface ReadlistGmailSources extends ReadlistGmailSectionStateInput {
+	modifyScopeGranted: boolean;
 	state: ReadlistGmailSectionState;
 	mappings: GmailMapping[];
 	pool: GmailSenderPool;
@@ -94,6 +95,7 @@ export function initReadReadlistGmailSources(deps: {
 		const entries = await Promise.all(lookups.map((address) => gmail.findInboxAddress(address)));
 		return {
 			...stateInput,
+			modifyScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_MODIFY_SCOPE }),
 			state: readlistGmailSectionState(stateInput),
 			mappings,
 			pool: gmailSenderPool({ observed, discovered, sameMailbox, mappings }),

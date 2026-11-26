@@ -13,7 +13,7 @@ enum ShareStatusTone: Equatable {
 /// Symbol name, and a tone. Lifted out of `ShareViewController` so the whole
 /// mapping — including joining a refusal's messages and choosing error vs.
 /// warning from their kinds — is a pure value the tests exercise directly; the
-/// controller only paints it and maps the tone to a `UIColor`.
+/// controller only paints it.
 struct ShareStatusPresentation: Equatable {
 	let message: String
 	let subtitle: String?

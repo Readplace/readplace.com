@@ -97,6 +97,24 @@ describe("BASE_CSS_VARIABLES", () => {
 		expect(darkRootDeclarations()).toContain("--warning-text: var(--color-warning);");
 	});
 
+	it("gives --success-text an ink that clears 4.5:1 on --success-bg in both themes", () => {
+		expect(lightRootDeclarations()).toContain("--success-text: hsl(158 39% 31%);");
+		expect(darkRootDeclarations()).toContain("--success-text: #5AAE8E;");
+		expect(pinnedThemeDeclarations(DARK_ONLY_BODY_CLASS)).toContain("--success-text: #5AAE8E;");
+	});
+
+	it("gives --input its own edge, apart from --border, in both themes", () => {
+		expect(lightRootDeclarations()).toContain("--input: #838895;");
+		expect(darkRootDeclarations()).toContain("--input: #787878;");
+		expect(pinnedThemeDeclarations(DARK_ONLY_BODY_CLASS)).toContain("--input: #787878;");
+		expect(lightRootDeclarations()).toContain("--border: var(--color-border);");
+	});
+
+	it("inks the wordmark tail above the text floor on the light header and on the navy hero", () => {
+		expect(lightRootDeclarations()).toContain("--header-brand-tail: var(--primary-text);");
+		expect(lightRootDeclarations()).toContain("--header-brand-tail-on-navy: #D4A04A;");
+	});
+
 	it("tints the reader header's provenance glyph in the secondary ink the site glyph shares", () => {
 		expect(lightRootDeclarations()).toContain("--fact-provenance: var(--color-secondary-text);");
 	});
@@ -455,7 +473,7 @@ describe("CHIP_STYLES", () => {
 		);
 	});
 
-	it("sets a success status chip's label in --foreground, which clears 4.5:1 on its tint where --success-text does not", () => {
+	it("keeps a success status chip's label in --foreground ink", () => {
 		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip--status.chip--success" }), property: "color" })).toBe(
 			"var(--foreground)",
 		);

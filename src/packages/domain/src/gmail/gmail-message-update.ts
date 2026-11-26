@@ -3,7 +3,7 @@ import { NormalizedMessageIdSchema } from "../mail-identity/normalized-message-i
 import type { UserId } from "../user";
 import { ForwardableSenderSchema } from "./build-forwarding-filter-query";
 import { type GmailAccountEmail, GmailAccountEmailSchema } from "./gmail-account-email.schema";
-import { GmailMessageIdSchema } from "./gmail-history-import.schema";
+import { GmailHistoryImportJobIdSchema, GmailMessageIdSchema } from "./gmail-history-import.schema";
 
 export const GMAIL_IMPORTED_LABEL_NAME = "imported-to-readplace";
 
@@ -12,6 +12,7 @@ export const GmailMessageOriginSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("history"),
 		accountEmail: GmailAccountEmailSchema,
 		gmailMessageId: GmailMessageIdSchema,
+		jobId: GmailHistoryImportJobIdSchema.optional(),
 		senderEmail: ForwardableSenderSchema,
 	}),
 	z.object({
@@ -34,7 +35,7 @@ export function gmailAccountKey(accountEmail: GmailAccountEmail): string {
 export function gmailMessageOriginKey(origin: GmailMessageOrigin): string {
 	const account = gmailAccountKey(origin.accountEmail);
 	return origin.kind === "history"
-		? `history#${account}#${origin.gmailMessageId}`
+		? `history#${account}#${origin.gmailMessageId}${origin.jobId === undefined ? "" : `#${origin.jobId}`}`
 		: `forwarded#${account}#${origin.senderEmail}#${origin.rfcMessageId}`;
 }
 
@@ -48,7 +49,7 @@ export type GmailMessageUpdateFailureReason = z.infer<typeof GmailMessageUpdateF
 
 export type GmailMessageUpdate = { supplemental?: true } & (
 	| { status: "pending"; userId: UserId; receivedAtMessageId: string; origin: GmailMessageOrigin; requestedAt: string }
-	| { status: "completed"; userId: UserId; receivedAtMessageId: string; origin: GmailMessageOrigin; requestedAt: string; completedAt: string }
+	| { status: "completed"; userId: UserId; receivedAtMessageId: string; origin: GmailMessageOrigin; requestedAt: string; completedAt: string; alreadyRead?: boolean }
 	| {
 			status: "failed";
 			userId: UserId;
@@ -60,6 +61,8 @@ export type GmailMessageUpdate = { supplemental?: true } & (
 	});
 
 export interface GmailMessageUpdateStore {
+	claimPending: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date }) => Promise<string | undefined>;
+	releaseClaim: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; claimUntil: string }) => Promise<void>;
 	recordPending: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -68,7 +71,7 @@ export interface GmailMessageUpdateStore {
 		now: Date;
 	}) => Promise<GmailMessageUpdate>;
 	find: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true }) => Promise<GmailMessageUpdate | undefined>;
-	markCompleted: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date }) => Promise<void>;
+	markCompleted: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date; alreadyRead?: boolean }) => Promise<void>;
 	markFailed: (input: {
 		userId: UserId;
 		origin: GmailMessageOrigin;

@@ -1,5 +1,7 @@
 import type { ArticleStatus } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 
@@ -13,6 +15,8 @@ export interface MarkStatusConfirmViewModel {
 
 export const MARK_STATUS_ACK_NEVER = "never";
 
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
 /**
  * The `readlist-mark-status-confirm-` prefix is load-bearing, not cosmetic: a
  * ReaderArticleHashId is /^[0-9a-f]{32}$/ and may start with a digit, which is a
@@ -23,27 +27,9 @@ export function markStatusConfirmPopoverId(articleId: string): string {
 	return `readlist-mark-status-confirm-${articleId}`;
 }
 
-const STATUS_COPY = {
-	read: {
-		title: "Mark as read in all readlists?",
-		bodyMultiple: "This article also appears in other readlists. Marking it as read will update it everywhere:",
-		bodySingle: "This article will be marked as read in all readlists it belongs to:",
-		confirm: "Mark as read everywhere",
-		never: "Mark as read and don't ask again",
-	},
-	unread: {
-		title: "Mark as unread in all readlists?",
-		bodyMultiple: "This article also appears in other readlists. Marking it as unread will update it everywhere:",
-		bodySingle: "This article will be marked as unread in all readlists it belongs to:",
-		confirm: "Mark as unread everywhere",
-		never: "Mark as unread and don't ask again",
-	},
-} as const satisfies Record<ArticleStatus, { title: string; bodyMultiple: string; bodySingle: string; confirm: string; never: string }>;
-
 const MARK_STATUS_CONFIRM_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons confirm-popover__buttons--full-width" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 	<input type="hidden" name="status" value="{{status}}">
-	<button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" data-test-action="mark-status-confirm-never">{{never}}</button>
-	<button class="btn btn--primary" type="submit" data-test-action="mark-status-confirm" autofocus>{{confirm}}</button>
+	<button class="btn btn--primary" type="submit" name="ack" value="{{ackNever}}" data-test-action="mark-status-confirm" autofocus>{{t "readlistMarkStatus.acknowledge"}}</button>
 </form>`;
 
 export function renderMarkStatusConfirm(input: {
@@ -52,15 +38,14 @@ export function renderMarkStatusConfirm(input: {
 	lead?: string;
 	oob?: boolean;
 }): string {
-	const copy = STATUS_COPY[input.confirm.status];
 	return renderConfirmPopover({
 		id: input.confirm.popoverId,
 		key: "mark-status",
 		close: {},
 		oob: input.oob,
 		subject: input.confirm.articleId,
-		title: copy.title,
-		body: input.confirm.readlists.length > 1 ? copy.bodyMultiple : copy.bodySingle,
+		title: t("readlistMarkStatus.title"),
+		body: t(`readlistMarkStatus.body.${input.confirm.status}`),
 		bodyItems: input.confirm.readlists.map((readlist) => ({
 			label: readlist.label,
 			icon: READLIST_KIND_ICON[readlist.slug === DEFAULT_READLIST_SLUG ? "default" : "custom"],
@@ -75,8 +60,6 @@ export function renderMarkStatusConfirm(input: {
 			}),
 			status: input.confirm.status,
 			ackNever: MARK_STATUS_ACK_NEVER,
-			confirm: copy.confirm,
-			never: copy.never,
 		}),
 	});
 }

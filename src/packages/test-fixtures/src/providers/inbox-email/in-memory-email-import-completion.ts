@@ -8,6 +8,7 @@ import {
 	missingEmailDeliveryMode,
 	type SupplementalEmailImport,
 	uniqueGmailOrigins,
+	amendEmailSelection,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
@@ -60,6 +61,12 @@ export function initInMemoryEmailImportCompletion(deps: {
 				return current.supplementalSelection;
 			}
 			current.selection ??= input.selection;
+			return current.selection;
+		},
+		amendSelection: async (input) => {
+			const current = await existing(input);
+			assert(current?.selection, "matching and continuations follow output selection");
+			current.selection = amendEmailSelection(current.selection, input.change);
 			return current.selection;
 		},
 		acknowledgeOutput: async (input) => {

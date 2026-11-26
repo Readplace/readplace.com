@@ -18,6 +18,7 @@ const MessageHeadersResponse = z.object({
 	id: GmailMessageIdSchema,
 	payload: z.object({ headers: z.array(z.object({ name: z.string(), value: z.string() })).optional() }).optional(),
 });
+const MessageLabelsResponse = z.object({ labelIds: z.array(z.string()).default([]) });
 const LabelsResponse = z.object({ labels: z.array(z.object({ id: z.string(), name: z.string() })).optional() });
 const LabelResponse = z.object({ id: z.string() });
 
@@ -99,9 +100,10 @@ export function initOpenGmailMailboxForUpdate(deps: {
 
 		const mailbox: OpenedGmailMailbox = {
 			findMessage: async ({ messageId }) => {
-				const found = await call(`${USER_ENDPOINT}/messages/${encodeURIComponent(messageId)}?format=minimal&fields=id`);
+				const found = await call(`${USER_ENDPOINT}/messages/${encodeURIComponent(messageId)}?format=minimal&fields=labelIds`);
 				if (found.ok && found.value.status === 404) return { ok: true, value: { found: false } };
-				return classify(found, async () => ({ ok: true, value: { found: true } }));
+				const message = await classify(found, (response) => parsed(response, MessageLabelsResponse));
+				return message.ok ? { ok: true, value: { found: true, labelIds: message.value.labelIds } } : message;
 			},
 			searchByRfcMessageId: async ({ rfcMessageId, senderEmail }) => {
 				const query = new URLSearchParams({

@@ -23,6 +23,8 @@ import {
 	isHeldLinkLive,
 } from "@packages/domain/article";
 import type {
+	ChangePersonalPick,
+	CountArticlesQuery,
 	FindHeldLink,
 	FindSavedLinksJob,
 	FindOriginalUrls,
@@ -40,6 +42,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import { type EventInstant, toEventInstant } from "@packages/domain/event-envelope";
 import {
+	personalDecisionKey,
 	ReaderArticleHashId,
 	articleDestinationUrl,
 	ANONYMOUS_VIEWER,
@@ -91,11 +94,17 @@ import type {
 	PinReadlistDefinition,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
+	ReadlistFiling,
+	FindSmartMatchRevisions,
+	RecordSmartMatchRevision,
 	UnpinReadlistDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	FindQueueRowKeys,
 	QueueRowKey,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -175,6 +184,12 @@ interface GlobalArticle {
 }
 
 interface UserArticle {
+	statusRevision?: number;
+	personalDecision?: string;
+	personalPickedAt?: Date;
+	bulkSave?: true;
+	unknownOrigin?: true;
+	personalScope?: "picked" | "uncertain";
 	suggestionAttribution?: SavedArticle["suggestionAttribution"];
 	userId: UserId;
 	readlist?: ReadlistSlug;
@@ -196,7 +211,7 @@ interface UserArticle {
 }
 
 function isProtectedAgainstAutomaticSave(row: UserArticle): boolean {
-	return row.handPickedAt !== undefined || keepsProvenanceAgainstAutomaticSave(row.provenance?.kind);
+	return row.personalPickedAt !== undefined || row.handPickedAt !== undefined || keepsProvenanceAgainstAutomaticSave(row.provenance?.kind);
 }
 
 function servedBodyOf(article: GlobalArticle): ServedBody {
@@ -228,7 +243,15 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		servedBody: servedBodyOf(article),
 		estimatedReadTime: article.estimatedReadTime,
 		status: userArticle.status,
+		statusRevision: userArticle.statusRevision,
 		savedAt: userArticle.savedAt,
+		...(userArticle.bulkSave ? { bulkSave: true as const } : {}),
+		lastSummaryOpenedAt: userArticle.lastSummaryOpenedAt,
+		lastSummaryClosedAt: userArticle.lastSummaryClosedAt,
+		restoredAt: userArticle.restoredAt,
+		personalDecision: userArticle.personalDecision,
+		personalPickedAt: userArticle.personalPickedAt,
+		...(userArticle.personalScope === "uncertain" ? { personalReviewPending: true as const } : {}),
 		readAt: userArticle.readAt,
 		viewedAt: userArticle.viewedAt,
 		contentFetchedAt: article.contentFetchedAt === undefined ? undefined : new Date(article.contentFetchedAt),
@@ -245,6 +268,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 }
 
 export function initInMemoryArticleStore(): {
+	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
 	findUnrestorableArticles: FindUnrestorableArticles;
@@ -261,8 +285,10 @@ export function initInMemoryArticleStore(): {
 	withdrawSavedLinksJob: WithdrawSavedLinksJob;
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;
+	changePersonalPick: ChangePersonalPick;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	seedUncertainSave: (params: { userId: UserId; url: string }) => void;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
@@ -311,11 +337,14 @@ export function initInMemoryArticleStore(): {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	findReadlistFiling: FindReadlistFiling;
 	findReadlistRemoval: FindReadlistRemoval;
+	findSmartMatchRevisions: FindSmartMatchRevisions;
+	recordSmartMatchRevision: RecordSmartMatchRevision;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	findQueueRowKeys: FindQueueRowKeys;
 	hasQueueRow: (key: QueueRowKey) => boolean;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -331,6 +360,8 @@ export function initInMemoryArticleStore(): {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
@@ -385,6 +416,7 @@ export function initInMemoryArticleStore(): {
 	const articles = new Map<string, GlobalArticle>();
 	const articleImages = new Map<string, { body: Buffer; contentType: string }>();
 	const userArticles = new Map<string, UserArticle>();
+	const removalTimes = new Map<string, { userId: UserId; at: Date }>();
 	const defaultRowDeletedListeners: ((row: { userId: UserId; url: string }) => void)[] = [];
 	const announceDefaultRowDeleted = (row: { userId: UserId; url: string }) => {
 		for (const listener of defaultRowDeletedListeners) listener(row);
@@ -402,6 +434,9 @@ export function initInMemoryArticleStore(): {
 			createdAt: Date;
 			starterCampaignId?: string;
 			pinnedAt?: Date;
+			filingMode?: "manual" | "smart";
+			filingRuleRevision?: number;
+			filingRuleEffectiveAt?: Date;
 		}
 	>();
 	const readlistFitOverrides = new Map<
@@ -414,6 +449,15 @@ export function initInMemoryArticleStore(): {
 	const recordReadlistRemoval = (removal: { userId: UserId; readlist: ReadlistSlug; url: string }) => {
 		if (!userArticles.has(userArticleKey(removal.userId, ArticleResourceUniqueId.parse(removal.url).value))) return;
 		readlistRemovals.set(readlistRemovalKey(removal), { userId: removal.userId, removedAt: toEventInstant(new Date()) });
+	};
+	const smartMatchRevisions = new Map<string, { userId: UserId; readlist: ReadlistSlug; revision: number }>();
+	const forgetAllRowMarkers = (allKey: string) => {
+		for (const key of readlistRemovals.keys()) {
+			if (key.startsWith(`${allKey}|`)) readlistRemovals.delete(key);
+		}
+		for (const key of smartMatchRevisions.keys()) {
+			if (key.startsWith(`${allKey}|`)) smartMatchRevisions.delete(key);
+		}
 	};
 	const findPersonalLibrary: FindPersonalLibrary = async (userId) => {
 		const own = [...userArticles.values()].filter((row) => row.userId === userId);
@@ -535,6 +579,20 @@ export function initInMemoryArticleStore(): {
 		article.savedAt = params.savedAt;
 	};
 
+	const changePersonalPick: ChangePersonalPick = async ({ userId, url, picked, request }) => {
+		const key = userArticleKey(userId, ArticleResourceUniqueId.parse(url).value);
+		const row = userArticles.get(key);
+		if (!row) return "missing";
+		const decision = personalDecisionKey(request);
+		const removed = removalTimes.get(key);
+		if (removed && removed.at.getTime() >= new Date(request.requestedAt).getTime()) return "superseded";
+		if (row.personalDecision !== undefined && row.personalDecision >= decision) return "superseded";
+		row.personalDecision = decision;
+		row.personalPickedAt = picked ? row.personalPickedAt ?? new Date(request.requestedAt) : undefined;
+		row.personalScope = picked ? "picked" : undefined;
+		return "updated";
+	};
+
 	const saveInto = async (
 		readlist: ReadlistSlug | undefined,
 		params: Omit<SaveArticleParams, "saveTrigger">,
@@ -558,26 +616,29 @@ export function initInMemoryArticleStore(): {
 		});
 	};
 
-	const writeUserRowUnless = ({
+	const writeUserRowUnless = async ({
 		readlist,
 		params,
 		saveTrigger,
 		overtakes,
 	}: {
 		readlist: ReadlistSlug | undefined;
-		params: Pick<SaveArticleParams, "userId" | "url" | "savedAt" | "provenance" | "suggestionAttribution">;
+		params: Pick<SaveArticleParams, "userId" | "url" | "savedAt" | "provenance" | "suggestionAttribution" | "personalPick" | "bulkSave">;
 		saveTrigger: SaveTrigger | undefined;
 		overtakes: (existing: UserArticle) => boolean;
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value, readlist);
+		const removal = removalTimes.get(uaKey);
+		if (params.personalPick && removal && new Date(params.personalPick.requestedAt).getTime() <= removal.at.getTime()) throw new ArticlePurgedAfterRequest(params.url);
 		const existing = userArticles.get(uaKey);
 		const newerSaveWon = existing !== undefined && overtakes(existing);
 		if (!newerSaveWon) {
 			userArticles.set(uaKey, existing
 				? {
 					...existing,
+					...(params.bulkSave ? { bulkSave: true as const } : {}),
 					savedAt: params.savedAt,
 					provenance:
 						saveTrigger === "automatic" && isProtectedAgainstAutomaticSave(existing)
@@ -587,6 +648,7 @@ export function initInMemoryArticleStore(): {
 					handPickedAt: saveTrigger === "manual" ? existing.handPickedAt ?? params.savedAt : existing.handPickedAt,
 				}
 				: {
+					...(params.bulkSave ? { bulkSave: true as const } : {}),
 					userId: params.userId,
 					readlist,
 					url: articleResourceUniqueId.value,
@@ -602,6 +664,9 @@ export function initInMemoryArticleStore(): {
 
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, "Article must exist after set");
+		if (params.personalPick && readlist === undefined) {
+			await changePersonalPick({ userId: params.userId, url: params.url, picked: true, request: params.personalPick });
+		}
 		const ua = userArticles.get(uaKey);
 		assert(ua, "User article must exist after set");
 		return {
@@ -611,8 +676,6 @@ export function initInMemoryArticleStore(): {
 		};
 	};
 
-	const saveArticle: SaveArticle = ({ saveTrigger, ...params }) => saveInto(undefined, params, saveTrigger);
-
 	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) => saveInto(readlist, params, undefined);
 
 	const saveAsRequested = async (
@@ -621,6 +684,8 @@ export function initInMemoryArticleStore(): {
 		saveTrigger: SaveTrigger | undefined,
 	) => {
 		const key = ArticleResourceUniqueId.parse(params.url).value;
+		const removal = removalTimes.get(userArticleKey(params.userId, key, readlist));
+		if (removal && removal.at >= requestedAt) throw new ArticlePurgedAfterRequest(params.url);
 		const existingArticle = articles.get(key);
 		const globallySavedAt = new Date();
 		if (existingArticle === undefined || (existingArticle.purgedAt !== undefined && existingArticle.purgedAt < requestedAt)) {
@@ -645,6 +710,11 @@ export function initInMemoryArticleStore(): {
 	const saveArticleAsRequested: SaveArticleAsRequested = ({ saveTrigger, ...params }) =>
 		saveAsRequested(undefined, params, saveTrigger);
 
+	const saveArticle: SaveArticle = ({ saveTrigger, ...params }) => {
+		const requestedAt = params.requestedAt ?? (params.personalPick && new Date(params.personalPick.requestedAt));
+		return requestedAt ? saveAsRequested(undefined, { ...params, requestedAt }, saveTrigger) : saveInto(undefined, params, saveTrigger);
+	};
+
 	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
 		saveAsRequested(readlist, params, undefined);
 
@@ -659,6 +729,7 @@ export function initInMemoryArticleStore(): {
 				status: row.status,
 				savedAt: row.savedAt,
 				...(row.provenance === undefined ? {} : { provenance: row.provenance }),
+				...(row.personalPickedAt === undefined ? {} : { personalPickedAt: row.personalPickedAt }),
 				...(row.handPickedAt === undefined ? {} : { handPickedAt: row.handPickedAt }),
 				...(row.viewedAt === undefined ? {} : { viewedAt: row.viewedAt }),
 				...(row.lastSummaryOpenedAt === undefined ? {} : { lastSummaryOpenedAt: row.lastSummaryOpenedAt }),
@@ -683,6 +754,9 @@ export function initInMemoryArticleStore(): {
 			});
 		}
 
+		if (params.personalPick) {
+			await changePersonalPick({ userId: params.userId, url: params.url, picked: true, request: params.personalPick });
+		}
 		const globallySavedAt = new Date();
 		const { created } = await saveArticleGlobally({
 			url: params.url,
@@ -695,7 +769,9 @@ export function initInMemoryArticleStore(): {
 		}
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, "Article must exist after set");
-		return { saved: toSavedArticle(article, existing), createdUserArticle: false, wroteUserArticle: false };
+		const current = userArticles.get(userArticleKey(params.userId, articleResourceUniqueId.value));
+		assert(current);
+		return { saved: toSavedArticle(article, current), createdUserArticle: false, wroteUserArticle: false };
 	};
 
 	const findArticleById: FindArticleById = async (id, userId) => {
@@ -765,6 +841,12 @@ export function initInMemoryArticleStore(): {
 			})
 			.filter((saved) => matchesArticleDiscovery(discoveryCandidateOf(saved), discovery));
 
+	const matchesManagedOrigin = (row: UserArticle, origin: FindArticlesQuery["managedOrigin"]) => {
+		if (origin === "bulk") return row.bulkSave || row.provenance?.kind === "import";
+		if (origin === "unknown") return row.unknownOrigin || row.provenance === undefined;
+		return true;
+	};
+
 	const listPartition = async (
 		readlist: ReadlistSlug | undefined,
 		query: FindArticlesQuery,
@@ -775,7 +857,7 @@ export function initInMemoryArticleStore(): {
 		const sort = query.sort ?? "savedAt";
 
 		let userArts = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === query.userId && ua.readlist === readlist,
+			(ua) => ua.userId === query.userId && ua.readlist === readlist && (query.personalScope === undefined || ua.personalScope === query.personalScope) && matchesManagedOrigin(ua, query.managedOrigin),
 		);
 
 		if (query.status) {
@@ -783,11 +865,11 @@ export function initInMemoryArticleStore(): {
 		}
 
 		userArts.sort((a, b) => {
-			const aValue = sort === "readAt" ? a.readAt : a.savedAt;
-			const bValue = sort === "readAt" ? b.readAt : b.savedAt;
+			const aValue = sort === "readAt" || (query.personalScope && query.status === "read") ? a.readAt : (query.personalScope && a.personalPickedAt) || a.savedAt;
+			const bValue = sort === "readAt" || (query.personalScope && query.status === "read") ? b.readAt : (query.personalScope && b.personalPickedAt) || b.savedAt;
 			assert(aValue, "sort field must be set on every row matching this query");
 			assert(bValue, "sort field must be set on every row matching this query");
-			const diff = aValue.getTime() - bValue.getTime();
+			const diff = aValue.getTime() - bValue.getTime() || (query.personalScope ? ReaderArticleHashId.fromResourceUniqueId(a.url).value.localeCompare(ReaderArticleHashId.fromResourceUniqueId(b.url).value) : 0);
 			return order === "asc" ? diff : -diff;
 		});
 
@@ -886,10 +968,10 @@ export function initInMemoryArticleStore(): {
 
 	const countPartition = (
 		readlist: ReadlistSlug | undefined,
-		query: { userId: UserId; status?: ArticleStatus; countLimit?: number; discovery?: ArticleDiscoveryQuery },
+		query: CountArticlesQuery,
 	): number => {
 		let userArts = Array.from(userArticles.values()).filter(
-			(ua) => ua.userId === query.userId && ua.readlist === readlist,
+			(ua) => ua.userId === query.userId && ua.readlist === readlist && (query.personalScope === undefined || ua.personalScope === query.personalScope) && matchesManagedOrigin(ua, query.managedOrigin),
 		);
 		if (query.status) {
 			userArts = userArts.filter((ua) => ua.status === query.status);
@@ -917,13 +999,27 @@ export function initInMemoryArticleStore(): {
 
 		userArticles.delete(uaKey);
 		if (readlist === undefined) {
-			for (const key of readlistRemovals.keys()) {
-				if (key.startsWith(`${uaKey}|`)) readlistRemovals.delete(key);
-			}
+			removalTimes.set(uaKey, { userId, at: new Date() });
+			forgetAllRowMarkers(uaKey);
 			announceDefaultRowDeleted({ userId, url: article.originalUrl });
 		}
 		return true;
 	};
+
+	function holdBulkArticle(userId: UserId, url: string, now: Date) {
+		const article = articles.get(ArticleResourceUniqueId.parse(url).value);
+		if (!article || article.purgedAt) return undefined;
+		const key = userArticleKey(userId, article.url);
+		const original = userArticles.get(key);
+		if (!original || !deleteFrom(undefined, article.routeId, userId)) return undefined;
+		const removal = { userId, at: now };
+		removalTimes.set(key, removal);
+		return () => {
+			if (removalTimes.get(key) !== removal || userArticles.has(key) || articles.get(article.url) !== article || article.purgedAt) return false;
+			userArticles.set(key, { ...original, restoredAt: new Date() });
+			return true;
+		};
+	}
 
 	const deleteArticle: DeleteArticle = async (id, userId) => deleteFrom(undefined, id, userId);
 
@@ -959,8 +1055,35 @@ export function initInMemoryArticleStore(): {
 	const findReadlistRemoval: FindReadlistRemoval = async (params) =>
 		readlistRemovals.get(readlistRemovalKey(params))?.removedAt;
 
+	const findSmartMatchRevisions: FindSmartMatchRevisions = async ({ userId, storedKey }) => {
+		const allKey = userArticleKey(userId, storedKey);
+		const row = userArticles.get(allKey);
+		if (row === undefined) return { kind: "not-in-all" };
+		const revisions = new Map<ReadlistSlug, number>();
+		for (const [key, marker] of smartMatchRevisions) {
+			if (key.startsWith(`${allKey}|`)) revisions.set(marker.readlist, marker.revision);
+		}
+		return { kind: "in-all", savedAt: row.savedAt, revisions };
+	};
+
+	const recordSmartMatchRevision: RecordSmartMatchRevision = async ({ userId, storedKey, readlist, revision }) => {
+		const allKey = userArticleKey(userId, storedKey);
+		if (!userArticles.has(allKey)) return { recorded: false };
+		const key = `${allKey}|${readlist}`;
+		const existing = smartMatchRevisions.get(key);
+		if (existing !== undefined && existing.revision >= revision) return { recorded: false };
+		smartMatchRevisions.set(key, { userId, readlist, revision });
+		return { recorded: true };
+	};
+
 	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
-		if (!readlistDefinitions.has(readlistDefinitionKey(params.userId, params.readlist))) {
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.readlist));
+		if (params.smartRule !== undefined) {
+			const ruleHolds =
+				definition?.filingMode === "smart" && definition.filingRuleRevision === params.smartRule.revision;
+			if (!ruleHolds) return { outcome: "smart-rule-changed" };
+		}
+		if (definition === undefined) {
 			return { outcome: "readlist-gone" };
 		}
 		if (!userArticles.has(userArticleKey(params.userId, ArticleResourceUniqueId.parse(params.url).value))) {
@@ -985,7 +1108,7 @@ export function initInMemoryArticleStore(): {
 				suggestionAttribution: params.suggestionAttribution,
 			});
 		} else {
-			const { wroteUserArticle } = writeUserRowUnless({
+			const { wroteUserArticle } = await writeUserRowUnless({
 				readlist: params.readlist,
 				params,
 				saveTrigger: undefined,
@@ -1007,8 +1130,14 @@ export function initInMemoryArticleStore(): {
 		for (const [key, entry] of readlistFitOverrides) {
 			if (entry.userId === userId) readlistFitOverrides.delete(key);
 		}
+		for (const [key, removal] of removalTimes) {
+			if (removal.userId === userId) removalTimes.delete(key);
+		}
 		for (const [key, removal] of readlistRemovals) {
 			if (removal.userId === userId) readlistRemovals.delete(key);
+		}
+		for (const [key, marker] of smartMatchRevisions) {
+			if (marker.userId === userId) smartMatchRevisions.delete(key);
 		}
 		saveCursors.delete(userId);
 		for (const [key, held] of heldLinks) {
@@ -1064,7 +1193,9 @@ export function initInMemoryArticleStore(): {
 			expiresAt: heldLinkExpiresAt(now),
 			senderEmail: row.provenance.senderEmail,
 		};
+		removalTimes.set(allKey, { userId, at: now });
 		userArticles.delete(allKey);
+		forgetAllRowMarkers(allKey);
 		heldLinks.set(heldLinkMapKey({ userId, heldKey }), { userId, row, link });
 		return { outcome: "held" };
 	};
@@ -1077,6 +1208,9 @@ export function initInMemoryArticleStore(): {
 		if (article.purgedAt !== undefined) return { outcome: "unrestorable" };
 		const allKey = userArticleKey(userId, held.link.storedKey);
 		if (userArticles.has(allKey)) return { outcome: "already-in-all" };
+		if (held.link.expiresAt <= now) return { outcome: "gone" };
+		const removal = removalTimes.get(allKey);
+		if (removal && removal.at.getTime() !== held.link.removedAt.getTime()) return { outcome: "unrestorable" };
 		userArticles.set(allKey, { ...held.row, restoredAt: now });
 		heldLinks.delete(heldLinkMapKey({ userId, heldKey }));
 		return { outcome: "restored" };
@@ -1158,7 +1292,7 @@ export function initInMemoryArticleStore(): {
 		const targetKey = partitionKey(readlist);
 		if (userArticles.has(targetKey)) return { assigned: false };
 		const targetReadlist = readlist === DEFAULT_READLIST_SLUG ? undefined : readlist;
-		const { relatedPassesRequestedAt: _assignedAcknowledgement, ...assigned } = source;
+		const { relatedPassesRequestedAt: _assignedAcknowledgement, personalDecision: _decision, personalPickedAt: _picked, personalScope: _scope, ...assigned } = source;
 		userArticles.set(targetKey, { ...assigned, readlist: targetReadlist, savedAt });
 		return { assigned: true };
 	};
@@ -1206,6 +1340,18 @@ export function initInMemoryArticleStore(): {
 			return candidate.userId === key.userId && candidate.url === key.url;
 		});
 
+	const countSmartReadlistArticles: CountSmartReadlistArticles = async ({ userId, readlists }) => {
+		const urls = new Set<string>();
+		for (const row of userArticles.values()) {
+			if (row.userId === userId && row.readlist && readlists.includes(row.readlist)) {
+				if (!readlistDefinitions.get(readlistDefinitionKey(userId, row.readlist))?.purpose) continue;
+				urls.add(row.url);
+				if (urls.size === 10) break;
+			}
+		}
+		return urls.size;
+	};
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
@@ -1223,6 +1369,7 @@ export function initInMemoryArticleStore(): {
 		userId: UserId,
 		status: ArticleStatus,
 		readAt: Date,
+		expected?: Parameters<UpdateArticleStatus>[3],
 	): SavedArticle | null => {
 		const article = findArticleByRouteId(id);
 		if (!article) return null;
@@ -1230,7 +1377,10 @@ export function initInMemoryArticleStore(): {
 		const uaKey = userArticleKey(userId, article.url, readlist);
 		const ua = userArticles.get(uaKey);
 		if (!ua) return null;
+		if (expected && (ua.savedAt.getTime() !== expected.savedAt.getTime() || ua.readAt?.getTime() !== expected.readAt?.getTime()
+			|| ua.statusRevision !== expected.statusRevision)) return toSavedArticle(article, ua);
 
+		if (ua.status !== status || !ua.personalScope) ua.statusRevision = (ua.statusRevision ?? 0) + 1;
 		ua.status = status;
 		if (status === "read") {
 			ua.readAt = ua.readAt ?? readAt;
@@ -1241,8 +1391,8 @@ export function initInMemoryArticleStore(): {
 		return toSavedArticle(article, ua);
 	};
 
-	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) =>
-		updateStatusIn(undefined, id, userId, status, new Date());
+	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status, expected) =>
+		updateStatusIn(undefined, id, userId, status, new Date(), expected);
 
 	const setReadlistArticleStatus = async (params: {
 		id: ReaderArticleHashId;
@@ -1283,6 +1433,7 @@ export function initInMemoryArticleStore(): {
 			slug: params.slug,
 			label: params.label,
 			createdAt: params.createdAt,
+			filingMode: "manual",
 		});
 		return { created: true, ownedCount: owned.length + 1 };
 	};
@@ -1314,15 +1465,39 @@ export function initInMemoryArticleStore(): {
 	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { updated: false };
+		if (!definition || definition.filingMode === "smart") return { updated: false };
+		const firstSetup = !definition.purpose?.trim();
 		definition.purpose = params.purpose;
-		return { updated: true };
+		return { updated: true, firstSetup };
+	};
+
+	const setSmartReadlistRule: SetSmartReadlistRule = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { kind: "readlist-gone" };
+		const revision = (definition.filingRuleRevision ?? 0) + 1;
+		definition.filingMode = "smart";
+		definition.purpose = params.purpose;
+		definition.filingRuleRevision = revision;
+		definition.filingRuleEffectiveAt = params.effectiveAt;
+		return { kind: "set", revision };
+	};
+
+	const turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (definition?.filingMode !== "smart") return { turnedOff: false };
+		assert(definition.filingRuleRevision !== undefined, "a smart readlist carries its rule revision");
+		definition.filingMode = "manual";
+		definition.filingRuleRevision += 1;
+		definition.filingRuleEffectiveAt = undefined;
+		return { turnedOff: true };
 	};
 
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition) return { cleared: false };
+		if (!definition || definition.filingMode === "smart") return { cleared: false };
 		definition.purpose = undefined;
 		return { cleared: true };
 	};
@@ -1372,16 +1547,31 @@ export function initInMemoryArticleStore(): {
 		return userArticles.delete(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value, readlist));
 	};
 
+	const filingOf = (definition: {
+		filingMode?: "manual" | "smart";
+		filingRuleRevision?: number;
+		filingRuleEffectiveAt?: Date;
+	}): { filing?: ReadlistFiling } => {
+		if (definition.filingMode === undefined) return {};
+		if (definition.filingMode === "manual") return { filing: { mode: "manual" } };
+		assert(definition.filingRuleRevision !== undefined, "a smart readlist carries its rule revision");
+		assert(definition.filingRuleEffectiveAt !== undefined, "a smart readlist carries its rule's effective instant");
+		return {
+			filing: { mode: "smart", revision: definition.filingRuleRevision, effectiveAt: definition.filingRuleEffectiveAt },
+		};
+	};
+
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, purpose, createdAt, starterCampaignId, pinnedAt }) => ({
-				slug,
-				label,
-				purpose,
-				createdAt,
-				...(starterCampaignId === undefined ? {} : { starterCampaignId }),
-				...(pinnedAt === undefined ? {} : { pinnedAt }),
+			.map((definition) => ({
+				slug: definition.slug,
+				label: definition.label,
+				purpose: definition.purpose,
+				createdAt: definition.createdAt,
+				...(definition.starterCampaignId === undefined ? {} : { starterCampaignId: definition.starterCampaignId }),
+				...(definition.pinnedAt === undefined ? {} : { pinnedAt: definition.pinnedAt }),
+				...filingOf(definition),
 			}))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
 
@@ -1559,6 +1749,9 @@ export function initInMemoryArticleStore(): {
 			savedAt: params.savedAt,
 			provenance: { kind: "upload" },
 			handPickedAt: params.savedAt,
+			personalPickedAt: params.savedAt,
+			personalDecision: `${params.savedAt.toISOString()}#${routeId.value}`,
+			personalScope: "picked",
 		});
 		return "saved";
 	};
@@ -1746,8 +1939,15 @@ export function initInMemoryArticleStore(): {
 	return {
 		findPersonalLibrary,
 		saveStarterPack,
+		changePersonalPick,
 		saveArticle,
 		saveArticleKeepingPosition,
+		seedUncertainSave: ({ userId, url }) => {
+			const row = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value));
+			assert(row && !row.personalDecision, "only an existing unclassified save can enter older-saves review");
+			row.personalScope = "uncertain";
+			row.unknownOrigin = true;
+		},
 		readHandPickedAt,
 		readNewsletterLinkRows,
 		readOpenedInReadlists,
@@ -1765,6 +1965,7 @@ export function initInMemoryArticleStore(): {
 		findArticlesAcrossReadlists,
 		countArticlesByUser,
 		deleteArticle,
+		holdBulkArticle,
 		onDefaultRowDeleted: (listener) => {
 			defaultRowDeletedListeners.push(listener);
 		},
@@ -1805,11 +2006,14 @@ export function initInMemoryArticleStore(): {
 		purgeReadlistArticle,
 		findReadlistFiling,
 		findReadlistRemoval,
+		findSmartMatchRevisions,
+		recordSmartMatchRevision,
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		findQueueRowKeys,
 		hasQueueRow,
+		countSmartReadlistArticles,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,
@@ -1825,6 +2029,8 @@ export function initInMemoryArticleStore(): {
 		pinReadlistDefinition,
 		unpinReadlistDefinition,
 		setReadlistDefinitionPurpose,
+		setSmartReadlistRule,
+		turnOffSmartReadlistMatching,
 		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,

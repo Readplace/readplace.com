@@ -164,10 +164,10 @@ describe("canonicalReadlistPageRedirect", () => {
 		).toBeUndefined();
 	});
 
-	it("clamps page 2 of a single-page result back to page 1 (/queue)", () => {
+	it("clamps page 2 of a single-page result back to the first page of the default readlist", () => {
 		expect(
 			canonicalReadlistPageRedirect({ state: { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 2 }, total: 20, pageSize: 20 }),
-		).toBe("/queue");
+		).toBe("/queue?queue=default");
 	});
 
 	it("returns undefined for the last valid page", () => {
@@ -200,7 +200,7 @@ describe("canonicalReadlistPageRedirect", () => {
 	it("clamps page 2 of an empty readlist to page 1 so the empty state renders", () => {
 		expect(
 			canonicalReadlistPageRedirect({ state: { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 2 }, total: 0, pageSize: 20 }),
-		).toBe("/queue");
+		).toBe("/queue?queue=default");
 	});
 });
 

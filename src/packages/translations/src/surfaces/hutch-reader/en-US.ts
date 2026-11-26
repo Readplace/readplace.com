@@ -5,8 +5,30 @@ export const enUS = {
 		},
 	},
 	articleBody: {
+		provenance: {
+			hnSuggestion: "Added by Readplace from Hacker News",
+		},
 		highlightToolbar: {
 			beta: "Beta",
+		},
+		highlightStatus: {
+			saving: "Saving highlight",
+			stalled: "Still saving this highlight",
+			stopWaiting: "Stop waiting",
+			unsure: "Readplace may still have saved this passage:",
+			check: "Check highlight",
+			checking: "Checking highlight",
+			highlighted: "This passage is highlighted:",
+			absent: "This passage wasn't highlighted when Readplace checked:",
+			unconfirmed: "Readplace couldn't check this highlight. Try again when you're online.",
+			retry: "Try again",
+			dismiss: "Dismiss",
+			refused: {
+				passageChanged: "That passage changed; select it again",
+				tooLong: "Select a shorter passage",
+				notesTooLong: "Joined with the highlights it overlaps, the notes are over {max} characters.",
+				cancelled: "That highlight just changed; try again",
+			},
 		},
 		highlightNote: {
 			delete: "Delete note",
@@ -14,6 +36,9 @@ export const enUS = {
 		highlightPopover: {
 			title: "Highlight actions",
 			hint: "Opens this highlight's actions",
+			copy: "Copy highlight",
+			copied: "Highlight copied",
+			copyFailed: "Couldn't copy the highlight. Select its text to copy it.",
 		},
 		highlightsRail: {
 			title: "Highlights",
@@ -24,6 +49,10 @@ export const enUS = {
 			addNote: "Add note",
 			editNote: "Edit note",
 			deleteHighlight: "Delete highlight",
+			copy: "Copy",
+			copyLabel: "Copy highlight",
+			copied: "Highlight copied",
+			copyFailed: "Couldn't copy. The highlight is selected, so you can copy it from your device's menu.",
 			deleteConfirm: {
 				title: "Delete this highlight?",
 				body: "The passage stays in the article; only your highlight is removed.",

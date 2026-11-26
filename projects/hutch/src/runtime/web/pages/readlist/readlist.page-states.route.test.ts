@@ -347,7 +347,7 @@ describe("empty states", () => {
 		const viewUnread = doc.querySelector('[data-test-empty-action="view-unread"]');
 		assert(viewUnread, "the view-unread action must be rendered");
 		expect(submittedUrl(viewUnread)).toBe(
-			"/queue?utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
+			"/queue?queue=default&utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
 		);
 		expect(emptyActionKeys(empty)).toEqual(["view-unread"]);
 	});
@@ -482,7 +482,7 @@ describe("custom readlist chrome", () => {
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		const menu = doc.querySelector("[data-test-readlist-menu]");
+		const menu = doc.querySelector('[data-test-readlist-menu]:not([data-test-readlist-menu="default"])');
 		assert(menu, "the created readlist must render a rail menu");
 		const rename = menu.querySelector('[data-test-action="readlist-rename"]');
 		assert(rename, "the rail menu must offer rename");

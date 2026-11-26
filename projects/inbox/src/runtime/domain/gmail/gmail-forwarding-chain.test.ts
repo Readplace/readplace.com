@@ -73,7 +73,11 @@ function makeInbox() {
 		published.push({ event, detail: event.detailSchema.parse(detail) });
 	}) as PublishEvent;
 	const evaluateCompletion = initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent });
-	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({ addGmailOrigins: completion.addGmailOrigins, evaluate: evaluateCompletion });
+	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({
+		findCompletion: completion.findCompletion,
+		addGmailOrigins: completion.addGmailOrigins,
+		evaluate: evaluateCompletion,
+	});
 
 	const fetchCalls: {
 		url: string;

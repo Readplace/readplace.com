@@ -48,8 +48,6 @@ import type {
 	GmailHistoryImportJobId,
 	GmailHistoryImportStore,
 	GmailMappingStore,
-	GmailMarkBackfillRef,
-	GmailMarkBackfillStore,
 	GmailMessageUpdateStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
@@ -133,10 +131,13 @@ import type {
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
+	ChangePersonalPick,
 	CountArticlesByUser,
 	CountEarlyIntentionalSave,
 	MarkActivationThresholdReached,
 	SetKeepOfferDismissed,
+	FindHomeReadlist,
+	SetHomeReadlist,
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
@@ -201,6 +202,7 @@ import type {
 	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
 	ListUserSavesForUrl,
+	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -214,6 +216,10 @@ import type {
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
+	FindSmartMatchRevisions,
+	RecordSmartMatchRevision,
 	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
@@ -298,6 +304,8 @@ import type {
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
+	RecordSmartReadlistMinimumReached,
+	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
@@ -364,6 +372,8 @@ export interface AuthBundle {
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	markEmailVerified: MarkEmailVerified;
 	markAgeLocked: MarkAgeLocked;
 	clearAgeLock: ClearAgeLock;
@@ -498,6 +508,8 @@ export interface SubscriptionBillingBundle {
 }
 
 export interface ArticleStoreBundle {
+	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+	changePersonalPick: ChangePersonalPick;
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;
 	deleteAllUserArticles: DeleteAllUserArticles;
@@ -512,6 +524,7 @@ export interface ArticleStoreBundle {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	seedUncertainSave: (params: { userId: UserId; url: string }) => void;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
@@ -568,6 +581,7 @@ export interface ArticleStoreBundle {
 	findReadlistRemoval: FindReadlistRemoval;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	countSmartReadlistArticles: CountSmartReadlistArticles;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -583,6 +597,10 @@ export interface ArticleStoreBundle {
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
+	findSmartMatchRevisions: FindSmartMatchRevisions;
+	recordSmartMatchRevision: RecordSmartMatchRevision;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
@@ -779,6 +797,8 @@ export interface WrapperTargetBundle {
 export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
+	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
+	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
@@ -826,8 +846,6 @@ export interface GmailIntegrationBundle {
 	publishStartGmailHistoryImport: (input: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => Promise<void>;
 	publishGmailModifyPermissionGranted: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<void>;
 	gmailMessageUpdateStore: GmailMessageUpdateStore;
-	gmailMarkBackfillStore: GmailMarkBackfillStore;
-	publishStartGmailMarkBackfill: (input: GmailMarkBackfillRef & { generation: number }) => Promise<void>;
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;

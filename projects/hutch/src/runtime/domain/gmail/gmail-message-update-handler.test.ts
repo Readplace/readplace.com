@@ -53,11 +53,18 @@ function handlerWith(outcome: (input: Parameters<MarkGmailEmailImported>[0]) => 
 describe("initGmailMessageUpdateHandler", () => {
 	const fact = { userId: USER, receivedAtMessageId: RAM, originKind: "history" };
 
-	it("publishes that the Gmail original was marked", async () => {
-		const h = handlerWith(async () => ({ kind: "marked" }));
+	it.each(["marked", "already-marked"] as const)("publishes a recorded Gmail write (%s)", async (kind) => {
+		const h = handlerWith(async () => ({ kind }));
 
 		assert.deepEqual(await run(h.handler, [markBody]), { batchItemFailures: [] });
-		assert.deepEqual(h.published, [{ detailType: "GmailEmailMarkedImported", detail: { ...fact, outcome: "marked" } }]);
+		assert.deepEqual(h.published, [{ detailType: "GmailEmailMarkedImported", detail: { ...fact, outcome: kind } }]);
+	});
+
+	it("acknowledges an already-read original without publishing a Gmail write", async () => {
+		const h = handlerWith(async () => ({ kind: "already-read" }));
+
+		assert.deepEqual(await run(h.handler, [markBody]), { batchItemFailures: [] });
+		assert.deepEqual(h.published, []);
 	});
 
 	it("acknowledges a deferral instead of failing the record", async () => {
@@ -82,13 +89,13 @@ describe("initGmailMessageUpdateHandler", () => {
 		}]);
 	});
 
-	it("acknowledges an email whose sender has marking off, publishing nothing", async () => {
+	it("acknowledges an email whose sender is no longer mapped, publishing nothing", async () => {
 		const h = handlerWith(async () => ({ kind: "skipped" }));
 
 		assert.deepEqual(await run(h.handler, [markBody]), { batchItemFailures: [] });
 		assert.deepEqual(
 			{ published: h.published, metricLines: h.metricLines, logs: h.logs },
-			{ published: [], metricLines: [], logs: [{ level: "info", message: "[gmail-message-update] marking is off for the sender" }] },
+			{ published: [], metricLines: [], logs: [{ level: "info", message: "[gmail-message-update] sender no longer mapped" }] },
 		);
 	});
 

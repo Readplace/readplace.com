@@ -17,7 +17,6 @@ import {
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { viewerOf } from "@packages/viewer-identity";
 import { hashIp } from "@packages/web-analytics";
-import { renderToast } from "@packages/web-shell";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { parseHTML } from "linkedom";
@@ -31,6 +30,7 @@ import {
 	pushesHistory,
 	renderHighlightNoteCreateForm,
 } from "../../shared/article-body/highlights/highlight-note-dialog.component";
+import type { HighlightRefusal } from "../../shared/article-body/highlights/highlight-toolbar.component";
 import { prepareReaderContent } from "../../shared/article-body/reader-slot/reader-content";
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { servedContentHash } from "../../shared/article-body/reader-slot/served-content-hash";
@@ -68,19 +68,15 @@ const HighlightOpenedQuerySchema = z.object({
 	origin: z.enum(["mark", "rail"]),
 });
 
-const TOAST_DISMISS_MS = 6000;
+const HighlightCopiedQuerySchema = z.object({
+	highlight: HighlightIdSchema,
+	origin: z.enum(["panel", "rail"]),
+});
 
-const OUTCOME_TOASTS = {
+const DIALOG_ERRORS: Record<HighlightRefusal, string> = {
 	"passage-changed": "That passage changed; select it again",
 	"too-long": "Select a shorter passage",
 	"notes-too-long": `Joined with the highlights it overlaps, the notes are over ${HIGHLIGHT_NOTE_MAX_LENGTH.toLocaleString(DEFAULT_LOCALE)} characters.`,
-	cancelled: "That highlight just changed; try again",
-} as const;
-
-type HighlightRefusal = keyof typeof OUTCOME_TOASTS;
-
-const DIALOG_ERRORS: Record<HighlightRefusal, string> = {
-	...OUTCOME_TOASTS,
 	cancelled: "That highlight just changed; try again.",
 };
 
@@ -129,9 +125,6 @@ export function initHighlightRoutes(
 		const id = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		return id.success ? reader.findOwnedArticle(req, id.data) : null;
 	};
-
-	const toastOf = (message: string): string =>
-		renderToast({ message, dismissMs: TOAST_DISMISS_MS, actions: [] });
 
 	router.post(
 		"/:id/highlights",
@@ -196,7 +189,7 @@ export function initHighlightRoutes(
 				}
 				await reader.renderOwnerReader(req, res, {
 					statusCode: 422,
-					toast: toastOf(OUTCOME_TOASTS[status]),
+					highlightRefusal: status,
 					markViewed: false,
 				});
 			};
@@ -324,6 +317,35 @@ export function initHighlightRoutes(
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					origin: opened.data.origin,
 					highlight_id: opened.data.highlight,
+				});
+			}
+			res.status(204).end();
+		},
+	);
+
+	router.post(
+		"/:id/highlights/copied",
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(
+				req.userId,
+				"userId required - route must be protected by requireAuth",
+			);
+			const article = await ownedArticleOf(req);
+			if (!article) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const copied = HighlightCopiedQuerySchema.safeParse(req.query);
+			if (copied.success) {
+				deps.recordAnalyticsEvent(req, {
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.highlightCopied,
+					timestamp: deps.now().toISOString(),
+					user_id: req.userId,
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+					origin: copied.data.origin,
+					highlight_id: copied.data.highlight,
+					surface: nativeSurfaceOf(req) ?? "web",
 				});
 			}
 			res.status(204).end();

@@ -1,4 +1,5 @@
 import {
+	type GmailConnection,
 	type GmailConnectionStore,
 	type GmailMessageOrigin,
 	type GmailMessageUpdateFailureReason,
@@ -7,11 +8,11 @@ import {
 } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { OpenGmailMailboxForUpdate } from "@packages/provider-contracts/gmail-message-update";
-import { GmailUnavailableError, type GmailOriginalUpdateFailure, importedLabelId, markOriginal } from "./gmail-original-update";
-import type { FindMarkImportedSince } from "./mark-imported-gate";
+import { GmailUnavailableError, markOriginal } from "./gmail-original-update";
+import type { IsGmailSenderMapped } from "./mark-imported-gate";
 
 export type MarkGmailEmailImportedOutcome =
-	| { kind: "marked" | "already-marked" | "skipped" }
+	| { kind: "marked" | "already-marked" | "already-read" | "skipped" }
 	| { kind: "deferred"; reason: "permission-required" | "account-unavailable" }
 	| { kind: "failed" | "already-failed"; reason: GmailMessageUpdateFailureReason };
 
@@ -22,9 +23,15 @@ export type MarkGmailEmailImported = (input: {
 	supplemental?: true;
 }) => Promise<MarkGmailEmailImportedOutcome>;
 
+function belongsToOrigin(connection: GmailConnection | undefined, origin: GmailMessageOrigin): connection is GmailConnection {
+	return connection?.accountEmail !== undefined
+		&& connection.disconnectRequestedAt === undefined
+		&& sameGmailAccount(connection.accountEmail, origin.accountEmail);
+}
+
 export function initMarkGmailEmailImported(deps: {
 	updates: GmailMessageUpdateStore;
-	findMarkImportedSince: FindMarkImportedSince;
+	isSenderMapped: IsGmailSenderMapped;
 	connections: Pick<GmailConnectionStore, "findConnectionByUserId">;
 	openMailbox: OpenGmailMailboxForUpdate;
 	now: () => Date;
@@ -33,42 +40,47 @@ export function initMarkGmailEmailImported(deps: {
 
 	return async ({ userId, receivedAtMessageId, origin, supplemental }) => {
 		const updateKey = { userId, origin, ...(supplemental ? { supplemental } : {}) };
-		if ((await deps.findMarkImportedSince({ userId, accountEmail: origin.accountEmail, senderEmail: origin.senderEmail })) === undefined) {
+		if (!(await deps.isSenderMapped({ userId, accountEmail: origin.accountEmail, senderEmail: origin.senderEmail }))) {
 			await updates.discardPending(updateKey);
 			return { kind: "skipped" };
 		}
-		const recorded = await updates.recordPending({ ...updateKey, receivedAtMessageId, now: deps.now() });
-		if (recorded.status === "completed") return { kind: "already-marked" };
-		if (recorded.status === "failed") return { kind: "already-failed", reason: recorded.failureReason };
-
-		const connection = await deps.connections.findConnectionByUserId(userId);
-		if (
-			connection?.accountEmail === undefined ||
-			connection.disconnectRequestedAt !== undefined ||
-			connection.revokedAt !== undefined ||
-			!sameGmailAccount(connection.accountEmail, origin.accountEmail)
-		) {
+		if (!belongsToOrigin(await deps.connections.findConnectionByUserId(userId), origin)) {
 			return { kind: "deferred", reason: "account-unavailable" };
 		}
 
-		const opened = await deps.openMailbox({ userId, accountEmail: origin.accountEmail });
-		if (!opened.ok) {
-			if (opened.reason === "unavailable") throw new GmailUnavailableError(`Gmail unavailable (${opened.status})`);
-			return { kind: "deferred", reason: opened.reason === "modify-permission-required" ? "permission-required" : "account-unavailable" };
-		}
-		const { mailbox } = opened;
+		const recorded = await updates.recordPending({ ...updateKey, receivedAtMessageId, now: deps.now() });
+		if (recorded.status === "completed") return { kind: recorded.alreadyRead ? "already-read" : "already-marked" };
+		if (recorded.status === "failed") return { kind: "already-failed", reason: recorded.failureReason };
 
-		const fail = async (outcome: GmailOriginalUpdateFailure): Promise<MarkGmailEmailImportedOutcome> => {
+		const claimUntil = await updates.claimPending({ ...updateKey, now: deps.now() });
+		if (claimUntil === undefined) throw new GmailUnavailableError("another worker is processing this Gmail update");
+		try {
+			// Record pending work before rechecking the grant so a concurrent reconnect can resume it.
+			const connection = await deps.connections.findConnectionByUserId(userId);
+			if (!belongsToOrigin(connection, origin)) {
+				await updates.discardPending(updateKey);
+				return { kind: "deferred", reason: "account-unavailable" };
+			}
+			if (connection.revokedAt !== undefined) return { kind: "deferred", reason: "account-unavailable" };
+
+			const opened = await deps.openMailbox({ userId, accountEmail: origin.accountEmail });
+			if (!opened.ok) {
+				if (opened.reason === "unavailable") throw new GmailUnavailableError(`Gmail unavailable (${opened.status})`);
+				return { kind: "deferred", reason: opened.reason === "modify-permission-required" ? "permission-required" : "account-unavailable" };
+			}
+			const { mailbox } = opened;
+
+			const outcome = await markOriginal({ mailbox, origin });
 			if (outcome.kind === "reauth-required") return { kind: "deferred", reason: "account-unavailable" };
-			const marked = await updates.markFailed({ ...updateKey, reason: outcome.reason, now: deps.now() });
-			return marked === "failed" ? outcome : { kind: "already-failed", reason: outcome.reason };
-		};
-		const labelId = await importedLabelId(mailbox);
-		if (!labelId.ok) return fail(labelId.outcome);
-		const marked = await markOriginal({ mailbox, origin, labelId: labelId.value });
-		if (marked.kind !== "marked") return fail(marked);
+			if (outcome.kind === "failed") {
+				const marked = await updates.markFailed({ ...updateKey, reason: outcome.reason, now: deps.now() });
+				return marked === "failed" ? outcome : { kind: "already-failed", reason: outcome.reason };
+			}
 
-		await updates.markCompleted({ ...updateKey, now: deps.now() });
-		return { kind: "marked" };
+			await updates.markCompleted({ ...updateKey, now: deps.now(), alreadyRead: outcome.kind === "already-read" });
+			return outcome;
+		} finally {
+			await updates.releaseClaim({ ...updateKey, claimUntil });
+		}
 	};
 }

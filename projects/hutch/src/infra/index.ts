@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
-import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
+import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DynamoDbStreamBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
 import {
 	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
@@ -15,6 +15,7 @@ import {
 	DeleteAccountCommand,
 	ExportUserDataCommand,
 	AgeLockDeletionDueCommand,
+	RunBulkArticlesCommand, BulkArticlesProgressedEvent,
 	RunSavedLinksJobCommand,
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
@@ -41,8 +42,6 @@ import {
 	StartGmailHistoryImportCommand,
 	MarkGmailEmailImportedCommand,
 	GmailModifyPermissionGrantedEvent,
-	StartGmailMarkBackfillCommand,
-	GmailMarkBackfillPageProcessedEvent,
 	SubmitNewsletterSenderCommand,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
@@ -50,6 +49,7 @@ import {
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 	LinkDequeuedEvent,
+	ReleaseHeldUploadCommand,
 	MediaInspectedEvent,
 	MediaProcessingFailedEvent,
 	MediaRejectedEvent,
@@ -87,7 +87,6 @@ import { NEWSLETTER_CATALOG_SUGGESTIONS_ENV } from "../runtime/newsletter-catalo
 import { GMAIL_HISTORY_IMPORT_ENV } from "../runtime/gmail-history-import.env";
 import { GMAIL_HISTORY_IMPORT_OUTCOMES_ENV } from "../runtime/gmail-history-import-outcomes.env";
 import { GMAIL_MESSAGE_UPDATE_ENV } from "../runtime/gmail-message-update.env";
-import { GMAIL_MARK_BACKFILL_ENV } from "../runtime/gmail-mark-backfill.env";
 import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "../runtime/gmail-history-import-dlq.env";
 import { HUTCH_HANDLER_ENV } from "../runtime/lambda.env";
 import { RECORD_MEDIA_INSPECTION_ENV } from "../runtime/record-media-inspection.env";
@@ -100,6 +99,7 @@ import { SUBSCRIPTION_EVENTS_ENV } from "../runtime/subscription-events.env";
 import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "../runtime/send-trial-feedback-email.env";
 import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-email-notice.env";
 import { REANCHOR_HIGHLIGHTS_ENV } from "../runtime/reanchor-highlights.env";
+import { SMART_READLIST_INTAKE_ENV } from "../runtime/smart-readlist-intake.env";
 import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
 import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
@@ -387,8 +387,14 @@ const oauthConditions = new DynamoDBAccess("hutch-oauth-conditions", {
 	actions: ["dynamodb:ConditionCheckItem"],
 });
 
+const webUserArticleConditions = new DynamoDBAccess("hutch-web-user-article-conditions", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:ConditionCheckItem"],
+});
+
 const webIssueLinksRead = new DynamoDBAccess("hutch-web-issue-links-read", {
 	tables: [
+		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
 	],
@@ -494,6 +500,13 @@ const userDataJobsSchedulerManagePolicy = {
 	name: "hutch-user-data-jobs-scheduler-manage",
 	policy: trialSchedulerManagePolicyDoc,
 };
+const heldUploadScheduleReadPolicy = {
+	name: "user-data-jobs-read-held-upload-schedules",
+	policy: trialSchedulerGroup.arn.apply(groupArn => JSON.stringify({
+		Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "scheduler:GetSchedule",
+			Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}/held-upload-*` }],
+	})),
+};
 
 const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	priorLogGroupLogicalName: "hutch-log-analytics",
@@ -527,6 +540,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 			pendingViewHighlights: storage.pendingViewHighlightsTable.name,
 			media: mediaTableName,
 			inboxAddresses: tableNames.inboxAddresses,
+			inboxEmails: tableNames.inboxEmails,
 			inboxEmailLinks: tableNames.inboxEmailLinks,
 			inboxSavedLinks: tableNames.inboxSavedLinks,
 			subscriptionProviders: storage.subscriptionProvidersTable.name,
@@ -546,6 +560,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMITS: formatEnvMap(rateLimitRules),
+		BULK_ARTICLES_ENABLED: String(config.getBoolean("bulkArticlesEnabled") ?? false),
 		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: pulumi.secret(requireEnv("GOOGLE_LOGIN_CLIENT_SECRET")),
@@ -581,6 +596,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	policies: [
 		...dynamodb.policies,
 		...oauthConditions.policies,
+		...webUserArticleConditions.policies,
 		...oauthOutcomesWrite.policies,
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
@@ -912,6 +928,16 @@ const userDataJobsGmailHistoryDynamodb = new DynamoDBAccess("user-data-jobs-gmai
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
+const bulkArticleExecutionConditions = new DynamoDBAccess("user-data-bulk-article-conditions", {
+	tables: [{ arn: storage.usersTable.arn, includeIndexes: false }, { arn: storage.articlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:ConditionCheckItem"],
+});
+
+const bulkArticleRouteLookup = new DynamoDBAccess("user-data-bulk-article-route-lookup", {
+	tables: [{ arn: pulumi.interpolate`${storage.articlesTable.arn}/index/routeId-index`, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
+});
+
 const userDataJobsUserArticlesDynamodb = new DynamoDBAccess("user-data-jobs-user-articles-dynamodb", {
 	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
@@ -934,6 +960,7 @@ const userDataJobsQueue = new Sqs("user-data-jobs", {
 });
 
 const userDataJobsLambda = new Lambda("user-data-jobs", {
+	recursiveLoop: "Allow",
 	entryPoint: "./src/runtime/user-data-jobs.main.ts",
 	outputDir: ".lib/user-data-jobs",
 	assetDir: "./src/runtime",
@@ -990,11 +1017,14 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		...userDataJobsMediaHoldingsDynamodb.policies,
 		...userDataJobsEmailIdentitiesDynamodb.policies,
 		...userDataJobsUserArticlesDynamodb.policies,
+		...bulkArticleExecutionConditions.policies,
+		...bulkArticleRouteLookup.policies,
 		userDataJobsS3Policy,
 		userDataJobsMediaPendingDeletePolicy,
 		...userExportBucket.readPolicies("user-data-jobs-bucket-read"),
 		...userExportBucket.writePolicies("user-data-jobs-bucket-write"),
 		userDataJobsSchedulerManagePolicy,
+		heldUploadScheduleReadPolicy,
 	],
 });
 
@@ -1008,7 +1038,7 @@ const userDataJobsWithSQS = new SqsBackedLambda("user-data-jobs", {
 });
 
 eventBus.subscribeAll(
-	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, AgeLockDeletionDueCommand],
+	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, RunBulkArticlesCommand, BulkArticlesProgressedEvent, AgeLockDeletionDueCommand],
 	userDataJobsWithSQS,
 	{ name: "user-data-jobs" },
 );
@@ -1513,6 +1543,11 @@ const mediaReleaseMediaHoldingsDynamodb = new DynamoDBAccess("media-release-medi
 	actions: mediaHoldingsActions,
 });
 
+const mediaReleaseRetentionDynamodb = new DynamoDBAccess("media-release-bulk-holds", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem", "dynamodb:UpdateItem"],
+});
+
 const mediaReleaseS3Policy = {
 	name: "media-release-s3-delete",
 	policy: JSON.stringify({
@@ -1556,7 +1591,7 @@ const mediaReleaseLambda = new Lambda("media-release", {
 		MEDIA_BUCKET_NAME: mediaBucketName,
 		MEDIA_TABLE_NAME: mediaTableName,
 	},
-	policies: [...mediaReleaseDynamodb.policies, ...mediaReleaseMediaHoldingsDynamodb.policies, mediaReleaseS3Policy],
+	policies: [...mediaReleaseDynamodb.policies, ...mediaReleaseMediaHoldingsDynamodb.policies, ...mediaReleaseRetentionDynamodb.policies, mediaReleaseS3Policy],
 });
 
 const mediaReleaseWithSQS = new SqsBackedLambda("media-release", {
@@ -1570,6 +1605,7 @@ eventBus.subscribe(LinkDequeuedEvent, mediaReleaseWithSQS, {
 	name: "hutch-media-release",
 	detail: { url: [{ prefix: `https://${PRIVATE_ITEM_HOST}/` }] },
 });
+eventBus.subscribe(ReleaseHeldUploadCommand, mediaReleaseWithSQS);
 
 const settleMediaFailureDynamodb = new DynamoDBAccess("settle-media-failure-dynamodb", {
 	tables: [
@@ -1770,6 +1806,36 @@ new aws.cloudwatch.LogMetricFilter("highlights-orphaned-filter", {
 		defaultValue: "0",
 		unit: "Count",
 	},
+});
+
+const smartReadlistIntakeUserArticlesDynamodb = new DynamoDBAccess("smart-readlist-intake-user-articles-dynamodb", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
+});
+
+const smartReadlistIntakeLambda = new Lambda("smart-readlist-intake", {
+	entryPoint: "./src/runtime/smart-readlist-intake.main.ts",
+	outputDir: ".lib/smart-readlist-intake",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environmentNames: SMART_READLIST_INTAKE_ENV,
+	environment: {
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...smartReadlistIntakeUserArticlesDynamodb.policies],
+});
+
+eventBus.grantPublish(smartReadlistIntakeLambda);
+
+new DynamoDbStreamBackedLambda("smart-readlist-intake", {
+	lambda: smartReadlistIntakeLambda,
+	streamArn: storage.userArticlesTable.streamArn,
+	eventNames: ["INSERT"],
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 10,
+	maximumRetryAttempts: 3,
 });
 
 // --- Gmail forwarding filter worker ---
@@ -2263,76 +2329,6 @@ eventBus.subscribeAll(
 	],
 	gmailMessageUpdatesWithSqs,
 	{ name: "hutch-gmail-message-updates" },
-);
-
-const gmailMarkBackfillAccess = new DynamoDBAccess("hutch-gmail-mark-backfill-tables", {
-	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
-});
-const gmailMarkBackfillAccountRead = new DynamoDBAccess("hutch-gmail-mark-backfill-account-read", {
-	tables: [
-		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
-		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
-		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
-	],
-	actions: ["dynamodb:GetItem"],
-});
-const gmailMarkBackfillConnectionUpdate = new DynamoDBAccess("hutch-gmail-mark-backfill-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
-const gmailMarkBackfillInboxEmailsRead = new DynamoDBAccess("hutch-gmail-mark-backfill-inbox-emails-read", {
-	tables: [{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false }],
-	actions: ["dynamodb:Query"],
-});
-const gmailMarkBackfillQueue = new Sqs(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.markBackfill, {
-	visibilityTimeoutSeconds: 120,
-	dlqMaxReceiveCount: 5,
-	sharedDlq: gmailHistoryImportFailuresDlq,
-});
-const gmailMarkBackfillLambda = new Lambda("gmail-mark-backfill", {
-	entryPoint: "./src/runtime/gmail-mark-backfill.main.ts",
-	outputDir: ".lib/gmail-mark-backfill",
-	assetDir: "./src/runtime",
-	memorySize: 512,
-	timeout: 60,
-	environmentNames: GMAIL_MARK_BACKFILL_ENV,
-	environment: {
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		GMAIL_MARK_BACKFILL_QUEUE_URL: gmailMarkBackfillQueue.queueUrl,
-		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
-	},
-	policies: [
-		...gmailMarkBackfillAccess.policies,
-		...gmailMarkBackfillAccountRead.policies,
-		...gmailMarkBackfillConnectionUpdate.policies,
-		...gmailMarkBackfillInboxEmailsRead.policies,
-		...gmailMarkBackfillQueue.policies,
-	],
-	recursiveLoop: "Allow",
-});
-eventBus.grantPublish(gmailMarkBackfillLambda);
-const gmailMarkBackfillWithSqs = new SqsBackedLambda("gmail-mark-backfill", {
-	lambda: gmailMarkBackfillLambda,
-	queue: gmailMarkBackfillQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-eventBus.subscribeAll(
-	[
-		{ ...StartGmailMarkBackfillCommand, name: "hutch-start-gmail-mark-backfill" },
-		{ ...GmailMarkBackfillPageProcessedEvent, name: "hutch-gmail-mark-backfill-page-processed" },
-	],
-	gmailMarkBackfillWithSqs,
-	{ name: "hutch-gmail-mark-backfill" },
 );
 
 const gmailHistoryImportDlqHandler = new DLQEventHandler("gmail-history-import-dlq", {

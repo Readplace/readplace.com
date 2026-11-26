@@ -88,6 +88,18 @@ async function createReadlistAndOpen(agent: TestAgent, label: string): Promise<s
 	return openedSlug(response.headers.location);
 }
 
+function emptyActionKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-empty-action]"), (action) =>
+		action.getAttribute("data-test-empty-action"),
+	);
+}
+
+function olderSavesActionKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll(".readlist__older-saves [data-test-action]"), (action) =>
+		action.getAttribute("data-test-action"),
+	);
+}
+
 function queueLabels(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-readlist]"), (el) => el.textContent);
 }
@@ -154,6 +166,51 @@ function viewedReadlistOf(action: string): string | null {
 }
 
 describe("POST /queue/queues", () => {
+	it("keeps a custom Hand Picked reachable beside the permanent readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const custom = await createReadlist(agent, "Hand Picked");
+		const named = parse((await agent.get(custom.headers.location)).text);
+		expect(queueLabels(named)).toEqual(["Hand Picked", "All", "Hand Picked"]);
+		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
+		expect(picked.querySelector(".readlist__heading p")?.textContent).toBe("Everything you save yourself is added here");
+		expect(picked.querySelector(".readlist-empty__title")?.textContent).toBe("Nothing saved yet");
+		expect(emptyActionKeys(picked)).toEqual(["install"]);
+		const all = parse((await agent.get("/queue")).text);
+		expect(all.querySelector(".readlist__heading p")?.textContent).toBe("Every save is here, including newsletter links and imports");
+		expect(named.querySelector(".readlist__heading")).toBeNull();
+	});
+
+	it("offers Browse All on an empty Hand Picked when All holds an older save", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await save(agent, "https://example.com/older");
+		const [articleId] = articleIds(parse((await agent.get("/queue")).text));
+		assert(articleId, "the saved article must render a card");
+		await agent.post(`/queue/${articleId}/delete?scope=hand-picked`).expect(303);
+
+		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
+
+		expect(picked.querySelector(".readlist-empty__title")?.textContent).toBe("No hand-picked articles here yet");
+		expect(emptyActionKeys(picked)).toEqual(["browse-all"]);
+		expect(olderSavesActionKeys(picked)).toEqual([]);
+	});
+
+	it("offers Add older saves from All on a Hand Picked page that lists a save", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await save(agent, "https://example.com/picked");
+
+		const picked = parse((await agent.get("/queue?scope=hand-picked")).text);
+
+		expect(articleIds(picked)).toHaveLength(1);
+		const button = picked.querySelector('a.btn.btn--neutral[data-test-action="add-older-saves"]');
+		assert(button, "Hand Picked must offer Add older saves from All");
+		expect(button.textContent).toBe("Add older saves from All");
+		expect(new URL(button.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname).toBe("/queue");
+		expect(olderSavesActionKeys(picked)).toEqual(["add-older-saves"]);
+	});
+
 	it("creates the readlist under the name the reader typed and lands them on it", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -164,7 +221,7 @@ describe("POST /queue/queues", () => {
 		const slug = openedSlug(response.headers.location);
 		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
 		const doc = parse((await agent.get(response.headers.location)).text);
-		expect(queueLabels(doc)).toEqual(["All", "Ideas & Inspiration"]);
+		expect(queueLabels(doc)).toEqual(["Hand Picked", "All", "Ideas & Inspiration"]);
 		expect(doc.querySelector("[data-test-empty-title]")?.textContent).toBe(
 			"No articles in this readlist yet",
 		);
@@ -176,7 +233,7 @@ describe("POST /queue/queues", () => {
 
 		await createReadlist(agent, "   deep WORK  ");
 
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "deep WORK"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "deep WORK"]);
 	});
 
 	it("refuses a name it cannot store, keeps the reader where they were and says why", async () => {
@@ -209,7 +266,7 @@ describe("POST /queue/queues", () => {
 			{ status: 303, queue: viewed, error: "create_reserved-name", title },
 			{ status: 303, queue: viewed, error: "create_name-taken", title },
 		]);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Finance"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Finance"]);
 	});
 
 	it("re-renders the dialog's form for a refused name, keeping what the reader typed and the address they posted to", async () => {
@@ -245,7 +302,7 @@ describe("POST /queue/queues", () => {
 			{ ...refused, value: "All", error: "Pick a name other than All, the readlist that holds every save." },
 			{ ...refused, value: "finance", error: "You already have a readlist with that name, so pick another one." },
 		]);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Finance"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Finance"]);
 	});
 
 	it("sends the dialog to the new readlist's listing, landing at the top like a page load", async () => {
@@ -266,7 +323,7 @@ describe("POST /queue/queues", () => {
 			select: "main",
 			swap: "outerHTML show:none scroll:html:top",
 		});
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Deep Work"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Deep Work"]);
 	});
 
 	it("answers a client that asks for JSON with the 303 a browser gets", async () => {
@@ -281,7 +338,7 @@ describe("POST /queue/queues", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(`/queue?queue=${openedSlug(response.headers.location)}`);
-		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["All", "Deep Work"]);
+		expect(queueLabels(parse((await agent.get("/queue")).text))).toEqual(["Hand Picked", "All", "Deep Work"]);
 	});
 
 	it("offers a create dialog from the rail, backed by a plain form for browsers without popovers", async () => {
@@ -634,7 +691,7 @@ describe("a readlist the reader opened", () => {
 
 		const response = await saveFrom(agent, readlist, "https://example.com/only-here");
 
-		expect(response.headers.location).toBe("/queue#latest-saved");
+		expect(response.headers.location).toBe("/queue?queue=default#latest-saved");
 		expect(articleIds(parse((await agent.get("/queue")).text))).toHaveLength(1);
 		expect(articleIds(parse((await agent.get(`/queue?queue=${readlist}`)).text))).toEqual([]);
 	});
@@ -728,7 +785,7 @@ describe("the readlist every reader is given", () => {
 
 		const doc = parse((await agent.get("/queue")).text);
 
-		expect(queueLabels(doc)).toEqual(["All", "New Readlist"]);
+		expect(queueLabels(doc)).toEqual(["Hand Picked", "All", "New Readlist"]);
 		const workTab = doc.querySelector(`[data-test-readlist="${readlist}"]`);
 		assert(workTab, "the owned readlist must render its tab");
 		expect(workTab.getAttribute("href")).toBe(

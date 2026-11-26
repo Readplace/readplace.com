@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
-import { EmailLinkOrdinalSchema, type InboxEmailLinkEntry } from "@packages/domain/inbox";
+import { InboxAddressSchema, MessageIdSchema, EmailLinkOrdinalSchema, type InboxEmailLinkEntry } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
@@ -22,7 +22,7 @@ function parse(html: string) {
 	return new JSDOM(html).window.document;
 }
 
-async function buildHarness(options: { extraction?: "finished" | "failed" | "pending"; dailySaveLimit?: number } = {}) {
+async function buildHarness(options: { extraction?: "finished" | "failed" | "pending"; dailySaveLimit?: number; thirdUrl?: string } = {}) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { dailySaveLimit } = options;
 	if (dailySaveLimit !== undefined) {
@@ -72,7 +72,7 @@ async function buildHarness(options: { extraction?: "finished" | "failed" | "pen
 		});
 	await putLink({ ordinal: "0000", url: "https://a.test/first", status: "crawled", title: "The first story" });
 	await putLink({ ordinal: "0001", url: "https://b.test/second" });
-	await putLink({ ordinal: "0002", url: "https://localhost/admin" });
+	await putLink({ ordinal: "0002", url: options.thirdUrl ?? "https://localhost/admin" });
 	if (options.extraction === "failed") {
 		await links.markLinksExtractionFailed({ userId, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID });
 	} else if (options.extraction !== "pending") {
@@ -97,6 +97,77 @@ function panelOf(html: string) {
 		]),
 	};
 }
+
+it("filters All by source within the current tab and counts shared newsletter links once", async () => {
+	const { fixture, agent, userId } = await buildHarness();
+	const store = fixture.articleStore;
+	const url = "https://a.test/first";
+	const params = { userId, url, savedAt: new Date("2026-04-04"), provenance: { kind: "web" } as const,
+		metadata: { title: "Shared story", siteName: "News", excerpt: "", wordCount: 80 },
+		estimatedReadTime: MinutesSchema.parse(1), saveTrigger: "manual" as const };
+	const { saved } = await store.saveArticle(params);
+	await store.saveArticle({ ...params, url: "https://b.test/import", bulkSave: true });
+	await store.saveArticle({ ...params, url: "https://b.test/uncertain" });
+	store.seedUncertainSave({ userId, url: "https://b.test/uncertain" });
+	const olderUrl = "https://a.test/older";
+	const { saved: older } = await store.saveArticle({ ...params, url: olderUrl, savedAt: new Date("2026-04-03") });
+	await store.updateArticleStatus(older.id, userId, "read");
+	await store.updateArticleStatus(saved.id, userId, "read");
+	for (const sender of ["first@example.org", "second@example.org"]) {
+		const messageId = MessageIdSchema.parse(`<issue-${sender}>`);
+		const receivedAt = "2026-04-05T00:00:00.000Z";
+		const receivedAtMessageId = `${receivedAt}#${messageId}`;
+		await fixture.inboxEmail.inboxEmailStore.putEmail({ userId, senderEmail: sender, receivedAt, messageId, receivedAtMessageId,
+			recipientAddress: InboxAddressSchema.parse("in-3f9a2c@read.place"), subject: "Weekly", status: "received", rawEmailS3Key: "raw", bodyS3Key: "body", linkCounts: undefined });
+		for (const [ordinal, linkedUrl] of [["0000", url], ["0001", url], ["0002", olderUrl]]) {
+			await fixture.inboxEmail.inboxEmailLinkStore.putLink({ userId, receivedAtMessageId, ordinal: EmailLinkOrdinalSchema.parse(ordinal),
+				url: linkedUrl, resolvedUrl: undefined, status: "pending", title: undefined, excerpt: undefined, siteName: undefined, imageUrl: undefined, failureReason: undefined, skipReason: undefined, anchorText: undefined });
+		}
+		const result = await agent.get("/queue").query({ source: "sender", sender, tab: "done" }).expect(200);
+		expect([...parse(result.text).querySelectorAll("[data-test-article]")].map(card => card.getAttribute("data-test-article")).sort())
+			.toEqual([saved.id.value, older.id.value].sort());
+		const redirect = await agent.get("/queue").query({ source: "sender", sender, tab: "done", page: "2" }).expect(302);
+		const back = new URL(redirect.headers.location, TEST_APP_ORIGIN);
+		expect(back.searchParams.get("sender")).toBe(sender);
+		const unread = await agent.get("/queue").query({ source: "sender", sender }).expect(200);
+		expect(parse(unread.text).querySelectorAll("[data-test-article]")).toHaveLength(0);
+	}
+	for (const source of ["bulk", "unknown"]) {
+		const listing = parse((await agent.get("/queue").query({ source }).expect(200)).text);
+		expect(listing.querySelectorAll("[data-test-article]")).toHaveLength(1);
+		expect(listing.querySelector("details.readlist__manage[open] details.menu")).toBeTruthy();
+		const stalePage = await agent.get("/queue").query({ source, page: 2 }).expect(302);
+		expect(new URL(stalePage.headers.location, TEST_APP_ORIGIN).searchParams.get("source")).toBe(source);
+	}
+});
+
+it("preserves a nine-link issue and a read article through pick, redelivery and unpick", async () => {
+	const { fixture, agent, userId, putLink, issueId } = await buildHarness({ thirdUrl: "https://news.example/2" });
+	for (let index = 3; index < 9; index++) {
+		await putLink({ ordinal: String(index).padStart(4, "0"), url: `https://news.example/${index}` });
+	}
+	const article = {
+		userId, url: "https://a.test/first",
+		provenance: { kind: "email", senderEmail: "dan@tldr.tech" } as const,
+		metadata: { title: "First story", excerpt: "", siteName: "Weekly", wordCount: 480 },
+		estimatedReadTime: MinutesSchema.parse(2), saveTrigger: "automatic" as const,
+	};
+	const store = fixture.articleStore;
+	const { saved } = await store.saveArticle({ ...article, savedAt: new Date("2026-06-24") });
+	const read = await store.updateArticleStatus(saved.id, userId, "read");
+	const picked = { userId, personalScope: "picked", status: "read" } as const;
+	await agent.post(`/queue/${saved.id.value}/move`).type("form").send({ from: "default", to: "~hand-picked" }).expect(303);
+	const firstPick = (await store.findArticleById(saved.id, userId))?.personalPickedAt;
+	expect(firstPick).toBeDefined();
+	await store.saveArticle({ ...article, savedAt: new Date("2026-06-25") });
+	expect(await store.findArticleById(saved.id, userId)).toMatchObject({ status: "read", personalPickedAt: firstPick, readAt: read?.readAt });
+	expect(await store.countArticlesByUser(picked)).toBe(1);
+	await agent.post(`/queue/${saved.id.value}/delete?scope=hand-picked`).expect(303);
+	await store.saveArticle({ ...article, savedAt: new Date("2026-06-26") });
+	expect(await store.countArticlesByUser(picked)).toBe(0);
+	expect(await store.countArticlesByUser({ userId, status: "read" })).toBe(1);
+	expect(panelOf((await agent.get(`/queue/${issueId}/view`)).text).rows).toHaveLength(9);
+});
 
 describe("Links in this issue (GET /queue/:id/view)", () => {
 	it("lists the issue's article links under its body, each ready to save", async () => {
@@ -344,6 +415,7 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 				url: tracker,
 				userId,
 				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				personalPickAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
 				saveTrigger: "manual",
 				readlist: "default",
 				saveAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),

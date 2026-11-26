@@ -53,6 +53,7 @@ function parsedFixture(html = ARTICLE_HTML): TestAppFixture {
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
+		coverageRules: { inspect: () => [] },
 		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
@@ -282,7 +283,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(marksOf(reopened).join("")).toBe("readability parser to extract");
 	});
 
-	it("answers 422 with the reader and a toast when exact is not at start, leaving the viewed time alone", async () => {
+	it("answers 422 with the reader and a refusal when exact is not at start, leaving the viewed time alone", async () => {
 		const harness = useApp(parsedFixture());
 		const url = "https://example.com/highlight-moved";
 		const { agent, articleId } = await saveArticle(harness, url);
@@ -305,7 +306,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		);
 	});
 
-	it("answers the same 422 with the reader and the toast to an htmx post when exact is not at start", async () => {
+	it("answers the same 422 with the reader and the refusal to an htmx post when exact is not at start", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -327,7 +328,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(doc(response.text).querySelector("main")).not.toBeNull();
 	});
 
-	it("answers 422 with a toast when there is no served body", async () => {
+	it("answers 422 with a refusal when there is no served body", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -343,7 +344,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.text).toContain("That passage changed; select it again");
 	});
 
-	it("answers 422 with a toast when exact is longer than 65536 code units", async () => {
+	it("answers 422 with a refusal when exact is longer than 65536 code units", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -360,7 +361,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.text).toContain("Select a shorter passage");
 	});
 
-	it("answers 422 with a toast when the merge is cancelled", async () => {
+	it("answers 422 with a refusal when the merge is cancelled", async () => {
 		const fixture = parsedFixture();
 		const harness = useApp(fixture);
 		const { agent, articleId } = await saveArticle(
@@ -913,6 +914,122 @@ describe("Highlights (POST /queue/:id/highlights/opened)", () => {
 	});
 });
 
+describe("Highlights (POST /queue/:id/highlights/copied)", () => {
+	const copiedPath = (articleId: string, query: string) =>
+		`/queue/${articleId}/highlights/copied${query}`;
+
+	it.each([
+		["", "web", "panel"],
+		["?platform=ios&", "ios", "panel"],
+		["?platform=android&", "android", "panel"],
+		["", "web", "rail"],
+		["?platform=ios&", "ios", "rail"],
+		["?platform=android&", "android", "rail"],
+	] as const)(
+		"records highlight_copied with no text for the query prefix %j as surface %s from the %s and answers 204",
+		async (platformPrefix, surface, origin) => {
+			const harness = useApp(parsedFixture());
+			const { agent, articleId } = await saveArticle(
+				harness,
+				`https://example.com/highlight-copied-${surface}-${origin}`,
+			);
+			const highlightId = await createHighlight(agent, {
+				articleId,
+				exact: "readability parser",
+			});
+			const query = `${platformPrefix === "" ? "?" : platformPrefix}highlight=${highlightId}&origin=${origin}`;
+
+			const response = await agent.post(copiedPath(articleId, query));
+
+			expect(response.status).toBe(204);
+			expect(
+				harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+			).toEqual([
+				{
+					stream: "analytics",
+					event: "highlight_copied",
+					timestamp: expect.any(String),
+					user_id: expect.any(String),
+					visitor_hash: expect.any(String),
+					origin,
+					highlight_id: highlightId,
+					surface,
+				},
+			]);
+		},
+	);
+
+	it.each([
+		["an unknown origin", "?highlight=11111111-1111-4111-8111-111111111111&origin=mark"],
+		["a non-uuid highlight id", "?highlight=not-a-uuid&origin=panel"],
+		["no query", ""],
+	])("answers 204 and records nothing for %s", async (_case, query) => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-copied-malformed",
+		);
+
+		const response = await agent.post(copiedPath(articleId, query));
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toEqual([]);
+	});
+
+	it("records the copy for a locked owner", async () => {
+		const fixture = parsedFixture();
+		let offsetMs = 0;
+		fixture.shared.now = () => new Date(Date.now() + offsetMs);
+		const harness = useApp(fixture);
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-copied-locked",
+		);
+		const highlightId = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		offsetMs = 8 * 24 * 60 * 60 * 1000;
+
+		const response = await agent.post(
+			copiedPath(articleId, `?platform=ios&highlight=${highlightId}&origin=rail`),
+		);
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toHaveLength(1);
+	});
+
+	it("answers 404 and records nothing for another owner's article", async () => {
+		const harness = useApp(parsedFixture());
+		const { articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-copied-foreign",
+		);
+		await harness.auth.createUser({
+			email: "other@example.com",
+			password: "password123",
+		});
+		const other = request.agent(harness.server);
+		await other
+			.post("/login")
+			.type("form")
+			.send({ email: "other@example.com", password: "password123" });
+
+		const response = await other.post(
+			copiedPath(articleId, "?highlight=11111111-1111-4111-8111-111111111111&origin=panel"),
+		);
+
+		expect(response.status).toBe(404);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_copied"),
+		).toEqual([]);
+	});
+});
+
 describe("Highlights in the reader (GET /queue/:id/view)", () => {
 	it("lists a stored highlight and posts new ones to the plain create path with no query", async () => {
 		const harness = useApp(parsedFixture());
@@ -1168,7 +1285,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
 
-		expect(actionsOf(panel)).toEqual(["Add note", "Delete highlight"]);
+		expect(actionsOf(panel)).toEqual(["Add note", "Copy highlight", "Delete highlight"]);
 		expect(panel.querySelector(".highlight-popover__note")).toBeNull();
 		expect(panel.hasAttribute("aria-describedby")).toBe(false);
 	});
@@ -1185,7 +1302,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 		assert(note, "the panel shows the note");
 		expect(note.textContent).toBe("My thought");
 		expect(panel.getAttribute("aria-describedby")).toBe(note.id);
-		expect(actionsOf(panel)).toEqual(["Edit note", "Delete note", "Delete highlight"]);
+		expect(actionsOf(panel)).toEqual(["Edit note", "Copy highlight", "Delete note", "Delete highlight"]);
 	});
 
 	it("points every panel action at a dialog or form the page renders", async () => {
@@ -1196,6 +1313,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		const page = doc((await agent.get(viewPath(articleId))).text);
 		const targets = Array.from(page.querySelectorAll("[data-highlight-popover] button"), (button) => {
+			if (button.hasAttribute("data-highlight-copy")) return { kind: "copy", role: button.getAttribute("data-highlight-copy") };
 			const dialogId = button.getAttribute("popovertarget");
 			if (dialogId !== null) return { kind: "dialog", role: page.getElementById(dialogId)?.getAttribute("role") };
 			const formId = button.getAttribute("form");
@@ -1205,6 +1323,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		expect(targets).toEqual([
 			{ kind: "dialog", role: "dialog" },
+			{ kind: "copy", role: "readability parser" },
 			{ kind: "form", role: "FORM" },
 			{ kind: "dialog", role: "dialog" },
 		]);
@@ -1861,7 +1980,7 @@ describe("Add note without the Popover API (POST /queue/:id/highlights with afte
 		);
 	});
 
-	it("answers a refused create with the reader's 422 toast, as a plain Highlight does", async () => {
+	it("answers a refused create with the reader's 422 highlight status, as a plain Highlight does", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -1883,8 +2002,9 @@ describe("Add note without the Popover API (POST /queue/:id/highlights with afte
 		expect(response.status).toBe(422);
 		expect(response.headers["hx-redirect"]).toBeUndefined();
 		expect(
-			doc(response.text).querySelector(".toast")?.textContent,
-		).toContain("That passage changed; select it again");
+			doc(response.text).querySelector("[data-test-highlight-status]")?.textContent,
+		).toBe("That passage changed; select it again");
+		expect(doc(response.text).querySelector("[data-test-toast-message]")).toBeNull();
 	});
 
 	it("opens and focuses the named row's note form, leaving every other row closed", async () => {

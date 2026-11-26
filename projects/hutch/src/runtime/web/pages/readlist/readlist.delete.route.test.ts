@@ -73,8 +73,8 @@ describe("POST /queue/queues/:slug/delete", () => {
 		const response = await deleteReadlist(agent, slug);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
-		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default"]);
+		expect(response.headers.location).toBe("/queue?queue=default");
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["~hand-picked", "default"]);
 	});
 
 	it("keeps the reader on the readlist they were viewing when another one goes", async () => {
@@ -87,7 +87,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(`/queue?queue=${viewed}`);
-		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", viewed]);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["~hand-picked", "default", viewed]);
 	});
 
 	it("sends the reader to the default readlist when the one they were viewing is the one deleted", async () => {
@@ -97,7 +97,7 @@ describe("POST /queue/queues/:slug/delete", () => {
 
 		const response = await deleteReadlistViewing(agent, { slug, viewed: slug });
 
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 	});
 
 	it("takes the readlist's own rows with it, so nothing is left where no query can reach", async () => {
@@ -342,7 +342,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 		const response = await deleteReadlistMovingTo(agent, source, destination);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.headers.location).toBe("/queue?queue=default");
 		const landed = await harness.articleStore.findReadlistArticles({
 			userId,
 			readlist: ReadlistSlugSchema.parse(destination),
@@ -350,7 +350,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 		expect(landed.articles.map((article) => article.url)).toEqual([
 			"https://example.com/moved",
 		]);
-		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", destination]);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["~hand-picked", "default", destination]);
 	});
 
 	it("keeps the reader on the destination it moved the articles to when that is the readlist being viewed", async () => {
@@ -465,7 +465,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 		const response = await deleteReadlistMovingTo(agent, source, source);
 
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
-		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", source]);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["~hand-picked", "default", source]);
 	});
 
 	it("refuses a destination the reader does not own", async () => {
@@ -494,7 +494,7 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 				readlist: ReadlistSlugSchema.parse(destination),
 			}),
 		).toBe(0);
-		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", destination]);
+		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["~hand-picked", "default", destination]);
 	});
 
 	it("forgets the reader's choices for the deleted readlist and keeps another readlist's", async () => {

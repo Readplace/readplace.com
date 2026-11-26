@@ -73,7 +73,7 @@ describe("renderDeleteConfirm", () => {
 		const never = doc.querySelector("[data-test-action='delete-confirm-never']");
 		assert(confirm, "the plain confirmation must be rendered");
 		assert(never, "the silencing confirmation must be rendered");
-		expect(confirm.textContent).toBe("Delete article");
+		expect(confirm.textContent).toBe("Delete from this readlist");
 		expect(never.textContent).toBe("Delete and don't ask again");
 		expect([...doc.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual(["delete-confirm-never", "delete-confirm"]);
 		expect(confirm.classList.contains("btn--primary")).toBe(true);
@@ -88,7 +88,7 @@ describe("renderDeleteConfirm", () => {
 	it("explains that the article can be saved again", () => {
 		const body = panelFor("/queue/abc123/delete").querySelector(".confirm-popover__body");
 		assert(body, "the delete panel must explain the outcome");
-		expect(body.textContent).toBe("This article will be removed from your readlist. You can save it again later.");
+		expect(body.textContent).toBe("This article will be removed from this readlist. You can save it again later.");
 	});
 
 	it("boosts the confirmation so deleting re-renders the listing in place", () => {
@@ -132,7 +132,7 @@ function focusTargets(scope: ParentNode): (string | null)[] {
 }
 
 describe("renderDeleteConfirm opening focus", () => {
-	it("opens on Delete article, so Enter confirms and the never-ask submit stays a deliberate choice", () => {
+	it("opens on Delete from this readlist, so Enter confirms and the never-ask submit stays a deliberate choice", () => {
 		expect(focusTargets(panelFor("/queue/abc123/delete"))).toEqual(["delete-confirm"]);
 	});
 });
@@ -166,6 +166,13 @@ describe("renderDeleteMenuItems", () => {
 		return parseHTML(`<div>${renderDeleteMenuItems(input)}</div>`).document;
 	}
 
+	it("only shows the scoped removal control in the reader, with no account-wide delete confirmation", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "?scope=hand-picked", acknowledged: false, removePick: true });
+		expect(deletion.confirm).toBeUndefined();
+		expect(renderDeleteMenuItems({ deletion, surface: "queue-card" })).toBe("");
+		expect(renderDeleteMenuItems({ deletion, surface: "reader" })).toContain("Remove from Hand Picked");
+	});
+
 	it("opens the confirmation and keeps a plain-post fallback while the reader is still asked", () => {
 		const doc = itemsFor({
 			deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
@@ -176,6 +183,8 @@ describe("renderDeleteMenuItems", () => {
 		const fallback = doc.querySelector("[data-test-action='delete-fallback']");
 		assert(trigger, "the confirmation trigger must be rendered");
 		assert(fallback, "the plain-post fallback must be rendered");
+		expect(trigger.textContent).toBe("Delete from this readlist");
+		expect(fallback.textContent).toBe("Delete from this readlist");
 		expect(trigger.getAttribute("type")).toBe("button");
 		expect(trigger.getAttribute("popovertarget")).toBe("readlist-delete-confirm-abc123");
 		expect(fallback.getAttribute("type")).toBe("submit");

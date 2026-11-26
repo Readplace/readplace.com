@@ -10,7 +10,6 @@ import { NEWSLETTER_CATALOG_SUGGESTIONS_ENV } from "./newsletter-catalog-suggest
 import { GMAIL_HISTORY_IMPORT_ENV } from "./gmail-history-import.env";
 import { GMAIL_HISTORY_IMPORT_OUTCOMES_ENV } from "./gmail-history-import-outcomes.env";
 import { GMAIL_MESSAGE_UPDATE_ENV } from "./gmail-message-update.env";
-import { GMAIL_MARK_BACKFILL_ENV } from "./gmail-mark-backfill.env";
 import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "./gmail-history-import-dlq.env";
 import { HUTCH_HANDLER_ROOT_ENV, HUTCH_HANDLER_ENV } from "./lambda.env";
 import { USER_DATA_JOBS_ENV } from "./user-data-jobs.env";
@@ -25,6 +24,7 @@ import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "./send-first-inbox-email-noti
 import { FORWARD_ANALYTICS_ENV } from "./forward-analytics.env";
 import { EVALUATE_OAUTH_REFRESH_ENV } from "./evaluate-oauth-refresh.env";
 import { REANCHOR_HIGHLIGHTS_ENV } from "./reanchor-highlights.env";
+import { SMART_READLIST_INTAKE_ENV } from "./smart-readlist-intake.env";
 
 const tuples = {
 	COUNT_GMAIL_CONNECTIONS_ENV,
@@ -38,7 +38,6 @@ const tuples = {
 	GMAIL_HISTORY_IMPORT_ENV,
 	GMAIL_HISTORY_IMPORT_OUTCOMES_ENV,
 	GMAIL_MESSAGE_UPDATE_ENV,
-	GMAIL_MARK_BACKFILL_ENV,
 	GMAIL_HISTORY_IMPORT_DLQ_ENV,
 	HUTCH_HANDLER_ROOT_ENV,
 	HUTCH_HANDLER_ENV,
@@ -54,6 +53,7 @@ const tuples = {
 	FORWARD_ANALYTICS_ENV,
 	EVALUATE_OAUTH_REFRESH_ENV,
 	REANCHOR_HIGHLIGHTS_ENV,
+	SMART_READLIST_INTAKE_ENV,
 };
 
 describe("Lambda environment tuples", () => {

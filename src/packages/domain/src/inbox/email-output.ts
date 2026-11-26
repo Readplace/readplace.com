@@ -27,6 +27,38 @@ export interface EmailOutputSelection {
 	outputs: EmailOutputKey[];
 	truncated: boolean;
 	selectedAt: string;
+	nextLinkIndex?: number;
+	/** Null until this readlist decides. The first matching readlist owns dispatch
+	 * of a shared link, including a retry after the selection write. */
+	matches?: Record<string, EmailOutputKey[] | null>;
+}
+
+export type EmailSelectionChange =
+	| { kind: "continue"; start: number; page: EmailOutputSelection }
+	| { kind: "match"; batch: string; outputs: EmailOutputKey[] };
+
+export function amendEmailSelection(current: EmailOutputSelection, change: EmailSelectionChange): EmailOutputSelection {
+	if (change.kind === "match") {
+		const resolved = current.matches?.[change.batch];
+		if (resolved === undefined || (resolved !== null && resolved.length > 0)) return current;
+		const added = [...new Set(change.outputs)].filter((key) => !current.outputs.includes(key));
+		if (resolved !== null && added.length === 0) return current;
+		return { ...current, outputs: [...current.outputs, ...added], matches: { ...current.matches, [change.batch]: added } };
+	}
+	if (current.nextLinkIndex !== change.start) return current;
+	const { nextLinkIndex: _prior, ...previous } = current;
+	const matches = { ...previous.matches, ...change.page.matches };
+	return {
+		...previous,
+		...change.page,
+		selectedAt: current.selectedAt,
+		outputs: [...new Set([...current.outputs, ...change.page.outputs])],
+		...(Object.keys(matches).length > 0 && { matches }),
+	};
+}
+
+export function emailMatchBatch(readlist: string, start: number): string {
+	return `${start}#${readlist}`;
 }
 
 export const SupplementalEmailImportSchema = z.object({
@@ -63,7 +95,7 @@ export interface EmailImportCompletion {
 
 export function isEmailSavedToAll(completion: Pick<EmailImportCompletion, "selection" | "savedOutputs">): boolean {
 	const { selection, savedOutputs } = completion;
-	if (selection === undefined || selection.truncated) return false;
+	if (selection === undefined || selection.truncated || Object.values(selection.matches ?? {}).includes(null)) return false;
 	return selection.outputs.every((output) => savedOutputs.has(output));
 }
 
@@ -98,6 +130,11 @@ export interface EmailImportCompletionStore {
 		receivedAtMessageId: string;
 		selection: EmailOutputSelection;
 		supplemental?: true;
+	}) => Promise<EmailOutputSelection>;
+	amendSelection: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		change: EmailSelectionChange;
 	}) => Promise<EmailOutputSelection>;
 	acknowledgeOutput: (input: {
 		userId: UserId;

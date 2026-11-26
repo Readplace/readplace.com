@@ -31,6 +31,18 @@ describe("Readlist routes", () => {
 			return id;
 		}
 
+		it("removing an article from Hand Picked leaves its canonical card available", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/individual" });
+			const id = await getFirstArticleId(agent);
+			const card = `/queue/${id}/card`;
+			expect((await agent.get(`${card}?scope=hand-picked`)).status).toBe(200);
+			await agent.post(`/queue/${id}/delete?scope=hand-picked`).expect(303);
+			expect((await agent.get(`${card}?scope=hand-picked`)).status).toBe(404);
+			expect((await agent.get(card)).status).toBe(200);
+		});
+
 		function createTerminalPipelineFixture() {
 			const articleHtml = `<html><head><title>Terminal Post</title></head><body><article><h1>Terminal Post</h1><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
@@ -39,7 +51,7 @@ describe("Readlist routes", () => {
 				summary: "Ready summary.",
 			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,

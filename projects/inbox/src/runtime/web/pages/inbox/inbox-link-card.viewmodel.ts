@@ -139,7 +139,11 @@ function readlistFitView(input: {
 	ordinal: InboxEmailLinkEntry["ordinal"];
 }): ReadlistFitView {
 	const { outcome, override, label } = input.fit;
-	if (outcome.decision === "no-purpose" || outcome.decision === "readlist-missing") {
+	if (
+		outcome.decision === "no-purpose" ||
+		outcome.decision === "readlist-missing" ||
+		outcome.decision === "smart-matching"
+	) {
 		return NO_READLIST_FIT_VIEW;
 	}
 	if (override !== undefined) {

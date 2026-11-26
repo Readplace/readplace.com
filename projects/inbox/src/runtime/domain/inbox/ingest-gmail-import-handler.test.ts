@@ -32,6 +32,8 @@ import { initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gm
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initEvaluateGmailImportCompletion } from "../gmail-import-completion/evaluate-gmail-import-completion";
+import { initRecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initIngestGmailImportHandler } from "./ingest-gmail-import-handler";
 import { initIngestParsedEmail } from "./ingest-parsed-email";
@@ -95,6 +97,11 @@ function makeHarness(opts?: {
 	const handler = initIngestGmailImportHandler({
 		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
 		claimSupplementalImport: completion.claimSupplementalImport,
+		recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+			findCompletion: completion.findCompletion,
+			addGmailOrigins: completion.addGmailOrigins,
+			evaluate: initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent }),
+		}),
 		readRawEmail: rawBucket.read,
 		deleteRawEmail: rawBucket.delete,
 		parseEmail: opts?.parseEmail ?? parseEmail,
@@ -297,7 +304,7 @@ describe("initIngestGmailImportHandler", () => {
 		assert.equal(row?.rawEmailS3Key, detail.rawEmailS3Key);
 		assert.equal(imageDownloads.length, 1);
 		assert.deepEqual((await completion.findCompletion({ userId: READER, receivedAtMessageId: IMPORTED_ROW }))?.origins, [
-			{ kind: "history", accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: "dan@tldr.tech" },
+			{ kind: "history", jobId: FIRST_JOB, accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: "dan@tldr.tech" },
 		]);
 		assert.deepEqual(published, [
 			{
@@ -744,6 +751,7 @@ describe("initIngestGmailImportHandler", () => {
 		const handler = initIngestGmailImportHandler({
 			resumeAcceptedGmailEmail: async () => false,
 			claimSupplementalImport: async () => undefined,
+			recordDuplicateGmailOrigin: async () => {},
 			readRawEmail: async () =>
 				tldrIssue({ from: "promo@tldr.tech", messageId: "<issue-42@tldr.tech>" }),
 			deleteRawEmail: async () => {
@@ -794,6 +802,7 @@ describe("initIngestGmailImportHandler", () => {
 		const handler = initIngestGmailImportHandler({
 			resumeAcceptedGmailEmail: async () => false,
 			claimSupplementalImport: async () => undefined,
+			recordDuplicateGmailOrigin: async () => {},
 			readRawEmail: async () => undefined,
 			deleteRawEmail: async () => {},
 			parseEmail,
@@ -866,7 +875,9 @@ describe("initIngestGmailImportHandler", () => {
 		assert.deepEqual(published, [
 			ingested({ jobId: FIRST_JOB, outcome: "already-imported" }),
 		]);
-		assert.deepEqual((await completion.findCompletion({ userId: READER, receivedAtMessageId: forwardedRow }))?.origins, []);
+		assert.deepEqual((await completion.findCompletion({ userId: READER, receivedAtMessageId: forwardedRow }))?.origins, [
+			{ kind: "history", jobId: FIRST_JOB, accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: "dan@tldr.tech" },
+		]);
 	});
 });
 

@@ -14,8 +14,15 @@ export const enUS = {
 	ocrPagesHeld: {
 		warning: "This PDF has {pages} pages, more than are left in today's allowance.",
 	},
+	homeReadlist: {
+		setAction: "Set {label} as home",
+	},
 	readlistDestination: {
 		preferences: "Preferences",
 		integrations: "Connectors",
+	},
+	handPickedHint: {
+		text: "Older saves stay in All. To add one to Hand Picked, use “Add to readlist” on the web.",
+		link: "Open All on the web",
 	},
 } as const;

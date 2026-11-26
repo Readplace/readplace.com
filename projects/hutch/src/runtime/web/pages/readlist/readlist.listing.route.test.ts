@@ -232,7 +232,7 @@ describe("Readlist routes", () => {
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+			const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -323,7 +323,7 @@ describe("Readlist routes", () => {
 
 			expect(actionForms.length).toBe(2);
 			expect(doc.querySelector("[data-test-action='mark-read']")?.textContent).toBe("Mark as read");
-			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete");
+			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete from this readlist");
 		});
 
 		it("boosts the mark-read action form and scopes its swap to the card", async () => {
@@ -429,7 +429,7 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue?page=99");
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?queue=default");
 		});
 
 		it("keeps the article matching the url search field only on the page that holds it", async () => {
@@ -530,7 +530,7 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue?order=asc");
 			const doc = new JSDOM(response.text).window.document;
 			const sortLink = doc.querySelector("[data-test-sort]");
-			expect(sortLink?.getAttribute("href")).toBe("/queue?utm_source=queue-sort&utm_medium=internal&utm_content=sort&utm_term=desc");
+			expect(sortLink?.getAttribute("href")).toBe("/queue?queue=default&utm_source=queue-sort&utm_medium=internal&utm_content=sort&utm_term=desc");
 			expect(sortLink?.textContent).toContain("Oldest first");
 		});
 

@@ -184,6 +184,59 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.appearance, "dark")
 	}
 
+	nonisolated private static func collection(hintHref: String?) -> String {
+		let plain = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")])
+		guard let hintHref else { return plain }
+		return plain.replacingOccurrences(
+			of: "\"pageSize\": 20",
+			with: "\"pageSize\": 20, \"hint\": { \"text\": \"Older saves stay elsewhere.\", \"link\": { \"label\": \"Open on the web\", \"href\": \"\(hintHref)\" } }"
+		)
+	}
+
+	func testShowsTheHintOfTheReadlistOnScreenAndClearsItOnAReadlistWithoutOne() async {
+		StubURLProtocol.setHandler { request, _ in
+			switch (request.url?.path, request.url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "queue=work"):
+				return .json(200, Self.collection(hintHref: nil))
+			case ("/queue", _):
+				return .json(200, Self.collection(hintHref: "/queue"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.hint?.text, "Older saves stay elsewhere.")
+		XCTAssertEqual(viewModel.hint?.linkLabel, "Open on the web")
+		XCTAssertEqual(viewModel.hint?.url.absoluteString, "\(AppConfig.serverBaseURL)/queue", "the hint's href resolves against the API base URL into an absolute URL the browser can open")
+
+		await viewModel.select(readlistHref: "/queue?queue=work")
+
+		XCTAssertNil(viewModel.hint, "a readlist without a hint shows none")
+	}
+
+	func testShowsNoHintWhenItsLinkCannotBeResolved() async {
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Self.collection(hintHref: "ftp://example.com/queue"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertNil(viewModel.hint, "a hint whose link cannot be opened is not shown")
+	}
+
 	func testToolbarKeepsExactlyOneAddControlWhenTheServerAlsoAdvertisesAddLinksHelp() async {
 		// The + is now client-owned and always injected. Should the server ever
 		// re-advertise add-links-help (a rollback of the server change, or another
@@ -1248,7 +1301,28 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue", "switching back moves the preference back")
 	}
 
-	func testLaunchOpensTheRememberedReadlistWithoutTouchingTheEntryPoint() async {
+	func testNeutralLaunchFollowsAdvertisedHomeWhenAllWasRemembered() async {
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue")
+		StubURLProtocol.setHandler { request, _ in
+			let picked = request.url?.query == "scope=hand-picked"
+			return .json(200, """
+			{"class":["collection","articles"],"entities":[],"links":[{"rel":["home"],"href":"/queue?scope=hand-picked"}],
+			"properties":{"readlists":[{"rel":"current","label":"All","href":"/queue"}],
+			"browseReadlists":[{"rel":"\(picked ? "current" : "readlist")","label":"Hand Picked","href":"/queue?scope=hand-picked","description":"All your manual saves are added here"},
+			{"rel":"\(picked ? "readlist" : "current")","label":"All","href":"/queue"}]}}
+			""")
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await viewModel.loadIfNeeded()
+		await viewModel.loadIfNeeded()
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue?scope=hand-picked"])
+		XCTAssertEqual(viewModel.currentReadlistLabel, "Hand Picked")
+		XCTAssertEqual(viewModel.currentReadlistDescription, "All your manual saves are added here")
+		XCTAssertNil(viewModel.sharedArticlesDrop)
+	}
+
+	func testLaunchDiscoversHomeBeforeUsingAnOlderServersRememberedReadlist() async {
 		StubURLProtocol.setHandler(readlistedHandler())
 		let defaults = TestSupport.ephemeralDefaults()
 		LastViewedReadlist(defaults: defaults).remember(href: "/queue?queue=work")
@@ -1257,11 +1331,40 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.loadIfNeeded()
 
 		XCTAssertEqual(
-			requestedHrefs(), ["/queue?queue=work"],
-			"the remembered readlist is loaded directly, so the list never flashes the entry point's first"
+			requestedHrefs(), ["/", "/queue", "/queue?queue=work"],
+			"an older server without Home uses the remembered readlist"
 		)
 		XCTAssertEqual(viewModel.articles.map(\.id), ["w1"])
 		XCTAssertEqual(viewModel.selectedReadlistHref, "/queue?queue=work")
+	}
+
+	func testColdLaunchFollowsHomeAndRefreshStaysOnTheSelectedList() async {
+		let home = "/queue?queue=work"
+		let homeLink = #", {"rel":["home"],"href":"/queue?queue=work"}"#
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.query?.contains("queue=work") == true {
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "home")], extraLinks: homeLink,
+					tabsJSON: Fixtures.tabs(current: "unread", queue: "work"),
+					readlistsJSON: Fixtures.readlists(current: home)
+				))
+			}
+			return .json(200, Fixtures.collection(
+				entitiesJSON: [], extraLinks: homeLink, tabsJSON: Fixtures.tabs(current: "unread"),
+				readlistsJSON: Fixtures.readlists(current: "/queue")
+			))
+		}
+		let defaults = TestSupport.ephemeralDefaults()
+		LastViewedReadlist(defaults: defaults).remember(href: "/queue")
+		let model = makeViewModel(store: TestSupport.loggedInStore(), defaults: defaults)
+		await model.loadIfNeeded()
+		XCTAssertEqual(model.articles.map(\.id), ["home"])
+		XCTAssertEqual(model.readlistMenu.first(where: \.isHome)?.href, home)
+		XCTAssertEqual(model.readlistMenu.map(\.displayedLabel), ["All", "Work · Home"])
+		await model.select(readlistHref: "/queue")
+		await model.refresh()
+		XCTAssertEqual(model.selectedReadlistHref, "/queue")
+		XCTAssertEqual(model.readlistMenu.first(where: \.isHome)?.href, home)
 	}
 
 	private func assertLaunchFallsBackToTheEntryPoint(
@@ -1281,8 +1384,8 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.loadIfNeeded()
 
 		XCTAssertEqual(
-			requestedHrefs(), ["/queue?queue=work", "/", "/queue"],
-			"the failed readlist falls back to the entry point exactly once, re-discovering where the client starts",
+			requestedHrefs(), ["/", "/queue", "/queue?queue=work"],
+			"the failed readlist falls back to the entry collection already discovered",
 			file: file, line: line
 		)
 		XCTAssertEqual(
@@ -1335,8 +1438,8 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(expired, 1, "an expired session signs the reader out instead of retrying at the entry point")
 		XCTAssertEqual(
-			requestedHrefs(), ["/queue?queue=work", "/oauth/token"],
-			"the single token refresh is the only other call: no entry-point hop under a dead session"
+			requestedHrefs(), ["/", "/oauth/token"],
+			"the single token refresh is the only other call under a dead session"
 		)
 		XCTAssertEqual(viewModel.errorText, nil, "a session-expiry logout is not shown as an error banner")
 	}
@@ -1356,7 +1459,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.handleForeground()
 
 		XCTAssertEqual(
-			requestedHrefs(), ["/queue?queue=work", "/queue?queue=work"],
+			requestedHrefs(), ["/", "/queue", "/queue?queue=work", "/queue?queue=work"],
 			"the remembered href is what the list re-reads, so a tab-less collection still converges inside its readlist"
 		)
 	}
@@ -3204,7 +3307,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "the list kept from the last online read is what the reader sees offline")
 		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "and the reader is told it may be out of date")
 		XCTAssertEqual(
-			requestedHrefs(), ["/queue?readlist=main"],
+			requestedHrefs(), ["/"],
 			"the server is always asked first; the stored copy answers only once the server cannot be reached"
 		)
 		XCTAssertTrue(viewModel.isOffline)
@@ -3246,7 +3349,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
 		XCTAssertEqual(
 			StubURLProtocol.records.map { $0.request.cachePolicy },
-			[.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+			[.reloadIgnoringLocalCacheData, .reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
 		)
 	}
 
@@ -3276,7 +3379,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText, "under the offline banner, exactly as for a dropped connection")
 		XCTAssertEqual(
 			StubURLProtocol.records.map { $0.request.cachePolicy },
-			[.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+			[.reloadIgnoringLocalCacheData, .reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
 		)
 		XCTAssertEqual(StubURLProtocol.records.prefix(2).map(\.request.timeoutInterval), [10, 10])
 	}
@@ -3436,7 +3539,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			"the launch opens on the landing tab every later read kept fresh, not on the copy the previous launch left"
 		)
 		XCTAssertEqual(relaunched.errorText, OfflineReading.bannerText)
-		XCTAssertEqual(requestedHrefs(), ["/queue?status=unread"])
+		XCTAssertEqual(requestedHrefs(), ["/"])
 	}
 
 	func testAnOfflineLaunchWhoseLandingTabWasNeverStoredShowsTheReadlistsCopy() async throws {
@@ -3452,7 +3555,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"], "a first session read only the readlist, and that copy is still shown")
 		XCTAssertEqual(viewModel.errorText, OfflineReading.bannerText)
-		XCTAssertEqual(requestedHrefs(), ["/queue?status=unread"])
+		XCTAssertEqual(requestedHrefs(), ["/"])
 	}
 
 	func testAnOnlineReadRemembersTheReadlistsLandingTab() async {
@@ -3476,11 +3579,11 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), [])
 		XCTAssertTrue(viewModel.isOffline, "so the empty list says it is offline rather than that nothing was saved")
 		XCTAssertEqual(
-			requestedHrefs(), ["/queue?readlist=main", "/"],
-			"a stored copy that is not there asks nobody, so only the two server reads were sent"
+			requestedHrefs(), ["/"],
+			"only the Home discovery request is sent"
 		)
 		XCTAssertEqual(
-			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData]
 		)
 		XCTAssertEqual(LastViewedReadlist(defaults: defaults).href, "/queue?readlist=main", "the next launch still opens on it")
 	}
@@ -3494,7 +3597,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.errorText, "Server error 500.", "a server that answered is not an offline device")
 		XCTAssertEqual(viewModel.articles.map(\.id), [], "so the stored copy is not passed off as the server's answer")
 		XCTAssertEqual(
-			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData]
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData]
 		)
 	}
 

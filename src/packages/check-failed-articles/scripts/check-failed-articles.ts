@@ -31,6 +31,7 @@ import { initFailureHistoryMemberships } from "./failure-history-memberships";
 import { initLoadPublicViewEvidence } from "./failure-history-public";
 import { formatFailedArticlesIssue, toCanaryReportRow } from "./failed-articles-issue";
 import { parseIgnoredKeyHashes } from "./ignored-key-hashes";
+import { parseReviewedAccess } from "./reviewed-access";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 function parseLookbackDays(): number {
@@ -46,6 +47,7 @@ function parseLookbackDays(): number {
 
 test("Failed articles canary", async () => {
 	const ignoredKeyHashes = parseIgnoredKeyHashes(getEnv("FAILED_ARTICLES_IGNORED_KEY_HASHES"));
+	const reviewedAccess = parseReviewedAccess(getEnv("FAILED_ARTICLES_REVIEWED_ACCESS"));
 	const region = requireEnv("AWS_REGION");
 	const tableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
 	const origin = requireEnv("READPLACE_ORIGIN");
@@ -91,6 +93,7 @@ test("Failed articles canary", async () => {
 		memberships: memberships?.get(row.articleKey),
 		publicOpenRecorded: publicViews.opened.has(row.articleKey),
 		publicOpensCovered: publicViews.covered.has(row.articleKey),
+		reviewedAccess,
 	}));
 	assert(first, "A nonempty canary report has a classified first row");
 	const createdAt = cutoff.toISOString();

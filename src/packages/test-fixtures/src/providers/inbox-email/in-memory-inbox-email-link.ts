@@ -96,7 +96,11 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
 			const group = groupKey({ userId, receivedAtMessageId });
 			const existingMeta = metas.get(group);
+			const window = meta.extractionWindow;
+			if (window && (existingMeta?.extractionWindow?.end ?? 0) !== window.start) return;
 			metas.set(group, {
+				...existingMeta,
+				...(window && { extractionWindow: window }),
 				truncated: meta.truncated,
 				extractionFailed: meta.extractionFailed,
 				...((existingMeta?.selectedReadlists ?? meta.selectedReadlists) ===
@@ -106,10 +110,14 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 							selectedReadlists:
 								existingMeta?.selectedReadlists ?? meta.selectedReadlists,
 						}),
-				...((existingMeta?.eligibleArticleCount ?? meta.eligibleArticleCount) === undefined ? {} : { eligibleArticleCount: existingMeta?.eligibleArticleCount ?? meta.eligibleArticleCount }),
+				...((existingMeta?.eligibleArticleCount ?? meta.eligibleArticleCount) === undefined ? {} : { eligibleArticleCount: window && window.start > 0 ? (existingMeta?.eligibleArticleCount ?? 0) + (meta.eligibleArticleCount ?? 0) : existingMeta?.eligibleArticleCount ?? meta.eligibleArticleCount }),
 				...((existingMeta?.savesHeld ?? meta.savesHeld) === undefined ? {} : { savesHeld: existingMeta?.savesHeld ?? meta.savesHeld }),
 				...((existingMeta?.issueSave ?? meta.issueSave) === undefined ? {} : { issueSave: existingMeta?.issueSave ?? meta.issueSave }),
 			});
+		},
+		markWindowDispatched: async (input) => {
+			const meta = metas.get(groupKey(input));
+			if (meta?.extractionWindow?.end === input.end) meta.dispatchedThrough = input.end;
 		},
 		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
 			const group = groupKey({ userId, receivedAtMessageId });
@@ -142,24 +150,27 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 			receivedAtMessageId,
 			readlist,
 			entry,
+			startIndex,
 		}) => {
 			const group = groupKey({ userId, receivedAtMessageId });
 			const results = outcomes.get(group);
-			const stored = results?.get(readlist);
+			const key = startIndex === undefined ? readlist : `${readlist}#${startIndex}`;
+			const stored = results?.get(key);
 			if (results === undefined || stored?.decision !== "filtered")
 				return "not-filtered";
 			if (stored.fit.some((fit) => fit.ordinal === entry.ordinal))
 				return "already-decided";
-			results.set(readlist, { ...stored, fit: [...stored.fit, entry] });
+			results.set(key, { ...stored, fit: [...stored.fit, entry] });
 			return "merged";
 		},
 		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
 			const group = groupKey({ userId, receivedAtMessageId });
 			const results =
 				outcomes.get(group) ?? new Map<string, InboxReadlistOutcome>();
-			const stored = results.get(outcome.readlist);
+			const key = outcome.startIndex === undefined ? outcome.readlist : `${outcome.readlist}#${outcome.startIndex}`;
+			const stored = results.get(key);
 			if (stored !== undefined && stored.decision !== "failed") return "duplicate";
-			results.set(outcome.readlist, outcome);
+			results.set(key, outcome);
 			outcomes.set(group, results);
 			return "stored";
 		},

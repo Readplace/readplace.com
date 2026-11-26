@@ -6,6 +6,8 @@ import type { ReadlistQueryKey } from "../api/collection-query";
  * the same phone can't read the app's cookies, so the server tells an app
  * request apart from that browser by this header and tracks onboarding
  * completion per-user server-side instead of via cookies. */
+export const HOME_READLIST_HEADER = "x-readplace-home-readlist";
+
 export const NATIVE_CLIENT_HEADER = "x-readplace-client";
 
 /**

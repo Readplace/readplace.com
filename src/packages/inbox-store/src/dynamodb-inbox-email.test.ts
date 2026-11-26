@@ -223,6 +223,41 @@ describe("initDynamoDbInboxEmail", () => {
 		});
 	});
 
+	it("lists distinct received senders across the owner's whole partition", async () => {
+		const key = { userId: USER, receivedAtMessageId: "boundary" };
+		const { client, commands } = createPaginatedClient([
+			{ rows: [{ senderEmail: "z@example.com" }], lastEvaluatedKey: key },
+			{ rows: [{ senderEmail: "" }, { senderEmail: "a@example.com" }, { senderEmail: "z@example.com" }] },
+		]);
+		const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+		expect(await store.listReceivedSenders(USER)).toEqual(["a@example.com", "z@example.com"]);
+		expect(commands[1].input).toMatchObject({
+			KeyConditionExpression: "userId = :uid",
+			FilterExpression: "#status = :received",
+			ExpressionAttributeValues: { ":uid": USER, ":received": "received" },
+			ProjectionExpression: "senderEmail",
+			ExclusiveStartKey: key,
+		});
+	});
+
+	it("continues past an empty filtered query page to find the sender's next issue", async () => {
+		const key = { userId: USER, receivedAtMessageId: "boundary" };
+		const { client, commands } = createPaginatedClient([
+			{ rows: [], lastEvaluatedKey: key },
+			{ rows: [emailRow()] },
+		]);
+		const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+		const result = await store.listEmailsByUserId({ userId: USER, cursor: undefined, sender: "news@example.com", pageSize: 1 });
+		expect(result.emails.map(email => email.subject)).toEqual(["Weekly digest"]);
+		expect(result.hasOlder).toBe(false);
+		expect(commands[1].input).toMatchObject({
+			KeyConditionExpression: "userId = :uid",
+			FilterExpression: "senderEmail = :sender AND #status = :received",
+			ExpressionAttributeValues: { ":uid": USER, ":sender": "news@example.com", ":received": "received" },
+			ExclusiveStartKey: key,
+		});
+	});
+
 	describe("listEmailsByUserId", () => {
 		it("fetches the newest page in one descending probe query, normalizing a missing body pointer", async () => {
 			const { client, captured } = createOrderedClient([
@@ -544,6 +579,25 @@ describe("initDynamoDbInboxEmail", () => {
 	});
 
 	describe("setEmailLinkCounts", () => {
+		it("increments the count only when a continuation starts after the counted links", async () => {
+			const calls: CapturedCommand[] = [];
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient((cmd) => {
+					calls.push(cmd as CapturedCommand);
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+			const key = { userId: USER, receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>" };
+			await store.setEmailLinkCounts({ ...key, window: { start: 0, end: 300 }, linkCounts: { kept: 290, skipped: 10, truncated: true } });
+			await store.setEmailLinkCounts({ ...key, window: { start: 300, end: 301 }, linkCounts: { kept: 1, skipped: 0, truncated: false } });
+			expect(calls.map(({ input }) => input.ConditionExpression)).toEqual([
+				"attribute_exists(receivedAtMessageId) AND attribute_not_exists(countedThrough)",
+				"countedThrough = :start",
+			]);
+			expect(calls[1].input.ExpressionAttributeValues).toMatchObject({ ":start": 300, ":end": 301, ":kept": 1, ":truncated": false });
+		});
+
 		it("stamps the counts onto the row only when it still exists", async () => {
 			let captured: CapturedCommand | undefined;
 			const store = initDynamoDbInboxEmail({

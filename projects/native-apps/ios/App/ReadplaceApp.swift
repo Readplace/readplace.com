@@ -62,7 +62,7 @@ struct RootView: View {
 			if let refusalText = ageGate.refusalText {
 				AgeRefusalView(text: refusalText)
 			} else if session.isLoggedIn {
-				ReadingListView(session: session, onSignedOut: { intro.replay() })
+				ReadingListView(session: session, externalBrowser: .system, onSignedOut: { intro.replay() })
 			} else {
 				LoginView(
 					session: session,
@@ -75,7 +75,7 @@ struct RootView: View {
 				.disabled(ageGate.isChecking)
 			}
 		}
-		.tint(.brandAmber)
+		.tint(.brandAppTint)
 		.overlay(LaunchIntroOverlayView(model: intro))
 		.modifier(AgeGateReading(gate: ageGate))
 		.onChange(of: session.isLoggedIn) { isLoggedIn in

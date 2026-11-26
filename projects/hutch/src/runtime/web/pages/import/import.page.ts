@@ -330,6 +330,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	);
 
 	router.post("/:id/commit", redirectAnonymousToSignup, deps.requireNotLocked, async (req: Request, res: Response) => {
+		const requestedAt = deps.now().toISOString();
 		assert(req.userId, "userId required - redirectAnonymousToSignup guarantees an authenticated identity here");
 		const userId = req.userId;
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
@@ -397,7 +398,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			await Promise.all(
 				submitted.map(({ url }) =>
 					deps
-						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG, saveTrigger: "automatic", saveAttemptId: newSaveAttemptId() })
+						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG, requestedAt, saveTrigger: "automatic", saveAttemptId: newSaveAttemptId() })
 						.catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);
@@ -417,6 +418,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 						url,
 						freshness,
 						provenance: { kind: "import" },
+						requestedAt,
 						saveTrigger: "automatic",
 						savedAt: savedAts[index],
 						saveAttemptId: newSaveAttemptId(),

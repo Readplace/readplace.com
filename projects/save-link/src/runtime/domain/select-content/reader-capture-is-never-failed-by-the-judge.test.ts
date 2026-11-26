@@ -1,4 +1,5 @@
-import { type SaveAttemptId, SaveAttemptIdSchema, isStoredWrapperUrl, isWrapperUrl } from "@packages/domain/article";
+import { createHash } from "node:crypto";
+import { type CoverageAssessment, type CoverageRuleModes, type SaveAttemptId, SaveAttemptIdSchema, isStoredWrapperUrl, isWrapperUrl, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
@@ -116,6 +117,7 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 	const persisted: { transition: unknown; input: unknown }[] = [];
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { persisted.push({ transition, input: params.input }); };
 	const handler = initSelectMostCompleteContentHandler({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => sources,
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + new Set(fresh.map((source) => computeCanonicalContentHash(source.html))).size }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => legsDeferred, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),
@@ -140,4 +142,37 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 
 it("does not take a media-book upload's private URL for a wrapper host", () => {
 	expect({ isWrapperUrl: isWrapperUrl(BOOK_URL), isStoredWrapperUrl: isStoredWrapperUrl(BOOK_URL) }).toEqual({ isWrapperUrl: false, isStoredWrapperUrl: false });
+});
+
+const ENFORCE_SECTIONS: CoverageRuleModes = { "section-coverage": "enforce" };
+const LOST_SECTIONS: CoverageAssessment = { ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "known-partial", scope: { kind: "article", units: 14 }, covered: 1, unresolved: 13, reasons: ["missing-section"] };
+const EVERY_SECTION: CoverageAssessment = { ruleId: "section-coverage", ruleVersion: 1, mode: "enforce", repair: "none", outcome: "verified-for-scope", scope: { kind: "article", units: 14 }, covered: 14 };
+const withSections = (source: VerifiedTierSource, assessment: CoverageAssessment): VerifiedTierSource => ({
+	...source,
+	metadata: { ...source.metadata, coverage: { schemaVersion: 1, sourceDigest: source.metadata.contentHash, outputDigest: createHash("sha256").update(source.html).digest("hex"), assessments: [assessment] } },
+});
+
+it("never excludes a tapped capture that lost sections beside this save's verified live copy, and a none verdict still promotes it", async () => {
+	const capture = withSections(candidate({ tier: "tier-0", wordCount: 120, html: "<article><p>The part of the page the reader saved.</p></article>", evaluationHtml: "<article><p>The part of the page the reader saved.</p></article>" }), LOST_SECTIONS);
+	const live = withSections(candidate({ tier: "tier-1", httpStatus: 200, wordCount: 900, html: "<article><p>The whole page in fourteen sections.</p></article>", evaluationHtml: "<article><p>The whole page in fourteen sections.</p></article>" }), EVERY_SECTION);
+	const persisted: { transition: unknown; input: unknown }[] = [];
+	const createChatCompletion = jest.fn(reply({ kind: "none", reason: "Nothing readable", readability: [0, 1].map((index) => ({ candidate: labelForIndex(index), readable: false })) }));
+	const handler = initSelectMostCompleteContentHandler({
+		coverageRuleModes: ENFORCE_SECTIONS,
+		listAvailableTierSources: async () => [capture, live],
+		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion }).selectMostCompleteContent,
+		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),
+		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }),
+		recordCrawlVersion: async () => {},
+		readCanonicalContent: async () => undefined, loadArticle: async () => FIRST_SAVE, transitionAndPersist: async (transition, params) => { persisted.push({ transition, input: params.input }); },
+		resolveOriginalUrl: async () => URL, verifyWrapperSource: async ({ sourceUrl }) => ({ originalUrl: URL, sourceUrl }),
+		fetchRedditPostCard: async () => undefined,
+		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata,
+		now: () => new Date(NOW), logger: noopLogger, deepseekCallFailedLog: noopLogger,
+	});
+
+	const result = await handler(event({ url: URL, saveAttemptId: ATTEMPT, userId: "reader", candidates: [capture, live].map((source) => ({ id: source.metadata.id, tier: source.tier })) }), buildLambdaContext(), () => {});
+
+	expect(createChatCompletion).toHaveBeenCalledTimes(1);
+	expect({ result, persisted }).toEqual({ result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ metadata: expect.objectContaining({ contentHash: capture.metadata.contentHash }) }) }] });
 });

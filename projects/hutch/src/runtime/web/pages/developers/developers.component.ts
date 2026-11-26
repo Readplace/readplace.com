@@ -9,7 +9,7 @@ import {
 	MAX_UPLOAD_CONTENT_BYTES,
 	MAX_UPLOAD_REQUEST_BYTES,
 } from "@packages/domain/article";
-import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, READLIST_PINNED_MAX } from "@packages/domain/readlist";
 import { SAMPLE_TEXT } from "@packages/api-samples";
 import { ADVERTISED_CLIENTS, clientCategoryOfGroup } from "@packages/supported-clients";
 import { MARKDOWN_MEDIA_TYPE, render, withInternalTracking } from "@packages/web-shell";
@@ -79,13 +79,15 @@ const COLLECTION_PROPERTY_DOCS = {
 	pages:
 		"one <code>{label, rel, href}</code> per page, where the page you're on has the rel <code>current</code>, every earlier page <code>prev</code> and every later page <code>next</code>. An empty tab lists page 1 as <code>current</code>. The <code>next</code> and <code>prev</code> links step one page at a time, and the <code>self</code> link is the page you're on.",
 	readlists:
-		"All and each named readlist, each a <code>{label, rel, href}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field. For Readplace's own apps only, the <code>current</code> entry may also carry <code>preferences</code> on a named readlist or <code>integrations</code> on All, each a <code>{label, href}</code> to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
+		"All and each named readlist, each a <code>{label, rel, href, pinned}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field. For Readplace's own apps only, the <code>current</code> entry may also carry <code>preferences</code> on a named readlist or <code>integrations</code> on All, each a <code>{label, href}</code> to a signed-in settings page. Show that control only when it's there, and never build its URL yourself.",
 	total: "a <code>{label}</code> to show the reader, not a number to compute with.",
 	sort: "one <code>{label, rel, order, href}</code> per order, where the order you're on has the rel <code>current</code>. Follow an href to change the order.",
+	browseReadlists: "Ordered browsing destinations. Each carries a label and href. Permanent lists also carry a description. The home link opens Hand Picked.",
 	pageSize: "presentation. The server picks the page size.",
 	appearance: "presentation.",
 	warning: "appears only on a <code>422</code> answer to <code>save-article</code>.",
 	messages: "on a listing, these are only for Readplace's own apps.",
+	hint: "for Readplace's own apps only, on the Hand Picked collection: a <code>{text, link: {label, href}}</code> note the app shows with its link. Skip it.",
 } satisfies Record<keyof CollectionProperties, string>;
 
 const SEARCH_FIELD_DOCS = {
@@ -124,6 +126,10 @@ const ARTICLE_PROPERTY_DOCS = {
 	processing:
 		"present only while Readplace is still working on the article. <code>label</code> is display text, <code>estimate</code> is an optional time left, an object whose <code>kind</code> is <code>quiet</code>, with <code>seconds</code> left and <code>revealInSeconds</code> before a countdown is worth showing, <code>counting</code>, with <code>seconds</code> left, or <code>almost-there</code>, with nothing more. <code>refresh</code> gives the <code>href</code> to fetch after <code>afterSeconds</code> for the article's next version. When the next version has no <code>processing</code>, the work has settled or Readplace has stopped waiting, and a <code>messages</code> warning may say why.",
 	messages: "server-authored messages to show the reader, present only when there are any; see Save links and pages.",
+	kindLabel:
+		"display text for an uploaded file's kind and length, such as <code>Book · 12 chapters · 3 h read</code>. Present only when <code>mediaKind</code> isn't <code>null</code>; show it in place of <code>readTime</code>'s label.",
+	suggestion: "display text, present only on an article Readplace suggested rather than one the reader saved.",
+	via: "present only on an article that reached the reader by email. <code>label</code> is display text such as <code>via The Weekly</code>. <code>sender</code>, present only for a recognised newsletter, is <code>{name, address}</code>: show it only when the reader asks for it.",
 } satisfies Record<keyof ArticleEntityProperties, string>;
 
 const FRONTMATTER_DOCS = {
@@ -193,6 +199,7 @@ export function DevelopersPage(input: { language: SampleLanguage }): PageBody {
 				refreshTokenDays: REFRESH_TOKEN_LIFETIME_SECONDS / SECONDS_PER_DAY,
 				readlistLimit: READLIST_MAX_PER_USER,
 				readlistNameLimit: READLIST_LABEL_MAX_LENGTH,
+				readlistPinLimit: READLIST_PINNED_MAX,
 				inlineFileLimit: megabytesLabel(MAX_UPLOAD_CONTENT_BYTES),
 				requestLimit: megabytesLabel(MAX_UPLOAD_REQUEST_BYTES),
 				bulkPageCount: MAX_PAGES_PER_BULK_SAVE,

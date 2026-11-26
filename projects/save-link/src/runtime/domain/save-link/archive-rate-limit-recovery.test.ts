@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch } from "@packages/crawl-article";
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { SaveAttemptIdSchema, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
@@ -41,7 +41,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		logInfo: () => {},
 	});
 	const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
-	const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
+	const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml,
 		downloadMedia: async () => [],
@@ -91,6 +91,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 			readability: [{ candidate: "A", readable: false }, { candidate: "B", readable: true }],
 		}) } }] });
 	const selection = await initPrepareContentSelection({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		loadArticle: async () => ({
 			url: ORIGINAL,
 			metadata: canonical.metadata,

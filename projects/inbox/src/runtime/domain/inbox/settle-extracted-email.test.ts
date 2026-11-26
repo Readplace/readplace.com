@@ -48,6 +48,7 @@ function makeSettle() {
 		getEmail: emails.getEmail,
 		findLinksMeta: links.findLinksMeta,
 		recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+			findCompletion: completions.findCompletion,
 			addGmailOrigins: completions.addGmailOrigins,
 			evaluate: async (input) => {
 				evaluations.push(input);

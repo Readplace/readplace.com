@@ -139,4 +139,13 @@ final class ShareStatusPresentationTests: XCTestCase {
 		XCTAssertEqual(status.symbol, "lock.fill")
 		XCTAssertEqual(status.tone, .warning)
 	}
+
+	func testAWarningIconUsesTheWarningIconInk() {
+		XCTAssertEqual(ShareStatusTone.warning.iconTint, .brandWarningText)
+	}
+
+	func testSuccessAndErrorIconsKeepTheirMarks() {
+		XCTAssertEqual(ShareStatusTone.success.iconTint, .brandSuccess)
+		XCTAssertEqual(ShareStatusTone.error.iconTint, .brandError)
+	}
 }

@@ -4,7 +4,12 @@ import type { ReadTimedDuration } from "@packages/domain";
 import { ChargedMediaUploadCommittedDetailSchema } from "@packages/infra-components";
 import { AUDIO, MEDIA_KINDS, UploadIdSchema, defineMediaKind, mintPrivateItemUrl } from "@packages/media-contracts";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer, loginAgent } from "../../../test-app";
+import request from "supertest";
+import { TEST_TRANSCRIPT_ALLOWANCE_SECONDS, useTestServer, loginAgent } from "../../../test-app";
+import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { bookQuotaMessageOf, uploadRefusalCopyOf } from "./upload.refusal";
+
+const SIREN = "application/vnd.siren+json";
 
 const METERED_AUDIO = defineMediaKind({ ...AUDIO, meter: "transcript-seconds", listenTime: (seconds) => seconds });
 const readTenMinutes: ReadTimedDuration = async () => ({ durationSeconds: 600, hasAudio: true, hasVideo: false });
@@ -48,6 +53,24 @@ async function uploadAndReceive(params: {
 	params.signed.harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: params.bytes });
 	const received = await params.signed.agent.post(`/upload/${uploadId}/received`);
 	return { uploadId, received };
+}
+
+async function bearerUploadAndReceive(params: {
+	harness: ReturnType<typeof useApp>;
+	token: string;
+	bytes: Uint8Array;
+}) {
+	const post = (path: string) =>
+		request(params.harness.server).post(path).set("Accept", SIREN).set("Authorization", `Bearer ${params.token}`);
+	const staged = await post("/upload?features=transcripts").type("form").send({});
+	const confirm: string | undefined = staged.body.actions?.find((a: { name: string }) => a.name === "confirm-received")?.href;
+	assert(confirm, "the staged upload must carry confirm-received");
+	params.harness.mediaUpload.receivePendingOriginal({ uploadId: UploadIdSchema.parse(confirm.split("/")[2]), bytes: params.bytes });
+	return post(confirm).redirects(0);
+}
+
+function errorMessages(body: string) {
+	return [{ type: "error", content: { type: "text/html", body } }];
 }
 
 describe("Metered upload commit", () => {
@@ -145,7 +168,7 @@ describe("Metered upload commit", () => {
 		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
 
 		expect([first.received.status, second.received.status]).toEqual([303, 303]);
-		expect([first.received.headers.location, second.received.headers.location]).toEqual(["/queue", "/queue"]);
+		expect([first.received.headers.location, second.received.headers.location]).toEqual(["/queue?queue=default", "/queue?queue=default"]);
 		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(2);
 	});
 
@@ -167,10 +190,51 @@ describe("Metered upload commit", () => {
 		const first = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
 		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
 
-		expect([first.received.status, first.received.headers.location]).toEqual([303, "/queue"]);
+		expect([first.received.status, first.received.headers.location]).toEqual([303, "/queue?queue=default"]);
 		expect(second.received.status).toBe(303);
 		expect(second.received.headers.location).toMatch(/^\/upload\?features=transcripts&refused=book-quota&retry_at=/);
 		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
+	});
+
+	it("answers a bearer client's transcript-quota refusal with messages", async () => {
+		const signed = await signedIn();
+		const token = await saveAccessTokenForUser(signed.harness, signed.userId);
+		await bearerUploadAndReceive({ harness: signed.harness, token, bytes: mp3Prefix() });
+		await bearerUploadAndReceive({ harness: signed.harness, token, bytes: mp3Prefix() });
+
+		const third = await bearerUploadAndReceive({ harness: signed.harness, token, bytes: mp3Prefix() });
+
+		expect(third.status).toBe(422);
+		expect(third.body.properties.code).toBe("transcript-quota");
+		expect(third.body.properties.messages).toEqual(
+			errorMessages(uploadRefusalCopyOf(TEST_TRANSCRIPT_ALLOWANCE_SECONDS)["transcript-quota"]),
+		);
+	});
+
+	it("answers a bearer client's book-quota refusal with messages and keeps its retry instant", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.rateLimit = {
+			...fixture.rateLimit,
+			rules: { ...fixture.rateLimit.rules, bookUpload: { limit: 1, windowSeconds: 86_400 } },
+		};
+		const signed = await signedIn(fixture);
+		signed.harness.subscriptionProviders.seedRow({
+			userId: signed.userId,
+			provider: "stripe",
+			status: "cancelled",
+			createdAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+			updatedAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+		});
+		const token = await saveAccessTokenForUser(signed.harness, signed.userId);
+		await bearerUploadAndReceive({ harness: signed.harness, token, bytes: epubPrefix() });
+
+		const second = await bearerUploadAndReceive({ harness: signed.harness, token, bytes: epubPrefix() });
+
+		expect(second.status).toBe(422);
+		expect(second.body.properties.code).toBe("book-quota");
+		const retryAt: string = second.body.properties.retryAt;
+		expect(second.body.properties.messages).toEqual(errorMessages(bookQuotaMessageOf(new Date(retryAt))));
+		expect(new Date(retryAt).toISOString()).toBe(retryAt);
 	});
 
 	it("hides the refusal alert for an unknown reason", async () => {
@@ -249,5 +313,21 @@ describe("Metered upload commit refused by the kind's own judgement", () => {
 		expect(
 			documentOf(page.text).querySelector('[data-test-alert="upload-refusal"] [data-test-alert-message]')?.textContent,
 		).toBe("This video has no sound, so there's nothing to transcribe.");
+	});
+
+	it("answers a bearer client's no-audio-track refusal with messages", async () => {
+		const harness = useSilentApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const token = await saveAccessTokenForUser(harness, userId);
+
+		const received = await bearerUploadAndReceive({ harness, token, bytes: mp3Prefix() });
+
+		expect(received.status).toBe(422);
+		expect(received.body.properties.code).toBe("no-audio-track");
+		expect(received.body.properties.messages).toEqual(
+			errorMessages(uploadRefusalCopyOf(TEST_TRANSCRIPT_ALLOWANCE_SECONDS)["no-audio-track"]),
+		);
 	});
 });

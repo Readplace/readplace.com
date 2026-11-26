@@ -91,6 +91,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 		this.userArticlesTable = new aws.dynamodb.Table(`hutch-user-articles`, {
 			name: args.tableNames.userArticles,
 			billingMode: "PAY_PER_REQUEST",
+			streamEnabled: true,
+			streamViewType: "NEW_IMAGE",
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },
 			hashKey: "userId",
@@ -101,6 +103,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 				{ name: "savedAt", type: "S" },
 				{ name: "readAt", type: "S" },
 				{ name: "highlightOf", type: "S" },
+				{ name: "personalScope", type: "S" },
+				{ name: "personalOrder", type: "S" },
 			],
 			globalSecondaryIndexes: [
 				{
@@ -120,6 +124,12 @@ export class HutchStorage extends pulumi.ComponentResource {
 				{
 					name: "url-index",
 					hashKey: "url",
+					projectionType: "ALL",
+				},
+				{
+					name: "personalScope-personalOrder-index",
+					hashKey: "personalScope",
+					rangeKey: "personalOrder",
 					projectionType: "ALL",
 				},
 				{

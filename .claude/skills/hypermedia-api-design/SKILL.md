@@ -93,10 +93,10 @@ When a breaking change is necessary, add the new capability alongside the old on
 
 | Action scope | Where it lives | Example |
 |---|---|---|
-| Collection-level | `entity.actions` on the collection | `save-article`, `search`, `create-readlist`, `rename-readlist`, `delete-readlist` |
+| Collection-level | `entity.actions` on the collection | `save-article`, `search`, `create-readlist`, `rename-readlist`, `delete-readlist`, `pin-readlist`, `unpin-readlist` |
 | Entity-level | `entities[].actions` | `update-status`, `add-to-readlist`, `remove-from-readlist` |
 
-A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `update-status`). Put an action at the level where it makes sense — "mark this article read" belongs on the article entity, not the collection. Readlist actions split the same way: a readlist's own create, rename and delete ride its collection, and filing or removing one article rides that article.
+A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `update-status`). Put an action at the level where it makes sense — "mark this article read" belongs on the article entity, not the collection. Readlist actions split the same way: a readlist's own create, rename, delete and pin ride its collection, and filing or removing one article rides that article.
 
 [Rendering & Invoking Affordances](references/client-rendering.md) — read when a client renders or invokes an affordance; it ends with the anti-patterns.
 

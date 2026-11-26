@@ -142,6 +142,7 @@ When staged changes include `.css`, `.html`, or `.client.ts` files:
 - [ ] URL/query string represents page state
 - [ ] Interactive features work without JavaScript
 - [ ] Every popover carries exactly one `autofocus` — on its commit control, field or first option, never on the panel; tooltip popovers, balloons and menus carry none; the inline or fallback copy of a shared form carries none; a new dialog is in the opening-focus route test's path and key lists
+- [ ] Only the foreground of a popup with a blurred backdrop accepts interaction from a click or tap. Use the shared backdrop dismiss button so an outside tap finishes there before the browser can send a click to the link or button underneath. Test both mouse and touch at a covered control’s coordinates, including a control in a lower popup when panels stack.
 - [ ] Every boosted swap declares its scroll intent with a `show:` modifier, and a new swap shape has a browser test asserting `scrollY` after a real click
 - [ ] A pending state ends on the first poll that sees its outcome; a spent budget or a device give-up renders its own outcome for work the reader started, and the stored state's view for work the page started on its own
 - [ ] Browser JS is bundled and referenced via a same-origin `<script src>`, not inlined via `Function.toString()` or served through the static asset CDN base URL

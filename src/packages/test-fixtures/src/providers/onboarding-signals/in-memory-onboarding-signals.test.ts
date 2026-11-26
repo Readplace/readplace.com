@@ -10,10 +10,12 @@ const NOTHING_RECORDED = {
 		ios: { installed: false, savedArticle: false },
 		android: { installed: false, savedArticle: false },
 	},
+	smartReadlistMinimumReachedAt: undefined,
 	nextReadMinimumReachedAt: undefined,
 	firstInboxArticleQueuedAt: undefined,
 	emailStepMarkedDoneAt: undefined,
 	gmailStepDismissedAt: undefined,
+	smartReadlistStepDismissedAt: undefined,
 	onboardingOutstandingVersion: undefined,
 	markReadAcrossQueuesAckedAt: undefined,
 	deleteArticleAckedAt: undefined,
@@ -26,6 +28,32 @@ function storeAt(...instants: Date[]) {
 }
 
 describe("initInMemoryOnboardingSignals", () => {
+	it("keeps the Smart Readlist milestone set once, scoped to the account, until account deletion", async () => {
+		const first = new Date("2026-09-05T08:15:00.000Z");
+		let now = first;
+		const store = initInMemoryOnboardingSignals({ now: () => now });
+		await store.recordSmartReadlistMinimumReached({ userId: USER });
+		now = new Date("2026-09-06T08:15:00.000Z");
+		await store.recordSmartReadlistMinimumReached({ userId: USER });
+		expect((await store.getOnboardingSignals({ userId: USER })).smartReadlistMinimumReachedAt).toEqual(first);
+		expect((await store.getOnboardingSignals({ userId: "user-2" as UserId })).smartReadlistMinimumReachedAt).toBeUndefined();
+		await store.deleteOnboarding({ userId: USER });
+		expect((await store.getOnboardingSignals({ userId: USER })).smartReadlistMinimumReachedAt).toBeUndefined();
+	});
+
+	it("keeps a Smart Readlist dismissal set once, scoped to the account, until account deletion", async () => {
+		const first = new Date("2026-09-05T08:15:00.000Z");
+		let now = first;
+		const store = initInMemoryOnboardingSignals({ now: () => now });
+		await store.recordSmartReadlistStepDismissed({ userId: USER });
+		now = new Date("2026-09-06T08:15:00.000Z");
+		await store.recordSmartReadlistStepDismissed({ userId: USER });
+		expect((await store.getOnboardingSignals({ userId: USER })).smartReadlistStepDismissedAt).toEqual(first);
+		expect((await store.getOnboardingSignals({ userId: "user-2" as UserId })).smartReadlistStepDismissedAt).toBeUndefined();
+		await store.deleteOnboarding({ userId: USER });
+		expect((await store.getOnboardingSignals({ userId: USER })).smartReadlistStepDismissedAt).toBeUndefined();
+	});
+
 	it("keeps a Gmail dismissal set once, scoped to the account, until account deletion", async () => {
 		const first = new Date("2026-09-05T08:15:00.000Z");
 		let now = first;

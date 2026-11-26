@@ -77,7 +77,7 @@ async function wideMenuGeometry(page: Page): Promise<void> {
 	const items = await menuItems(page);
 	assert.deepEqual(
 		items.map((item) => item.label),
-		["Delete"],
+		["Delete from this readlist"],
 		"a wide toolbar keeps Share and Download on the row, so its menu holds only Delete",
 	);
 }
@@ -87,7 +87,7 @@ async function compactMenuGeometry(page: Page): Promise<void> {
 	const items = await menuItems(page);
 	assert.deepEqual(
 		items.map((item) => item.label),
-		["Share", "Download EPUB", "Delete"],
+		["Share", "Download EPUB", "Delete from this readlist"],
 		"a compact toolbar moves Share and Download into its menu, ahead of Delete",
 	);
 	for (const item of items) {

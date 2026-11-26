@@ -39,6 +39,12 @@ module.exports = {
       passWithNoTests: true,
     },
     {
+      type: 'script',
+      name: 'Testing bulk preparation and recovery with DynamoDB Local',
+      command: 'node scripts/test-bulk-article-recovery.cjs',
+      e2e: true,
+    },
+    {
       type: 'playwright',
       name: 'Running E2E tests',
       config: 'playwright.config.local-dev.ts',

@@ -36,15 +36,17 @@ type SaveOutcome = {
 };
 
 async function markUnreadIfRead(
+	saveTrigger: SaveTrigger,
 	updateArticleStatus: UpdateArticleStatus,
 	result: { saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean },
 ): Promise<SaveOutcome> {
-	if (result.wroteUserArticle && result.saved.status === "read") {
-		await updateArticleStatus(result.saved.id, result.saved.userId, "unread");
+	if (saveTrigger === "manual" && result.wroteUserArticle && result.saved.status === "read") {
+		const { savedAt, readAt, statusRevision } = result.saved;
+		const updated = await updateArticleStatus(result.saved.id, result.saved.userId, "unread", { savedAt, readAt, statusRevision });
 		return {
 			...result,
-			saved: { ...result.saved, status: "unread", readAt: undefined },
-			resurfacedFromRead: true,
+			saved: updated ?? result.saved,
+			resurfacedFromRead: updated?.status === "unread",
 		};
 	}
 	return { ...result, resurfacedFromRead: false };
@@ -56,6 +58,9 @@ export type SaveArticleFromUrl = (params: {
 	freshness: ResolvedFreshnessResult;
 	provenance: SaveProvenance;
 	saveTrigger: SaveTrigger;
+	requestedAt?: string;
+	personalPickAt?: string;
+	bulkSave?: true;
 	savedAt: Date;
 	saveAttemptId: SaveAttemptId;
 }) => Promise<{
@@ -78,6 +83,7 @@ async function saveByFreshness(
 		freshness: ResolvedFreshnessResult;
 		written: { saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean };
 		resurfacesEarlierSaves: boolean;
+		saveTrigger: SaveTrigger;
 		meteredLegs: MeteredLegsMode;
 	},
 ): Promise<SaveOutcome & { crawlPending: SaveCrawlPending }> {
@@ -89,12 +95,12 @@ async function saveByFreshness(
 
 	if (freshness.action === "new") {
 		if (isNonArticleHost(url)) {
-			return { ...(await markUnreadIfRead(deps.updateArticleStatus, written)), crawlPending: notAttempted };
+			return { ...(await markUnreadIfRead(params.saveTrigger, deps.updateArticleStatus, written)), crawlPending: notAttempted };
 		}
 		const crawlPending = await deps.markCrawlPending({ url, measured: resurfacesEarlierSaves, meteredLegs });
 		await deps.markSummaryPending({ url });
 		const [outcome] = await Promise.all([
-			markUnreadIfRead(deps.updateArticleStatus, written),
+			markUnreadIfRead(params.saveTrigger, deps.updateArticleStatus, written),
 			deps.publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: new Date().toISOString(),
@@ -113,7 +119,7 @@ async function saveByFreshness(
 		await deps.publishLinkSaved({ url, userId, captureUrl: source.contentSourceUrl, sourceOriginalUrl: source.sourceOriginalUrl, saveAttemptId });
 	}
 
-	return { ...(await markUnreadIfRead(deps.updateArticleStatus, written)), crawlPending: notAttempted };
+	return { ...(await markUnreadIfRead(params.saveTrigger, deps.updateArticleStatus, written)), crawlPending: notAttempted };
 }
 
 const storedSaveTrigger = (save: { provenance: SaveProvenance; saveTrigger: SaveTrigger }): SaveTrigger =>
@@ -129,6 +135,7 @@ export function initSaveArticleFromUrl(
 			identity.contentSourceUrl === undefined
 				? undefined
 				: { contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl };
+		const bulkSave = params.bulkSave === true || params.provenance.kind === "import";
 		const written = await deps.saveArticle({
 			userId: params.userId,
 			url,
@@ -140,6 +147,9 @@ export function initSaveArticleFromUrl(
 			provenance: params.provenance,
 			savedAt: params.savedAt,
 			saveTrigger: storedSaveTrigger(params),
+			...(params.requestedAt ? { requestedAt: new Date(params.requestedAt) } : {}),
+			...(bulkSave ? { bulkSave: true as const } : {}),
+			...(params.personalPickAt === undefined ? {} : { personalPick: { requestedAt: params.personalPickAt, attemptId: params.saveAttemptId } }),
 		});
 		const resurfacesEarlierSaves = written.createdUserArticle && params.saveTrigger === "manual";
 		const meteredLegs: MeteredLegsMode =
@@ -151,6 +161,7 @@ export function initSaveArticleFromUrl(
 			saveAttemptId: params.saveAttemptId,
 			freshness: params.freshness,
 			written,
+			saveTrigger: params.saveTrigger,
 			resurfacesEarlierSaves,
 			meteredLegs,
 		});

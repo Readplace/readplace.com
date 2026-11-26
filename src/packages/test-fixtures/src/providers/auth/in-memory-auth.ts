@@ -44,6 +44,9 @@ import type {
 	MarkSessionAdminMfaVerified,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
+	FindHomeReadlist,
+	SetHomeReadlist,
+	HomeReadlistPreference,
 	SetUserDisplayName,
 	UpdatePassword,
 	UserAcquisitionAttribution,
@@ -65,6 +68,7 @@ interface StoredUser {
 	deletedAt?: string;
 	attribution?: UserAcquisitionAttribution;
 	appearance?: AppearancePreference;
+	homeReadlist?: HomeReadlistPreference;
 	displayName?: DisplayName;
 	signupOAuthClientId: OAuthClientId | null;
 	queueDigestOptOutAt?: string;
@@ -131,6 +135,8 @@ export function initInMemoryAuth(opts: {
 	findUserById: FindUserById;
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
+	findHomeReadlist: FindHomeReadlist;
+	setHomeReadlist: SetHomeReadlist;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 	markActivationThresholdReached: MarkActivationThresholdReached;
@@ -526,6 +532,16 @@ export function initInMemoryAuth(opts: {
 		return null;
 	};
 
+	const findHomeReadlist: FindHomeReadlist = async (id) =>
+		[...users.values()].find((user) => user.id === id && !user.deletedAt)?.homeReadlist;
+
+	const setHomeReadlist: SetHomeReadlist = async ({ userId, preference }) => {
+		const user = [...users.values()].find((user) => user.id === userId && !user.deletedAt);
+		if (!user) return false;
+		user.homeReadlist = preference;
+		return true;
+	};
+
 	const setUserAppearance: SetUserAppearance = async ({ userId, appearance }) => {
 		for (const user of users.values()) {
 			if (user.id === userId) {
@@ -635,6 +651,8 @@ export function initInMemoryAuth(opts: {
 		findUserById,
 		findUserPasswordStatus,
 		setUserAppearance,
+		findHomeReadlist,
+		setHomeReadlist,
 		setUserDisplayName,
 		setQueueDigestOptOut,
 		markActivationThresholdReached,

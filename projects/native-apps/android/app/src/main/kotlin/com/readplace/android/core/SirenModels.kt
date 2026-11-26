@@ -70,6 +70,27 @@ sealed interface CrawlEstimate {
 	data object AlmostThere : CrawlEstimate
 }
 
+data class ArticleSender(
+	val name: String,
+	val address: String,
+)
+
+data class ArticleVia(
+	val label: String,
+	val sender: ArticleSender?,
+)
+
+enum class ContentState(val wire: String) {
+	Available("available"),
+	Processing("processing"),
+	Unavailable("unavailable"),
+	;
+
+	companion object {
+		fun of(wire: String?): ContentState? = entries.firstOrNull { it.wire == wire }
+	}
+}
+
 data class ArticleProcessing(
 	val label: String,
 	val estimate: CrawlEstimate?,
@@ -101,6 +122,10 @@ data class ArticleProperties(
 	val messages: List<ServerMessage>?,
 	val processing: ArticleProcessing?,
 	val contentVersion: String?,
+	val kindLabel: String? = null,
+	val suggestion: String? = null,
+	val via: ArticleVia? = null,
+	val contentState: ContentState?,
 )
 
 data class SirenEntity(
@@ -127,6 +152,7 @@ data class CollectionReadlistEntry(
 	val label: String,
 	val rel: String,
 	val href: String,
+	val description: String? = null,
 )
 
 data class CollectionProperties(
@@ -139,7 +165,11 @@ data class CollectionProperties(
 	 * without blanking the collection. */
 	val tabs: List<CollectionReadlistEntry>?,
 	val readlists: List<CollectionReadlistEntry>?,
+	val browseReadlists: List<CollectionReadlistEntry>?,
+	val hint: CollectionHint?,
 )
+
+data class CollectionHint(val text: String, val linkLabel: String, val linkHref: String)
 
 data class SirenCollection(
 	val classes: List<String>?,
@@ -334,7 +364,18 @@ object SirenDecoding {
 			appearance = string(obj["appearance"]),
 			tabs = lossyList(obj["tabs"], ::readlistEntry),
 			readlists = lossyList(obj["readlists"], ::readlistEntry),
+			browseReadlists = lossyList(obj["browseReadlists"], ::readlistEntry),
+			hint = obj["hint"]?.let(::collectionHint),
 		)
+	}
+
+	fun collectionHint(element: JsonElement): CollectionHint? {
+		val obj = element as? JsonObject ?: return null
+		val text = string(obj["text"]) ?: return null
+		val link = obj["link"] as? JsonObject ?: return null
+		val label = string(link["label"]) ?: return null
+		val href = string(link["href"]) ?: return null
+		return CollectionHint(text = text, linkLabel = label, linkHref = href)
 	}
 
 	/** One `{label, rel, href}` entry from a collection's `tabs`/`readlists` array.
@@ -345,7 +386,7 @@ object SirenDecoding {
 		val label = string(obj["label"]) ?: return null
 		val rel = string(obj["rel"]) ?: return null
 		val href = string(obj["href"]) ?: return null
-		return CollectionReadlistEntry(label = label, rel = rel, href = href)
+		return CollectionReadlistEntry(label = label, rel = rel, href = href, description = string(obj["description"]))
 	}
 
 	private fun warning(element: JsonElement?): SirenWarning? {
@@ -374,7 +415,24 @@ object SirenDecoding {
 			messages = lossyList(obj["messages"], ::serverMessage),
 			processing = runCatching { processing(obj["processing"]) }.getOrNull(),
 			contentVersion = string(obj["contentVersion"]),
+			kindLabel = string(obj["kindLabel"])?.takeIf { it.isNotBlank() },
+			suggestion = string(obj["suggestion"])?.takeIf { it.isNotBlank() },
+			via = runCatching { via(obj["via"]) }.getOrNull(),
+			contentState = ContentState.of(string(obj["contentState"])),
 		)
+	}
+
+	private fun via(element: JsonElement?): ArticleVia? {
+		val obj = element as? JsonObject ?: return null
+		val label = string(obj["label"])?.takeIf { it.isNotBlank() } ?: return null
+		return ArticleVia(label = label, sender = runCatching { sender(obj["sender"]) }.getOrNull())
+	}
+
+	private fun sender(element: JsonElement?): ArticleSender? {
+		val obj = element as? JsonObject ?: return null
+		val name = string(obj["name"])?.takeIf { it.isNotBlank() } ?: return null
+		val address = string(obj["address"])?.takeIf { it.isNotBlank() } ?: return null
+		return ArticleSender(name = name, address = address)
 	}
 
 	private fun processing(element: JsonElement?): ArticleProcessing? {
@@ -475,7 +533,15 @@ data class Article(
 	val processing: ArticleProcessing?,
 	val notice: String?,
 	val contentVersion: String?,
+	val kindLabel: String? = null,
+	val suggestion: String? = null,
+	val via: ArticleVia? = null,
+	val originalUrl: String? = null,
+	val uploadAgainLink: SirenLink? = null,
+	val contentState: ContentState? = null,
 ) {
+	val isReadyToRead: Boolean get() = contentState == ContentState.Available
+
 	/** The item's action controls, one per advertised action the client can invoke
 	 * (an action with a usable href). Built by iterating — not by matching a known
 	 * name — so the loop renders whatever the server offered. */
@@ -505,12 +571,24 @@ data class Article(
 				processing = props.processing,
 				notice = props.messages.orEmpty().firstOrNull { it.isRenderable && it.type in NOTICE_TYPES }?.plainText,
 				contentVersion = props.contentVersion,
+				kindLabel = props.kindLabel,
+				suggestion = props.suggestion,
+				via = props.via,
+				originalUrl = links.firstOrNull { it.rel.contains("original") }?.href?.takeIf { isWebUrl(it) },
+				uploadAgainLink = links.firstOrNull { it.rel.contains("upload-again") && it.href != null },
+				contentState = props.contentState,
 			)
 		}
 	}
 }
 
 private val NOTICE_TYPES = setOf("warning", "error")
+
+private fun isWebUrl(raw: String): Boolean {
+	val uri = runCatching { URI(raw) }.getOrNull() ?: return false
+	val scheme = uri.scheme?.lowercase()
+	return (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty()
+}
 
 /**
  * A status tab advertised on a readlist collection. `isCurrent` is the server's
@@ -543,12 +621,13 @@ data class Readlist(
 	val label: String,
 	val href: String,
 	val isCurrent: Boolean,
+	val description: String? = null,
 ) {
 	fun matches(chain: Iterable<String>): Boolean = href in chain
 
 	companion object {
 		fun of(entry: CollectionReadlistEntry): Readlist =
-			Readlist(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL)
+			Readlist(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL, description = entry.description)
 	}
 }
 

@@ -80,16 +80,16 @@ async function createReadlist(agent: TestAgent, label: string): Promise<string> 
 
 describe("Readlist nav", () => {
 	describe("GET /queue", () => {
-		it("should name the one readlist the reader has and mark it as the one being viewed", async () => {
+		it("shows both permanent lists and marks All current at its explicit URL", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const doc = parse((await agent.get("/queue")).text);
 
 			const links = readlistNavLinks(doc);
-			expect(links.map((el) => el.getAttribute("data-test-readlist"))).toEqual(["default"]);
-			expect(links.map((el) => el.textContent)).toEqual(["All"]);
-			expect(links.map((el) => el.getAttribute("aria-current"))).toEqual(["page"]);
+			expect(links.map((el) => el.getAttribute("data-test-readlist"))).toEqual(["~hand-picked", "default"]);
+			expect(links.map((el) => el.textContent)).toEqual(["Hand Picked", "All"]);
+			expect(links.map((el) => el.getAttribute("aria-current"))).toEqual([null, "page"]);
 		});
 
 		it("should title the document with the readlist being viewed", async () => {
@@ -117,7 +117,7 @@ describe("Readlist nav", () => {
 			const browse = body.querySelector(".readlist__main.readlist__main--interleaved > .readlist__browse");
 			assert(browse, "the tabs and results must share the phone browsing block");
 			expect(Array.from(browse.children, (child) => child.className.split(" ")[0])).toEqual([
-				"readlist__tabs-bar", "readlist__results",
+				"readlist__heading", "readlist__manage", "readlist__tabs-bar", "readlist__results",
 			]);
 			const bar = browse.querySelector(".readlist__tabs-bar");
 			assert(bar, "the tabs must sit in their bar");
@@ -161,9 +161,9 @@ describe("Readlist nav", () => {
 			expect(response.status).toBe(200);
 			const doc = parse(response.text);
 			expect(readlistNavLinks(doc).map((el) => el.getAttribute("data-test-readlist"))).toEqual([
-				"default",
+				"~hand-picked", "default",
 			]);
-			expect(readlistNavLinks(doc).map((el) => el.textContent)).toEqual(["All"]);
+			expect(readlistNavLinks(doc).map((el) => el.textContent)).toEqual(["Hand Picked", "All"]);
 		});
 
 		it("should keep the read-state filter selectable while the URL names the readlist", async () => {
@@ -206,14 +206,14 @@ describe("Readlist nav", () => {
 			expect(onWork.querySelector('[data-test-form="save-article"]')).toBeNull();
 		});
 
-		it("should leave the default readlist unnamed when clamping a page past the end of the listing", async () => {
+		it("should preserve the default readlist when clamping a page past the end of the listing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/queue?queue=default&page=2");
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/queue");
+			expect(response.headers.location).toBe("/queue?queue=default");
 		});
 	});
 

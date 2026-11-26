@@ -7,6 +7,7 @@ import { consoleLogger } from "@packages/logger";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { readEnv } from "@packages/require-env";
+import { parseCoverageRuleModes } from "@packages/domain/article";
 import { SAVE_ANONYMOUS_LINK_COMMAND_ENV } from "./save-anonymous-link-command.env";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { initSaveAnonymousLinkCommandHandler } from "./domain/save-link/save-anonymous-link-command-handler";
@@ -21,6 +22,7 @@ import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 
 const env = readEnv(SAVE_ANONYMOUS_LINK_COMMAND_ENV);
+const coverageRuleModes = parseCoverageRuleModes(env.COVERAGE_RULE_MODES);
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
@@ -41,6 +43,7 @@ const parser = initParserDepBundle({
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+	coverageRuleModes,
 });
 const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });

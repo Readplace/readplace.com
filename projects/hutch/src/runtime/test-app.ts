@@ -1,3 +1,4 @@
+import { initLocalBulkOperations } from "./bulk-articles/local-operations";
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import request from "supertest";
@@ -106,6 +107,7 @@ import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { type EffectiveAccess, initGetEffectiveAccess, isDailyLimited } from "@packages/subscription-access";
 
 interface TestAppOverrides {
+	bulkArticles?: Parameters<typeof createApp>[0]["bulkArticles"];
 	isDailyLimited?: (access: EffectiveAccess) => boolean;
 	drawRandomByte?: () => number;
 	getSessionUserId?: GetSessionUserId;
@@ -242,6 +244,8 @@ function flattenFixtureToAppDependencies(
 		findSessionAdminMfaVerifiedAt: fixture.auth.findSessionAdminMfaVerifiedAt,
 		findUserById: fixture.auth.findUserById,
 		findUserPasswordStatus: fixture.auth.findUserPasswordStatus,
+		findHomeReadlist: fixture.auth.findHomeReadlist,
+		setHomeReadlist: fixture.auth.setHomeReadlist,
 		setUserAppearance: fixture.auth.setUserAppearance,
 		setQueueDigestOptOut: fixture.auth.setQueueDigestOptOut,
 		setUserDisplayName: fixture.auth.setUserDisplayName,
@@ -262,6 +266,7 @@ function flattenFixtureToAppDependencies(
 		allocateSavedAtSequence: fixture.articleStore.allocateSavedAtSequence,
 		findSavedUrls: fixture.articleStore.findSavedUrls,
 		saveArticleGlobally: fixture.articleStore.saveArticleGlobally,
+		changePersonalPick: fixture.articleStore.changePersonalPick,
 		deleteArticle: fixture.articleStore.deleteArticle,
 		updateArticleStatus: fixture.articleStore.updateArticleStatus,
 		markArticleViewed: fixture.articleStore.markArticleViewed,
@@ -273,6 +278,7 @@ function flattenFixtureToAppDependencies(
 		purgeReadlistArticle: fixture.articleStore.purgeReadlistArticle,
 		markReadlistArticleViewed: fixture.articleStore.markReadlistArticleViewed,
 		listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
+		countSmartReadlistArticles: fixture.articleStore.countSmartReadlistArticles,
 		listUserSavesForUrls: fixture.articleStore.listUserSavesForUrls,
 		deleteArticleHighlights: fixture.highlights.deleteArticleHighlights,
 		listArticleHighlights: fixture.highlights.listArticleHighlights,
@@ -288,6 +294,8 @@ function flattenFixtureToAppDependencies(
 		pinReadlistDefinition: fixture.articleStore.pinReadlistDefinition,
 		unpinReadlistDefinition: fixture.articleStore.unpinReadlistDefinition,
 		setReadlistDefinitionPurpose: fixture.articleStore.setReadlistDefinitionPurpose,
+		setSmartReadlistRule: fixture.articleStore.setSmartReadlistRule,
+		turnOffSmartReadlistMatching: fixture.articleStore.turnOffSmartReadlistMatching,
 		clearReadlistDefinitionPurpose: fixture.articleStore.clearReadlistDefinitionPurpose,
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,
@@ -386,6 +394,8 @@ function flattenFixtureToAppDependencies(
 		getOnboardingSignals: fixture.onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: fixture.onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: fixture.onboardingSignals.recordNativeAppSavedArticle,
+		recordSmartReadlistMinimumReached: fixture.onboardingSignals.recordSmartReadlistMinimumReached,
+		recordSmartReadlistStepDismissed: fixture.onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: fixture.onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: fixture.onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: fixture.onboardingSignals.recordGmailStepDismissed,
@@ -436,6 +446,13 @@ function flattenFixtureToAppDependencies(
 				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
 			}),
 		clearReadlistFromAddresses: fixture.inboxAddress.inboxAddressStore.clearReadlistFromAddresses,
+		listReceivedSenders: fixture.inboxEmail.inboxEmailStore.listReceivedSenders,
+		bulkArticles: initLocalBulkOperations({ articles: fixture.articleStore, findArticleById: fixture.articleStore.findArticleById,
+			findUserById: fixture.auth.findUserById, listSenderIssues: fixture.inboxEmail.inboxEmailStore.listEmailsByUserId,
+			listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
+			resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: fixture.articleStore.findIdentityRow }),
+			publishLinkQueued: fixture.events.publishLinkQueued, publishLinkDequeued: fixture.events.publishLinkDequeued, now: fixture.shared.now }),
+		listSenderIssues: fixture.inboxEmail.inboxEmailStore.listEmailsByUserId,
 		listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: fixture.inboxEmail.inboxEmailLinkStore.getLink,
 		findIssueLinkSaveStates: fixture.inboxEmail.inboxSavedLinkStore.findSavedLinks,

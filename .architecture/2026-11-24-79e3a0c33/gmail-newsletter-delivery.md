@@ -48,6 +48,9 @@ flowchart TD
   INGEST --> ID[("Existing email identity and canonical inbox entry")]:::store
   ID --> COVERED{"Does the original delivery cover the request?"}
   COVERED -->|"Yes"| ALREADY["Already imported"]:::pol
+  ALREADY --> RECORD{"Is a supplemental import still saving?"}:::new
+  RECORD -->|"No"| ORIGIN[("Record this job's origin and request a Gmail update once saved to All")]:::new
+  RECORD -->|"Yes"| LEAVE["Leave the Gmail update to the supplemental mark"]:::new
   COVERED -->|"Missing part"| CLAIM[("Conditionally store missing mode, destinations and origin")]:::new
   CLAIM -->|"Winner or same attempt"| ACCEPT["Imported"]:::pol
   CLAIM -->|"Other attempt already won"| ALREADY
@@ -111,7 +114,10 @@ flowchart TD
 EventBridge routes the messages to the existing queues. The extraction worker
 can query the links table for the canonical email’s preview rows. Each import attempt
 uses its staged raw key to resume its accepted work and destinations. Other
-attempts report that the request is covered. The original output selection
+attempts report that the request is covered. A covered history import records
+its job's origin and requests a Gmail update once the email is saved to the
+"All" readlist, unless a supplemental import for that email is still saving;
+that import's supplemental mark then updates the Gmail copy. The original output selection
 and saved-output acknowledgments stay on the canonical row. Records with no
 delivery mode use their stored output selection and the legacy links default.
 

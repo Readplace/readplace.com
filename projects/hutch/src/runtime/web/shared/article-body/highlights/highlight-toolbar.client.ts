@@ -1,4 +1,3 @@
-import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { initHighlightPanels } from "./highlight-popover.client";
@@ -7,6 +6,7 @@ import {
 	initHighlightPreviews,
 } from "./highlight-preview.client";
 import { initNoteEditors, type NoteEditors } from "./note-editor.client";
+import { assert, initPendingHighlights, type Passage, passageOf, type ReaderFetch } from "./pending-highlight.client";
 import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
 import {
 	COARSE_POINTER_QUERY,
@@ -14,6 +14,8 @@ import {
 	type SentenceTapWindow,
 } from "./sentence-tap.client";
 import { placeNearSelection } from "./toolbar-placement-coarse";
+
+export { initHighlightCopy } from "./highlight-copy.client";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -31,6 +33,7 @@ const PASSAGE_REFUSAL = "passage";
 const JUMP_SELECTOR = "[data-highlight-jump]";
 const OPENED_URL_ATTRIBUTE = "data-highlight-opened-url";
 const OWNED_ATTRIBUTE = "data-highlight-toolbar-owned";
+const LOCAL_FORM_ATTRIBUTE = "data-highlight-local";
 
 export interface ToolbarRect {
 	readonly top: number;
@@ -78,33 +81,11 @@ interface HighlightToolbarDeps {
 	isAutoPopoverOpen: () => boolean;
 	paintDraft: (range: Range) => void;
 	clearDraft: () => void;
+	paintPending: (range: Range) => boolean;
+	clearPending: () => void;
+	fetchReader: (url: string) => Promise<ReaderFetch>;
+	parseHtml: (html: string) => Document;
 	chromeBottom: () => number;
-}
-
-interface SelectedPassage {
-	exact: string;
-	start: number;
-	end: number;
-}
-
-function assert(condition: unknown, message: string): asserts condition {
-	if (!condition) throw new Error(message);
-}
-
-function passageOf(input: { range: Range; content: Element }): SelectedPassage | undefined {
-	const chunks = collectTextChunks<Node>(input.content);
-	const { text, spans } = normaliseText(chunks);
-	const touched = chunks.map((chunk) => input.range.intersectsNode(chunk.node));
-	let start = -1;
-	let end = -1;
-	spans.forEach((span, index) => {
-		if (span.start === span.end || !touched[span.chunk]) return;
-		const node = chunks[span.chunk].node;
-		if (!input.range.isPointInRange(node, span.start) || !input.range.isPointInRange(node, span.end)) return;
-		if (start < 0) start = index;
-		end = index + 1;
-	});
-	return start < 0 ? undefined : { exact: text.slice(start, end), start, end };
 }
 
 function originOf(event: Event): unknown {
@@ -138,6 +119,17 @@ function startToolbar(input: {
 		if (sentenceTap.isTapped(range)) return "tap";
 		return isCoarse() ? "longpress" : "mouse";
 	};
+
+	const pendingHighlights = initPendingHighlights({
+		document,
+		timers: deps.timers,
+		selectionOf,
+		paintPending: deps.paintPending,
+		clearPending: deps.clearPending,
+		fetchReader: deps.fetchReader,
+		parseHtml: deps.parseHtml,
+		resubmit: (range) => submit({ range, origin: pressOrigin(range), formSelector: FORM_SELECTOR, after: "" }),
+	});
 
 	const place = (range: Range): void => {
 		const toolbar = toolbarOf();
@@ -212,7 +204,7 @@ function startToolbar(input: {
 		origin: string;
 		formSelector: string;
 		fields: Record<string, string>;
-	}): HTMLFormElement | undefined => {
+	}): { form: HTMLFormElement; passage: Passage } | undefined => {
 		const content = document.querySelector(CONTENT_SELECTOR);
 		const form = document.querySelector<HTMLFormElement>(input.formSelector);
 		if (content === null || form === null) return undefined;
@@ -230,12 +222,16 @@ function startToolbar(input: {
 			assert(field, `the create form carries its ${name} field`);
 			field.value = value;
 		}
-		return form;
+		return { form, passage };
 	};
 
 	const submit = (input: { range: Range; origin: string; formSelector: string; after: "" | "note" }): void => {
-		const form = fill({ ...input, fields: { after: input.after } });
-		if (form === undefined) return;
+		const plainCreate = input.formSelector === FORM_SELECTOR && input.after === "";
+		if (plainCreate && pendingHighlights.inFlight()) return;
+		const filled = fill({ ...input, fields: { after: input.after } });
+		if (filled === undefined) return;
+		const { form, passage } = filled;
+		if (plainCreate && !form.hasAttribute(LOCAL_FORM_ATTRIBUTE)) pendingHighlights.begin({ form, range: input.range, passage });
 		form.requestSubmit();
 		selectionOf().removeAllRanges();
 		hide();
@@ -246,8 +242,9 @@ function startToolbar(input: {
 			submit({ range: input.range, origin: input.origin, formSelector: FORM_SELECTOR, after: "note" });
 			return;
 		}
-		const form = fill({ ...input, fields: {} });
-		if (form === undefined) return;
+		const filled = fill({ ...input, fields: {} });
+		if (filled === undefined) return;
+		const { form } = filled;
 		const note = form.querySelector<HTMLTextAreaElement>(NOTE_INPUT_SELECTOR);
 		const error = form.querySelector(NOTE_ERROR_SELECTOR);
 		const dialog = form.closest<HTMLElement>("[popover]");
@@ -282,6 +279,7 @@ function startToolbar(input: {
 		assert(input.highlightId, "an opened highlight carries its id");
 		deps.sendBeacon(`${url}?${new URLSearchParams({ highlight: input.highlightId, origin: input.origin })}`);
 	};
+
 
 	hide();
 	document.addEventListener("selectionchange", () => scheduleCheck(SELECTION_DEBOUNCE_MS));

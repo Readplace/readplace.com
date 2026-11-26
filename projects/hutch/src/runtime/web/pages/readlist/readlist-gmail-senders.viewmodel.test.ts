@@ -88,6 +88,7 @@ function input(overrides: Partial<ReadlistGmailSendersInput> = {}): ReadlistGmai
 		canConnectGmail: true,
 		connection: connection(),
 		metadataScopeGranted: true,
+		modifyScopeGranted: true,
 		discovery: discovery(),
 		discoveredSenders: [
 			{ email: TLDR, name: "TLDR" }, { email: BREW, name: "Morning Brew" }, { email: BYTES, name: "Bytes" },
@@ -229,10 +230,10 @@ describe("toReadlistGmailSenders section copy", () => {
 	});
 
 	it("words the lede by whether the readlist has a purpose", () => {
-		assert.equal(toReadlistGmailSenders(input()).lede, "New issues from the Gmail newsletters you tick here are saved to All and Design.");
+		assert.equal(toReadlistGmailSenders(input()).lede, "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and Design. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.");
 		assert.equal(
 			toReadlistGmailSenders(input({ readlist: { ...DESIGN, purpose: "Design systems" } })).lede,
-			"New issues from the Gmail newsletters you tick here are saved to All. The ones that fit are also saved to Design.",
+			"Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and Design. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
 		);
 	});
 });

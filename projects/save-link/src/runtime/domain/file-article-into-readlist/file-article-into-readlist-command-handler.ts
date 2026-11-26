@@ -76,7 +76,7 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 			const readlist = ReadlistSlugSchema.parse(detail.readlist);
 			assert(readlist !== DEFAULT_READLIST_SLUG, "All is never a filing target");
 			const provenance = SaveProvenanceSchema.parse(detail.provenance);
-			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
+			const requestedAt = new Date(detail.requestedAt ?? EventEnvelope.parse(JSON.parse(record.body)).time);
 			const skip = (reason: string) =>
 				deps.logger.info("[file-article-into-readlist] filing skipped", {
 					userId,
@@ -98,8 +98,13 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 			};
 
 			const definitions = await deps.listReadlistDefinitions(userId);
-			if (!definitions.some((definition) => definition.slug === readlist)) {
+			const target = definitions.find((definition) => definition.slug === readlist);
+			if (target === undefined) {
 				skip("readlist-gone");
+				return;
+			}
+			if (target.filing?.mode === "smart" && detail.fit.source.kind === "email") {
+				skip("smart-matching");
 				return;
 			}
 			const found = await deps.findSavedArticleForLink({ userId, url: detail.url });

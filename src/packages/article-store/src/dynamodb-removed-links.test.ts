@@ -84,7 +84,7 @@ describe("hasNewsletterLink", () => {
 		assert.equal(sent[0].KeyConditionExpression, "userId = :userId");
 		assert.equal(sent[0].FilterExpression, undefined);
 		assert.equal(sent[0].Limit, 300);
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #personalPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
 		assert.deepEqual(sent[1].ExclusiveStartKey, { userId: READER, url: "a.com/1" });
 	});
 
@@ -130,7 +130,7 @@ describe("summariseNewsletterLinks", () => {
 		assert.equal(sent.length, 6);
 		assert.deepEqual(Object(sent[5].ExpressionAttributeValues), { ":userId": `${READER}#queue/work` });
 		assert.equal(sent[5].ProjectionExpression, "#url, #viewedAt");
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt, #highlightOf");
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #personalPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt, #highlightOf");
 		assert.equal(sent[0].FilterExpression, undefined);
 	});
 });
@@ -178,7 +178,7 @@ describe("forEachRemovalCandidatePage", () => {
 		});
 
 		assert.deepEqual(pages, [["a.com/1", "unreadable"], ["a.com/3"], []]);
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #personalPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
 		assert.equal(sent[0].FilterExpression, undefined);
 	});
 });

@@ -163,6 +163,32 @@ describe("initDynamoDbEmailImportCompletion", () => {
 		await assert.rejects(completion.selectOutputs({ ...KEY, selection: SELECTION }), /throttled/);
 	});
 
+	it("retries a lost concurrent preference decision and preserves its winner", async () => {
+		const link = linkOutputKey(formatEmailLinkOrdinal(300));
+		const batch = "300#work";
+		const pending = { ...SELECTION, matches: { [batch]: null } };
+		const settled = { ...SELECTION, outputs: [...SELECTION.outputs, link], matches: { [batch]: [link] } };
+		let seen: Record<string, unknown> = pending;
+		const { completion, sent } = store((command) => {
+			if (command.name === "UpdateCommand") {
+				seen = settled;
+				throw conditionFailed();
+			}
+			return { Item: { ...KEY, outputSelection: seen } };
+		});
+		assert.deepEqual(await completion.amendSelection({ ...KEY, change: { kind: "match", batch, outputs: [link] } }), settled);
+		assert.equal(sent[1].input.ConditionExpression, "outputSelection = :previous");
+		assert.equal(sent.length, 3);
+	});
+
+	it("stores a continuation without deleting previously acknowledged outputs", async () => {
+		const first = { ...SELECTION, truncated: true, nextLinkIndex: 300 };
+		const { completion, sent } = store((command) => command.name === "GetCommand" ? { Item: { ...KEY, outputSelection: first } } : {});
+		const next = await completion.amendSelection({ ...KEY, change: { kind: "continue", start: 300, page: SELECTION } });
+		assert.deepEqual(next, SELECTION);
+		assert.equal(sent[1].input.UpdateExpression, "SET outputSelection = :next");
+	});
+
 	it("acknowledges an output by adding it to the saved set", async () => {
 		const { completion, sent } = store();
 		await completion.acknowledgeOutput({ ...KEY, output: ISSUE_OUTPUT_KEY });

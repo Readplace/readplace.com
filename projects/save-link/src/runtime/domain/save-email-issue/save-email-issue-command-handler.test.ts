@@ -4,6 +4,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { EmailIssueSaveSkippedEvent, EmailOutputSavedToAllEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
+import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { PutTierSource } from "@packages/tier-source";
@@ -39,6 +40,7 @@ function makeHarness(opts: {
 	filings?: EmailIssueFiling[];
 	readEmailBodyFails?: boolean;
 	recordInboxArticleQueued?: () => Promise<void>;
+	definitions?: ReadlistDefinitionData[];
 }) {
 	const reads: string[] = [];
 	const saves: Omit<Parameters<SaveEmailIssue>[0], "onSavedToAll" | "requestedAt">[] = [];
@@ -67,6 +69,7 @@ function makeHarness(opts: {
 			if (kind === "removed-by-reader") return { kind, contentPending };
 			return { kind, contentPending, filings: opts.filings ?? [] };
 		},
+		listReadlistDefinitions: async () => opts.definitions ?? [],
 		putTierSource: async (params) => {
 			tierSources.push(params);
 			return params.metadata;
@@ -133,6 +136,29 @@ describe("initSaveEmailIssueCommandHandler", () => {
 			},
 		]);
 		assert.deepEqual(harness.onboarding, [READER]);
+	});
+
+	it("saves an issue routed to a Smart Readlist and a manual one into All and the manual one only", async () => {
+		const createdAt = new Date("2026-06-01T00:00:00.000Z");
+		const harness = makeHarness({
+			definitions: [
+				{
+					slug: ReadlistSlugSchema.parse("science"),
+					label: "Science",
+					createdAt,
+					purpose: "Physics.",
+					filing: { mode: "smart", revision: 1, effectiveAt: createdAt },
+				},
+				{ slug: ReadlistSlugSchema.parse("work"), label: "Work", createdAt, filing: { mode: "manual" } },
+			],
+		});
+
+		await harness.run({ ...COMMAND, readlists: ["science", "work"] });
+
+		assert.deepEqual(
+			harness.saves.map((save) => save.readlists),
+			[["work"]],
+		);
 	});
 
 	it("hands the stored body to content selection as the issue's own tier-0 source", async () => {
@@ -223,6 +249,13 @@ describe("initSaveEmailIssueCommandHandler", () => {
 		await harness.run(COMMAND);
 
 		assert.deepEqual(harness.requests, [new Date(TIME)]);
+	});
+
+	it("uses the original newsletter delivery time when the extractor publishes later", async () => {
+		const harness = makeHarness({});
+		const requestedAt = NOW.toISOString();
+		await harness.run({ ...COMMAND, requestedAt });
+		assert.deepEqual(harness.requests, [NOW]);
 	});
 
 	it("fails a record whose body carries no envelope time", async () => {

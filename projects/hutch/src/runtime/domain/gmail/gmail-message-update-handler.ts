@@ -64,7 +64,7 @@ export function initGmailMessageUpdateHandler(deps: {
 				const outcome = await deps.markImported(envelope);
 				const fact = { userId: envelope.userId, receivedAtMessageId: envelope.receivedAtMessageId, originKind: envelope.origin.kind };
 				if (outcome.kind === "skipped") {
-					logger.info("[gmail-message-update] marking is off for the sender", fact);
+					logger.info("[gmail-message-update] sender no longer mapped", fact);
 					continue;
 				}
 				if (outcome.kind === "deferred") {
@@ -84,7 +84,7 @@ export function initGmailMessageUpdateHandler(deps: {
 					} else {
 						logger.warn("[gmail-message-update] Gmail original not found", { ...fact, reason: outcome.reason });
 					}
-				} else if (outcome.kind !== "already-failed") {
+				} else if (outcome.kind === "marked" || outcome.kind === "already-marked") {
 					await publishEvent(GmailEmailMarkedImportedEvent, { ...fact, outcome: outcome.kind });
 				}
 				logger.info("[gmail-message-update] processed", { ...fact, outcome: outcome.kind });

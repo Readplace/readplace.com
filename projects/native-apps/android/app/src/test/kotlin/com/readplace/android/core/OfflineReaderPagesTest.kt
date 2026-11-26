@@ -134,7 +134,16 @@ class OfflineReaderPagesTest {
 		reader.load()
 
 		assertEquals(
-			listOf(DownloadedVersions(mapOf("old" to "v0", "a1" to "v1")), DownloadedVersions(mapOf("a1" to "v1")), 1),
+			listOf(
+				DownloadedVersions(
+					mapOf(
+						"https://readplace.com/queue/old/view" to KeptVersion("v0", savedAt = SAVED_AT),
+						readerUrl to KeptVersion("v1", savedAt = SAVED_AT + Duration.ofDays(2)),
+					),
+				),
+				DownloadedVersions(mapOf(readerUrl to KeptVersion("v1", savedAt = SAVED_AT + Duration.ofDays(2)))),
+				1,
+			),
 			listOf(published, reader.versions.value, File(directory, "reader-pages").listFiles().orEmpty().size - 1),
 		)
 	}
@@ -194,6 +203,40 @@ class OfflineReaderPagesTest {
 		val kept = pages.keepA1()
 
 		assertEquals(listOf(false, DownloadedVersions(emptyMap())), listOf(kept, pages.versions.value))
+	}
+
+	@Test
+	fun `a published version is current only for the reader URL it was kept under, at its version, until thirty days have passed`() = runTest {
+		val pages = pages()
+		pages.keepA1(contentVersion = "v1")
+		val versions = pages.versions.value
+
+		assertEquals(
+			listOf(true, true, false, false, false),
+			listOf(
+				versions.isCurrent(readerUrl, contentVersion = "v1", now = SAVED_AT),
+				versions.isCurrent(readerUrl, contentVersion = "v1", now = SAVED_AT + OfflineCopy.MAXIMUM_AGE),
+				versions.isCurrent(readerUrl, contentVersion = "v1", now = SAVED_AT + OfflineCopy.MAXIMUM_AGE + Duration.ofSeconds(1)),
+				versions.isCurrent("https://readplace.com/queue/a1/view?readlist=work&platform=android", contentVersion = "v1", now = SAVED_AT),
+				versions.isCurrent(readerUrl, contentVersion = "v2", now = SAVED_AT),
+			),
+		)
+	}
+
+	@Test
+	fun `a page kept by an earlier build without its reader URL still opens but publishes no version`() = runTest {
+		val directory = folder.newFolder()
+		pages(directory = directory).keepA1()
+		val file = File(directory, "reader-pages").listFiles().orEmpty().single()
+		file.writeText(file.readText().replace(",\"readerUrl\":\"$readerUrl\"", ""))
+
+		val reader = pages(directory = directory)
+		reader.load()
+
+		assertEquals(
+			listOf(DownloadedVersions(emptyMap()), "<p>Body</p>", false),
+			listOf(reader.versions.value, reader.find(readerUrl)?.body?.let(::String), file.readText().contains("readerUrl")),
+		)
 	}
 
 	private companion object {

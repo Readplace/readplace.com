@@ -48,10 +48,12 @@ export interface InboxEmailStore {
 	 * to one row. Returns `"duplicate"` when the row already exists so the caller
 	 * can skip re-publishing side effects. */
 	putEmail: (email: InboxEmailEntry) => Promise<"stored" | "duplicate">;
+	listReceivedSenders: (userId: UserId) => Promise<string[]>;
 	listEmailsByUserId: (input: {
 		userId: UserId;
 		cursor: InboxEmailsCursor | undefined;
 		pageSize: number;
+		sender?: string;
 	}) => Promise<ListInboxEmailsResult>;
 	getEmail: (input: {
 		userId: UserId;
@@ -61,6 +63,7 @@ export interface InboxEmailStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 		linkCounts: InboxEmailLinkCounts;
+		window?: import("./inbox-email-link.types").InboxExtractionWindow;
 	}) => Promise<void>;
 	moveLinkCountToKept: (input: {
 		userId: UserId;

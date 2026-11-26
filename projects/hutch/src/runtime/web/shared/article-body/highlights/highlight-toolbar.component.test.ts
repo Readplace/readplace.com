@@ -10,7 +10,7 @@ function toolbarDocument(
 	},
 	rowNoteOpen = false,
 ): Document {
-	return new JSDOM(renderHighlightToolbar({ scope, rowNoteOpen })).window.document;
+	return new JSDOM(renderHighlightToolbar({ scope, rowNoteOpen, section: undefined, refusal: undefined })).window.document;
 }
 
 describe("renderHighlightToolbar", () => {
@@ -143,17 +143,111 @@ describe("renderHighlightToolbar", () => {
 
 		expect(form?.hasAttribute("hx-push-url")).toBe(false);
 	});
+
+	it("renders a hidden status that names its reader and the reader a check reads", () => {
+		const doc = toolbarDocument({ articleId: "abc", readlist: [["readlist", "work"]], surface: [] });
+		const status = doc.querySelector("[data-highlight-status]");
+
+		expect(status?.getAttribute("data-highlight-reader")).toBe("abc:");
+		expect(status?.getAttribute("data-highlight-check-url")).toBe("/queue/abc/view?readlist=work");
+		expect(status?.hasAttribute("data-highlight-status-shown")).toBe(false);
+		expect(status?.querySelector('[role="status"]')?.textContent?.trim()).toBe("");
+		expect(status?.getAttribute("data-copy-saving")).toBe("Saving highlight");
+		expect(
+			Array.from(status?.querySelectorAll("button") ?? [], (button) => [button.textContent, button.hidden]),
+		).toEqual([
+			["Stop waiting", true],
+			["Check highlight", true],
+			["Try again", true],
+			["Dismiss", true],
+		]);
+	});
+
+	it("shows a refusal in the status and keeps the section a check reads", () => {
+		const doc = new JSDOM(
+			renderHighlightToolbar({
+				scope: { articleId: "abc", readlist: [], surface: [] },
+				rowNoteOpen: false,
+				section: 2,
+				refusal: "cancelled",
+			}),
+		).window.document;
+		const status = doc.querySelector("[data-highlight-status]");
+
+		expect(status?.getAttribute("data-highlight-reader")).toBe("abc:2");
+		expect(status?.getAttribute("data-highlight-check-url")).toBe("/queue/abc/view?section=2");
+		expect(status?.getAttribute("data-highlight-refusal")).toBe("cancelled");
+		expect(status?.hasAttribute("data-highlight-status-shown")).toBe(true);
+		expect(doc.querySelector("[data-test-highlight-status]")?.textContent).toBe("That highlight just changed; try again");
+		expect(doc.querySelector<HTMLButtonElement>("[data-highlight-status-dismiss]")?.hidden).toBe(false);
+	});
+
+	it.each([
+		["passage-changed", "That passage changed; select it again"],
+		["too-long", "Select a shorter passage"],
+		["notes-too-long", "Joined with the highlights it overlaps, the notes are over 8,191 characters."],
+	] as const)("words the %s refusal from the translations", (refusal, message) => {
+		const doc = new JSDOM(
+			renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal }),
+		).window.document;
+		expect(doc.querySelector("[data-test-highlight-status]")?.textContent).toBe(message);
+	});
+});
+
+describe("renderHighlightToolbar copied beacon", () => {
+	it("names the owner's copied route with no query on the web", () => {
+		const toolbar = toolbarDocument().querySelector("[data-test-highlight-toolbar]");
+
+		expect(toolbar?.getAttribute("data-highlight-copied-url")).toBe("/queue/abc/highlights/copied");
+	});
+
+	it("keeps the app's platform query on the copied route but not the readlist return", () => {
+		const toolbar = toolbarDocument({
+			articleId: "abc",
+			readlist: [["tab", "unread"]],
+			surface: [["platform", "ios"]],
+		}).querySelector("[data-test-highlight-toolbar]");
+
+		expect(toolbar?.getAttribute("data-highlight-copied-url")).toBe("/queue/abc/highlights/copied?platform=ios");
+	});
+
+	it("renders the copy status outside the toolbar", () => {
+		const doc = toolbarDocument();
+
+		expect(doc.querySelector("[data-highlight-copy-status]")?.closest("[data-test-highlight-toolbar]")).toBeNull();
+		expect(doc.querySelector("[data-highlight-copy-status]")?.getAttribute("data-copied-text")).toBe("Highlight copied");
+	});
 });
 
 describe("renderLocalHighlightToolbar", () => {
 	const doc = (): Document =>
-		new JSDOM(renderLocalHighlightToolbar({ openedUrl: "/view/highlights/event" })).window.document;
+		new JSDOM(
+			renderLocalHighlightToolbar({
+				openedUrl: "/view/highlights/event",
+				copiedUrl: "/view/highlights/event?action=copied",
+			}),
+		).window.document;
 
-	it("names the public event route as the opened beacon", () => {
+	it("names the public event route as the opened and copied beacons", () => {
 		const toolbar = doc().querySelector("[data-test-highlight-toolbar]");
 		assert(toolbar, "the toolbar renders");
 
 		assert.equal(toolbar.getAttribute("data-highlight-opened-url"), "/view/highlights/event");
+		assert.equal(toolbar.getAttribute("data-highlight-copied-url"), "/view/highlights/event?action=copied");
+	});
+
+	it("renders the hidden copy status beside the toolbar, carrying both translated messages", () => {
+		const status = doc().querySelector("[data-highlight-copy-status]");
+		assert(status, "the copy status renders");
+
+		assert.equal(status.hasAttribute("hidden"), true);
+		assert.equal(status.getAttribute("aria-hidden"), "true");
+		assert.equal(status.getAttribute("data-copied-text"), "Highlight copied");
+		assert.equal(
+			status.getAttribute("data-copy-failed-text"),
+			"Couldn't copy the highlight. Select its text to copy it.",
+		);
+		assert.equal(status.textContent, "");
 	});
 
 	it("marks only Add note as a note trigger, so browsers without popovers hide it", () => {
@@ -194,5 +288,10 @@ describe("renderLocalHighlightToolbar", () => {
 			Array.from(form.querySelectorAll("[name]")).map((field) => field.getAttribute("name")),
 			["exact", "start", "end", "origin", "answer", "note"],
 		);
+	});
+
+	it("renders no status for the local reader, which saves in the browser", () => {
+		const doc = new JSDOM(renderLocalHighlightToolbar({ openedUrl: "/opened", copiedUrl: "/copied" })).window.document;
+		expect(doc.querySelector("[data-highlight-status]")).toBeNull();
 	});
 });

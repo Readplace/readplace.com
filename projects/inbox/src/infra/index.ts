@@ -1,3 +1,4 @@
+import { INBOX_MAX_LINKS_PER_EMAIL } from "@packages/domain/inbox";
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
@@ -444,19 +445,16 @@ const extractEmailLinksQueue = new Sqs(INBOX_DLQ_SOURCES.extractEmailLinks, {
 	sharedDlq: failuresDlq,
 });
 
-// Truncation is a successful degradation (the first N previews still shipped), not
-// a processing failure — so it must NOT land in the consumer's failure DLQ.
-// There it would (a) make the DLQ depth alarm ambiguous between a genuine "email
-// never extracted" and a benign "email truncated", and (b) re-enter the source
-// queue on redrive and bounce straight back (the synthetic body has no `.detail`).
-// It gets a dedicated sink whose send-rate alarm → SNS email instead, so the
-// failure DLQ's "messages awaiting redrive" contract stays unambiguous.
-const truncationAlertQueue = new aws.sqs.Queue("inbox-extract-email-links-truncated-alert", {
+// Reuse the retained queue and its confirmed operations subscription. Native
+// dead-lettering attaches the source ARN needed by SQS redrive.
+const truncationDlq = new aws.sqs.Queue("inbox-extract-email-links-truncated-alert", {
 	name: "inbox-extract-email-links-truncated-alert",
-	// Nothing consumes this queue — it is an audit trail of truncated emails. The
-	// alarm below fires on send RATE, not depth, so these retained messages no
-	// longer pin it in ALARM; 14 days is just how long the audit trail survives.
 	messageRetentionSeconds: 1209600,
+});
+const recoveryQueue = new Sqs("inbox-extract-email-links-recovery", {
+	visibilityTimeoutSeconds: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+	dlqMaxReceiveCount: 1,
+	sharedDlq: truncationDlq,
 });
 
 const truncationAlertTopic = new aws.sns.Topic("inbox-extract-email-links-truncated-alert-topic", {
@@ -469,26 +467,20 @@ new aws.sns.TopicSubscription("inbox-extract-email-links-truncated-alert-email",
 	endpoint: alertEmail,
 });
 
-// Alarm on the SEND RATE (a count metric), not queue DEPTH (a gauge). Nothing
-// consumes this queue, so an ApproximateNumberOfMessagesVisible>=1 depth alarm
-// would stay in ALARM until the message expires 14 days later (or an operator
-// purges it), and a second truncation while already in ALARM would never
-// re-notify. NumberOfMessagesSent has a datapoint only in the period a message is
-// enqueued, so with treatMissingData "notBreaching" the alarm fires on each
-// truncation burst and auto-resets the next empty period — re-firing for the next.
+// SQS automatic dead-letter transfers do not increment NumberOfMessagesSent.
 new aws.cloudwatch.MetricAlarm("inbox-extract-email-links-truncated-alarm", {
 	name: "inbox-extract-email-links-truncated-alarm",
 	comparisonOperator: "GreaterThanOrEqualToThreshold",
 	evaluationPeriods: 1,
-	metricName: "NumberOfMessagesSent",
+	metricName: "ApproximateNumberOfMessagesVisible",
 	namespace: "AWS/SQS",
-	period: 300,
-	statistic: "Sum",
+	period: 60,
+	statistic: "Maximum",
 	threshold: 1,
 	treatMissingData: "notBreaching",
 	alarmDescription:
-		"inbox-extract-email-links hit the per-email link cap and truncated an email (the first N previews still shipped)",
-	dimensions: { QueueName: truncationAlertQueue.name },
+		"An email has links awaiting a higher extraction limit. Redrive the retained continuation after deployment.",
+	dimensions: { QueueName: truncationDlq.name },
 	alarmActions: [truncationAlertTopic.arn],
 });
 
@@ -535,8 +527,8 @@ const extractEmailLinksLambda = new Lambda("inbox-extract-email-links", {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		// A production email carried 205 links on 2026-11-06 and truncated at the
 		// old 200 cap; 300 leaves headroom, and a longer email still ships its first 300.
-		INBOX_MAX_LINKS_PER_EMAIL: String(300),
-		EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL: truncationAlertQueue.url,
+		INBOX_MAX_LINKS_PER_EMAIL: String(INBOX_MAX_LINKS_PER_EMAIL),
+		EXTRACT_LINKS_RECOVERY_QUEUE_URL: recoveryQueue.queueUrl,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
 		APP_ORIGIN: hutchApiUrl,
 	},
@@ -551,17 +543,7 @@ const extractEmailLinksLambda = new Lambda("inbox-extract-email-links", {
 			"inbox-extract-email-links-raw-read",
 			rawEmailBucketName,
 		),
-		// The truncated-degrade alert is an explicit SendMessage to the dedicated
-		// alert queue (NOT the failure DLQ), whose own send-rate alarm pages the operator.
-		{
-			name: "inbox-extract-email-links-truncated-alert-send-pol",
-			policy: pulumi.output(truncationAlertQueue.arn).apply((arn) =>
-				JSON.stringify({
-					Version: "2012-10-17",
-					Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: [arn] }],
-				}),
-			),
-		},
+		...recoveryQueue.policies,
 	],
 });
 
@@ -570,6 +552,13 @@ eventBus.grantPublish(extractEmailLinksLambda);
 const extractEmailLinksWithSQS = new SqsBackedLambda("inbox-extract-email-links", {
 	lambda: extractEmailLinksLambda,
 	queue: extractEmailLinksQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+new SqsBackedLambda("inbox-extract-email-links-recovery", {
+	lambda: extractEmailLinksLambda,
+	queue: recoveryQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
 });
@@ -917,7 +906,7 @@ eventBus.subscribe(LinkDequeuedEvent, recordLinkDequeuedWithSQS, {
 const recordEmailLinksFilteredDynamodb = new DynamoDBAccess(
 	"inbox-record-email-links-filtered-dynamodb",
 	{
-		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+		tables: [inboxStorage.emailLinksTable, inboxStorage.emailsTable].map((table) => ({ arn: table.arn, includeIndexes: false })),
 		actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
 	},
 );
@@ -933,9 +922,13 @@ const recordEmailLinksFilteredLambda = new Lambda("inbox-record-email-links-filt
 	environmentNames: RECORD_EMAIL_LINKS_FILTERED_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
 	policies: [...recordEmailLinksFilteredDynamodb.policies],
 });
+
+eventBus.grantPublish(recordEmailLinksFilteredLambda);
 
 const recordEmailLinksFilteredQueue = new Sqs("inbox-record-email-links-filtered", {
 	visibilityTimeoutSeconds:

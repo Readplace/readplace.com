@@ -26,6 +26,7 @@ import {
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { RecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import type { DownloadEmailImages } from "./download-email-images";
 import type { IngestParsedEmail } from "./ingest-parsed-email";
 import type { ResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
@@ -50,6 +51,7 @@ export function initIngestGmailImportHandler(deps: {
 	ingest: IngestParsedEmail;
 	resumeAcceptedGmailEmail: ResumeAcceptedGmailEmail;
 	claimSupplementalImport: EmailImportCompletionStore["claimSupplementalImport"];
+	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
 	publishEvent: PublishEvent;
 	maxEmailBytes: number;
 	logger: Logger;
@@ -65,6 +67,7 @@ export function initIngestGmailImportHandler(deps: {
 		ingest,
 		resumeAcceptedGmailEmail,
 		claimSupplementalImport,
+		recordDuplicateGmailOrigin,
 		publishEvent,
 		logger,
 	} = deps;
@@ -115,6 +118,7 @@ export function initIngestGmailImportHandler(deps: {
 
 		const gmailOrigin: GmailMessageOrigin = {
 			kind: "history",
+			jobId,
 			accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
 			gmailMessageId: GmailMessageIdSchema.parse(detail.gmailMessageId),
 			senderEmail: sender,
@@ -167,7 +171,10 @@ export function initIngestGmailImportHandler(deps: {
 					origin: gmailOrigin,
 				},
 			});
-			if (work === undefined) return { outcome: "already-imported", receivedAtMessageId: undefined, rawDisposable: true };
+			if (work === undefined) {
+				await recordDuplicateGmailOrigin({ userId, receivedAtMessageId, origin: gmailOrigin });
+				return { outcome: "already-imported", receivedAtMessageId: undefined, rawDisposable: true };
+			}
 			await publishEvent(EmailReceivedEvent, {
 				userId,
 				receivedAtMessageId,
