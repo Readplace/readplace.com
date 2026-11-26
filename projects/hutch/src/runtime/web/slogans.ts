@@ -21,6 +21,3 @@ export const SLOGANS = [
 ] as const satisfies readonly string[];
 
 export const CANONICAL_SLOGAN = SLOGANS[0];
-
-/** Bounds a slogan to what the iOS login screen renders on one line. */
-export const MAX_SLOGAN_LENGTH = 48;

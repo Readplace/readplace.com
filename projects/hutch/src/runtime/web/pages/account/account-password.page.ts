@@ -26,11 +26,11 @@ import {
 	PASSWORD_TOO_SHORT_MESSAGE,
 } from "../../auth/auth.schema";
 import { flattenZodErrors } from "../../auth/flatten-zod-errors";
-import { persistentSessionCookieOptions } from "../../auth/session-cookie-options";
 import { type VerifyAccountPasswordResult, initVerifyAccountPassword } from "../../auth/sign-in-with-password";
 import type { BuildBannerState } from "../../banner-state";
 import { Base, ChromelessPage } from "../../base.component";
 import { hxLocationToMain } from "../../hx-location";
+import { sessionCookie } from "../../session-cookie";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { type NativeClientPlatform, isAppShell, nativeSurfaceOf } from "../../onboarding/native-client";
 import type { ComponentError } from "../../shared/component-error.types";
@@ -233,7 +233,7 @@ export function initAccountPasswordRoutes(deps: {
 		const { kept } = await deps.revokeOtherUserOAuthGrants({ userId: user.userId, keep });
 		await deps.destroyUserSessions(user.userId);
 		const sessionId = await deps.createSession({ userId: user.userId, emailVerified: verified.emailVerified, oauthGrantId: kept });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, persistentSessionCookieOptions(deps.secureCookies));
+		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 		answer({ landing: buildAccountUrl({ passwordChanged: true, ...markers }) });
 	});
 

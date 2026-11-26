@@ -13,6 +13,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	VerifyCredentials,
+	BotDefenseEvent,
 } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
@@ -100,9 +101,6 @@ const CheckoutSuccessQuerySchema = z.looseObject({ session_id: z.string().min(1)
 const SignupQuerySchema = z.looseObject({ email: z.string().email() });
 
 const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
-
-import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
-export type { BotDefenseEvent };
 
 interface AuthDependencies {
 	hashPassword: (password: string) => Promise<string>;

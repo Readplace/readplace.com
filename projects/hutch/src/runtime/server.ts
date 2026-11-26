@@ -267,7 +267,7 @@ import { initAuthRoutes } from "./web/auth/auth.page";
 import { initResolveSignupClient } from "./web/auth/signup-client";
 import { initSlideSession } from "./web/middleware/slide-session.middleware";
 import { stampOfflineOwner } from "./web/middleware/stamp-offline-owner.middleware";
-import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, OFFLINE_READER_WORKER_FILE, isStaticAssetRequestPath } from "./web/static-asset-paths";
