@@ -33,13 +33,7 @@ import {
 	gmailMappingDestination,
 } from "../integrations/gmail-mappings.viewmodel";
 import { discoveryMatchesConnection } from "../integrations/gmail-save-senders";
-import {
-	chooseState,
-	GMAIL_CHECKLIST_MESSAGES,
-	type GmailChecklistRow,
-	RETRY_ACTION,
-	SELECT_TOGGLE,
-} from "../integrations/gmail-sender-checklist.viewmodel";
+import { assembleGmailChecklist, type GmailChecklistRow } from "../integrations/gmail-sender-checklist.viewmodel";
 import {
 	byRecognitionThenName,
 	type GmailSenderCandidate,
@@ -280,19 +274,16 @@ function toReadlistGmailChecklist(input: {
 		{ key: "elsewhere", title: "In other readlists", rows: elsewhere.map(row((candidate) => ({ fields: [], notes: [routedNote({ routing: routingFor(candidate), readlists: input.readlists })] }))), actions: [] },
 		{ key: "known", title: "Known newsletters", rows: known.map(row(() => ({ fields: [], notes: [] }))), actions: [] },
 	];
-	const state = chooseState({ candidates, catalogAvailable: input.catalogAvailable, known });
-	const allTicked = listed.every((candidate) => ticked.has(candidate.email));
-	const toggle = listed.length === 0 ? [] : [{ ...SELECT_TOGGLE[allTicked ? "none" : "all"], formaction: input.saveAction }];
-	return {
-		state,
+	return assembleGmailChecklist({
+		candidates,
+		catalogAvailable: input.catalogAvailable,
+		known,
+		listed,
+		ticked,
+		groups,
 		intro: checklistIntro(input.readlist.label),
-		message: GMAIL_CHECKLIST_MESSAGES[state],
-		groups: groups.filter((group) => group.rows.length > 0),
-		total: listed.length,
-		knownCount: known.length,
-		actions: state === "catalog-unavailable" ? [RETRY_ACTION, ...toggle] : toggle,
-		sender: listed.filter((candidate) => ticked.has(candidate.email)).map((candidate) => candidate.email),
-	};
+		toggleFormaction: input.saveAction,
+	});
 }
 
 const IDLE_DISCOVERY = { state: "idle", mode: "profile", checkedMessageCount: 0 } as const;
