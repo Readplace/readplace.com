@@ -1,8 +1,8 @@
+import type { EmailDeliveryMode } from "../mail-identity/email-delivery-mode";
 import type { InboxAddress } from "../mail-identity/inbox-address.schema";
 import type { UserId } from "../user";
 import type { ForwardableSender } from "./build-forwarding-filter-query";
 import type { GmailAccountEmail } from "./gmail-account-email.schema";
-import type { GmailDeliveryMode } from "./gmail-delivery-mode";
 
 export interface GmailMapping {
 	accountEmail: GmailAccountEmail;
@@ -10,7 +10,7 @@ export interface GmailMapping {
 	addedToFilterAt: string | undefined;
 	mappedAddresses: [InboxAddress, ...InboxAddress[]] | undefined;
 	mappedAt: string | undefined;
-	deliveryMode: GmailDeliveryMode | undefined;
+	deliveryMode: EmailDeliveryMode | undefined;
 	markImportedAt: string | undefined;
 }
 
@@ -25,7 +25,7 @@ export interface GmailMappingStore {
 		accountEmail: GmailAccountEmail;
 		senderEmail: ForwardableSender;
 		mappedAddresses: [InboxAddress, ...InboxAddress[]];
-		deliveryMode: GmailDeliveryMode;
+		deliveryMode: EmailDeliveryMode;
 	}) => Promise<void>;
 	findMapping: (input: {
 		userId: UserId;

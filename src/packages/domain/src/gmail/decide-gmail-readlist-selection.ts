@@ -1,3 +1,4 @@
+import type { EmailDeliveryMode } from "../mail-identity/email-delivery-mode";
 import assert from "node:assert";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -5,23 +6,22 @@ import {
 } from "../readlist/readlist-name.schema";
 import type { ForwardableSender } from "./build-forwarding-filter-query";
 import {
-	type GmailDeliveryMode,
 	NEW_MAPPING_DELIVERY_MODE,
 } from "./gmail-delivery-mode";
 
 export type GmailSenderRouting =
-	| { kind: "unmapped" | "unrouted"; deliveryMode: GmailDeliveryMode }
+	| { kind: "unmapped" | "unrouted"; deliveryMode: EmailDeliveryMode }
 	| {
 			kind: "routed";
 			readlists: ReadlistSlug[];
-			deliveryMode: GmailDeliveryMode;
+			deliveryMode: EmailDeliveryMode;
 		}
 	| { kind: "unresolved" };
 
 export interface GmailReadlistSelectionChange {
 	sender: ForwardableSender;
 	readlists: ReadlistSlug[];
-	deliveryMode: GmailDeliveryMode;
+	deliveryMode: EmailDeliveryMode;
 	newToFilter: boolean;
 }
 

@@ -1,4 +1,4 @@
-import { LEGACY_DELIVERY_MODE } from "@packages/domain/gmail";
+import { LEGACY_DELIVERY_MODE } from "@packages/domain/inbox";
 import type { InboxEmailEntry } from "@packages/domain/inbox";
 import type { EmailReceivedDetail } from "@packages/infra-components";
 

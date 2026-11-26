@@ -1,10 +1,9 @@
+import { type EmailDeliveryMode, LEGACY_DELIVERY_MODE } from "@packages/domain/inbox";
 import {
 	type GmailConnectionStore,
-	type GmailDeliveryMode,
 	type GmailHeldMailStore,
 	type GmailMappingStore,
 	type GmailSenderStore,
-	LEGACY_DELIVERY_MODE,
 	parseForwardableSender,
 	resolveGmailDeliveryMode,
 } from "@packages/domain/gmail";
@@ -14,7 +13,7 @@ import type { Logger } from "@packages/logger";
 
 export interface GmailDelivery {
 	destinationAddresses: [InboxAddress, ...InboxAddress[]];
-	deliveryMode: GmailDeliveryMode;
+	deliveryMode: EmailDeliveryMode;
 }
 
 export type RouteGmailForwardedEmail = (input: {

@@ -7,7 +7,6 @@ import {
 	forEachQueryPage,
 } from "@packages/storage-client";
 import { z } from "zod";
-import { GmailDeliveryModeSchema } from "@packages/domain/gmail";
 import {
 	InboxAddressSchema,
 	type InboxEmailEntry,
@@ -15,6 +14,7 @@ import {
 	type InboxEmailStore,
 	MessageIdSchema,
 	emailImageS3KeyPrefix,
+	EmailDeliveryModeSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 
@@ -24,7 +24,7 @@ const InboxEmailRow = z.object({
 	messageId: MessageIdSchema,
 	recipientAddress: InboxAddressSchema,
 	gmailDestinationAddresses: dynamoField(z.tuple([InboxAddressSchema], InboxAddressSchema)),
-	gmailDeliveryMode: dynamoField(GmailDeliveryModeSchema),
+	gmailDeliveryMode: dynamoField(EmailDeliveryModeSchema),
 	senderEmail: z.string(),
 	subject: z.string(),
 	status: InboxEmailStatusSchema,
