@@ -4,26 +4,21 @@ interface SaveErrorCountdownDeps {
 	clearIntervalFn: (id: unknown) => void;
 }
 
-export interface SaveErrorCountdownController {
-	stop(): void;
-}
-
 const SELECTOR = ".save-error__seconds";
 const SECONDS_ATTRIBUTE = "data-countdown-seconds";
 const TICK_INTERVAL_MS = 1000;
-const NOOP_CONTROLLER: SaveErrorCountdownController = { stop() {} };
 
 export function initSaveErrorCountdown(
 	deps: SaveErrorCountdownDeps,
-): SaveErrorCountdownController {
+): void {
 	const el = deps.document.querySelector(SELECTOR);
-	if (el === null) return NOOP_CONTROLLER;
+	if (el === null) return;
 	const counter = el;
 
 	const startRaw = counter.getAttribute(SECONDS_ATTRIBUTE);
-	if (startRaw === null) return NOOP_CONTROLLER;
+	if (startRaw === null) return;
 	const startSeconds = Number.parseInt(startRaw, 10);
-	if (!Number.isFinite(startSeconds)) return NOOP_CONTROLLER;
+	if (!Number.isFinite(startSeconds)) return;
 
 	let seconds = startSeconds;
 	let intervalId: unknown;
@@ -35,9 +30,4 @@ export function initSaveErrorCountdown(
 	}
 
 	intervalId = deps.setIntervalFn(tick, TICK_INTERVAL_MS);
-	return {
-		stop() {
-			deps.clearIntervalFn(intervalId);
-		},
-	};
 }
