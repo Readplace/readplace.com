@@ -33,6 +33,7 @@ const DISCONNECT = `${CHROME_ROW} [data-test-action="disconnect-app-open"]`;
 const EMPTY_ROW = `${SECTION} [data-test-connected-app="empty"]`;
 const EMPTY_WELL = `${EMPTY_ROW} .account-row__icon`;
 const SEE_WAYS_TO_SAVE = `${EMPTY_ROW} [data-test-connected-app-action="see-ways-to-save"]`;
+const TOGGLE = `${SECTION} [data-test-action="connected-apps-toggle"]`;
 const DIALOG = '[data-test-confirm-popover="disconnect-app"]';
 const DIALOG_CANCEL = `${DIALOG} [data-test-action="disconnect-app-cancel"]`;
 const DIALOG_COMMIT = `${DIALOG} [data-test-action="disconnect-app-confirm"]`;
@@ -80,6 +81,11 @@ async function signIn(page: Page, input: { stamp: string; grants: "chrome" | "no
 async function openAccount(page: Page): Promise<void> {
 	await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-account");
+}
+
+async function expandConnectedApps(page: Page): Promise<void> {
+	await page.locator(TOGGLE).click();
+	await expect(page.locator(DISCONNECT)).toBeVisible();
 }
 
 async function restingPage(page: Page): Promise<void> {
@@ -229,6 +235,7 @@ test.describe("Account Connected apps at the design width", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await signIn(page, { stamp: `listed-${theme}-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 			await openAccount(page);
+			await expandConnectedApps(page);
 			await captureCheckpoint(page, sectionCheckpoint({ name: `account-connected-apps-${theme}`, geometry: desktopListedGeometry, pinnedText: SIGN_IN_PINNED }));
 		});
 
@@ -236,6 +243,7 @@ test.describe("Account Connected apps at the design width", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await signIn(page, { stamp: `dialog-${theme}-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 			await openAccount(page);
+			await expandConnectedApps(page);
 			await openDisconnectDialog(page);
 			await captureCheckpoint(page, dialogCheckpoint({ name: `account-disconnect-dialog-${theme}`, geometry: desktopDialogGeometry }));
 		});
@@ -256,6 +264,7 @@ test.describe("Account Connected apps on a phone", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await signIn(page, { stamp: `listed-phone-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 		await openAccount(page);
+		await expandConnectedApps(page);
 		await captureCheckpoint(page, sectionCheckpoint({ name: "account-connected-apps-phone", geometry: phoneListedGeometry, pinnedText: SIGN_IN_PINNED }));
 	});
 
@@ -263,6 +272,7 @@ test.describe("Account Connected apps on a phone", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await signIn(page, { stamp: `dialog-phone-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 		await openAccount(page);
+		await expandConnectedApps(page);
 		await openDisconnectDialog(page);
 		await captureCheckpoint(page, dialogCheckpoint({ name: "account-disconnect-dialog-phone", geometry: phoneDialogGeometry }));
 	});
@@ -275,6 +285,7 @@ test.describe("Account Connected apps on the narrowest phone", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await signIn(page, { stamp: `listed-narrowest-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 		await openAccount(page);
+		await expandConnectedApps(page);
 		await restingPage(page);
 		await narrowestPhoneGeometry(page);
 	});
@@ -287,6 +298,7 @@ test.describe("Account Connected apps in greyscale", () => {
 		await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
 		await signIn(page, { stamp: `eink-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 		await openAccount(page);
+		await expandConnectedApps(page);
 		await restingPage(page);
 		await page.evaluate((pins) => {
 			for (const pin of pins) {

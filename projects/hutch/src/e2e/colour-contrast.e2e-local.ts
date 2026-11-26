@@ -1369,8 +1369,9 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			await page.goto(`${BASE_URL}/account#connected-apps`, { waitUntil: "domcontentloaded" });
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator(section)).toHaveAttribute("data-test-connected-apps-state", "listed");
+			await page.locator('[data-test-action="connected-apps-toggle"]').click({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: section, theme, view: "account/connected-apps" });
 			await page.locator('[data-test-action="disconnect-app-open"]').click({ timeout: SETTLE_MS });
 			await expect(page.locator(`${dialog}:popover-open`)).toBeVisible({ timeout: SETTLE_MS });

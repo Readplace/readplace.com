@@ -1,6 +1,18 @@
 <section class="account-section connected-apps" id="connected-apps" aria-labelledby="account-section-connected-apps" data-test-account-section="connected-apps" data-test-connected-apps data-test-connected-apps-state="{{state}}">
           <h2 class="account-section__heading" id="account-section-connected-apps">Connected apps</h2>
+          {{#if summary}}
+          <details class="account-section__card connected-apps__card" data-test-connected-apps-disclosure>
+            <summary class="account-row connected-apps__summary" data-test-action="connected-apps-toggle">
+              <span class="account-row__icon" aria-hidden="true">{{icon "plug"}}</span>
+              <span class="account-row__text">
+                <span class="account-row__title connected-apps__summary-title" data-test-connected-apps-summary>{{summary.title}}</span>
+                <span class="account-row__description connected-apps__summary-description">{{summary.description}}</span>
+              </span>
+              <span class="account-row__actions connected-apps__chevron" aria-hidden="true">{{icon "chevron-down"}}</span>
+            </summary>
+          {{else}}
           <div class="account-section__card">
+          {{/if}}
             <ul class="connected-apps__list">
               {{#each rows}}
               <li class="account-row" data-test-connected-app="{{key}}" data-test-connected-app-client="{{clientId}}">
@@ -28,6 +40,10 @@
               </li>
               {{/each}}
             </ul>
+          {{#if summary}}
+          </details>
+          {{else}}
           </div>
+          {{/if}}
           {{{dialogsHtml}}}
         </section>

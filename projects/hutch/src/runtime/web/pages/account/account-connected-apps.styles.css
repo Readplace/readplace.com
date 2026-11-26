@@ -42,3 +42,70 @@
     display: none;
   }
 }
+
+.connected-apps__summary {
+  list-style: none;
+  cursor: pointer;
+  border-radius: calc(var(--radius-lg) - 1px);
+  transition: background-color 150ms ease;
+}
+
+.connected-apps__summary::-webkit-details-marker {
+  display: none;
+}
+
+.connected-apps__summary:hover {
+  background: var(--muted);
+}
+
+.connected-apps__summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.connected-apps__card[open] > .connected-apps__summary {
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+}
+
+.connected-apps__summary-title,
+.connected-apps__summary-description {
+  display: block;
+}
+
+.connected-apps__card > .connected-apps__list {
+  border-top: 1px solid var(--border);
+}
+
+.connected-apps__chevron {
+  align-self: center;
+  color: var(--foreground);
+  transition: transform 150ms ease;
+}
+
+.connected-apps__chevron svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.connected-apps__card[open] > .connected-apps__summary .connected-apps__chevron {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 767px) {
+  .connected-apps__summary {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-areas: "icon text actions";
+  }
+
+  .connected-apps__summary .connected-apps__chevron {
+    margin-top: 0;
+    margin-left: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connected-apps__summary,
+  .connected-apps__chevron {
+    transition: none;
+  }
+}
