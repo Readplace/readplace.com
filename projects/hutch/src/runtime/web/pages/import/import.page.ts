@@ -24,7 +24,7 @@ import { createRateLimitMiddleware } from "../../middleware/rate-limit";
 import { initObserveSaveRefusal } from "../../shared/save-refusal";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { requireCspNonce, sendComponent } from "@packages/web-shell";
+import { sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import { type AnalyticsEvent, hashIp, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
@@ -153,14 +153,12 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		const errorMessage = importErrorMessageMapping(req.query);
 		const mode = typeof req.query.mode === "string" ? req.query.mode : undefined;
-		const url = typeof req.query.url === "string" ? req.query.url : undefined;
 		const vm = toImportAcquireViewModel({
 			mode,
-			url,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
 			isSignedIn: Boolean(req.userId),
 		});
-		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req), saveTip: buildSaveTip(req, { kind: "import", mode: "advisory" }) }), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(ImportAcquirePage(vm, { saveTip: buildSaveTip(req, { kind: "import", mode: "advisory" }) }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/", importRateLimit, rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {

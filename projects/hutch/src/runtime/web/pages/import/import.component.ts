@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AUDIO, BOOK } from "@packages/media-contracts";
 import { CONFIRM_POPOVER_STYLES, PAGINATION_STYLES, render, renderAlert, UNDERLINE_TABS_STYLES } from "@packages/web-shell";
-import type { CspNonce, PageBody } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
 
 import { DISCLOSURE_CARD_STYLES } from "../../shared/disclosure-card/disclosure-card.styles";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
@@ -52,27 +52,8 @@ const IMPORT_CLIENT_SCRIPT = `<script src="/client-dist/import.client.js" defer>
 
 interface PanelConfig {
 	readonly template: string;
-	readonly scripts: (cspNonce: CspNonce) => string;
+	readonly scripts: string;
 }
-
-const fromUrlAutoSubmitScript = (cspNonce: CspNonce) => `
-<script nonce="${cspNonce}">
-	(function () {
-		function wire() {
-			var form = document.querySelector('form.import__from-url-form');
-			if (!form) return;
-			var input = form.querySelector('input[name="url"]');
-			if (!input || input.value.trim() === '') return;
-			form.requestSubmit();
-		}
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', wire, { once: true });
-		} else {
-			wire();
-		}
-	})();
-</script>
-`;
 
 export function ImportPage(vm: ImportViewModel, notice: { dailyLimitSavedCount: number | undefined }): PageBody {
 	const content = render(IMPORT_TEMPLATE, {
@@ -118,11 +99,11 @@ export function ImportPage(vm: ImportViewModel, notice: { dailyLimitSavedCount: 
 const PANEL_CONFIG: Record<ImportMode, PanelConfig> = {
 	upload: {
 		template: IMPORT_UPLOAD_TEMPLATE,
-		scripts: () => `${IMPORT_CLIENT_SCRIPT}${UPLOAD_DROPZONE_SCRIPT}`,
+		scripts: `${IMPORT_CLIENT_SCRIPT}${UPLOAD_DROPZONE_SCRIPT}`,
 	},
 	"from-url": {
 		template: IMPORT_FROM_URL_PANEL_TEMPLATE,
-		scripts: (cspNonce) => `${IMPORT_CLIENT_SCRIPT}${fromUrlAutoSubmitScript(cspNonce)}`,
+		scripts: IMPORT_CLIENT_SCRIPT,
 	},
 };
 
@@ -156,7 +137,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 const IMPORT_DESCRIPTION =
 	"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading readlist. No account needed to start.";
 
-export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonce: CspNonce; saveTip: SaveTip }): PageBody {
+export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { saveTip: SaveTip }): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
 	const errorMessage = vm.errors?.[0]?.message;
@@ -219,6 +200,6 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 		styles: `${DISCLOSURE_CARD_STYLES}\n${IMPORT_STYLES}\n${UPLOAD_DROPZONE_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${UNDERLINE_TABS_STYLES}`,
 		bodyClass: "page-import",
 		content: { html: content },
-		scripts: `${panel.scripts(options.cspNonce)}${SAVE_TIP_SCRIPT}`,
+		scripts: `${panel.scripts}${SAVE_TIP_SCRIPT}`,
 	};
 }
