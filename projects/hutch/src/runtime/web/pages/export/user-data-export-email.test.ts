@@ -9,7 +9,7 @@ const readableTextOf = (html: string) => (documentOf(html).body.textContent ?? "
 
 describe("buildUserDataExportEmailHtml", () => {
 	it("links the download from the button and from a fallback hyperlink whose sentence carries no raw URL", () => {
-		const html = buildUserDataExportEmailHtml({ downloadUrl: DOWNLOAD_URL, articleCount: 14, ttlDays: 7 });
+		const html = buildUserDataExportEmailHtml({ downloadUrl: DOWNLOAD_URL, articleCount: 14 });
 
 		const downloadLinks = [...documentOf(html).querySelectorAll("a")].filter(
 			(anchor) => anchor.getAttribute("href") === DOWNLOAD_URL,
@@ -22,10 +22,10 @@ describe("buildUserDataExportEmailHtml", () => {
 	});
 
 	it("counts the packaged articles, pluralising from the count", () => {
-		expect(readableTextOf(buildUserDataExportEmailHtml({ downloadUrl: DOWNLOAD_URL, articleCount: 1, ttlDays: 7 }))).toContain(
+		expect(readableTextOf(buildUserDataExportEmailHtml({ downloadUrl: DOWNLOAD_URL, articleCount: 1 }))).toContain(
 			"Readplace packaged 1 article as a single JSON file.",
 		);
-		expect(readableTextOf(buildUserDataExportEmailHtml({ downloadUrl: DOWNLOAD_URL, articleCount: 14, ttlDays: 7 }))).toContain(
+		expect(readableTextOf(buildUserDataExportEmailHtml({ downloadUrl: DOWNLOAD_URL, articleCount: 14 }))).toContain(
 			"Readplace packaged 14 articles as a single JSON file.",
 		);
 	});

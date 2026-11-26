@@ -36,7 +36,6 @@ import {
 	toExportRemovedArticle,
 } from "../web/pages/export/build-export-record";
 import { groupHighlightsByArticle, toExportHighlights } from "../web/pages/export/build-export-highlight";
-import { EXPORT_DOWNLOAD_TTL_DAYS } from "../web/pages/export/export-ttl";
 import { buildUserDataExportEmailHtml } from "../web/pages/export/user-data-export-email";
 
 const PAGE_SIZE = 500;
@@ -175,7 +174,6 @@ async function processCommand(
 		html: buildUserDataExportEmailHtml({
 			downloadUrl,
 			articleCount: articles.length,
-			ttlDays: EXPORT_DOWNLOAD_TTL_DAYS,
 		}),
 	});
 	deps.logger.info("[ExportUserData] sent email", {
