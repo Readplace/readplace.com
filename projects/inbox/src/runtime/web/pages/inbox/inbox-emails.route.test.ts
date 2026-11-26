@@ -304,7 +304,7 @@ describe("Inbox emails list route", () => {
 		const lede = doc.querySelector("[data-test-inbox-emails-lede]");
 		assert(lede, "the Inbox lede must render");
 		expect(lede.textContent).toBe(
-			"Newsletters sent to your custom emails or forwarded from Gmail appear here. From a custom email, Readplace saves the articles each email links to into All, or, for a readlist that chose it, the email itself or both. From a Gmail newsletter, Readplace saves the issue itself, the articles it links to, or both, into All and any readlists you chose for it.",
+			"Newsletters sent to your Readplace inboxes or forwarded from enabled Gmail senders appear here. Readplace checks their article links against your saved readlist preferences. Your Gmail delivery choice controls whether it also saves the issue itself or every article link.",
 		);
 	});
 

@@ -31,7 +31,7 @@ import { articleBody } from "@packages/test-fixtures";
 import { epubDownloadGuideFor } from "../../shared/epub/epub-download-guide";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
-const NO_HIGHLIGHTS: ReaderPageHighlights = { rows: [], canonicalContentHash: undefined, scope: undefined, openNote: undefined };
+const NO_HIGHLIGHTS: ReaderPageHighlights = { rows: [], canonicalContentHash: undefined, scope: undefined, openNote: undefined, copiedUrl: "/queue/abc/highlights/copied" };
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
@@ -263,6 +263,7 @@ describe("ReaderPage", () => {
 				canonicalContentHash: undefined,
 				scope: { articleId: "abc", readlist: [], surface: [] },
 				openNote: undefined,
+				copiedUrl: "/queue/abc/highlights/copied",
 			},
 		});
 
@@ -278,6 +279,7 @@ describe("ReaderPage", () => {
 				canonicalContentHash: undefined,
 				scope: { articleId: "abc", readlist: [], surface: [] },
 				openNote: undefined,
+				copiedUrl: "/queue/abc/highlights/copied",
 			},
 		});
 

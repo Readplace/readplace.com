@@ -6,12 +6,12 @@ import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subs
 import { resolvePlanAccess } from "@packages/subscription-access";
 
 type TriagedMessageAdmission =
-	| { kind: "proceed" }
+	| { kind: "proceed"; preferencesOnly?: true; startIndex?: number }
 	| { kind: "skip"; reason: "already-decided" | "no-longer-selected" | "decision-failed" | "paid-plan-required" }
 	| { kind: "wait" }
 	| { kind: "paid-plan-required" };
 
-type TriagedTarget = { scope: "email" } | { scope: "link"; ordinal: EmailLinkOrdinal };
+type TriagedTarget = { scope: "email"; startIndex?: number } | { scope: "link"; ordinal: EmailLinkOrdinal };
 
 const ADMIT_BY_SCOPE = {
 	email: (outcome: InboxReadlistOutcome | undefined): TriagedMessageAdmission | undefined =>
@@ -42,17 +42,26 @@ export function initAdmitTriagedMessage(deps: {
 	}): Promise<TriagedMessageAdmission> => {
 		const { userId, receivedAtMessageId, readlist, target } = input;
 		const { meta } = await deps.listLinksByEmail({ userId, receivedAtMessageId });
-		if (!meta?.selectedReadlists?.some((selected) => selected.readlist === readlist)) {
+		const destination = meta?.selectedReadlists?.find((selected) => selected.readlist === readlist);
+		if (!destination) {
 			return { kind: "skip", reason: "no-longer-selected" };
 		}
-		assert(meta.readlistOutcomes, "a meta row that selects readlists carries its outcome rows");
-		const outcome = meta.readlistOutcomes.find((entry) => entry.readlist === readlist);
+		assert(meta?.readlistOutcomes, "a meta row that selects readlists carries its outcome rows");
+		const outcomes = meta.readlistOutcomes.filter((entry) => entry.readlist === readlist);
+		const outcome = target.scope === "email"
+			? outcomes.find((entry) => entry.startIndex === target.startIndex)
+			: outcomes.filter((entry) => (entry.startIndex ?? 0) <= Number(target.ordinal))
+				.sort((left, right) => (right.startIndex ?? 0) - (left.startIndex ?? 0))[0];
 		const settled =
 			target.scope === "email" ? ADMIT_BY_SCOPE.email(outcome) : ADMIT_BY_SCOPE.link(outcome, target.ordinal);
 		if (settled !== undefined) return settled;
 		if (resolvePlanAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "free") {
 			return PAID_PLAN_REQUIRED_BY_SCOPE[target.scope];
 		}
-		return { kind: "proceed" };
+		return {
+			kind: "proceed",
+			...(destination.qualification === "preferences" && { preferencesOnly: true }),
+			...(outcome?.startIndex !== undefined && { startIndex: outcome.startIndex }),
+		};
 	};
 }

@@ -579,6 +579,25 @@ describe("initDynamoDbInboxEmail", () => {
 	});
 
 	describe("setEmailLinkCounts", () => {
+		it("increments the count only when a continuation starts after the counted links", async () => {
+			const calls: CapturedCommand[] = [];
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient((cmd) => {
+					calls.push(cmd as CapturedCommand);
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+			const key = { userId: USER, receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>" };
+			await store.setEmailLinkCounts({ ...key, window: { start: 0, end: 300 }, linkCounts: { kept: 290, skipped: 10, truncated: true } });
+			await store.setEmailLinkCounts({ ...key, window: { start: 300, end: 301 }, linkCounts: { kept: 1, skipped: 0, truncated: false } });
+			expect(calls.map(({ input }) => input.ConditionExpression)).toEqual([
+				"attribute_exists(receivedAtMessageId) AND attribute_not_exists(countedThrough)",
+				"countedThrough = :start",
+			]);
+			expect(calls[1].input.ExpressionAttributeValues).toMatchObject({ ":start": 300, ":end": 301, ":kept": 1, ":truncated": false });
+		});
+
 		it("stamps the counts onto the row only when it still exists", async () => {
 			let captured: CapturedCommand | undefined;
 			const store = initDynamoDbInboxEmail({

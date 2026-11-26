@@ -197,6 +197,32 @@ function init(bodyHtml: string, openPopovers: readonly string[] = []) {
 }
 
 describe("initReadlist", () => {
+	it("opens the server-rendered preferences confirmation once and cleans its URL", () => {
+		const { window } = new JSDOM('<dialog open data-preferences-saved></dialog>', {
+			url: "https://readplace.com/queue?queue=work&preferences_setup_saved=1",
+		});
+		const { document } = window;
+		const dialog = document.querySelector("dialog");
+		assert(dialog);
+		let opened = 0;
+		let modal = false;
+		jest.spyOn(dialog, "matches").mockImplementation(() => modal);
+		Reflect.set(dialog, "showModal", () => {
+			opened += 1;
+			modal = true;
+			dialog.setAttribute("open", "");
+		});
+
+		initReadlist({ document, isOpen: () => false });
+		assert.equal(opened, 1);
+		assert.equal(window.location.search, "?queue=work");
+		document.dispatchEvent(new window.Event("htmx:afterSettle"));
+		dialog.removeAttribute("open");
+		modal = false;
+		document.dispatchEvent(new window.Event("htmx:afterSettle"));
+		assert.equal(opened, 1);
+	});
+
 	it("keeps the menu the reader clicked inside open, and closes every other open menu", () => {
 		const app = init(menusMarkup());
 

@@ -199,6 +199,18 @@ describe("initInMemoryInboxEmail", () => {
 	});
 
 	describe("setEmailLinkCounts", () => {
+		it("adds a continuation once and leaves any already-counted links intact", async () => {
+			const store = initInMemoryInboxEmail();
+			const email = makeEntry();
+			await store.putEmail(email);
+			const key = { userId: owner, receivedAtMessageId: email.receivedAtMessageId };
+			const first = { ...key, window: { start: 0, end: 300 }, linkCounts: { kept: 288, skipped: 12, truncated: true } };
+			const next = { ...key, window: { start: 300, end: 301 }, linkCounts: { kept: 1, skipped: 0, truncated: false } };
+			await store.setEmailLinkCounts(first);
+			await store.setEmailLinkCounts(next);
+			await store.setEmailLinkCounts(next);
+			expect((await store.getEmail(key))?.linkCounts).toEqual({ kept: 289, skipped: 12, truncated: false });
+		});
 		it("stamps counts readable on the stored row", async () => {
 			const store = initInMemoryInboxEmail();
 			const entry = makeEntry();

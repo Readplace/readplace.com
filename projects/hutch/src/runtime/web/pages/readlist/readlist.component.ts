@@ -61,7 +61,7 @@ import {
 	buildReadlistFiltersUrl,
 	buildReadlistUrl,
 	readlistDeletePath,
-	readlistPreferencesPath,
+	readlistPreferencesSetupPath,
 	readlistReturnQuery,
 } from "./readlist.url";
 import type { ReadlistViewModel, SubscriptionBannerState } from "./readlist.viewmodel";
@@ -88,6 +88,7 @@ import {
 	toReadlistSubscriptionDisplayModel,
 } from "./readlist-subscription.component";
 import { READLIST_STYLES } from "./readlist.styles";
+import { renderPreferencesSaved } from "./readlist-preferences-saved.component";
 import { READLIST_PURPOSE_CARD_STYLES, renderReadlistPurpose } from "./readlist-purpose-card.component";
 import { standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { WIZARD_STYLES } from "../../shared/wizard/wizard.component";
@@ -465,7 +466,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			),
 			{ source: "queue-empty", content: "clear-discovery" },
 		),
-		preferencesUrl: withInternalTracking(readlistPreferencesPath(filters.readlist), {
+		preferencesUrl: withInternalTracking(readlistPreferencesSetupPath(filters.readlist, filters.tab), {
 			source: "queue-empty",
 			content: "preferences",
 		}),
@@ -533,6 +534,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 						},
 		}),
 		statusToastHtml: flashToastHtml(vm),
+		preferencesSavedHtml: renderPreferencesSaved({ label: options.rail.activeReadlist.label, purpose: options.purpose, query: options.query }),
 		saveFeedbackHtml: renderReadlistSaveFeedback({
 			errors: vm.errors,
 			saveErrorCode: vm.saveErrorCode,

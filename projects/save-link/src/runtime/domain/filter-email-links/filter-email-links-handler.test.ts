@@ -590,6 +590,44 @@ describe("initFilterEmailLinksHandler", () => {
 		expect(harness.unsureLines).toEqual([]);
 	});
 
+	it("preserves the original filing time and records the continuation's decision separately", async () => {
+		const harness = makeHarness({
+			definitions: [workDefinition(PURPOSE)],
+			decideReadlistFit: async () => fitResult([{ id: "0300", verdict: "keep", reason: "Fits the preferences" }]),
+		});
+		await harness.run({ ...TRIAGED, startIndex: 300, links: [{ ordinal: "0300", url: "https://news.test/article", anchorText: "New article" }] });
+		expect(harness.published).toMatchObject([
+			{ detailType: "FileArticleIntoReadlistCommand", detail: { requestedAt: "2026-09-23T09:00:00Z" } },
+			{ detailType: "EmailLinksFiltered", detail: { startIndex: 300, fit: [{ ordinal: "0300", verdict: "keep" }] } },
+		]);
+	});
+
+	it("retains the continuation identity when matching an article saved manually", async () => {
+		const harness = makeHarness({
+			definitions: [workDefinition(PURPOSE)],
+			decideReadlistFit: async () => fitResult([{ id: "0301", verdict: "drop", reason: "Outside the preferences" }]),
+		});
+		await harness.inboxLinks.putReadlistOutcome({
+			userId: UserIdSchema.parse(USER),
+			receivedAtMessageId: RAM,
+			outcome: { readlist: WORK, readlistLabel: "Work", decision: "filtered", startIndex: 300, fit: [] },
+		});
+		await harness.run({ ...TRIAGED, scope: "link", links: [{ ordinal: "0301", url: "https://news.test/article", anchorText: "Manually saved article" }] });
+		expect(harness.published).toMatchObject([
+			{ detailType: "EmailLinksFiltered", detail: { scope: "link", startIndex: 300, fit: [{ ordinal: "0301", verdict: "drop" }] } },
+		]);
+	});
+
+	it("files nothing when a preference-only readlist has had its preferences cleared", async () => {
+		const harness = makeHarness({
+			definitions: [workDefinition(undefined)],
+			meta: { ...SELECTS_WORK, selectedReadlists: [{ readlist: WORK, label: "Work", qualification: "preferences" }] },
+		});
+		expect(await harness.run(TRIAGED)).toEqual({ batchItemFailures: [] });
+		expect(harness.decisions).toEqual([]);
+		expect(harness.published.map(({ detailType }) => detailType)).toEqual(["EmailLinksFiltered"]);
+	});
+
 	it("submits and files nothing when the routed readlist no longer exists, since every link is already in All", async () => {
 		const harness = makeHarness({ definitions: [] });
 

@@ -1361,6 +1361,14 @@ describe("a redelivered save", () => {
 		expect(saveArticleAsRequested).toHaveBeenCalledWith(expect.objectContaining({ requestedAt: new Date("2026-06-03T04:05:06Z") }));
 	});
 
+	it("keeps the original request time for a delayed email article", async () => {
+		const saveArticleAsRequested = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
+		const handler = createHandler({ saveArticleAsRequested });
+		const requestedAt = "2026-06-02T04:05:06.000Z";
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, requestedAt, saveTrigger: "automatic" }], "2026-06-03T04:05:06Z"));
+		expect(saveArticleAsRequested).toHaveBeenCalledWith(expect.objectContaining({ requestedAt: new Date(requestedAt) }));
+	});
+
 	it("rethrows any other save failure without a refusal", async () => {
 		const { warnings, logger } = collectWarnings();
 		const { publishEvent, published } = initRecordingPublishEvent();

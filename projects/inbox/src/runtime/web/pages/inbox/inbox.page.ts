@@ -104,7 +104,7 @@ import {
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
 import { parsePollParam } from "@packages/web-shell";
-import {
+import { readlistOutcomeFor,
 	cardReadlistFits,
 	currentReadlistFitOverride,
 	type ReadlistFitOverridesByReadlist,
@@ -835,7 +835,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			if (!parsedBody.success) return notFound();
 			const { readlist, verdict } = parsedBody.data;
 			const routed = meta?.selectedReadlists?.find((entry) => entry.readlist === readlist);
-			const outcome = meta?.readlistOutcomes?.find((entry) => entry.readlist === readlist);
+			const readlistOutcomes = meta?.readlistOutcomes;
+			const outcome = readlistOutcomes && readlistOutcomeFor({ outcomes: readlistOutcomes, readlist, ordinal });
 			const engineFit = outcome?.fit.find((entry) => entry.ordinal === ordinal);
 			if (
 				meta?.savesHeld === true ||

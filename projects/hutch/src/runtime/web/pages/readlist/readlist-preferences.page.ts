@@ -57,7 +57,7 @@ import { ReadlistPreferencesPage } from "./readlist-preferences.component";
 import { renderReadlistPurposeWizard } from "./readlist-purpose-card.component";
 import { buildReadlistRail } from "./readlist-rail";
 import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } from "./readlist.error";
-import { PURPOSE_ORIGINS, buildReadlistUrl, readlistPreferencesPath, readlistPurposeLandingPath } from "./readlist.url";
+import { PREFERENCES_SETUP_SAVED, PURPOSE_ORIGINS, buildReadlistUrl, readlistPreferencesPath, readlistPurposeLandingPath } from "./readlist.url";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
 import { isFreePlanBannerDismissed } from "./free-plan-banner-dismiss";
@@ -95,6 +95,7 @@ const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 const PreferencesQuerySchema = z.object({
 	setup: z.literal("1").optional().catch(undefined),
 	purpose: z.string().optional().catch(undefined),
+	setup_from: z.enum(PURPOSE_ORIGINS).optional().catch(undefined),
 	preferences_error: z.enum(PREFERENCES_ERROR_CODES).optional().catch(undefined),
 	preferences_saved: z.literal("1").optional().catch(undefined),
 	inbox_name: z.string().optional().catch(undefined),
@@ -224,6 +225,7 @@ export function initReadlistPreferencesRoutes(deps: {
 						nonEmptyReadlists,
 					}),
 					values: { purpose: draft ?? definition.purpose },
+					wizardFrom: parsed.setup_from,
 					wizardOpen: setupRequested ? definition.purpose === undefined
 						: draft !== undefined || error.purposeError !== undefined,
 					inboxes,
@@ -269,7 +271,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			const rejections: Record<ReadlistPurposeRejection, () => ReadlistNaming> = {
 				"unknown-readlist": () => unknownReadlistNaming,
 				"invalid-purpose": () => ({
-					refusal: `${readlistPreferencesPath(slug)}?preferences_error=invalid-purpose`,
+					refusal: `${readlistPreferencesPath(slug)}?preferences_error=invalid-purpose${from === "preferences" ? "" : `&setup_from=${from}`}`,
 					form: () => {
 						assert(stored, "a purpose is refused only for a readlist the reader owns");
 						return renderReadlistPurposeWizard({
@@ -301,16 +303,18 @@ export function initReadlistPreferencesRoutes(deps: {
 				return;
 			}
 
-			const { updated } = await deps.setReadlistDefinitionPurpose({
+			const result = await deps.setReadlistDefinitionPurpose({
 				userId,
 				slug: decision.slug,
 				purpose: decision.purpose,
 			});
-			if (!updated) {
+			if (!result.updated) {
 				answer(unknownReadlistNaming);
 				return;
 			}
-			answer({ landing: readlistPurposeLandingPath({ readlist: decision.slug, from }), scroll: "stay-put" });
+			const landing = readlistPurposeLandingPath({ readlist: decision.slug, from });
+			const separator = landing.includes("?") ? "&" : "?";
+			answer({ landing: result.firstSetup ? `${landing}${separator}${PREFERENCES_SETUP_SAVED}=1` : landing, scroll: "stay-put" });
 		},
 	);
 

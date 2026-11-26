@@ -4,6 +4,7 @@ import type { InboxEmailEntry, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 export function initInMemoryInboxEmail(): InboxEmailStore {
+	const countedThrough = new Map<string, number>();
 	const rows = new Map<string, InboxEmailEntry>();
 	const keyOf = (userId: UserId, receivedAtMessageId: string) =>
 		`${userId}#${receivedAtMessageId}`;
@@ -58,10 +59,18 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			rows.get(keyOf(userId, receivedAtMessageId)),
-		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts }) => {
+		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts, window }) => {
 			const key = keyOf(userId, receivedAtMessageId);
 			const row = rows.get(key);
 			assert(row, "setEmailLinkCounts requires an existing email row");
+			if (window) {
+				if ((countedThrough.get(key) ?? 0) !== window.start) return;
+				countedThrough.set(key, window.end);
+				if (window.start > 0) {
+					assert(row.linkCounts, "a continuation follows the first count");
+					linkCounts = { ...linkCounts, kept: row.linkCounts.kept + linkCounts.kept, skipped: row.linkCounts.skipped + linkCounts.skipped };
+				}
+			}
 			rows.set(key, { ...row, linkCounts });
 		},
 		moveLinkCountToKept: async ({ userId, receivedAtMessageId }) => {
