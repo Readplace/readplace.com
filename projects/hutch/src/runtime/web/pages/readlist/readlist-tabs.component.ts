@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 
+import { isBuiltInReadlist } from "./built-in-readlists";
 import { READLIST_TABS, type TabId } from "./readlist.tabs";
 import { buildReadlistUrl, type ReadlistDiscovery, readlistPreferencesPath } from "./readlist.url";
 
@@ -36,7 +37,7 @@ function preferencesTabs(input: {
 	activeTab: ReadlistTabSelection;
 	readlist: ReadlistSlug;
 }): readonly ReadlistTab[] {
-	if (input.readlist === DEFAULT_READLIST_SLUG) return [];
+	if (isBuiltInReadlist(input.readlist)) return [];
 	const isActive = input.activeTab === "preferences";
 	return [
 		{
