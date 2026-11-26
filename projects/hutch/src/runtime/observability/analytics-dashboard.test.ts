@@ -6,7 +6,7 @@ import {
 	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
 	GMAIL_METRIC_NAMESPACE,
-	SAVE_LINK_LOG_GROUPS,
+	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/infra-components";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
@@ -595,18 +595,11 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(errorWidget?.properties.query).not.toContain("| filter");
 	});
 
-	// This replaces a test that asserted every SAVE_LINK_LOG_GROUPS entry appeared
-	// as its own SOURCE in the errors widget. That guarantee is gone because its
-	// premise is gone: naming groups individually cannot scale past the 50-group
-	// Logs Insights cap, and it only ever covered the groups someone remembered to
-	// list — inbox and web-embed never were. Fleet coverage now comes from the
-	// forwarder funnel, and is enforced where log groups are created rather than
-	// where they are queried.
 	it("names no per-project log group at all — naming one would reintroduce the 50-group cap the funnel exists to escape", () => {
 		const errorQuery = widgetQueries().find((q) => q.includes("coalesce(message, reason) as detail"));
 		expect(errorQuery).toBeDefined();
 		expect(errorQuery).toContain(`SOURCE '${ERRORS_LOG_GROUP}'`);
-		for (const logGroup of [...Object.values(SAVE_LINK_LOG_GROUPS), ...Object.values(LOG_GROUPS), BLOG_SITE_LOG_GROUP]) {
+		for (const logGroup of [...Object.values(SAVE_LINK_LAMBDA_NAMES).map((n) => `/aws/lambda/${n}-handler`), ...Object.values(LOG_GROUPS), BLOG_SITE_LOG_GROUP]) {
 			expect(errorQuery).not.toContain(`SOURCE '${logGroup}'`);
 		}
 	});

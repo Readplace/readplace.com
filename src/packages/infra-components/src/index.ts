@@ -133,7 +133,7 @@ export {
 	type CommandDefinition,
 } from "./events";
 export { PARSE_ERROR_STREAM, type ParseErrorEvent } from "./logs";
-export { SAVE_LINK_LAMBDA_NAMES, SAVE_LINK_LOG_GROUPS } from "./save-link-lambdas";
+export { SAVE_LINK_LAMBDA_NAMES } from "./save-link-lambdas";
 export {
 	GMAIL_HISTORY_IMPORT_DLQ_SOURCES,
 	GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES,
