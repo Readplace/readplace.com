@@ -41,7 +41,7 @@ import {
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 import {
 	type ArticleDeletion,
-	renderDeleteConfirm,
+	renderDeletionDecisions,
 	renderDeleteMenuItems,
 } from "../readlist/readlist-card/delete-confirm.component";
 import {
@@ -464,16 +464,12 @@ export function ReaderPage(
 		markStatusConfirm === undefined
 			? ""
 			: renderMarkStatusConfirm({ confirm: markStatusConfirm, source: "reader" });
-	const deleteConfirm = options.deletion.confirm;
-	const deleteConfirmHtml =
-		deleteConfirm === undefined
-			? ""
-			: renderDeleteConfirm({
-					confirm: deleteConfirm,
-					surface: "reader",
-					title: article.metadata.title,
-					illustrationHtml: renderIllustration("trash-can"),
-				});
+	const deleteConfirmHtml = renderDeletionDecisions({
+		deletion: options.deletion,
+		surface: "reader",
+		title: article.metadata.title,
+		illustrationHtml: renderIllustration("trash-can"),
+	});
 	const content = render(READER_TEMPLATE, {
 		contentState: contentStateOf({ url: article.url, crawl: options.crawl, summary: options.summary }),
 		playerHtml: renderPlayer({ articleId, enclosure: options.enclosure }),

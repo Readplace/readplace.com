@@ -19,7 +19,7 @@ function readlistDocument(html: string): Document {
 }
 
 describe("Readlist delete confirmation", () => {
-	it("renders one confirmation panel per article, as a child of <main>", async () => {
+	it("renders one confirmation panel per article, in a container directly under <main>", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
@@ -31,8 +31,10 @@ describe("Readlist delete confirmation", () => {
 		for (const panel of panels) {
 			// Page level, not inside the card: a pending card replaces its own
 			// subtree every 3s and would rip an open confirmation out mid-decision.
-			expect(panel.parentElement?.tagName).toBe("MAIN");
-			expect(panel.parentElement?.hasAttribute("data-test-readlist-page")).toBe(true);
+			const container = panel.parentElement;
+			expect(container?.classList.contains("article-delete__decisions")).toBe(true);
+			expect(container?.parentElement?.tagName).toBe("MAIN");
+			expect(container?.parentElement?.hasAttribute("data-test-readlist-page")).toBe(true);
 			expect(panel.closest(".readlist-article")).toBeNull();
 			expect(panel.getAttribute("popover")).toBe("auto");
 			expect(panel.getAttribute("role")).toBe("dialog");
@@ -98,13 +100,42 @@ describe("Readlist delete confirmation", () => {
 		const title = doc.getElementById(panel.getAttribute("aria-labelledby") ?? "");
 		assert(title, "aria-labelledby must resolve");
 		expect(title.tagName).toBe("H2");
-		expect(title.textContent).toBe("Delete this article?");
+		expect(title.textContent).toBe("Remove this article from this readlist?");
 
-		const [articleId, bodyId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
+		const [subjectId, bodyId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
 		expect(doc.getElementById(bodyId ?? "")?.textContent).toBe(
-			"This article will be removed from this readlist. You can save it again later.",
+			"Removing your last saved copy can permanently delete its highlights and notes. Saving the article again won't restore them.",
 		);
-		assert.match(doc.getElementById(articleId ?? "")?.textContent ?? "", /^Article: /);
+		const cardTitle = doc.querySelector("[data-test-article-title]")?.textContent;
+		assert(cardTitle, "the card must show its title");
+		expect(doc.getElementById(subjectId ?? "")?.textContent).toBe(cardTitle);
+	});
+
+	it("puts an in-page question for each article beside the panels, reached from the card's menu by fragment", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/first", "https://example.com/second"]);
+
+		const doc = readlistDocument((await agent.get("/queue")).text);
+
+		const cards = [...doc.querySelectorAll(".readlist-article")];
+		expect(cards).toHaveLength(2);
+		for (const card of cards) {
+			const articleId = card.getAttribute("data-test-article");
+			const link = card.querySelector("[data-test-action='delete-fallback']");
+			assert(link, "every card must offer the in-page question");
+			const href = link.getAttribute("href") ?? "";
+			expect(href).toBe(`#confirm-remove-${articleId}`);
+			const section = doc.getElementById(href.slice(1));
+			assert(section, "the fragment must land on the article's question");
+			expect(section.closest(".readlist-article")).toBeNull();
+			expect(section.closest("main")).not.toBeNull();
+			const cancel = section.querySelector("[data-test-action='delete-fallback-cancel']");
+			const returnId = (cancel?.getAttribute("href") ?? "").slice(1);
+			expect(doc.getElementById(returnId)).toBe(card.querySelector("[data-test-action='article-menu']"));
+			const action = new URL(section.querySelector("form")?.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+			expect([action.pathname, action.searchParams.get("utm_source")]).toEqual([`/queue/${articleId}/delete`, "queue-card"]);
+		}
 	});
 
 	it("posts the delete from inside the panel, preserving the readlist view state", async () => {
@@ -211,6 +242,10 @@ describe("Readlist delete confirmation", () => {
 		assert(control, "the polled fragment must keep its delete control");
 		expect(control.hasAttribute("popovertarget")).toBe(false);
 		expect(control.getAttribute("type")).toBe("submit");
+		const retired = fragment.getElementById(`readlist-delete-decisions-${second}`);
+		assert(retired, "the fragment must retire the card's now-obsolete decisions");
+		expect(retired.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(retired.innerHTML).toBe("");
 	});
 
 	it("leaves the confirmation out of the polled card fragment", async () => {
@@ -232,5 +267,31 @@ describe("Readlist delete confirmation", () => {
 		// A panel in the fragment would duplicate the id, win tree-order
 		// resolution, and then be destroyed by the next 3s poll.
 		expect(fragment.querySelectorAll("[data-test-confirm-popover='delete']").length).toBe(0);
+		// The open decision's nodes stay in place while the card refreshes.
+		expect(fragment.querySelectorAll("[hx-swap-oob]").length).toBe(0);
+	});
+
+	it("retires a card's decisions when a status change removes just that card", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
+		const page = readlistDocument((await agent.get("/queue")).text);
+		const [articleId, otherId] = [...page.querySelectorAll(".readlist-article")].map((card) =>
+			card.getAttribute("data-test-article"),
+		);
+
+		const response = await agent
+			.post(`/queue/${articleId}/status?swap=card`)
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ status: "read" });
+
+		const fragment = readlistDocument(`<main>${response.text}</main>`);
+		const retired = fragment.getElementById(`readlist-delete-decisions-${articleId}`);
+		assert(retired, "the response must address the removed card's decisions");
+		expect(retired.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(retired.innerHTML).toBe("");
+		expect(fragment.getElementById(`readlist-delete-decisions-${otherId}`)).toBeNull();
+		expect(page.getElementById(`readlist-delete-decisions-${articleId}`)).not.toBeNull();
 	});
 });

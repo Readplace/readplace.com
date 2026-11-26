@@ -15,6 +15,7 @@ const LANDING_SWAP = "outerHTML show:none scroll:html:top";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
 const REFUSED_STATUS = 422;
 const OPENER_SELECTOR = '[popovertarget]:not([popovertargetaction="hide"])';
+const FALLBACK_OPENER_SELECTOR = "[data-delete-fallback-open]";
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -70,6 +71,26 @@ function hostDialogFieldOf(dialog: Element): HTMLElement | null {
 	return host === null ? null : host.querySelector<HTMLElement>("input[type='url']");
 }
 
+/** A decision that names an article repeats its title; a poll can settle that
+ * title after the decision was rendered, so each copy follows its source. */
+function syncMirroredText(document: Document): void {
+	const mirrors = document.querySelectorAll("[data-text-from]");
+	for (let i = 0; i < mirrors.length; i++) {
+		const sourceId = mirrors[i].getAttribute("data-text-from");
+		assert(sourceId, "a mirror names the element it repeats");
+		const source = document.getElementById(sourceId);
+		if (source === null || source.textContent === mirrors[i].textContent) continue;
+		mirrors[i].textContent = source.textContent;
+	}
+}
+
+function closeFallbackMenu(target: EventTarget | null): void {
+	if (!isElement(target)) return;
+	const link = target.closest(FALLBACK_OPENER_SELECTOR);
+	const menu = link === null ? null : link.closest("details");
+	if (menu !== null) menu.removeAttribute("open");
+}
+
 function announce(document: Document, message: string): void {
 	const regions = document.querySelectorAll(LIVE_REGION_SELECTOR);
 	for (let i = 0; i < regions.length; i++) regions[i].textContent = message;
@@ -78,6 +99,7 @@ function announce(document: Document, message: string): void {
 export function initReadlist(deps: ReadlistDeps): void {
 	initReadlistFilter({ document: deps.document });
 	initReadlistMore({ document: deps.document });
+	deps.document.addEventListener("htmx:afterSettle", () => syncMirroredText(deps.document));
 
 	const openers = new Map<string, HTMLElement>();
 
@@ -94,6 +116,7 @@ export function initReadlist(deps: ReadlistDeps): void {
 		const target = event.target;
 		const within = isElement(target) ? target.closest(MENU_SELECTOR) : null;
 		closeOpenMenus(deps.document, within);
+		closeFallbackMenu(target);
 		const opener = isElement(target) ? target.closest<HTMLElement>(OPENER_SELECTOR) : null;
 		if (opener === null) return;
 		const openedId = opener.getAttribute("popovertarget");

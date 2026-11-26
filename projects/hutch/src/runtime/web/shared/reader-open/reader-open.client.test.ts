@@ -283,7 +283,8 @@ describe("initReaderOpen", () => {
 		expect(app.body.classList.contains("page-readlist")).toBe(false);
 		expect(app.body.classList.contains("theme-dark")).toBe(true);
 		expect(app.scrolledTo).toEqual([0]);
-		expect(main.querySelectorAll("[id]").length).toBe(0);
+		const painted = [...main.children].filter((child) => !child.hasAttribute("hidden"));
+		expect(painted.flatMap((child) => [child, ...child.querySelectorAll("*")]).filter((node) => node.id !== "")).toEqual([]);
 	});
 
 	it("marks the read time empty when the card has none to copy", () => {

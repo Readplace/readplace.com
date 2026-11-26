@@ -1,6 +1,7 @@
 export const enUS = {
 	popover: {
 		close: "Close",
+		cancel: "Cancel",
 	},
 	pricing: {
 		freePlan: "Free to use, with no card: save new links within daily limits and read everything you save.",

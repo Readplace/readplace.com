@@ -537,8 +537,12 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			const dialogAction = formActionOf(
 				element(doc, `[data-test-confirm-popover="delete"][data-test-confirm-subject="${id}"] [data-test-action="delete-confirm"]`),
 			);
+			const fallbackHref = cardOf(doc, "https://example.com/focus-a")
+				.querySelector('[data-test-action="delete-fallback"]')
+				?.getAttribute("href");
+			expect(fallbackHref).toBe(`#confirm-remove-${id}`);
 			const fallbackAction = formActionOf(
-				cardOf(doc, "https://example.com/focus-a").querySelector('[data-test-action="delete-fallback"]'),
+				element(doc, `#confirm-remove-${id} [data-test-action="delete-fallback-confirm"]`),
 			);
 			expect([discoveryParamsOf(dialogAction), discoveryParamsOf(fallbackAction)]).toEqual([
 				[["q", "focus"]],

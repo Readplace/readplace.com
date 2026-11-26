@@ -318,10 +318,11 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const actionForms = doc.querySelectorAll(
-				".readlist-article__status-form, .article-delete__form",
+				".readlist-article__status-form, .article-delete__fallback-form",
 			);
 
 			expect(actionForms.length).toBe(2);
+			expect(doc.querySelectorAll(".readlist-article .article-delete__fallback-form")).toHaveLength(0);
 			expect(doc.querySelector("[data-test-action='mark-read']")?.textContent).toBe("Mark as read");
 			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete from this readlist");
 		});

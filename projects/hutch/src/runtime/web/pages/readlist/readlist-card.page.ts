@@ -35,7 +35,7 @@ import {
 	readlistToFileInto,
 } from "./readlist-context";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
-import { DELETE_ACK_NEVER, } from "./readlist-card/delete-confirm.component";
+import { DELETE_ACK_NEVER, renderRetiredDeletionDecisionsOob } from "./readlist-card/delete-confirm.component";
 import {
 	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
@@ -315,8 +315,9 @@ export function initReadlistCardRoutes(
 			},
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };
-		const html = renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
-		res.status(200).type("html").send(html);
+		const card = renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
+		const retired = articleVm.deletion.confirm === undefined ? renderRetiredDeletionDecisionsOob(articleVm.id) : "";
+		res.status(200).type("html").send(card + retired);
 	});
 
 	router.post("/:id/status", async (req: Request<{ id: string }>, res: Response) => {

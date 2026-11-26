@@ -103,9 +103,14 @@ async function confirmGeometry(page: Page): Promise<void> {
 	assert.ok(panel.x >= 0 && panel.x + panel.width <= viewport.width, "the confirmation must fit the viewport");
 	assert.equal(
 		await page.evaluate(() => document.activeElement?.getAttribute("data-test-action")),
-		"delete-confirm",
-		"the confirmation opens on Delete article",
+		"delete-cancel",
+		"the confirmation opens on Cancel",
 	);
+	for (const action of ["delete-confirm-never", "delete-cancel", "delete-confirm"]) {
+		const control = await measuredBox(page, `${OPEN_CONFIRM} [data-test-action="${action}"]`);
+		assert.ok(control.height >= 44, `${action} must be a 44px target, measured ${control.height}`);
+		assert.ok(control.x >= panel.x && control.x + control.width <= panel.x + panel.width, `${action} must fit the panel`);
+	}
 }
 
 function menuCheckpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {

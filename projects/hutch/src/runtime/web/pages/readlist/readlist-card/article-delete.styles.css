@@ -1,9 +1,87 @@
+/**
+ * Deleting an article: a native popover where the engine has one, an in-page
+ * section reached by fragment where it does not.
+ *
+ * 1. Legacy-first, like the confirm popover: the in-page decision is the base
+ *    and the popover the enhancement, because an engine that cannot parse
+ *    `selector()` skips a `@supports not selector(:popover-open)` block.
+ * 2. Shown only while the URL targets it, so a closed or cancelled decision
+ *    stays out of the tab and accessibility order.
+ */
 .article-delete__form {
   margin: 0;
 }
 
+.article-delete__decisions {
+  display: contents;
+}
+
 .article-delete__trigger {
-  display: none;
+  display: none; /* 1 */
+}
+
+.article-delete__fallback {
+  display: none; /* 2 */
+}
+
+.article-delete__fallback:target {
+  display: block;
+  margin: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--card-foreground);
+  scroll-margin: 16px;
+}
+
+.article-delete__fallback:focus {
+  outline: none;
+}
+
+.article-delete__fallback-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 28px;
+  color: var(--foreground);
+}
+
+.article-delete__fallback-subject {
+  margin-top: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.article-delete__fallback-body {
+  margin-block: 8px 16px;
+  font-size: var(--text-sm);
+  line-height: 22px;
+  color: var(--muted-foreground);
+}
+
+.article-delete__fallback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.article-delete__fallback-actions .btn {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.article-delete__never-help {
+  margin-top: 8px;
+  font-size: var(--text-sm);
+  line-height: 20px;
+  color: var(--muted-foreground);
+}
+
+.confirm-popover--illustrated .article-delete__never-help {
+  max-width: 408px;
+  margin-inline: auto;
+  text-align: center;
 }
 
 @supports selector(:popover-open) {
@@ -11,7 +89,8 @@
     display: flex;
   }
 
-  .article-delete__form--fallback {
+  .article-delete__fallback-link,
+  .article-delete__fallback:target {
     display: none;
   }
 }
