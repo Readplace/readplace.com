@@ -12,7 +12,6 @@ export class S3PublicRead extends pulumi.ComponentResource {
 		args: {
 			bucketName: pulumi.Input<string>;
 			allowListBucket?: boolean;
-			bucketOpts?: pulumi.CustomResourceOptions;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -21,14 +20,7 @@ export class S3PublicRead extends pulumi.ComponentResource {
 		const bucket = new aws.s3.Bucket(name, {
 			bucket: args.bucketName,
 			forceDestroy: true,
-		}, {
-			...args.bucketOpts,
-			parent: this,
-			aliases: [
-				...(args.bucketOpts?.aliases ?? []),
-				{ parent: pulumi.rootStackResource },
-			],
-		});
+		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(`${name}-public-access`, {
 			bucket: bucket.id,
