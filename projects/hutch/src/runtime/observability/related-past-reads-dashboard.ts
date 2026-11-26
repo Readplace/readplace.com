@@ -1,44 +1,12 @@
-import assert from "node:assert";
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "./events";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "@packages/dashboard-widgets";
-import type { DashboardBody, DashboardWidget } from "./analytics-dashboard";
+import { type DashboardBody, type DashboardWidget, logWidget } from "./analytics-dashboard";
 
 export interface BuildRelatedPastReadsDashboardDeps extends ExcludedIdentities {
 	region: string;
 	analyticsLogGroupName: string;
-}
-
-function sourceClause(logGroupNames: readonly string[]): string {
-	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");
-	return logGroupNames.map((n) => `SOURCE '${n}'`).join(" | ");
-}
-
-function logWidget(params: {
-	region: string;
-	title: string;
-	logGroupNames: readonly string[];
-	query: string;
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	view: "pie" | "table" | "bar" | "timeSeries";
-}): DashboardWidget {
-	return {
-		type: "log",
-		x: params.x,
-		y: params.y,
-		width: params.width,
-		height: params.height,
-		properties: {
-			region: params.region,
-			title: params.title,
-			query: `${sourceClause(params.logGroupNames)} | ${params.query}`,
-			view: params.view,
-		},
-	};
 }
 
 function textWidget(params: {

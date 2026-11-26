@@ -142,7 +142,7 @@ function readerSaveSurfaceClause(): string {
 	return `(surface in [${list}] or not ispresent(surface))`;
 }
 
-function logWidget(
+export function logWidget(
 	params: LogWidgetSpec & { x: number; y: number; width: number; height: number; region: string },
 ): DashboardWidget {
 	return {
@@ -171,7 +171,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	 * analytics bytes. Widgets that need a single frontend re-scope by origin via
 	 * `originClause` rather than by log group. */
 	const analyticsSource = [analyticsLogGroupName];
-	const pageviewLogGroups = analyticsSource;
 
 	// --- Traffic + Audience ---
 
@@ -179,7 +178,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews by utm_source (%)",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, utm_source",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -195,7 +194,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Top Referrers",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, referrer_host",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -211,7 +210,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews by Source / Medium / Content (%)",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, utm_source, utm_medium, utm_content, concat(utm_source, \" / \", coalesce(utm_medium, \"-\"), \" / \", coalesce(utm_content, \"-\")) as utm_path",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -227,7 +226,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Distinct Visitors per Day",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, visitor_hash",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -273,7 +272,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews — UTM detail (all params)",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields coalesce(utm_source, \"(none)\") as source, coalesce(utm_medium, \"(none)\") as medium, coalesce(utm_campaign, \"(none)\") as campaign, coalesce(utm_content, \"(none)\") as content",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -496,7 +495,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Internal clicks by section / element",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, coalesce(utm_source, \"-\") as section, coalesce(utm_content, \"-\") as element",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.click}"`,
@@ -709,7 +708,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews by device class / browser (%)",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, device_class, browser, concat(device_class, \" / \", coalesce(browser, \"-\")) as device_browser",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -725,7 +724,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Distinct visitors by device class per day",
-			logGroupNames: pageviewLogGroups,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, visitor_hash, device_class",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
