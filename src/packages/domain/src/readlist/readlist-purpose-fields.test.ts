@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { composeReadlistPurposeText, parseReadlistPurposeFields } from "./readlist-purpose-fields";
+import { parseReadlistPurposeFields } from "./readlist-purpose-fields";
 
 describe("parseReadlistPurposeFields", () => {
 	it("splits the keep line from the skip line", () => {
@@ -42,17 +42,4 @@ describe("parseReadlistPurposeFields", () => {
 	it("reads a bare keep prefix as an empty keep", () => {
 		assert.deepEqual(parseReadlistPurposeFields("Keep articles about: "), { keep: "" });
 	});
-});
-
-describe("composeReadlistPurposeText", () => {
-	it("writes the keep line alone when there is no skip", () => {
-		assert.equal(composeReadlistPurposeText({ keep: "hiring" }), "Keep articles about: hiring");
-	});
-
-	it.each([{ keep: "hiring" }, { keep: "hiring\none-on-ones", skip: "job ads" }])(
-		"round trips %o through parse",
-		(fields) => {
-			assert.deepEqual(parseReadlistPurposeFields(composeReadlistPurposeText(fields)), fields);
-		},
-	);
 });

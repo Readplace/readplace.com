@@ -1,5 +1,6 @@
 import { nextAvailableReadlistLabel } from "./next-available-readlist-label";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug, parseReadlistLabel } from "./readlist-name.schema";
+import { type ReadlistSlug, parseReadlistLabel } from "./readlist-name.schema";
+import { ownsCustomReadlist } from "./readlist-owned";
 
 export type ReadlistRenameRejection = "unknown-readlist" | "invalid-name" | "name-taken";
 
@@ -12,10 +13,7 @@ export function decideReadlistRename(params: {
 	label: string;
 	readlists: readonly { slug: ReadlistSlug; label: string }[];
 }): ReadlistRenameDecision {
-	if (params.slug === DEFAULT_READLIST_SLUG) return { ok: false, reason: "unknown-readlist" };
-	if (!params.readlists.some((readlist) => readlist.slug === params.slug)) {
-		return { ok: false, reason: "unknown-readlist" };
-	}
+	if (!ownsCustomReadlist(params)) return { ok: false, reason: "unknown-readlist" };
 	const typed = parseReadlistLabel(params.label);
 	if (!typed) return { ok: false, reason: "invalid-name" };
 	const numbered = nextAvailableReadlistLabel({

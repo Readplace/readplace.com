@@ -15,7 +15,7 @@ import {
 	ReadlistFitOverrideIdSchema,
 	ReadlistSlugSchema,
 	decideReadlistPurpose,
-	decideReadlistPurposeClear,
+	decideOwnedCustomReadlist,
 	pinnedReadlistSlugs,
 	type ReadlistPurposeRejection,
 	type ReadlistSlug,
@@ -292,7 +292,7 @@ export function initReadlistPreferencesRoutes(deps: {
 
 			const stored = definitions.find((owned) => owned.slug === slug);
 			if (typed.trim() === "" && stored?.purpose !== undefined) {
-				const clearing = decideReadlistPurposeClear({ slug, readlists: readerReadlists(definitions) });
+				const clearing = decideOwnedCustomReadlist({ slug, readlists: readerReadlists(definitions) });
 				assert(clearing.ok, "a readlist with a purpose is one the reader owns");
 				const { cleared } = await deps.clearReadlistDefinitionPurpose({ userId, slug: clearing.slug });
 				answer(cleared ? { landing: readlistPurposeLandingPath({ readlist: clearing.slug, from }), scroll: "stay-put" } : unknownReadlistNaming);

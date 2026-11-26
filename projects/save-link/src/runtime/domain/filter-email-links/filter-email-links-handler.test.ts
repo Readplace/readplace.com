@@ -3,7 +3,6 @@ import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
 import { MinutesSchema } from "@packages/domain/article";
 import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import {
-	composeReadlistPurposeText,
 	type ReadlistSlug,
 	ReadlistSlugSchema,
 	readlistFitOverrideId,
@@ -305,7 +304,7 @@ describe("initFilterEmailLinksHandler", () => {
 		});
 
 		it("asks the judge once, with the parsed purpose, its version, the candidates and the email", async () => {
-			const stored = composeReadlistPurposeText({ keep: "Engineering practice", skip: "Product sales" });
+			const stored = "Keep articles about: Engineering practice\nSkip: Product sales";
 			const harness = makeHarness({ definitions: [workDefinition(stored)] });
 
 			await harness.run(TRIAGED);
