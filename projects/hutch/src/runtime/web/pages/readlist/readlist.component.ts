@@ -41,6 +41,7 @@ import {
 } from "./readlist-mutation-fragments";
 import {
 	buildReadlistDiscovery,
+	managedSourceLabel,
 	renderReadlistDiscovery,
 	renderReadlistFiltersDrawer,
 	tickedFacetCount,
@@ -297,6 +298,47 @@ function nothingSaved(client: DeviceClient): EmptyState {
 	};
 }
 
+interface ManagedScope {
+	source: string;
+	senderUnset: boolean;
+	allSourcesUrl: string;
+}
+
+function managedScopeEmpty(input: {
+	tab: TabId;
+	discovery: ReadlistDiscovery | undefined;
+	clearDiscoveryUrl: string;
+	scope: ManagedScope;
+}): EmptyState {
+	const tab = tabLabel(input.tab);
+	const { source } = input.scope;
+	if (input.discovery !== undefined) {
+		const scopeKey = noMatchesScopeOf(input.discovery);
+		const { label } = NO_MATCHES_SCOPES[scopeKey];
+		const clear: EmptyAction = { key: "clear-discovery", method: "POST", action: input.clearDiscoveryUrl, fields: [], label, beta: false };
+		if (scopeKey === "search") {
+			return {
+				title: NO_MATCHES_TITLE,
+				text: t("readlistSearch.sourceNoMatches.search", { source, tab, action: label }),
+				...PLAIN_COPY,
+				actions: [clear],
+			};
+		}
+		const labels = tickedFilterLabels(input.discovery);
+		return {
+			title: NO_MATCHES_TITLE,
+			text: t(scopeKey === "filters" ? "readlistSearch.sourceNoMatches.filters" : "readlistSearch.sourceNoMatches.searchAndFilters", { source, tab }),
+			filterNames: labels.map((filterName, index) => ({ label: filterName, separator: index < labels.length - 1 ? ", " : "" })),
+			tail: t("readlistSearch.sourceNoMatches.tail", { action: label }),
+			actions: [clear],
+		};
+	}
+	const allSources = navigateAction({ key: "all-sources", href: input.scope.allSourcesUrl, label: t("manage.all") });
+	return input.scope.senderUnset
+		? { title: t("readlistSearch.sourceEmpty.noSender"), text: t("readlistSearch.sourceEmpty.noSenderText", { tab }), ...PLAIN_COPY, actions: [allSources] }
+		: { title: t("readlistSearch.sourceEmpty.title", { source, tab }), text: t("readlistSearch.sourceEmpty.text"), ...PLAIN_COPY, actions: [allSources] };
+}
+
 function emptyState(input: {
 	tab: TabId;
 	readlistHoldsArticles: boolean;
@@ -307,7 +349,11 @@ function emptyState(input: {
 	clearDiscoveryUrl: string;
 	preferencesUrl: string;
 	client: DeviceClient;
+	managedScope: ManagedScope | undefined;
 }): EmptyState {
+	if (input.managedScope !== undefined) {
+		return managedScopeEmpty({ tab: input.tab, discovery: input.discovery, clearDiscoveryUrl: input.clearDiscoveryUrl, scope: input.managedScope });
+	}
 	if (!input.readlistHoldsArticles) {
 		return input.isDefaultReadlist
 			? nothingSaved(input.client)
@@ -447,6 +493,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		returnQuery: readlistReturnQuery(filters),
 	});
 	const client = installClientOf(options.onboarding.context);
+	const managedSource = managedSourceLabel(filters);
 	const handPickedEmpty = filters.readlist === HAND_PICKED_SCOPE && !filters.discovery && !options.readlistHoldsArticles;
 	const empty = handPickedEmpty && !options.libraryHoldsArticles ? nothingSaved(client) : handPickedEmpty ? {
 		title: t("handPicked.empty"), text: t("handPicked.emptyText"), ...PLAIN_COPY,
@@ -472,6 +519,14 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			content: "preferences",
 		}),
 		client,
+		managedScope: managedSource === undefined ? undefined : {
+			source: managedSource,
+			senderUnset: filters.managedSource === "sender" && filters.sender === undefined,
+			allSourcesUrl: withInternalTracking(
+				buildReadlistUrl({ readlist: filters.readlist, tab: filters.tab, order: filters.order, discovery: filters.discovery }),
+				{ source: "queue-empty", content: "all-sources" },
+			),
+		},
 	});
 
 	const purpose = renderReadlistPurpose({
@@ -499,7 +554,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				unread: filters.tab === "queue",
 				destinations: options.rail.readlists.filter(list => !isBuiltInReadlist(list.slug)),
 			} : undefined,
-			senderLabel: filters.managedSource === "sender" ? filters.sender ?? t("manage.sender") : undefined,
+			senderLabel: filters.managedSource === "sender" ? managedSource : undefined,
 			senders: options.senders?.map(address => ({ address, selected: address === filters.sender, href: withInternalTracking(buildReadlistUrl({ ...filters, page: 1, sender: address }), { source: "manage-articles", content: "filter-sender" }) })),
 			options: (["all", "picked", "sender", "bulk", "unknown"] as const).map(source => ({
 				label: t(`manage.${source}`),
