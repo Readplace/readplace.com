@@ -1,12 +1,7 @@
-import { type SirenEntity, sirenMessages } from "./siren";
+import { type SirenEntity, sirenMessages, sirenWarning } from "./siren";
 
 export const SAVE_QUEUED_NOTICE = "This link is queued while Readplace finds the original article.";
 
 export function saveQueuedSirenNotice(): SirenEntity {
-	return sirenMessages([
-		{
-			type: "warning",
-			content: { type: "text/html", body: SAVE_QUEUED_NOTICE },
-		},
-	]);
+	return sirenMessages([sirenWarning(SAVE_QUEUED_NOTICE)]);
 }

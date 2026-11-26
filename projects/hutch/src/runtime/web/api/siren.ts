@@ -69,6 +69,10 @@ export function sirenError(error: {
 	return entity;
 }
 
+export function sirenWarning(body: string): SirenMessage {
+	return { type: "warning", content: { type: "text/html", body } };
+}
+
 /** An error entity that carries only server-authored messages for the client to
  * render — no code, no action. A client keys off the presence of `messages`
  * rather than a per-feature code, so the same shape works for any "we can't do

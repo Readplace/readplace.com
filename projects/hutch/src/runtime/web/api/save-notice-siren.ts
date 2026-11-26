@@ -1,4 +1,4 @@
-import type { SirenMessage } from "./siren";
+import { type SirenMessage, sirenWarning } from "./siren";
 
 /**
  * The notice the iOS Share Extension shows beneath "Saving…" while a save is in
@@ -10,13 +10,5 @@ import type { SirenMessage } from "./siren";
  * to interpolate and nothing to escape (the hypermedia trusted-HTML invariant).
  */
 export function saveInProgressNotice(): SirenMessage[] {
-	return [
-		{
-			type: "warning",
-			content: {
-				type: "text/html",
-				body: "Don't close this — it's still saving.",
-			},
-		},
-	];
+	return [sirenWarning("Don't close this — it's still saving.")];
 }
