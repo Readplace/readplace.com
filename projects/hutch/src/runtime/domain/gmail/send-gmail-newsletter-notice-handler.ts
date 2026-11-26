@@ -1,3 +1,4 @@
+import { READPLACE_SENDER, REPLY_TO } from "../../email-senders";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { ForwardableSender, GmailConnectionStore, GmailMappingStore } from "@packages/domain/gmail";
@@ -133,7 +134,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		return {
 			senders,
 			message: {
-				from: "Readplace <readplace@readplace.com>", replyTo: "fayner@readplace.com", to: input.email,
+				from: READPLACE_SENDER, replyTo: REPLY_TO, to: input.email,
 				subject: component.subject,
 				html: component.to("text/html"), text: component.to("text/plain"),
 				idempotencyKey: `gmail-newsletter/${createHash("sha256").update(JSON.stringify([input.userId, ...senders])).digest("hex")}`,

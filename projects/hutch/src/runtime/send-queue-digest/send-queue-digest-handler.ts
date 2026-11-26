@@ -1,3 +1,4 @@
+import { READPLACE_SENDER, REPLY_TO } from "../email-senders";
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
@@ -52,8 +53,6 @@ import {
 	type QueueDigestLinks,
 } from "../web/queue-digest-email";
 
-const EMAIL_FROM = "Readplace <readplace@readplace.com>";
-const EMAIL_REPLY_TO = "fayner@readplace.com";
 const HOUR_MS = 60 * 60 * 1000;
 const CONSENT_SEED_ARTICLE_KEY = ArticleResourceUniqueId.parse(CONSENT_SEED_ARTICLE_URL).value;
 
@@ -214,9 +213,9 @@ async function processQueueDigest(params: {
 
 	try {
 		await deps.sendEmail({
-			from: EMAIL_FROM,
+			from: READPLACE_SENDER,
 			to: contact.email,
-			replyTo: EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: email.subject,
 			html: email.to("text/html"),
 			text: email.to("text/plain"),

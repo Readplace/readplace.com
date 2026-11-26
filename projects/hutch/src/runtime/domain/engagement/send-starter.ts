@@ -1,3 +1,4 @@
+import { READPLACE_SENDER, REPLY_TO } from "../../email-senders";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
@@ -265,8 +266,8 @@ export function initSendStarter(deps: {
 				},
 			});
 			const frozen: FrozenStarterMessage = {
-				from: "Readplace <readplace@readplace.com>",
-				replyTo: "fayner@readplace.com",
+				from: READPLACE_SENDER,
+				replyTo: REPLY_TO,
 				to: recipient.email,
 				subject: email.subject,
 				html: email.to("text/html"),

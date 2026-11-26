@@ -1,3 +1,4 @@
+import { READPLACE_SENDER } from "../../../email-senders";
 import assert from "node:assert";
 import { AGE_LOCK_DELETION_DELAY_MS } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
@@ -9,7 +10,6 @@ import type { CreateAgeLockDeletionSchedule } from "@packages/provider-contracts
 import { ageLockEmail } from "./age-lock-email";
 import { AGE_UNLOCK_PATH } from "./age-lock.url";
 
-const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 
 export type AgeLockAccount = (userId: UserId) => Promise<void>;
 
@@ -37,6 +37,6 @@ export function initAgeLockAccount(deps: {
 		assert(email, `age lock: no email for user ${userId}`);
 		const token = await deps.createAgeUnlockToken({ userId, email });
 		const unlockUrl = `${deps.baseUrl}${AGE_UNLOCK_PATH}?token=${encodeURIComponent(token)}`;
-		await deps.sendEmail({ from: EMAIL_FROM, to: email, ...ageLockEmail({ unlockUrl }) });
+		await deps.sendEmail({ from: READPLACE_SENDER, to: email, ...ageLockEmail({ unlockUrl }) });
 	};
 }

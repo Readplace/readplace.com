@@ -1,3 +1,4 @@
+import { FOUNDER_SENDER } from "../../email-senders";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { canonicalizeEmail, normalizeEmail } from "@packages/domain/user";
 import type { Logger, LogError } from "@packages/logger";
@@ -7,7 +8,6 @@ import type { CreatePasswordResetToken } from "@packages/provider-contracts/pass
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import { buildPasswordResetEmailHtml } from "./password-reset-email";
 
-const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 
 export type PasswordResetRefusedEvent = {
 	event: "password_reset_refused";
@@ -66,7 +66,7 @@ export function initRequestPasswordReset(deps: {
 				const resetUrl = `${deps.baseUrl}/reset-password?token=${token}`;
 				const html = buildPasswordResetEmailHtml(resetUrl);
 				return deps.sendEmail({
-					from: EMAIL_FROM,
+					from: FOUNDER_SENDER,
 					to: email,
 					subject: "Reset your password — Readplace",
 					html,
