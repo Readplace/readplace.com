@@ -54,7 +54,7 @@ async function harnessWithArticle(
 	serve: typeof useApp = useApp,
 ): Promise<TestAppHarness> {
 	const parseArticle: ParseArticle = async () => ({
-		ok: true,
+		ok: true, coverage: [],
 		article: { title: "A readable post", siteName: "Example", excerpt: "An excerpt.", wordCount: 20, content: ARTICLE_HTML },
 	});
 	const applyParseResult = createFakeApplyParseResult({

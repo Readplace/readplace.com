@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { type ArticleCoverage, CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { RecrawlContentExtractedEvent, RefreshContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { TierSnapshot } from "../crawl-article-state/read-tier-snapshot";
@@ -133,6 +133,47 @@ describe("initCommitTierCandidate", () => {
 			["readSnapshot"],
 			["logCrawlOutcome", { url: URL, thisTier: "tier-1", thisTierStatus: "failed", otherTierStatus: "not_attempted", pickedTier: "none" }],
 			["publishEvent", RecrawlContentExtractedEvent.detailType, { saveAttemptId: ATTEMPT_ID, candidates: [archived, { id: metadata.id, tier: "tier-1" }], url: URL, extractedAt: "2026-10-01T00:00:09.000Z" }],
+		]);
+	});
+
+	it("keeps two concurrent attempts on the same page as two candidates, each manifest carrying its own attempt's coverage", async () => {
+		const { trace, commitTierCandidate } = harness();
+		const secondAttemptId = SaveAttemptIdSchema.parse("attempt-2");
+		const firstCoverage: ArticleCoverage = {
+			schemaVersion: 1,
+			sourceDigest: "a".repeat(64),
+			outputDigest: "b".repeat(64),
+			assessments: [{ ruleId: "section-coverage", ruleVersion: 1, mode: "shadow", repair: "would-apply", outcome: "known-partial", scope: { kind: "article", units: 14 }, covered: 1, unresolved: 13, reasons: ["missing-section"] }],
+		};
+		const secondCoverage: ArticleCoverage = {
+			schemaVersion: 1,
+			sourceDigest: "c".repeat(64),
+			outputDigest: "d".repeat(64),
+			assessments: [{ ruleId: "section-coverage", ruleVersion: 1, mode: "shadow", repair: "none", outcome: "verified-for-scope", scope: { kind: "article", units: 14 }, covered: 14 }],
+		};
+		const commitAttempt = (params: { attemptId: typeof ATTEMPT_ID; coverage: ArticleCoverage }) => commitTierCandidate({
+			...common,
+			attemptId: params.attemptId,
+			metadata: { ...METADATA, coverage: params.coverage },
+			leg: { tier: "tier-1", kind: "live" },
+			evaluation: { hashed: RAW, stored: RAW },
+			crawlOutcome: { report: "none" },
+			announce: { event: "none" },
+		});
+
+		const [first, second] = await Promise.all([
+			commitAttempt({ attemptId: ATTEMPT_ID, coverage: firstCoverage }),
+			commitAttempt({ attemptId: secondAttemptId, coverage: secondCoverage }),
+		]);
+
+		const firstMetadata = candidateProvenance({ metadata: { ...METADATA, coverage: firstCoverage }, html: HTML, evaluationHtml: RAW, attemptId: ATTEMPT_ID, originalUrl: URL, sourceUrl: SOURCE_URL, kind: "live", fetchedAt: FETCHED_AT });
+		const secondMetadata = candidateProvenance({ metadata: { ...METADATA, coverage: secondCoverage }, html: HTML, evaluationHtml: RAW, attemptId: secondAttemptId, originalUrl: URL, sourceUrl: SOURCE_URL, kind: "live", fetchedAt: FETCHED_AT });
+		assert.notEqual(first.id, second.id);
+		assert.deepEqual([first, second], [{ id: firstMetadata.id, tier: "tier-1" }, { id: secondMetadata.id, tier: "tier-1" }]);
+		assert.deepEqual([firstMetadata.coverage, secondMetadata.coverage], [firstCoverage, secondCoverage]);
+		assert.deepEqual(trace, [
+			["putTierSource", { url: URL, tier: "tier-1", html: HTML, evaluationHtml: RAW, metadata: firstMetadata }],
+			["putTierSource", { url: URL, tier: "tier-1", html: HTML, evaluationHtml: RAW, metadata: secondMetadata }],
 		]);
 	});
 });

@@ -1,4 +1,4 @@
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { SaveAttemptIdSchema, ALL_COVERAGE_RULES_OFF } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";
@@ -38,6 +38,7 @@ function setupHandler(init: typeof initSelectMostCompleteContentHandler, overrid
 	const order: string[] = [];
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { order.push("commit"); persisted.push({ transition, params }); };
 	const handler = init({
+		coverageRuleModes: ALL_COVERAGE_RULES_OFF,
 		listAvailableTierSources: async () => [source],
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),

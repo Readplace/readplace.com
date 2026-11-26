@@ -407,7 +407,7 @@ describe("refreshArticleIfStale", () => {
 		}]);
 		expect(result).toEqual({
 			action: "refreshed",
-			article: { ok: true, article: {
+			article: { ok: true, coverage: [], article: {
 				title: "report.txt",
 				siteName: "example.com",
 				excerpt: "Report <draft> Keep this indentation.",

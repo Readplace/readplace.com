@@ -29,7 +29,7 @@ function buildParseResult(
 	overrides: Partial<ParsedArticle> = {},
 ): ParseArticleResult {
 	return {
-		ok: true,
+		ok: true, coverage: [],
 		article: {
 			title: "Hello World",
 			siteName: "example.com",
@@ -119,7 +119,7 @@ describe("View routes", () => {
 
 		it("falls back to the Readplace default images when article has no imageUrl", async () => {
 			const parseArticle: ParseArticle = async () => ({
-				ok: true,
+				ok: true, coverage: [],
 				article: {
 					title: "Hello",
 					siteName: "example.com",

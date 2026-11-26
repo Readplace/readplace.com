@@ -52,7 +52,7 @@ const processContent = initProcessContentWithLocalMedia({
 const PDF_MAGIC_BYTES = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(16)]);
 
 const successfulParse: ParseHtml = () => ({
-	ok: true,
+	ok: true, coverage: [],
 	article: {
 		title: "Test PDF",
 		siteName: "example.com",

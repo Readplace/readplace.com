@@ -16,7 +16,7 @@ import {
 const URL_UNDER_TEST = "https://example.com/article";
 
 const stubParseHtml: ParseHtml = (params) => ({
-	ok: true,
+	ok: true, coverage: [],
 	article: {
 		title: "T",
 		siteName: "example.com",
@@ -435,7 +435,7 @@ describe("initFinalizeArticle", () => {
 	it("computes estimatedReadTime from wordCount so the metadata sidecar carries it consistently across triggers", async () => {
 		const finalize = createFinalize({
 			parseHtml: () => ({
-				ok: true,
+				ok: true, coverage: [],
 				article: {
 					title: "T",
 					siteName: "s",
@@ -459,7 +459,7 @@ describe("initFinalizeArticle", () => {
 	it("carries the publish date the parser read", async () => {
 		const finalize = createFinalize({
 			parseHtml: () => ({
-				ok: true,
+				ok: true, coverage: [],
 				article: {
 					title: "T",
 					siteName: "s",
@@ -690,7 +690,7 @@ describe("initFinalizeArticle", () => {
 	it("strips multi-MB inline base64 images from the body before it is persisted (#473)", async () => {
 		const oversized = "A".repeat(5000);
 		const parseHtml: ParseHtml = (params) => ({
-			ok: true,
+			ok: true, coverage: [],
 			article: {
 				title: "T",
 				siteName: "s",

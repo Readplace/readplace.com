@@ -13,7 +13,10 @@ import {
 	PROXIED_FETCH_TIMEOUTS,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
+import type { CoverageRuleModes } from "@packages/domain/article";
 import {
+	activateCoverageRules,
+	initArticleCoverageRules,
 	initArticleSiteRules,
 	initReadabilityParser,
 	readabilityAdditions,
@@ -48,6 +51,7 @@ export function initParserDepBundle(deps: {
 	logInfo: LogInfo;
 	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
+	coverageRuleModes: CoverageRuleModes;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
@@ -74,6 +78,7 @@ export function initParserDepBundle(deps: {
 		siteRules,
 		readabilityAdditions,
 		logError: deps.logError,
+		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: deps.coverageRuleModes }),
 	});
 	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
 }
@@ -99,6 +104,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	extractPdf: ExtractPdf;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	egress: CrawlEgress;
+	coverageRuleModes: CoverageRuleModes;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
@@ -126,6 +132,7 @@ export function initComprehensiveParserDepBundle(deps: {
 		siteRules,
 		readabilityAdditions,
 		logError: deps.logError,
+		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: deps.coverageRuleModes }),
 	});
 	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
 }
