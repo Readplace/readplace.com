@@ -21,7 +21,7 @@ import type { ResolvedFreshnessResult } from "@packages/provider-contracts/artic
 import { isPDF, MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
-import { SAVE_LINK_FALLBACK_ACTION, initBodyTooLargeHandler } from "./body-too-large-handler";
+import { SAVE_ARTICLES_TOO_LARGE, SAVE_CONTENT_TOO_LARGE, SAVE_LINK_FALLBACK_ACTION, initBodyTooLargeHandler } from "./body-too-large-handler";
 import {initSaveArticleFromUrl,
 	rankNewLinksAbove,
 } from "@packages/save-article";
@@ -409,12 +409,7 @@ export function initReadlistSaveRoutes(
 	const saveArticlesLimitHandler = initBodyTooLargeHandler({
 		logError: deps.logError,
 		maxBytes: MAX_UPLOAD_REQUEST_BYTES,
-		logLabel: "save-articles",
-		sirenError: {
-			code: "save-articles-too-large",
-			message: (label) => `Captured tab content was too large to upload in one request (over ${label})`,
-		},
-		refusalCode: SAVE_REFUSAL_CODES.tooLarge,
+		...SAVE_ARTICLES_TOO_LARGE,
 	});
 	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
 		const requestedAt = deps.now().toISOString();
@@ -640,12 +635,7 @@ export function initReadlistSaveRoutes(
 	const saveContentLimitHandler = initBodyTooLargeHandler({
 		logError: deps.logError,
 		maxBytes: MAX_UPLOAD_REQUEST_BYTES,
-		logLabel: "save-content",
-		sirenError: {
-			code: "content-too-large",
-			message: (label) => `Content upload exceeded ${label}`,
-			actions: [SAVE_LINK_FALLBACK_ACTION],
-		},
+		...SAVE_CONTENT_TOO_LARGE,
 	});
 
 	router.post(

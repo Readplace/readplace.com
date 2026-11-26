@@ -1,5 +1,5 @@
 import type { ErrorRequestHandler } from "express";
-import type { SaveRefusalCode } from "@packages/web-analytics";
+import { SAVE_REFUSAL_CODES, type SaveRefusalCode } from "@packages/web-analytics";
 import type { LogError } from "@packages/logger";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, type SirenAction, sirenError } from "../../api/siren";
@@ -16,9 +16,7 @@ export const SAVE_LINK_FALLBACK_ACTION: SirenAction = {
 	fields: [{ name: "url", type: "url" }],
 };
 
-export function initBodyTooLargeHandler(deps: {
-	logError: LogError;
-	maxBytes: number;
+interface BodyTooLargeRoute {
 	logLabel: string;
 	sirenError: {
 		code: string;
@@ -26,6 +24,29 @@ export function initBodyTooLargeHandler(deps: {
 		actions?: SirenAction[];
 	};
 	refusalCode?: SaveRefusalCode;
+}
+
+export const SAVE_ARTICLES_TOO_LARGE: BodyTooLargeRoute = {
+	logLabel: "save-articles",
+	sirenError: {
+		code: "save-articles-too-large",
+		message: (label) => `Captured tab content was too large to upload in one request (over ${label})`,
+	},
+	refusalCode: SAVE_REFUSAL_CODES.tooLarge,
+};
+
+export const SAVE_CONTENT_TOO_LARGE: BodyTooLargeRoute = {
+	logLabel: "save-content",
+	sirenError: {
+		code: "content-too-large",
+		message: (label) => `Content upload exceeded ${label}`,
+		actions: [SAVE_LINK_FALLBACK_ACTION],
+	},
+};
+
+export function initBodyTooLargeHandler(deps: BodyTooLargeRoute & {
+	logError: LogError;
+	maxBytes: number;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;
 	const label = megabytesLabel(maxBytes);

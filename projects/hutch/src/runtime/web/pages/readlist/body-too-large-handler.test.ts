@@ -4,7 +4,7 @@ import type { LogError } from "@packages/logger";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { type AnalyticsEvent, SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { initObserveSaveRefusal } from "../../shared/save-refusal";
-import { SAVE_LINK_FALLBACK_ACTION, initBodyTooLargeHandler } from "./body-too-large-handler";
+import { SAVE_ARTICLES_TOO_LARGE, SAVE_CONTENT_TOO_LARGE, initBodyTooLargeHandler } from "./body-too-large-handler";
 
 type FakeJsonCalls = { status?: number; body?: unknown; type?: string };
 
@@ -41,35 +41,13 @@ function fakeRequest(headers: Record<string, string>): Request {
 
 const SIREN = { accept: "application/vnd.siren+json" };
 
-const ROUTES: {
-	name: string;
-	init: (deps: { logError: LogError; maxBytes: number }) => ErrorRequestHandler;
-}[] = [
-	{
-		name: "save-articles",
-		init: (deps) => initBodyTooLargeHandler({
-			...deps,
-			logLabel: "save-articles",
-			sirenError: {
-				code: "save-articles-too-large",
-				message: (label) => `Captured tab content was too large to upload in one request (over ${label})`,
-			},
-			refusalCode: SAVE_REFUSAL_CODES.tooLarge,
-		}),
-	},
-	{
-		name: "save-content",
-		init: (deps) => initBodyTooLargeHandler({
-			...deps,
-			logLabel: "save-content",
-			sirenError: {
-				code: "content-too-large",
-				message: (label) => `Content upload exceeded ${label}`,
-				actions: [SAVE_LINK_FALLBACK_ACTION],
-			},
-		}),
-	},
-];
+const ROUTES = [
+	{ name: "save-articles", route: SAVE_ARTICLES_TOO_LARGE },
+	{ name: "save-content", route: SAVE_CONTENT_TOO_LARGE },
+].map(({ name, route }) => ({
+	name,
+	init: (deps: { logError: LogError; maxBytes: number }): ErrorRequestHandler => initBodyTooLargeHandler({ ...deps, ...route }),
+}));
 
 function tooBig(limit: number): Error {
 	return Object.assign(new Error("too big"), { type: "entity.too.large", limit });
