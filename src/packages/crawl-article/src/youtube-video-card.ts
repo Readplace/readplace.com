@@ -5,7 +5,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 const OembedVideoSchema = z.object({ title: z.string().min(1), author_name: z.string().min(1) });
 
-export type YouTubeVideoCard = { title: string; author: string; excerpt: string; watchUrl: string; posterUrl: string; html: string };
+type YouTubeVideoCard = { title: string; author: string; excerpt: string; watchUrl: string; posterUrl: string; html: string };
 
 export type FetchYouTubeVideoCard = (params: { url: string }) => Promise<YouTubeVideoCard | undefined>;
 

@@ -3,7 +3,7 @@ import { ALLOWED_PROTOCOLS } from "./meta-refresh";
 
 const UNLOCKER_FINAL_URL_HEADER = "x-unblocker-redirected-to";
 
-export type UnlockerNavigation = { kind: "navigated"; url: string; status: number } | { kind: "not-navigated"; status: number };
+type UnlockerNavigation = { kind: "navigated"; url: string; status: number } | { kind: "not-navigated"; status: number };
 
 export type ResolveThroughUnlocker = (
 	url: string,
