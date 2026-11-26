@@ -11,7 +11,7 @@ const IDENTITIES: ExcludedIdentities = {
 const EXCLUDE = excludeNonAudienceClauses(IDENTITIES).join(" ");
 const AUDIENCE_CLAUSES = excludeNonAudienceClauses(IDENTITIES);
 
-const widgets = mcpWidgets({ analyticsLogGroupName: ANALYTICS_LOG_GROUP, identities: IDENTITIES });
+const widgets = mcpWidgets({ identities: IDENTITIES });
 
 describe("mcpWidgets", () => {
 	it("reads only the analytics group", () => {

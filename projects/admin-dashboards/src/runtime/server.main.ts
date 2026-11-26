@@ -8,7 +8,7 @@ import { SESSION_COOKIE_NAME, initResolveLogin } from "@packages/web-session";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initInMemoryLogsInsights } from "@packages/test-fixtures/providers/logs-insights";
 import type { AnalyticsEvent } from "@packages/web-analytics";
-import { ANALYTICS_LOG_GROUP, AUTH_DIAGNOSTICS_LOG_GROUP, buildAdminDashboards } from "@packages/dashboard-widgets";
+import { buildAdminDashboards } from "@packages/dashboard-widgets";
 import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 import { createAdminDashboardsApp } from "./app";
@@ -72,10 +72,7 @@ app.use(
 		findUserByEmail: auth.findUserByEmail,
 		findSessionAdminMfaVerifiedAt: auth.findSessionAdminMfaVerifiedAt,
 		adminEmails: [ADMIN_EMAIL],
-		dashboards: buildAdminDashboards({
-			analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-			authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-		}),
+		dashboards: buildAdminDashboards(),
 		runLogsInsightsQuery: logsInsights.runLogsInsightsQuery,
 		readExcludedIdentities: async () => ({ excludedVisitorIds: [], excludedUserIds: [] }),
 		...initAdminDashboardResults(),

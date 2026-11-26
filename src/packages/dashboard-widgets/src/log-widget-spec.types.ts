@@ -3,8 +3,4 @@ export interface LogWidgetSpec {
 	logGroupNames: readonly string[];
 	query: string;
 	view: "pie" | "table" | "bar" | "timeSeries";
-	x: number;
-	y: number;
-	width: number;
-	height: number;
 }

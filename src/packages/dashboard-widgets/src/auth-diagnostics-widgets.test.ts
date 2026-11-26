@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { AUTH_DIAGNOSTICS_LOG_GROUP, authDiagnosticsWidgets } from "./auth-diagnostics-widgets";
+import { authDiagnosticsWidgets } from "./auth-diagnostics-widgets";
 
-const widgets = authDiagnosticsWidgets({ logGroupName: AUTH_DIAGNOSTICS_LOG_GROUP });
+const widgets = authDiagnosticsWidgets();
 
 describe("authDiagnosticsWidgets", () => {
 	it("reads only the auth-diagnostics stream of the given group, as tables", () => {

@@ -10,8 +10,6 @@ import { initResolveWebsiteLogin } from "@packages/web-session";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { parseAdminEmails } from "@packages/admin-gate";
 import {
-	ANALYTICS_LOG_GROUP,
-	AUTH_DIAGNOSTICS_LOG_GROUP,
 	EXCLUDED_IDENTITIES_PARAMETER_NAME,
 	buildAdminDashboards,
 	parseExcludedIdentities,
@@ -58,10 +56,7 @@ const app = createAdminDashboardsApp({
 	findUserByEmail: adminAccess.findUserByEmail,
 	findSessionAdminMfaVerifiedAt: adminAccess.findSessionAdminMfaVerifiedAt,
 	adminEmails: parseAdminEmails(env.ADMIN_EMAILS),
-	dashboards: buildAdminDashboards({
-		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-		authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-	}),
+	dashboards: buildAdminDashboards(),
 	runLogsInsightsQuery: initCloudWatchLogsInsights({
 		startQuery: (command) => logsClient.send(command),
 		getQueryResults: (command) => logsClient.send(command),
