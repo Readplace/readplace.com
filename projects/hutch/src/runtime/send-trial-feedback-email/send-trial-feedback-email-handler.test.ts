@@ -40,10 +40,8 @@ function buildReminderBody(userId: string): string {
 	return JSON.stringify({ detail: { userId, kind: "reminder" } });
 }
 
-function buildChargeReminderBody(userId: string, chargeAt?: string): string {
-	return JSON.stringify({
-		detail: { userId, kind: "charge_reminder", ...(chargeAt ? { chargeAt } : {}) },
-	});
+function buildChargeReminderBody(userId: string, chargeAt: string): string {
+	return JSON.stringify({ detail: { userId, kind: "charge_reminder", chargeAt } });
 }
 
 function buildPaymentFailedBody(userId: string): string {
@@ -973,21 +971,6 @@ describe("send-trial-feedback-email handler", () => {
 			assert.ok(
 				sent.text.includes("— $60 charged to the card on file on Jun 6, 2026, then once a year after that."),
 			);
-		});
-
-		it("noops with a warn when the command carries no chargeAt", async () => {
-			const subject = buildSubject();
-			await seedActiveSubscriber(subject.providers);
-
-			const result = await subject.handler(
-				buildSqsEvent([{ messageId: "msg-cr-nocharge", body: buildChargeReminderBody(USER_ID) }]),
-				buildLambdaContext(),
-				() => {},
-			);
-
-			assert(result);
-			assert.equal(result.batchItemFailures.length, 0);
-			assert.equal(subject.email.getSentEmails().length, 0);
 		});
 
 		it("noops when there is no subscription row at all", async () => {

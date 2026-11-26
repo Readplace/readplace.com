@@ -83,25 +83,34 @@ export interface SendTrialFeedbackEmailDeps {
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 
-type KindHandler = (
-	input: { userId: UserId; messageId: string; detail: SendTrialFeedbackEmailDetail },
+function dispatchKind(
+	input: { detail: SendTrialFeedbackEmailDetail; messageId: string },
 	deps: SendTrialFeedbackEmailDeps,
-) => Promise<void>;
-
-const KIND_HANDLERS = {
-	feedback: ({ userId }, deps) => processCommand(userId, deps),
-	reminder: ({ userId }, deps) => processReminder(userId, deps),
-	charge_reminder: ({ userId, detail }, deps) => processChargeReminder(userId, detail.chargeAt, deps),
-	payment_failed: ({ userId }, deps) => processPaymentFailed(userId, deps),
-	automation_saves_held: ({ userId, detail }, deps) =>
-		processAutomationSavesHeld(
-			userId,
-			{ receivedAtMessageId: detail.receivedAtMessageId, inboxAddress: detail.inboxAddress },
-			deps,
-		),
-	trial_day3: ({ userId, messageId }, deps) => sendTrialDay3Email({ userId, messageId }, deps),
-	trial_day7: ({ userId, messageId }, deps) => sendTrialDay7Email({ userId, messageId }, deps),
-} satisfies Record<NonNullable<SendTrialFeedbackEmailDetail["kind"]>, KindHandler>;
+): Promise<void> {
+	const { detail, messageId } = input;
+	const { userId } = detail;
+	switch (detail.kind) {
+		case undefined:
+		case "feedback":
+			return processCommand(userId, deps);
+		case "reminder":
+			return processReminder(userId, deps);
+		case "charge_reminder":
+			return processChargeReminder(userId, detail.chargeAt, deps);
+		case "payment_failed":
+			return processPaymentFailed(userId, deps);
+		case "automation_saves_held":
+			return processAutomationSavesHeld(
+				userId,
+				{ receivedAtMessageId: detail.receivedAtMessageId, inboxAddress: detail.inboxAddress },
+				deps,
+			);
+		case "trial_day3":
+			return sendTrialDay3Email({ userId, messageId }, deps);
+		case "trial_day7":
+			return sendTrialDay7Email({ userId, messageId }, deps);
+	}
+}
 
 export function initSendTrialFeedbackEmailHandler(
 	deps: SendTrialFeedbackEmailDeps,
@@ -111,11 +120,7 @@ export function initSendTrialFeedbackEmailHandler(
 		logger: deps.logger,
 		failure: { message: "[send-trial-feedback-email] record failed" },
 		malformed: { policy: "retry" },
-		handle: (detail, record) =>
-			KIND_HANDLERS[detail.kind ?? "feedback"](
-				{ userId: detail.userId, messageId: record.messageId, detail },
-				deps,
-			),
+		handle: (detail, record) => dispatchKind({ detail, messageId: record.messageId }, deps),
 	});
 }
 
@@ -402,16 +407,9 @@ async function processReminder(
 
 async function processChargeReminder(
 	userId: UserId,
-	chargeAt: string | undefined,
+	chargeAt: string,
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
-	if (!chargeAt) {
-		deps.logger.warn(
-			"[send-trial-feedback-email] charge-reminder: command carries no chargeAt — noop",
-			{ userId },
-		);
-		return;
-	}
 	const row = await deps.findSubscriptionByUserId(userId);
 	if (!row) {
 		deps.logger.info(
