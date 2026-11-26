@@ -167,13 +167,10 @@ const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName"
 // keeps only the access its own workers still need — the forwarding-address page
 // and the account-deletion sweep — and names those tables by ARN derived from
 // account + region, so neither stack waits on the other to deploy.
-const inboxAwsRegion = new pulumi.Config("aws").require("region");
-const inboxAwsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
-function inboxTableArn(tableName: string): pulumi.Output<string> {
-	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
-}
-function mediaTableArn(tableName: string): pulumi.Output<string> {
-	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
+const awsRegion = new pulumi.Config("aws").require("region");
+const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+function dynamoTableArn(tableName: string): pulumi.Output<string> {
+	return pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsAccountId}:table/${tableName}`;
 }
 
 const tableNames = {
@@ -355,7 +352,7 @@ const dynamodb = new DynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.pendingViewHighlightsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
+		{ arn: dynamoTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
@@ -363,7 +360,7 @@ const dynamodb = new DynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false },
 	],
@@ -394,9 +391,9 @@ const webUserArticleConditions = new DynamoDBAccess("hutch-web-user-article-cond
 
 const webIssueLinksRead = new DynamoDBAccess("hutch-web-issue-links-read", {
 	tables: [
-		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxEmails), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query"],
 });
@@ -406,7 +403,7 @@ const webCanaryReportsRead = new DynamoDBAccess("hutch-web-canary-reports-read",
 	actions: ["dynamodb:Query"],
 });
 const webMediaTranscriptQuota = new DynamoDBAccess("hutch-web-media-transcript-quota", {
-	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	tables: [{ arn: dynamoTableArn(mediaTableName), includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
@@ -824,8 +821,8 @@ const userDataJobsDynamodb = new DynamoDBAccess("user-data-jobs-dynamodb", {
 		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailHeldMail), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailHeldMail), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.sessionsTable.arn, includeIndexes: true },
@@ -837,10 +834,10 @@ const userDataJobsDynamodb = new DynamoDBAccess("user-data-jobs-dynamodb", {
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
+		{ arn: dynamoTableArn(tableNames.inboxEmails), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
 		{ arn: storage.verificationTokensTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
@@ -919,7 +916,7 @@ const mediaHoldingsActions = [
 ];
 
 const userDataJobsMediaHoldingsDynamodb = new DynamoDBAccess("user-data-jobs-media-holdings-dynamodb", {
-	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	tables: [{ arn: dynamoTableArn(mediaTableName), includeIndexes: false }],
 	actions: mediaHoldingsActions,
 });
 
@@ -944,7 +941,7 @@ const userDataJobsUserArticlesDynamodb = new DynamoDBAccess("user-data-jobs-user
 });
 
 const userDataJobsEmailIdentitiesDynamodb = new DynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
-	tables: [{ arn: inboxTableArn(tableNames.emailIdentities), includeIndexes: true }],
+	tables: [{ arn: dynamoTableArn(tableNames.emailIdentities), includeIndexes: true }],
 	actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
 });
 
@@ -1539,7 +1536,7 @@ const mediaReleaseDynamodb = new DynamoDBAccess("media-release-dynamodb", {
 });
 
 const mediaReleaseMediaHoldingsDynamodb = new DynamoDBAccess("media-release-media-holdings-dynamodb", {
-	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	tables: [{ arn: dynamoTableArn(mediaTableName), includeIndexes: false }],
 	actions: mediaHoldingsActions,
 });
 
@@ -1845,9 +1842,9 @@ const rewriteGmailFilterDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filte
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
+		{ arn: dynamoTableArn(tableNames.inboxAddresses), includeIndexes: true },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -2388,8 +2385,6 @@ new aws.cloudwatch.MetricAlarm("gmail-email-update-failed-alarm", {
 // constructable and assertable in tests that guard against coverage gaps and
 // unknown references drifting from the analytics event constants.
 
-const region = aws.config.requireRegion();
-
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
 	logGroupName: lambda.logGroupName,
@@ -2489,8 +2484,6 @@ if (readlistCapWarnThreshold !== undefined) {
 // destination (preamble stripped so Logs Insights can query the fields). Only the
 // analytics streams match the filter; operational streams (parse-errors,
 // crawl-outcomes) stay behind at 30-day retention.
-
-const accountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 
 // Never expires (no retentionInDays): this is the durable analytics store.
 // retainOnDelete guards the irreplaceable history against an accidental destroy.
@@ -2709,8 +2702,8 @@ new aws.lambda.Permission("forward-analytics-invoke-any-log-group", {
 	action: "lambda:InvokeFunction",
 	function: forwardAnalyticsLambda.functionName,
 	principal: "logs.amazonaws.com",
-	sourceAccount: accountId,
-	sourceArn: pulumi.interpolate`arn:aws:logs:${region}:${accountId}:log-group:*`,
+	sourceAccount: awsAccountId,
+	sourceArn: pulumi.interpolate`arn:aws:logs:${awsRegion}:${awsAccountId}:log-group:*`,
 });
 
 // The per-group subscription filters that used to live here are gone: every
@@ -2727,7 +2720,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
 	dashboardBody: pulumi.all([lambda.logGroupName, analyticsLogGroup.name, errorsLogGroup.name]).apply(([hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName]) =>
 		JSON.stringify(buildAnalyticsDashboardBody({
-			region,
+			region: awsRegion,
 			hutchLogGroupName,
 			analyticsLogGroupName,
 			errorsLogGroupName,
@@ -2751,7 +2744,7 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 	dashboardName: "readplace-related-past-reads",
 	dashboardBody: analyticsLogGroup.name.apply((analyticsLogGroupName) =>
 		JSON.stringify(buildRelatedPastReadsDashboardBody({
-			region,
+			region: awsRegion,
 			analyticsLogGroupName,
 			excludedVisitorIds,
 			excludedUserIds,
