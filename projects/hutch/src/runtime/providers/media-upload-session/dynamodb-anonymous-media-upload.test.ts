@@ -123,7 +123,7 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 		assert.equal(guest.userId, undefined);
 		assert.equal(guest.status, "staged");
 		assert.equal(member.userId, READER);
-		assert.equal((await store.findMediaUploadSession({ uploadId: UNKNOWN_ID, userId: READER }))?.status, "staged");
+		assert.equal((await store.findMediaUploadByCapability({ uploadId: UNKNOWN_ID, userId: READER }))?.status, "staged");
 	});
 
 	it("refuses to create an upload id twice", async () => {
@@ -284,7 +284,7 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 			assert.equal(claimed.kind, "book");
 			assert.equal(claimed.saveAttemptId, SAVE_ATTEMPT_ID);
 		}
-		assert.equal((await store.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: READER }))?.status, "staged");
+		assert.equal((await store.findMediaUploadByCapability({ uploadId: UPLOAD_ID, userId: READER }))?.status, "staged");
 	});
 
 	it("refuses a second reader's claim once the first has claimed", async () => {

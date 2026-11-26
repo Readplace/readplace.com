@@ -93,10 +93,8 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
-	CreateMediaUploadSession,
 	FailMediaUpload,
 	FindMediaUploadByCapability,
-	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
@@ -874,8 +872,6 @@ export interface SharedBundle {
 }
 
 export interface MediaUploadBundle {
-	createMediaUploadSession: CreateMediaUploadSession;
-	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;

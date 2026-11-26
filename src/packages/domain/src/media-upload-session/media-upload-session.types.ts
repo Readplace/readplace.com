@@ -15,13 +15,6 @@ export interface MediaUploadSession {
 	readonly status: MediaUploadSessionState;
 }
 
-export type CreateMediaUploadSession = (params: Omit<MediaUploadSession, "status">) => Promise<MediaUploadSession>;
-
-export type FindMediaUploadSession = (params: {
-	uploadId: UploadId;
-	userId: UserId;
-}) => Promise<MediaUploadSession | undefined>;
-
 export type MarkMediaUploadCommitted = (params: {
 	uploadId: UploadId;
 	userId: UserId;

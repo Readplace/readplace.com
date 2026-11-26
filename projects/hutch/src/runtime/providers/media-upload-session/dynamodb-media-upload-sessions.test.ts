@@ -9,7 +9,6 @@ const UPLOAD_ID = UploadIdSchema.parse("0123456789abcdef0123456789abcdef");
 const OWNER = UserIdSchema.parse("a".repeat(32));
 const OTHER = UserIdSchema.parse("b".repeat(32));
 const SAVE_ATTEMPT_ID = SaveAttemptIdSchema.parse("attempt-1");
-const NOW = new Date("2026-11-05T00:00:00Z");
 
 type Stored = Record<string, unknown>;
 
@@ -23,7 +22,6 @@ function createFakeTable() {
 	const send = async (command: {
 		constructor: { name: string };
 		input: {
-			Item?: Stored;
 			Key?: { uploadId: string };
 			UpdateExpression?: string;
 			ConditionExpression?: string;
@@ -33,14 +31,8 @@ function createFakeTable() {
 	}) => {
 		const { input } = command;
 		if (command.constructor.name === "UpdateCommand") updates.push(input);
-		if (command.constructor.name === "PutCommand") {
-			assert(input.Item);
-			rows.set(String(input.Item.uploadId), input.Item);
-			return {};
-		}
 		assert(input.Key);
 		const row = rows.get(input.Key.uploadId);
-		if (command.constructor.name === "GetCommand") return row ? { Item: row } : {};
 		if (command.constructor.name === "UpdateCommand") {
 			const values = input.ExpressionAttributeValues ?? {};
 			const ownerMatches = !input.ConditionExpression?.includes("userId = :userId") || row?.userId === values[":userId"];
@@ -55,79 +47,36 @@ function createFakeTable() {
 }
 
 function initStore(client: DynamoDBDocumentClient) {
-	return initDynamoDbMediaUploadSessions({ client, tableName: "test-media-upload-sessions", now: () => NOW });
+	return initDynamoDbMediaUploadSessions({ client, tableName: "test-media-upload-sessions" });
 }
 
-async function createStaged(store: ReturnType<typeof initStore>) {
-	return store.createMediaUploadSession({
+function seedStaged(rows: Map<string, Stored>) {
+	rows.set(UPLOAD_ID, {
 		uploadId: UPLOAD_ID,
 		userId: OWNER,
 		kind: "book",
 		fileName: "Book upload",
 		saveAttemptId: SAVE_ATTEMPT_ID,
+		status: "staged",
 	});
 }
 
 describe("initDynamoDbMediaUploadSessions", () => {
-	it("creates a staged session that its owner finds, expiring 24 hours later", async () => {
+	it("moves staged to committed, then committed to failed", async () => {
 		const { rows, client } = createFakeTable();
 		const store = initStore(client);
-
-		const created = await createStaged(store);
-
-		assert.equal(created.status, "staged");
-		assert.equal(rows.get(UPLOAD_ID)?.expiresAt, NOW.getTime() / 1000 + 24 * 60 * 60);
-		const found = await store.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: OWNER });
-		assert.equal(found?.status, "staged");
-		assert.equal(found?.fileName, "Book upload");
-		assert.equal(found?.saveAttemptId, SAVE_ATTEMPT_ID);
-	});
-
-	it("keeps the declared byte length", async () => {
-		const { client } = createFakeTable();
-		const store = initStore(client);
-		await store.createMediaUploadSession({
-			uploadId: UPLOAD_ID,
-			userId: OWNER,
-			kind: "book",
-			fileName: "dune.epub",
-			byteLength: 2048,
-			saveAttemptId: SAVE_ATTEMPT_ID,
-		});
-
-		const found = await store.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: OWNER });
-
-		assert.equal(found?.byteLength, 2048);
-	});
-
-	it("finds nothing for another user or a missing upload", async () => {
-		const { client } = createFakeTable();
-		const store = initStore(client);
-		await createStaged(store);
-
-		assert.equal(await store.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: OTHER }), undefined);
-		assert.equal(
-			await store.findMediaUploadSession({ uploadId: UploadIdSchema.parse("f".repeat(32)), userId: OWNER }),
-			undefined,
-		);
-	});
-
-	it("moves staged to committed, then committed to failed", async () => {
-		const { client } = createFakeTable();
-		const store = initStore(client);
-		await createStaged(store);
+		seedStaged(rows);
 
 		assert.equal(await store.markMediaUploadCommitted({ uploadId: UPLOAD_ID, userId: OWNER }), "committed");
 		assert.equal(await store.failMediaUpload({ uploadId: UPLOAD_ID }), "failed");
 
-		const found = await store.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: OWNER });
-		assert.equal(found?.status, "failed");
+		assert.equal(rows.get(UPLOAD_ID)?.status, "failed");
 	});
 
 	it("conditions each transition on the owner and the current status, aliasing the reserved status attribute", async () => {
-		const { updates, client } = createFakeTable();
+		const { rows, updates, client } = createFakeTable();
 		const store = initStore(client);
-		await createStaged(store);
+		seedStaged(rows);
 
 		await store.markMediaUploadCommitted({ uploadId: UPLOAD_ID, userId: OWNER });
 		await store.failMediaUpload({ uploadId: UPLOAD_ID });
@@ -152,9 +101,9 @@ describe("initDynamoDbMediaUploadSessions", () => {
 	});
 
 	it("refuses to commit a session that is not staged or not the caller's", async () => {
-		const { client } = createFakeTable();
+		const { rows, client } = createFakeTable();
 		const store = initStore(client);
-		await createStaged(store);
+		seedStaged(rows);
 
 		assert.equal(await store.markMediaUploadCommitted({ uploadId: UPLOAD_ID, userId: OTHER }), "not-staged");
 		await store.markMediaUploadCommitted({ uploadId: UPLOAD_ID, userId: OWNER });
@@ -162,9 +111,9 @@ describe("initDynamoDbMediaUploadSessions", () => {
 	});
 
 	it("refuses to fail a session that was never committed", async () => {
-		const { client } = createFakeTable();
+		const { rows, client } = createFakeTable();
 		const store = initStore(client);
-		await createStaged(store);
+		seedStaged(rows);
 
 		assert.equal(await store.failMediaUpload({ uploadId: UPLOAD_ID }), "not-committed");
 	});

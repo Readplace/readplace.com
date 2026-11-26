@@ -304,9 +304,7 @@ import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/pro
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
-	CreateMediaUploadSession,
 	FindMediaUploadByCapability,
-	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
@@ -651,11 +649,9 @@ export interface AppDependencies {
 	transcriptAllowanceSeconds: number;
 	chargeTranscriptQuota: ChargeTranscriptQuota;
 	refundUnstartedCharge: RefundUnstartedCharge;
-	createMediaUploadSession: CreateMediaUploadSession;
 	storePendingViewHighlights: StorePendingViewHighlights;
 	findPendingViewHighlights: FindPendingViewHighlights;
 	releasePendingViewHighlights: ReleasePendingViewHighlights;
-	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	findMediaUploadByCapability: FindMediaUploadByCapability;

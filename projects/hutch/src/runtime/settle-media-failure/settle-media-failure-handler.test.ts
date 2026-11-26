@@ -18,7 +18,7 @@ const NOTICE = "This book is protected by DRM, so Readplace can't open it.";
 async function buildSubject(options: { savedItem: boolean }) {
 	const store = initInMemoryArticleStore();
 	const sessions = initInMemoryMediaUploadSessions();
-	await sessions.createMediaUploadSession({
+	await sessions.createAnyMediaUploadSession({
 		uploadId: UPLOAD_ID,
 		userId: OWNER,
 		kind: "book",
@@ -65,7 +65,7 @@ describe("initSettleMediaFailureHandler", () => {
 		assert.deepEqual(result, { batchItemFailures: [] });
 		const item = await store.findArticleById(ReaderArticleHashId.from(PRIVATE_URL), OWNER);
 		assert.equal(item?.processingNotice, NOTICE);
-		const session = await sessions.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: OWNER });
+		const session = await sessions.findMediaUploadByCapability({ uploadId: UPLOAD_ID, userId: OWNER });
 		assert.equal(session?.status, "failed");
 	});
 
@@ -75,7 +75,7 @@ describe("initSettleMediaFailureHandler", () => {
 		const result = await handler(failed(DETAIL), buildLambdaContext(), () => {});
 
 		assert.deepEqual(result, { batchItemFailures: [] });
-		const session = await sessions.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: OWNER });
+		const session = await sessions.findMediaUploadByCapability({ uploadId: UPLOAD_ID, userId: OWNER });
 		assert.equal(session?.status, "failed");
 	});
 

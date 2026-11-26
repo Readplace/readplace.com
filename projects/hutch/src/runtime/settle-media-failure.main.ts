@@ -19,7 +19,6 @@ const { recordPrivateItemFailure } = initDynamoDbPrivateItem({
 const { failMediaUpload } = initDynamoDbMediaUploadSessions({
 	client: dynamoClient,
 	tableName: env.DYNAMODB_MEDIA_UPLOAD_SESSIONS_TABLE,
-	now: () => new Date(),
 });
 
 export const handler = initSettleMediaFailureHandler({

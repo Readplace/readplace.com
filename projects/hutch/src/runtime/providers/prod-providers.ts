@@ -415,8 +415,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		tableName: articlesTable,
 		userArticlesTableName: userArticlesTable,
 	});
-	const { createMediaUploadSession, findMediaUploadSession, markMediaUploadCommitted } =
-		initDynamoDbMediaUploadSessions({ client, tableName: tables.mediaUploadSessions, now: () => new Date() });
+	const { markMediaUploadCommitted } = initDynamoDbMediaUploadSessions({ client, tableName: tables.mediaUploadSessions });
 	const anonymousMediaUpload = initDynamoDbAnonymousMediaUpload({
 		client,
 		tableName: tables.mediaUploadSessions,
@@ -614,8 +613,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 		importSessionStore,
 		savePrivateItem,
 		...initDynamoDbPendingViewHighlights({ client, tableName: tables.pendingViewHighlights, now: () => new Date() }),
-		createMediaUploadSession,
-		findMediaUploadSession,
 		markMediaUploadCommitted,
 		...anonymousMediaUpload,
 		mintMediaPendingPost,
