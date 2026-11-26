@@ -11,7 +11,7 @@ import { DEFAULT_READLIST } from "../readlist.nav";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
-export interface ArticleMoveDestination {
+interface ArticleMoveDestination {
 	slug: ReadlistSlug;
 	label: string;
 	smart?: true;
