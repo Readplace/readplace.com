@@ -295,8 +295,7 @@ export interface BaseConfig {
 	 * omits it — like the blog, which ships no such bundle — stays untouched. */
 	siteScripts?: string;
 	/** The site's nav renderer. Mandatory (no default) so every shell states its
-	 * nav explicitly: a site with a nav passes `GlobalNav`, a bare shell passes
-	 * `GlobalEmptyNav`. */
+	 * nav explicitly: a site with a nav passes `GlobalNav`. */
 	renderNav: RenderSiteNav;
 	/** Whether this site's pages load htmx: `HtmxLoaded` for a site whose markup
 	 * carries `hx-*` attributes, `HtmxOmitted` for one that renders none.

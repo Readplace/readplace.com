@@ -70,7 +70,7 @@ export {
 export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
 export { brandMarkSmallSvg, brandMarkSvg } from "./brand-mark";
-export { GlobalNav, GlobalEmptyNav } from "./nav.component";
+export { GlobalNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initialsFor } from "./user-initials";
 export { HtmxLoaded, HtmxOmitted } from "./htmx-script";
