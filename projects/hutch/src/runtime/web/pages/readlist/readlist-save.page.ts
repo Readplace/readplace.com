@@ -21,7 +21,7 @@ import type { ResolvedFreshnessResult } from "@packages/provider-contracts/artic
 import { isPDF, MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
-import { initSaveContentLimitHandler } from "./save-content-limit-handler";
+import { SAVE_LINK_FALLBACK_ACTION, initSaveContentLimitHandler } from "./save-content-limit-handler";
 import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import {initSaveArticleFromUrl,
 	rankNewLinksAbove,
@@ -652,21 +652,13 @@ export function initReadlistSaveRoutes(
 			const userId = req.userId;
 
 			const requestedAt = deps.now().toISOString();
-			const buildFallbackAction = () => ({
-				name: "save-article",
-				title: "Save a link",
-				href: READLIST_PATH,
-				method: "POST",
-				type: "application/json",
-				fields: [{ name: "url", type: "url" }],
-			});
 			const parsed = contentUpload.parseAllParts(req);
 			if (!parsed.ok) {
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({
 						code: "invalid-save-content",
 						message: "save-content requires a multipart/form-data body",
-						actions: [buildFallbackAction()],
+						actions: [SAVE_LINK_FALLBACK_ACTION],
 					}),
 				);
 				return;
@@ -690,7 +682,7 @@ export function initReadlistSaveRoutes(
 			const refuse = (message: string, code = "invalid-save-content", { status }: { status: 422 | 429 } = { status: 422 }) => {
 				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(status).type(SIREN_MEDIA_TYPE).json(
-					sirenError({ code, message, actions: [buildFallbackAction()] }),
+					sirenError({ code, message, actions: [SAVE_LINK_FALLBACK_ACTION] }),
 				);
 			};
 
