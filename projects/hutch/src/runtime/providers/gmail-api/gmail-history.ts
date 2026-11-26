@@ -10,7 +10,7 @@ import type {
 	GmailHttpRequestSettings,
 	ObserveGmailHttpAttempt,
 } from "@packages/provider-contracts/gmail-history";
-import { classifyWith, GmailErrorResponse, rejectionFrom } from "./gmail-call";
+import { classifyWith, GmailErrorReasons, GmailErrorResponse, gmailErrorReasons, isRateLimited, isScopeMissing, rejectionFrom } from "./gmail-call";
 import {
 	GMAIL_API_ORIGIN,
 	items,
@@ -49,16 +49,6 @@ const MetadataResponse = z.object({
 	payload: z.object({ headers: z.array(z.object({ name: z.string(), value: z.string() })).default([]) }).default({ headers: [] }),
 });
 
-const ErrorResponse = z.object({
-	error: z.object({
-		errors: z.array(z.object({ reason: z.string() })).optional(),
-		details: z.array(z.object({ reason: z.string().optional() })).optional(),
-	}),
-});
-
-const RATE_LIMITED = new Set(["rateLimitExceeded", "userRateLimitExceeded"]);
-const SCOPE_MISSING = new Set(["insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"]);
-
 function epochSeconds(iso: string): number {
 	return Math.floor(new Date(iso).getTime() / 1000);
 }
@@ -96,8 +86,8 @@ function errorFields(json: unknown): Record<string, number | boolean> {
 	return {
 		errorPresent: error !== undefined,
 		errorReasonCount: reasons.length,
-		rateLimitReason: reasons.some((reason) => RATE_LIMITED.has(reason)),
-		scopeReason: reasons.some((reason) => SCOPE_MISSING.has(reason)),
+		rateLimitReason: isRateLimited(reasons),
+		scopeReason: isScopeMissing(reasons),
 		messagePresent: present(error, "message"),
 	};
 }
@@ -119,15 +109,12 @@ async function forbiddenReasons(input: { response: Response; bodyReads: Observed
 	const parsed = await readParsed({
 		response: input.response.clone(),
 		source: "clone",
-		schema: ErrorResponse,
+		schema: GmailErrorReasons,
 		summarize: errorFields,
 		bodyReads: input.bodyReads,
 	});
 	if (!parsed.success) return [];
-	return [
-		...(parsed.data.error.errors ?? []).map((error) => error.reason),
-		...(parsed.data.error.details ?? []).map((detail) => detail.reason).filter((reason) => reason !== undefined),
-	];
+	return gmailErrorReasons(parsed.data);
 }
 
 function parsed<TSchema extends z.ZodType>(input: {
@@ -150,10 +137,10 @@ async function interpret<TSchema extends z.ZodType>(input: {
 	const { response, bodyReads } = input;
 	if (response.status === 403) {
 		const reasons = await forbiddenReasons({ response, bodyReads });
-		if (reasons.some((reason) => RATE_LIMITED.has(reason))) {
+		if (isRateLimited(reasons)) {
 			return { ok: false, reason: "unavailable", status: response.status };
 		}
-		if (reasons.some((reason) => SCOPE_MISSING.has(reason))) {
+		if (isScopeMissing(reasons)) {
 			return { ok: false, reason: "readonly-permission-required" };
 		}
 	}
