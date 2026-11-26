@@ -305,7 +305,6 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
-	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
@@ -798,7 +797,6 @@ export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
-	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;

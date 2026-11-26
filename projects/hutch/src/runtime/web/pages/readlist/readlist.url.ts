@@ -165,8 +165,6 @@ export const READLIST_GMAIL_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/gma
 
 export const READLIST_SMART_SECTION_ID = "readlist-smart";
 
-export const READLIST_SMART_READLIST_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/smart-readlist/dismiss`;
-
 export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }

@@ -395,7 +395,6 @@ function flattenFixtureToAppDependencies(
 		recordNativeAppAnyActivity: fixture.onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: fixture.onboardingSignals.recordNativeAppSavedArticle,
 		recordSmartReadlistMinimumReached: fixture.onboardingSignals.recordSmartReadlistMinimumReached,
-		recordSmartReadlistStepDismissed: fixture.onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: fixture.onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: fixture.onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: fixture.onboardingSignals.recordGmailStepDismissed,

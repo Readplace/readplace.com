@@ -11,7 +11,6 @@ export const enUS = {
 		file: "Save articles that fit its purpose and Readplace adds them to your Smart Readlist. You can also open the “All” readlist and use Add to file one yourself.",
 		progress: "{count}/10 articles saved to Smart Readlists",
 		unavailable: "Progress unavailable",
-		dismiss: "I don't want to do this",
 	},
 	manage: {
 		title: "Manage articles",
