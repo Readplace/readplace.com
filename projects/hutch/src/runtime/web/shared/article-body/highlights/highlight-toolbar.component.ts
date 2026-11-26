@@ -16,8 +16,6 @@ import {
 	renderLocalHighlightNoteDialog,
 } from "./highlight-note-dialog.component";
 
-export { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
-
 const HIGHLIGHT_TOOLBAR_TEMPLATE = readFileSync(join(__dirname, "highlight-toolbar.template.html"), "utf-8");
 
 export const HIGHLIGHT_TOOLBAR_SCRIPT = '<script src="/client-dist/highlight-toolbar.client.js" defer></script>';

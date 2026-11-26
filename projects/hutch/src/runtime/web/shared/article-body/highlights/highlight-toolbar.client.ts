@@ -17,8 +17,6 @@ import { placeNearSelection } from "./toolbar-placement-coarse";
 
 export { initHighlightCopy } from "./highlight-copy.client";
 
-export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
-
 export const SELECTION_DEBOUNCE_MS = 100;
 export const POINTER_SETTLE_MS = 10;
 
@@ -86,10 +84,6 @@ interface HighlightToolbarDeps {
 	fetchReader: (url: string) => Promise<ReaderFetch>;
 	parseHtml: (html: string) => Document;
 	chromeBottom: () => number;
-}
-
-function originOf(event: Event): unknown {
-	return Reflect.get(Object(Reflect.get(event, "detail")), "origin");
 }
 
 function startToolbar(input: {
@@ -314,12 +308,6 @@ function startToolbar(input: {
 			highlightId: mark.getAttribute("data-highlight-id"),
 			origin: "mark",
 		});
-	});
-	document.addEventListener(HIGHLIGHT_SELECTION_EVENT, (event) => {
-		const origin = originOf(event);
-		const selection = selectionOf();
-		if (typeof origin !== "string" || selection.rangeCount === 0) return;
-		submit({ range: selection.getRangeAt(0).cloneRange(), origin, formSelector: FORM_SELECTOR, after: "" });
 	});
 	return () => {
 		if (shown !== undefined) place(shown);
