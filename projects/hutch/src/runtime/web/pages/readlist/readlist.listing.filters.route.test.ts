@@ -275,19 +275,6 @@ describe("Readlist routes", () => {
 			expect(response.headers["access-control-allow-origin"]).toBe("moz-extension://abc123");
 		});
 
-		it("should allow requests from the legacy hutch-app.com origin", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.get("/queue")
-				.set("Origin", "https://hutch-app.com");
-
-			expect(response.status).toBe(200);
-			expect(response.headers["access-control-allow-origin"]).toBe("https://hutch-app.com");
-		});
-
 		it("should reject requests from non-extension origins", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

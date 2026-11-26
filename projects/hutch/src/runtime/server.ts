@@ -1204,7 +1204,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const isAllowedExtensionOrigin = (origin: string | undefined): boolean =>
 		!origin ||
 		origin === appOrigin ||
-		origin === "https://hutch-app.com" ||
 		extensionOriginPattern.test(origin);
 
 	const extensionCors = cors({
