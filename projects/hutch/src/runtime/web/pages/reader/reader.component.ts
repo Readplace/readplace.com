@@ -123,18 +123,16 @@ function markReadPostUrl({
 }
 
 function buildExitConfirmHtml(input: {
-	scopes: ExitConfirmScopes | undefined;
+	scopes: ExitConfirmScopes;
 	isRead: boolean;
 	articleId: string;
 	title: string;
 }): string {
-	const scopes = input.scopes;
-	if (scopes === undefined) return "";
 	if (input.isRead) return "";
 	return renderExitConfirm({
 		title: input.title,
 		postUrl: markReadPostUrl({ articleId: input.articleId, utmContent: "mark-read-exit" }),
-		scopes,
+		scopes: input.scopes,
 	});
 }
 
@@ -253,7 +251,7 @@ export function ReaderPage(
 		previouslyReadPollUrl?: string;
 		previouslyReadComputeUrl?: string;
 		nextReadLocks?: readonly string[];
-		readerPathForReadlist?: (
+		readerPathForReadlist: (
 			articleId: string,
 			readlist?: ReadlistSlug,
 		) => string;
@@ -268,7 +266,7 @@ export function ReaderPage(
 		offlineCopyRow?: boolean;
 		highlights: ReaderPageHighlights;
 		highlightRefusal?: HighlightRefusal;
-		exitConfirmScopes?: ExitConfirmScopes;
+		exitConfirmScopes: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
 		readerNotice?: ReaderFailedVariant;
@@ -321,15 +319,12 @@ export function ReaderPage(
 			menu: { deleteItemsHtml: renderDeleteMenuItems({ deletion: options.deletion, surface: "reader" }) },
 		},
 	});
-	const pastReadsInput: PastReadsSectionInput | undefined =
-		options.readerPathForReadlist === undefined
-			? undefined
-			: {
-					pastReads: options.previouslyRead,
-					sourceArticleId: articleId,
-					now: options.now,
-					readerPathForReadlist: options.readerPathForReadlist,
-				};
+	const pastReadsInput: PastReadsSectionInput = {
+		pastReads: options.previouslyRead,
+		sourceArticleId: articleId,
+		now: options.now,
+		readerPathForReadlist: options.readerPathForReadlist,
+	};
 	const { html: articleBodyHtml, states: highlightStates } = renderArticleBody({
 		highlights: options.highlights,
 		readerSection: options.readerSection,
@@ -361,13 +356,10 @@ export function ReaderPage(
 			reportViewUrl === undefined
 				? undefined
 				: { viewUrl: reportViewUrl, title: article.metadata.title, surface: "reader", asksForEmail: false },
-		previouslyReadHtml:
-			pastReadsInput === undefined
-				? undefined
-				: renderPastReadsSection({
-						...pastReadsInput,
-						placement: { kind: "inline", oob: false, computeUrl: options.previouslyReadComputeUrl },
-					}),
+		previouslyReadHtml: renderPastReadsSection({
+			...pastReadsInput,
+			placement: { kind: "inline", oob: false, computeUrl: options.previouslyReadComputeUrl },
+		}),
 	});
 	const highlights = options.highlights;
 	const openNote = highlights.rows.some((row) => row.highlightId === highlights.openNote)
@@ -396,7 +388,7 @@ export function ReaderPage(
 		hasCard:
 			highlightsRail.hasRows ||
 			(options.crawlVersions ?? []).length > 0 ||
-			(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput)) ||
+			hasVisiblePastReads(pastReadsInput) ||
 			isTableOfContentsVisible({
 				crawl: options.crawl,
 				content: options.content,
@@ -415,17 +407,14 @@ export function ReaderPage(
 		articleHistoryRemoval: options.articleHistoryRemoval,
 		offlineCopyRow: options.offlineCopyRow,
 		highlightsHtml: highlightsRail.html,
-		previouslyReadHtml:
-			pastReadsInput === undefined
-				? undefined
-				: renderPastReadsSection({
-						...pastReadsInput,
-						placement: {
-							kind: "rail",
-							pollUrl: options.previouslyReadPollUrl,
-							computeUrl: options.previouslyReadComputeUrl,
-						},
-					}),
+		previouslyReadHtml: renderPastReadsSection({
+			...pastReadsInput,
+			placement: {
+				kind: "rail",
+				pollUrl: options.previouslyReadPollUrl,
+				computeUrl: options.previouslyReadComputeUrl,
+			},
+		}),
 	});
 	const downloadGuideHtml =
 		sharing.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(sharing.epubDownloadGuide);
@@ -508,7 +497,7 @@ export function ReaderPage(
 			CRAWL_ESTIMATE_SCRIPT +
 			READLIST_PICKER_SCRIPT +
 			READLIST_CLIENT_SCRIPT +
-			(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
+			READER_EXIT_CONFIRM_SCRIPT +
 			(options.enclosure.kind === "absent" ? "" : PLAYER_SCRIPT) +
 			READER_OPEN_SCRIPT +
 			READER_TOP_SCRIPT +
