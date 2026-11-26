@@ -461,6 +461,12 @@ describe("Inbox emails list route", () => {
 			]);
 			expect(first.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 			expect(menu.querySelector('button[aria-current="true"]')?.textContent).toBe("weekly@news.test");
+			expect(menu.querySelector("summary")?.textContent?.trim()).toBe("Senderweekly@news.test");
+			const unfiltered = new JSDOM((await agent.get("/inbox")).text).window.document;
+			const unfilteredMenu = unfiltered.querySelector("details.menu[data-test-sender-filter]");
+			assert(unfilteredMenu);
+			expect(unfilteredMenu.querySelector("summary")?.textContent?.trim()).toBe("Filter senders");
+			expect(unfilteredMenu.querySelector('button[name=sender][value=""]')?.hasAttribute("aria-current")).toBe(false);
 			const older = first.querySelector('[data-test-pagination-link="older"]')?.getAttribute("href");
 			assert(older);
 			const last = new JSDOM((await agent.get(older)).text).window.document;
