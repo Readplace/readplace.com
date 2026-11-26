@@ -106,7 +106,7 @@ describe("initMcpReadlistOperations", () => {
 		const { saved } = await store.saveArticle(saveParams());
 		const created = await ops.createReadlist({ userId, name: "Work" });
 		assert(created.status === "created");
-		const params = { userId, id: saved.id.value, target: { kind: "existing" as const, readlist: created.readlist.id } };
+		const params = { userId, id: saved.id.value, target: { kind: "existing" as const, readlist: created.readlist } };
 		expect(await ops.addToReadlist(params)).toMatchObject({ status: "filed", readlist: created.readlist });
 		const before = await store.findReadlistArticleById({ userId, id: saved.id, readlist: created.readlist.id });
 		expect(await ops.addToReadlist(params)).toMatchObject({ status: "already_filed", readlist: created.readlist });
@@ -120,8 +120,8 @@ describe("initMcpReadlistOperations", () => {
 		assert(work.status === "created" && weekend.status === "created");
 		const { saved } = await store.saveReadlistArticle({ ...saveParams(), readlist: work.readlist.id });
 		expect(await store.findArticleById(saved.id, userId)).toBeNull();
-		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist: weekend.readlist.id } })).toMatchObject({ status: "filed", article: { readlists: [work.readlist, weekend.readlist] } });
-		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist: DEFAULT_READLIST_SLUG } })).toMatchObject({
+		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist: weekend.readlist } })).toMatchObject({ status: "filed", article: { readlists: [work.readlist, weekend.readlist] } });
+		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist: { id: DEFAULT_READLIST_SLUG, name: "All" } } })).toMatchObject({
 			status: "filed",
 			article: { readlists: [{ id: DEFAULT_READLIST_SLUG, name: "All" }, work.readlist, weekend.readlist] },
 		});
@@ -150,17 +150,6 @@ describe("initMcpReadlistOperations", () => {
 		const { saved } = await store.saveArticle({ ...saveParams(), userId: otherUserId });
 		expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "create", name: "Work" } })).toEqual({ status: "article_not_found" });
 		expect(await ops.listReadlists({ userId })).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
-	});
-
-	it("treats an unowned readlist id like an unknown id without assigning any copy", async () => {
-		const { store, ops } = buildOps();
-		const { saved } = await store.saveArticle(saveParams());
-		const privateReadlist = await ops.createReadlist({ userId: otherUserId, name: "Private" });
-		assert(privateReadlist.status === "created");
-		for (const readlist of [privateReadlist.readlist.id, ReadlistSlugSchema.parse("unknown")]) {
-			expect(await ops.addToReadlist({ userId, id: saved.id.value, target: { kind: "existing", readlist } })).toEqual({ status: "readlist_not_found" });
-		}
-		expect(await store.listUserSavesForUrl({ userId, url: saved.url })).toEqual([{}]);
 	});
 
 	it.each([

@@ -8,6 +8,7 @@ import {
 } from "../tool-definitions";
 import type { McpReadlist, McpServerDeps, McpRequestContext } from "../mcp-ports.types";
 import { type ToolOutputs, type ToolResult, data, toolError, formatReadlistNames, } from "../tool-result";
+import { unknownReadlistError } from "./readlist.tools";
 
 export function submittedSaveUrl(
 	name: string,
@@ -46,9 +47,7 @@ export function initSaveLinkTool(
 			if (requested.length > 0) {
 				const resolved = await resolveReadlistIds(context.userId, requested);
 				if (!resolved.ok) {
-					return toolError(
-						`No readlist with id ${resolved.unknownId}. Call list_readlists and pass one of the ids it returns. Nothing was saved.`,
-					);
+					return unknownReadlistError(resolved.unknownId, " Nothing was saved.");
 				}
 				named = resolved.readlists;
 			}
