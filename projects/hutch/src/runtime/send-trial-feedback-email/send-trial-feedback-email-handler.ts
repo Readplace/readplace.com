@@ -52,6 +52,7 @@ import {
 import { trialDayOf } from "../domain/trial/trial-day";
 import type { LoadNextCharge } from "../domain/subscription/next-charge";
 import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -227,12 +228,12 @@ async function processCommand(
 }
 
 function trackedUrl(input: { appOrigin: string; path: string; content: string }): string {
-	const url = new URL(input.path, input.appOrigin);
-	url.searchParams.set("utm_source", "automation-saves-held");
-	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_campaign", "lapsed-inbox-save");
-	url.searchParams.set("utm_content", input.content);
-	return url.toString();
+	return emailTrackedUrl({
+		url: new URL(input.path, input.appOrigin),
+		source: "automation-saves-held",
+		campaign: "lapsed-inbox-save",
+		content: input.content,
+	});
 }
 
 async function processAutomationSavesHeld(
@@ -371,7 +372,7 @@ async function processReminder(
 	const component = TrialReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		savedArticlesCount: total,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=trial-reminder&utm_medium=email&utm_campaign=trial-preexpiry&utm_content=subscribe`,
+		ctaUrl: emailTrackedUrl({ url: new URL("/account", deps.appOrigin), source: "trial-reminder", campaign: "trial-preexpiry", content: "subscribe" }),
 	});
 
 	await sendUnlessKeyReused(
@@ -454,7 +455,7 @@ async function processChargeReminder(
 	const component = ChargeReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		chargeAt,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=charge-reminder&utm_medium=email&utm_campaign=trial-precharge&utm_content=manage-subscription`,
+		ctaUrl: emailTrackedUrl({ url: new URL("/account", deps.appOrigin), source: "charge-reminder", campaign: "trial-precharge", content: "manage-subscription" }),
 		plan: row.plan,
 		charge: nextCharge,
 	});
@@ -545,7 +546,7 @@ async function processPaymentFailed(
 
 	const component = PaymentFailedEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=payment-failed&utm_medium=email&utm_campaign=dunning&utm_content=update-card`,
+		ctaUrl: emailTrackedUrl({ url: new URL("/account", deps.appOrigin), source: "payment-failed", campaign: "dunning", content: "update-card" }),
 	});
 
 	await sendUnlessKeyReused(

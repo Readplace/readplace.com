@@ -6,6 +6,7 @@ import { listUnsubscribeHeaders, unsubscribeUrlFor } from "../queue-digest-email
 import type { SignupClient } from "./signup-client";
 import { buildWelcomeConnectorEmailHtml, buildWelcomeEmailHtml } from "./welcome-email";
 import type { LogError } from "@packages/logger";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const WELCOME_EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const WELCOME_EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -39,12 +40,7 @@ function connectorWelcomeFor(recipient: WelcomeRecipient) {
 }
 
 function welcomeLink(input: { url: URL; content: string }): string {
-	const tracked = new URL(input.url);
-	tracked.searchParams.set("utm_source", WELCOME_EMAIL_UTM_SOURCE);
-	tracked.searchParams.set("utm_medium", "email");
-	tracked.searchParams.set("utm_campaign", "onboarding");
-	tracked.searchParams.set("utm_content", input.content);
-	return tracked.toString();
+	return emailTrackedUrl({ url: input.url, source: WELCOME_EMAIL_UTM_SOURCE, campaign: "onboarding", content: input.content });
 }
 
 export function initSendWelcomeEmail(deps: SendWelcomeEmailDeps): SendWelcomeEmail {

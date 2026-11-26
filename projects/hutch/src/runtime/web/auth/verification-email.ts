@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { render } from "@packages/web-shell";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "verification-email.template.html"),
@@ -9,11 +10,7 @@ const TEMPLATE = readFileSync(
 );
 
 function verifyCtaUrl(verifyUrl: string): string {
-	const url = new URL(verifyUrl);
-	url.searchParams.set("utm_source", "verification-email");
-	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_content", "verify-email");
-	return url.toString();
+	return emailTrackedUrl({ url: verifyUrl, source: "verification-email", content: "verify-email" });
 }
 
 export function buildVerificationEmailHtml(verifyUrl: string): string {

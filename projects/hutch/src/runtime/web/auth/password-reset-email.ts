@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { render } from "@packages/web-shell";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "password-reset-email.template.html"),
@@ -9,11 +10,7 @@ const TEMPLATE = readFileSync(
 );
 
 function resetCtaUrl(resetUrl: string): string {
-	const url = new URL(resetUrl);
-	url.searchParams.set("utm_source", "password-reset-email");
-	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_content", "reset-password");
-	return url.toString();
+	return emailTrackedUrl({ url: resetUrl, source: "password-reset-email", content: "reset-password" });
 }
 
 export function buildPasswordResetEmailHtml(resetUrl: string): string {

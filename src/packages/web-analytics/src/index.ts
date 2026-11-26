@@ -113,3 +113,4 @@ export {
 	type RecordAudienceEvent,
 	type RecordUngatedEvent,
 } from "./record-audience-event";
+export { emailTrackedUrl } from "./email-tracked-url";
