@@ -10,7 +10,7 @@ export {
 export { MediaImageFileSchema, type MediaImageFile, mediaImageFileOf } from "./media-image-file";
 export { defineMediaKind, type MediaKindManifest, type Meter, type TimedFactsRefusal } from "./media-kind";
 export type { TimedMediaFacts } from "./playable-audio";
-export { AUDIO } from "./kinds/audio";
+export { AUDIO, listenMinutes } from "./kinds/audio";
 export { BOOK } from "./kinds/book";
 export { VIDEO } from "./kinds/video";
 export { MEDIA_KINDS, MediaKindNameSchema, type MediaKindName } from "./media-kinds";
