@@ -1,11 +1,5 @@
-import type { CanaryReportRow } from "@packages/provider-contracts/canary-report";
+import { type CanaryReportRow, countByName } from "@packages/provider-contracts/canary-report";
 import type { StuckRow } from "./collect-stuck-rows";
-
-function countByName(names: readonly string[]): [string, number][] {
-	const counts = new Map<string, number>();
-	for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
-	return Array.from(counts).sort(([nameA, countA], [nameB, countB]) => countB - countA || (nameA < nameB ? -1 : 1));
-}
 
 export function toCanaryReportRow(row: StuckRow): CanaryReportRow {
 	return {
