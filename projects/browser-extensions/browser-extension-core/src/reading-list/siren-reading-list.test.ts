@@ -1600,6 +1600,32 @@ describe("initSirenReadingList", () => {
 			expect(calls.at(-1)).toBe("GET http://localhost:3000/my-home");
 		});
 
+		it("names the home readlist the server marks current, asking for it as a Home-aware client", async () => {
+			const root = JSON.parse(collectionResponse());
+			root.links.push({ rel: ["home"], href: "/my-home" });
+			const home = JSON.parse(collectionResponse());
+			home.properties = {
+				browseReadlists: [
+					{ rel: "readlist", label: "Hand Picked", href: "/queue?scope=hand-picked" },
+					{ rel: "current", label: "Reading", href: "/my-home" },
+				],
+			};
+			let declared: string | null = null;
+			const { fetchFn } = createRoutingFetch(withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: JSON.stringify(root) },
+				"GET http://localhost:3000/my-home": (init) => {
+					declared = new Headers(init?.headers).get("X-Readplace-Home-Readlist");
+					return { status: 200, body: JSON.stringify(home) };
+				},
+			}));
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const page = await list.getItems();
+
+			expect(page.readlist).toEqual({ label: "Reading" });
+			expect(declared).toBe("1");
+		});
+
 		it("should return all items from the collection", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
@@ -2538,6 +2564,7 @@ describe("initSirenReadingList", () => {
 			const page = collectionPage(await pendingSort);
 
 			expect(invoked.total).toEqual({ label: "1 Saved Article" });
+			expect(invoked.readlist).toBeUndefined();
 			expect(invoked.sort).toEqual([
 				{ label: "Newest first", rel: "current", order: "desc" },
 				{ label: "Oldest first", rel: "sort", order: "asc" },
@@ -2570,6 +2597,7 @@ describe("initSirenReadingList", () => {
 
 			assert(!result.ok && "reason" in result && result.reason === "not-saveable", "the save should be refused as not saveable");
 			expect(result.total).toBeUndefined();
+			expect(result.readlist).toBeUndefined();
 			expect(result.sort).toEqual([]);
 		});
 	});

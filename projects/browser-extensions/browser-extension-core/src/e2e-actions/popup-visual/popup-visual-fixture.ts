@@ -145,7 +145,7 @@ export type SeededRun = { windowId: number; phase: "running" | "finished"; url: 
 
 function listReplyScript(listReply: ListReply, itemsReply: string): string {
 	if (listReply === "empty") {
-		return JSON.stringify({ ok: true, value: { items: [], pages: [], total: { label: "0 Saved Articles" }, sort: [] } });
+		return JSON.stringify({ ok: true, value: { items: [], pages: [], total: { label: "0 Saved Articles" }, readlist: { label: "Hand Picked" }, sort: [] } });
 	}
 	if (listReply === "error") return JSON.stringify({ ok: false, reason: "error" });
 	if (listReply === "logged-out") return JSON.stringify({ ok: false, reason: "not-logged-in" });
@@ -173,7 +173,7 @@ export function popupRuntimeStub(options?: {
 	const rowCount = options?.rowCount ?? DEFAULT_ROW_COUNT;
 	const itemsReply = listReplyScript(
 		options?.listReply ?? "items",
-		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, sort: SORT } }),
+		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, readlist: { label: "Hand Picked" }, sort: SORT } }),
 	);
 	const pendingBulkSave = options?.pendingBulkSave === true;
 	const saveAllStart = JSON.stringify(options?.saveAllStart ?? "acknowledge");

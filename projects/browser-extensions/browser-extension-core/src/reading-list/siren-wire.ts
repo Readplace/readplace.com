@@ -7,6 +7,7 @@ import type {
 	PageDescriptor,
 	SortDescriptor,
 	CollectionTotal,
+	CollectionReadlist,
 	SaveWarning,
 } from "./reading-list.types";
 
@@ -274,6 +275,8 @@ export type SortEntry = SortDescriptor & { readonly href: string };
 
 const SirenTotalSchema = z.object({ label: z.string() });
 
+const SirenBrowseReadlistSchema = z.object({ rel: z.string(), label: z.string() });
+
 function readHrefEntries<T extends { href: string }>(deps: {
 	entries: unknown;
 	schema: z.ZodType<T>;
@@ -306,6 +309,12 @@ export function readSortList(deps: {
 export function readTotal(body: SirenCollectionResponse): CollectionTotal | undefined {
 	const parsed = SirenTotalSchema.safeParse(body.properties?.total);
 	return parsed.success ? { label: parsed.data.label } : undefined;
+}
+
+export function readReadlist(body: SirenCollectionResponse): CollectionReadlist | undefined {
+	const parsed = lenientArray(SirenBrowseReadlistSchema).safeParse(body.properties?.browseReadlists);
+	const current = parsed.success ? parsed.data.find((entry) => entry.rel === "current") : undefined;
+	return current === undefined ? undefined : { label: current.label };
 }
 
 export const UploadSlotResponseSchema = z.object({

@@ -27,10 +27,12 @@ import {
 	shortcutHintSegments,
 } from "../command-shortcuts";
 import type { ReadingListItem } from "../domain/reading-list-item.types";
+import { assert } from "../invariant";
 import { installShortcuts } from "../keydown-shortcuts";
 import type { PopupMessage, PopupReplyFor } from "../popup-protocol";
 import type {
 	CollectionPage,
+	CollectionReadlist,
 	CollectionTotal,
 	Message,
 	PageDescriptor,
@@ -200,6 +202,7 @@ export function initPopup(deps: {
 	let currentItems: ReadingListItem[] = [];
 	let pageList: PageDescriptor[] = [];
 	let currentTotal: CollectionTotal | undefined;
+	let currentReadlist: CollectionReadlist | undefined;
 	let currentSort: SortDescriptor[] = [];
 	let listBusy = false;
 
@@ -207,6 +210,7 @@ export function initPopup(deps: {
 		currentItems = page.items;
 		pageList = page.pages;
 		currentTotal = page.total;
+		currentReadlist = page.readlist;
 		currentSort = page.sort;
 	}
 
@@ -433,8 +437,12 @@ export function initPopup(deps: {
 	}
 
 	function renderListHeader(): void {
-		const view = buildListHeaderView({ total: currentTotal, sort: currentSort });
+		const view = buildListHeaderView({ total: currentTotal, readlist: currentReadlist, sort: currentSort });
 		const header = elementById("list-header");
+		const readlist = header.querySelector<HTMLElement>(".list-view__readlist");
+		assert(readlist, "list readlist element not found");
+		readlist.textContent = view.readlistLabel ?? "";
+		readlist.hidden = view.readlistLabel === null;
 		const count = header.querySelector(".list-view__count");
 		if (!count) throw new Error("list count element not found");
 		count.textContent = view.countLabel ?? "";
@@ -451,7 +459,7 @@ export function initPopup(deps: {
 			};
 		}
 
-		header.hidden = view.countLabel === null && sort === null;
+		header.hidden = view.readlistLabel === null && view.countLabel === null && sort === null;
 	}
 
 	function renderLinks(items: ReadingListItem[]) {

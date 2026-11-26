@@ -141,6 +141,104 @@ function createUnderstandings() {
 
 describe("initExtension", () => {
 	describe("start navigation", () => {
+		it("declares Home readlist support on the entry request and on the home it follows", async () => {
+			const declared: Record<string, string | null> = {};
+			const { fetchFn } = createRoutingFetch({
+				"GET http://localhost:3000/": (init) => {
+					declared.entry = new Headers(init?.headers).get("X-Readplace-Home-Readlist");
+					return {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							entities: [],
+							links: [
+								{ rel: ["self"], href: "/" },
+								{ rel: ["home"], href: "/queue?readlist=reading" },
+							],
+							actions: COLLECTION_ACTIONS,
+						}),
+					};
+				},
+				"GET http://localhost:3000/queue?readlist=reading": (init) => {
+					declared.home = new Headers(init?.headers).get("X-Readplace-Home-Readlist");
+					return { status: 200, body: collectionResponse() };
+				},
+			});
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const root = await start();
+			assert(root.homeHref, "entry should link to the reader's home");
+			await root.followPage(root.homeHref);
+
+			assert.deepEqual(declared, { entry: "1", home: "1" });
+		});
+
+		it("names the readlist the server marks current", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: {
+								browseReadlists: [
+									{ rel: "readlist", label: "Hand Picked", href: "/queue?scope=hand-picked" },
+									{ rel: "current", label: "Reading", href: "/queue?readlist=reading" },
+								],
+							},
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			assert.deepEqual(result.readlist, { label: "Reading" });
+		});
+
+		it("names no readlist when none is marked current", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: {
+								browseReadlists: [{ rel: "readlist", label: "Hand Picked", href: "/queue?scope=hand-picked" }],
+							},
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			assert.equal(result.readlist, undefined);
+		});
+
+		it("names no readlist when the server sends no readlist list", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: { browseReadlists: "Hand Picked" },
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			assert.equal(result.readlist, undefined);
+		});
+
 		it("should return items with per-entity actions from collection", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
@@ -444,6 +542,7 @@ describe("initExtension", () => {
 						descriptors: {},
 						pages: [],
 						total: undefined,
+						readlist: undefined,
 						sorts: [],
 						followPage: async () => {
 							throw new Error("this handler advertises no pages");

@@ -209,7 +209,7 @@ describe("BrowserExtensionCore save", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, sort: [] },
+			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 		const { shell, showSavedCalls, showDefaultCalls } = createFakeShell({
 			id: 7,
@@ -231,7 +231,7 @@ describe("BrowserExtensionCore save", () => {
 
 		assert.deepStrictEqual(result, {
 			ok: true,
-			value: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, sort: [] },
+			value: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 		expect(showSavedCalls).toEqual([]);
 		expect(showDefaultCalls).toEqual([]);
@@ -245,7 +245,7 @@ describe("BrowserExtensionCore save", () => {
 			mintCalls += 1;
 		};
 		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, sort: [] },
+			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 		const { shell } = createFakeShell({
 			id: 7,
@@ -695,6 +695,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 				items: [saved.item],
 				pages: [],
 				total: undefined,
+				readlist: undefined,
 				sort: [],
 				targetUrl: "https://i.example",
 			},
@@ -826,7 +827,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 
 		assert.deepStrictEqual(result, {
 			ok: true,
-			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+			value: { items: [saved.item], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 	});
 
@@ -847,7 +848,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 
 		assert.deepStrictEqual(result, {
 			ok: true,
-			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+			value: { items: [saved.item], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 		expect(readingList.loadPageCalls).toEqual([{ index: 1 }]);
 	});
@@ -869,7 +870,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 
 		assert.deepStrictEqual(result, {
 			ok: true,
-			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+			value: { items: [saved.item], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 		expect({ sorts: readingList.loadSortCalls, pages: readingList.loadPageCalls }).toEqual({
 			sorts: [{ index: 1 }],
@@ -967,7 +968,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 
 		assert.deepStrictEqual(result, {
 			ok: true,
-			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+			value: { items: [saved.item], pages: [], total: undefined, readlist: undefined, sort: [] },
 		});
 		expect(warns).toHaveLength(1);
 	});

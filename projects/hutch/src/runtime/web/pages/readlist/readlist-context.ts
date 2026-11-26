@@ -83,7 +83,7 @@ export function initResolveReadlistContext(deps: {
 		const homeSlug = homeReadlistOf(home?.preference, definitions);
 		const { source: _source, sender: _sender, ...plainQuery } = req.query;
 		const parsed = parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query);
-		const requested = withRememberedFilter({ ...parsed, readlist: home?.open && homeSlug === home.preference?.slug ? homeSlug : parsed.readlist }, remembered);
+		const requested = withRememberedFilter({ ...parsed, readlist: (req.query.scope === "home" && req.query.readlist === undefined && req.query.queue === undefined) || (home?.open && homeSlug === home.preference?.slug) ? homeSlug : parsed.readlist }, remembered);
 		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			definitions,

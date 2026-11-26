@@ -46,6 +46,7 @@ export type SaveUrlResult =
 			items: ReadingListItem[];
 			pages: PageDescriptor[];
 			total: CollectionTotal | undefined;
+			readlist: CollectionReadlist | undefined;
 			sort: SortDescriptor[];
 			warning?: SaveWarning;
 		}
@@ -57,6 +58,7 @@ export type InvokeActionResult =
 			items: ReadingListItem[];
 			pages: PageDescriptor[];
 			total: CollectionTotal | undefined;
+			readlist: CollectionReadlist | undefined;
 			sort: SortDescriptor[];
 			targetUrl: string;
 		}
@@ -125,10 +127,15 @@ export interface CollectionTotal {
 	readonly label: string;
 }
 
+export interface CollectionReadlist {
+	readonly label: string;
+}
+
 export interface CollectionPage {
 	items: ReadingListItem[];
 	pages: PageDescriptor[];
 	total: CollectionTotal | undefined;
+	readlist: CollectionReadlist | undefined;
 	sort: SortDescriptor[];
 }
 

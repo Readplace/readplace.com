@@ -24,7 +24,7 @@ export function initInMemoryReadingList(): {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
 
 	function wholeList(): CollectionPage {
-		return { items: Array.from(items.values()), pages: [], total: undefined, sort: [] };
+		return { items: Array.from(items.values()), pages: [], total: undefined, readlist: undefined, sort: [] };
 	}
 
 	const saveUrl: SaveUrl = async ({ url, title }) => {

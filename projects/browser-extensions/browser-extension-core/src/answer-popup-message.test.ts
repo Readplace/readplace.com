@@ -8,7 +8,7 @@ import type { CollectionPage, InvokeActionResult, LoadPageResult, SaveUrlResult 
 
 type FetchData = { page: number } | { sort: number };
 
-const emptyPage: CollectionPage = { items: [], pages: [], total: undefined, sort: [] };
+const emptyPage: CollectionPage = { items: [], pages: [], total: undefined, readlist: undefined, sort: [] };
 
 const savedReply: GuardedResult<SaveUrlResult> = {
 	ok: true,
@@ -219,7 +219,7 @@ describe("initAnswerPopupMessage", () => {
 	describe("reading list", () => {
 		const firstPage: GuardedResult<CollectionPage> = {
 			ok: true,
-			value: { items: [], pages: [{ label: "1", rel: "current" }], total: undefined, sort: [] },
+			value: { items: [], pages: [{ label: "1", rel: "current" }], total: undefined, readlist: undefined, sort: [] },
 		};
 
 		it("fetches the list with no data for get-all-items", async () => {

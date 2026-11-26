@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { ReadingListItem } from "../domain/reading-list-item.types";
-import type { CollectionTotal, Message } from "./reading-list.types";
+import type { CollectionReadlist, CollectionTotal, Message } from "./reading-list.types";
 import type {
 	SirenCollectionResponse,
 	SirenAction,
@@ -38,6 +38,7 @@ export type NavigationResult = {
 	descriptors: Record<string, SirenAction>;
 	pages: PageEntry[];
 	total: CollectionTotal | undefined;
+	readlist: CollectionReadlist | undefined;
 	sorts: SortEntry[];
 	followPage: (href: string) => Promise<NavigationResult>;
 	/** Set only by the save-articles understanding; carries the bulk-save
