@@ -2,13 +2,13 @@
   <h2 class="readlist-nav__title">Readlists</h2>
   <details class="readlist-nav__switcher" data-test-readlist-switcher>
     <summary class="readlist-row readlist-row--selected readlist-nav__switcher-toggle" data-test-action="readlist-switcher">
-      <span class="readlist-row__main">{{icon current.iconName}}<span class="readlist-row__label"><span class="sr-only">Current readlist: </span>{{current.title}}</span></span>
+      <span class="readlist-row__main">{{icon current.iconName}}<span class="readlist-row__label"><span class="sr-only">Current readlist: </span>{{current.title}}</span>{{#if current.smart}}<span class="readlist-nav__smart">{{icon "sparkles"}}</span><span class="sr-only">{{t "readlistSmart.typeLabel"}}</span>{{/if}}</span>
       <span class="readlist-row__trailing readlist-nav__switcher-chevron">{{icon "chevron-down"}}</span>
     </summary>
     <ul class="readlist-nav__list">
       {{#each items}}
       <li class="{{itemClass}}">
-        <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}} data-test-readlist="{{name}}">{{icon iconName}}<span class="readlist-row__label" data-test-readlist-label>{{title}}</span></a>
+        <a class="{{linkClass}}" href="{{href}}"{{#if isActive}} aria-current="page"{{/if}}{{#if smart}} aria-label="{{accessibleName}}" data-test-readlist-smart{{/if}} data-test-readlist="{{name}}">{{icon iconName}}<span class="readlist-row__label" data-test-readlist-label>{{title}}</span>{{#if smart}}<span class="readlist-nav__smart">{{icon "sparkles"}}</span>{{/if}}{{#if smartLabel}}<span class="chip chip--badge readlist-nav__smart-label" data-test-readlist-smart-label>{{t "readlistSmart.typeLabel"}}</span>{{/if}}</a>
         {{{menuHtml}}}
       </li>
       {{/each}}

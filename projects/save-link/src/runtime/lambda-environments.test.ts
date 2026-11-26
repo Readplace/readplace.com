@@ -1,3 +1,4 @@
+import { MATCH_SMART_READLISTS_ENV } from "./match-smart-readlists.env";
 import assert from "node:assert/strict";
 import { SAVE_LINK_FAILURES_DLQ_ENV } from "./save-link-failures-dlq.env";
 import { SAVE_LINK_COMMAND_ENV } from "./save-link-command.env";
@@ -35,6 +36,7 @@ import { SELECTION_INGRESS_ENV } from "./selection-ingress.env";
 import { SELECT_ARTICLE_CONTENT_ENV } from "./select-article-content.env";
 
 const tuples = {
+	MATCH_SMART_READLISTS_ENV,
 	SAVE_LINK_FAILURES_DLQ_ENV,
 	SAVE_LINK_COMMAND_ENV,
 	SUBMIT_LINK_ENV,

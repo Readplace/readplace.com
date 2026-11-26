@@ -6,9 +6,9 @@ export const enUS = {
 		preferences: "Set preferences",
 		open: "Open Smart Readlist",
 		all: "Open All",
-		start: "Create a readlist, then open Preferences and set its purpose.",
-		configure: "Set a custom readlist’s purpose in Preferences to make it a Smart Readlist.",
-		file: "Open the “All” readlist, choose an article, and use Add to file it in your Smart Readlist. If your library is empty, save a link there first.",
+		start: "Create a readlist, then make it smart in Preferences.",
+		configure: "Open a custom readlist’s Preferences and choose “Make this a Smart Readlist”.",
+		file: "Save articles that fit its purpose and Readplace adds them to your Smart Readlist. You can also open the “All” readlist and use Add to file one yourself.",
 		progress: "{count}/10 articles saved to Smart Readlists",
 		unavailable: "Progress unavailable",
 		dismiss: "I don't want to do this",
@@ -200,5 +200,41 @@ export const enUS = {
 	},
 	readlistKeepOffer: {
 		withoutCard: "Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.",
+	},
+	readlistSmart: {
+		typeLabel: "Smart Readlist",
+		accessibleName: "{name}, Smart Readlist",
+		create: {
+			toggle: "Automatically add matching articles",
+			purposeLabel: "What should this readlist collect?",
+			submit: "Create Smart Readlist",
+		},
+		convert: {
+			title: "Make this a Smart Readlist",
+			body: "Readplace will check new saves from all your sources.",
+			purposeLabel: "What should this readlist collect?",
+			submit: "Make this a Smart Readlist",
+		},
+		rule: {
+			title: "Matching instructions",
+			body: "Readplace checks each new save from all your sources against these instructions.",
+			purposeLabel: "What should this readlist collect?",
+			submit: "Save instructions",
+		},
+		sources: {
+			title: "Sources",
+			body: "This readlist checks every new save, including newsletters and Gmail. Manage those sources on their own pages.",
+			newsletters: "Newsletters",
+			gmail: "Gmail",
+		},
+		turnOff: {
+			title: "Turn off smart matching",
+			body: "The articles already in this readlist and their read status stay. New articles arrive only when you file them yourself.",
+			submit: "Turn off smart matching",
+		},
+		paused: {
+			title: "Smart matching is paused",
+			body: "Smart Readlists are part of a paid plan. Upgrade to match new saves again, or turn off smart matching.",
+		},
 	},
 } as const;

@@ -37,7 +37,7 @@ export interface ReaderReadlistPicker {
 	assignUrl: string;
 	returnTo: string;
 	choice: "single" | "several";
-	options: readonly { slug: ReadlistSlug; label: string; iconName: IconName }[];
+	options: readonly { slug: ReadlistSlug; label: string; iconName: IconName; smart?: boolean; accessibleName?: string }[];
 	filterHtml: string;
 	create:
 		| { createUrl: string; maxLength: number; popoverId: string; nameLabel: string; namePlaceholder: string }

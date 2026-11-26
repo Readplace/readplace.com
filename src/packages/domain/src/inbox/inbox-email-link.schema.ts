@@ -51,7 +51,7 @@ export const InboxReadlistOutcomeSchema = z.object({
 	readlistLabel: z.string().min(1),
 	/** Start of a continuation. The original delivery starts at zero. */
 	startIndex: z.number().int().positive().optional(),
-	decision: z.enum(["filtered", "no-purpose", "readlist-missing", "failed"]),
+	decision: z.enum(["filtered", "no-purpose", "readlist-missing", "smart-matching", "failed"]),
 	fit: z.array(
 		z.object({
 			ordinal: EmailLinkOrdinalSchema,

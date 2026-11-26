@@ -52,6 +52,7 @@ import {
 } from "./readlist-purpose-card.component";
 import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
 import type { ReadlistRailViewModel } from "./readlist-rail";
+import { type ReadlistFilingMode, renderReadlistSmartFiling } from "./readlist-smart-filing.component";
 import { readlistReturnQuery } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
@@ -141,6 +142,9 @@ export interface ReadlistPreferencesViewModel {
 	wizardOpen: boolean;
 	wizardFrom?: PurposeOrigin;
 	purposeError?: string;
+	filing: ReadlistFilingMode;
+	smartPurpose: string | undefined;
+	smartError: string | undefined;
 	inboxes: readonly InboxAddressEntry[];
 	inboxCreate: { submittedName: string | undefined; error: InboxNameError | undefined };
 	inboxCreated: AliasName | undefined;
@@ -182,6 +186,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		wizardOpenClasses: vm.wizardOpen ? [WIZARD_OPEN_CLASS] : [],
 	});
 	const panels = readlistPanels(vm.rail);
+	const smart = vm.filing === "smart";
 	const side = readlistSideColumn({
 		banner: vm.subscriptionBanner,
 		onboarding: vm.onboarding,
@@ -200,7 +205,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),
-		purposeCardHtml: renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
+		purposeCardHtml: smart ? "" : renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
@@ -209,22 +214,32 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		),
 		panelClass: [PANEL_CLASS[state], ...controls.modifierClasses].join(" "),
 		state,
+		smart,
 		readlistLabel: vm.readlist.label,
 		setupIllustrationHtml: renderIllustration("book-lightbulb"),
 		setupActions: controls.setupActions,
 		setupLocks: controls.setupLocks,
 		inlineWizards: controls.inlineWizards,
-		inboxesHtml: renderReadlistInboxes(
-			buildReadlistInboxes({
-				readlist: vm.readlist,
-				inboxes: vm.inboxes,
-				readlists: vm.rail.readlists,
-				create: vm.inboxCreate,
-				standing,
-				offer: vm.rail.offer,
-			}),
-		),
-		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
+		smartFilingHtml: renderReadlistSmartFiling({
+			slug: vm.readlist.slug,
+			mode: vm.filing,
+			purpose: vm.smartPurpose,
+			paidFeaturesLocked: vm.paidFeaturesLocked,
+			error: vm.smartError,
+		}),
+		inboxesHtml: smart
+			? ""
+			: renderReadlistInboxes(
+				buildReadlistInboxes({
+					readlist: vm.readlist,
+					inboxes: vm.inboxes,
+					readlists: vm.rail.readlists,
+					create: vm.inboxCreate,
+					standing,
+					offer: vm.rail.offer,
+				}),
+			),
+		gmailSendersHtml: smart || vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
 		choicesHtml: renderReadlistFitChoices({
 			readlist: vm.readlist,
 			choices: vm.choices,
@@ -236,7 +251,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		readlistRenamesHtml: panels.renames,
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
-		wizardPopoverHtml: controls.wizardPopoverHtml,
+		wizardPopoverHtml: smart ? "" : controls.wizardPopoverHtml,
 	});
 
 	return {

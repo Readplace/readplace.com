@@ -23,7 +23,7 @@ async function setup() {
 	assert(user);
 	const { userId } = user;
 	await fixture.articleStore.createReadlistDefinition({ userId, slug, label: "Ideas", createdAt: new Date() });
-	await fixture.articleStore.setReadlistDefinitionPurpose({ userId, slug, purpose: "Ideas to explore" });
+	await fixture.articleStore.setSmartReadlistRule({ userId, slug, purpose: "Ideas to explore", effectiveAt: new Date() });
 	await fixture.onboardingSignals.recordEmailStepMarkedDone({ userId });
 	await fixture.onboardingSignals.recordNextReadMinimumReached({ userId });
 	const view = async (path: string, cookie = cookies, ua = chrome) => {
@@ -80,7 +80,8 @@ describe("Smart Readlist guide", () => {
 	});
 
 	it("keeps the persisted purpose in a stale setup URL carrying an old draft", async () => {
-		const { view } = await setup();
+		const { fixture, userId, view } = await setup();
+		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
 		const doc = await view(`${prefs}?setup=1&purpose=old`);
 		expect(doc.querySelector(".readlist-preferences--wizard-open")).toBeNull();
 		expect(doc.querySelector('[data-test-field="purpose"]')?.textContent).toBe("Ideas to explore");
@@ -111,15 +112,15 @@ describe("Smart Readlist guide", () => {
 
 	it("uses the active or first navigable list at the readlist limit", async () => {
 		const { fixture, userId, view, count } = await setup();
-		await fixture.articleStore.clearReadlistDefinitionPurpose({ userId, slug });
+		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
 		const pinned = ReadlistSlugSchema.parse("list-1");
 		for (let i = 1; i < READLIST_MAX_PER_USER; i++) {
 			await fixture.articleStore.createReadlistDefinition({ userId, slug: ReadlistSlugSchema.parse(`list-${i}`), label: `List ${i}`, createdAt: new Date() });
 		}
 		await fixture.articleStore.pinReadlistDefinition({ userId, slug: pinned, pinnedAt: new Date() });
 		const action = (doc: Document) => doc.querySelector(step)?.querySelector('form')?.getAttribute("action");
-		expect(action(await view("/queue"))).toBe("/queue/queues/list-1/preferences");
-		expect(action(await view(prefs))).toBe(prefs);
+		expect(action(await view("/queue"))).toBe("/queue/queues/list-1/preferences#readlist-smart");
+		expect(action(await view(prefs))).toBe(`${prefs}#readlist-smart`);
 		expect(count).not.toHaveBeenCalled();
 	});
 
@@ -131,7 +132,21 @@ describe("Smart Readlist guide", () => {
 		expect((await view(prefs, cookie, "unrecognised")).querySelector(".setup-guide--visible")?.querySelector(step)).toBeTruthy();
 	});
 
-	it("skips membership reads for Siren, a cleared purpose and free access, and resumes on re-upgrade", async () => {
+	it("sends a reader whose readlist only has a purpose to make it a Smart Readlist, without counting it", async () => {
+		const { fixture, userId, view, count } = await setup();
+		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
+		expect((await fixture.articleStore.listReadlistDefinitions(userId)).find((list) => list.slug === slug)?.purpose).toBe("Ideas to explore");
+		const doc = await view("/queue");
+		const row = doc.querySelector(step);
+		expect(row?.textContent).toContain("0/10");
+		expect(row?.textContent).toContain("choose “Make this a Smart Readlist”");
+		expect(row?.querySelector('[data-test-onboarding-action="set-preferences"]')?.closest("form")?.getAttribute("action")).toBe(`${prefs}#readlist-smart`);
+		expect(count).not.toHaveBeenCalled();
+		const target = await view(`${prefs}#readlist-smart`);
+		expect(target.getElementById("readlist-smart")?.querySelector('[data-test-form="smart-convert"]')).toBeTruthy();
+	});
+
+	it("skips membership reads for Siren, matching turned off and free access, and resumes on re-upgrade", async () => {
 		const { app, fixture, userId, agent, count, view } = await setup();
 		const client = await app.oauthModel.getClient("hutch-firefox-extension", "");
 		assert(client);
@@ -146,12 +161,12 @@ describe("Smart Readlist guide", () => {
 		await app.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - 86400000).toISOString() });
 		expect((await view("/queue")).querySelector(step)).toBeNull();
 		await app.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 86400000).toISOString() });
-		await fixture.articleStore.clearReadlistDefinitionPurpose({ userId, slug });
+		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
 		const empty = (await view(prefs)).querySelector(step);
 		expect(empty?.textContent).toContain("0/10");
-		expect(empty?.querySelector('[name="setup"]')?.getAttribute("value")).toBe("1");
+		expect(empty?.querySelector('[name="setup"]')).toBeNull();
 		expect(count).not.toHaveBeenCalled();
-		await fixture.articleStore.setReadlistDefinitionPurpose({ userId, slug, purpose: "Restored" });
+		await fixture.articleStore.setSmartReadlistRule({ userId, slug, purpose: "Restored", effectiveAt: new Date() });
 		expect((await view(prefs)).querySelector(step)?.textContent).toContain("9/10");
 	});
 });

@@ -270,7 +270,7 @@ function articleMoveOf(input: {
 		...(input.handPicked ? [{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }] : []),
 		...custom
 			.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
-			.map((readlist) => ({ slug: readlist.slug, label: readlist.label })),
+			.map((readlist) => ({ slug: readlist.slug, label: readlist.label, smart: readlist.smart })),
 	];
 	const create =
 		custom.length < READLIST_MAX_PER_USER ? { popoverId: moveCreatePopoverId(input.articleId) } : undefined;

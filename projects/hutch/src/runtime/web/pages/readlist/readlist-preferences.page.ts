@@ -26,6 +26,8 @@ import type {
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
 	SetReadlistDefinitionPurpose,
+	SetSmartReadlistRule,
+	TurnOffSmartReadlistMatching,
 } from "@packages/provider-contracts/article-store";
 import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
@@ -62,6 +64,7 @@ import { isFreePlanBannerDismissed } from "./free-plan-banner-dismiss";
 
 const PREFERENCES_ERROR_CODES = [
 	"invalid-purpose",
+	"invalid-smart-purpose",
 	"unknown-inbox",
 	"gmail-selection",
 	"gmail-unavailable",
@@ -75,12 +78,14 @@ type PreferencesErrorCode = (typeof PREFERENCES_ERROR_CODES)[number];
 
 interface PreferencesError {
 	purposeError?: string;
+	smartPurposeError?: string;
 	inboxNameError?: InboxNameError;
 	alert?: AlertContent;
 }
 
 const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 	"invalid-purpose": { purposeError: READLIST_PURPOSE_INVALID_MESSAGE },
+	"invalid-smart-purpose": { smartPurposeError: READLIST_PURPOSE_INVALID_MESSAGE },
 	"unknown-inbox": { alert: INBOX_UNAVAILABLE_ALERT },
 	"gmail-selection": { alert: GMAIL_SELECTION_ALERT },
 	"gmail-unavailable": { alert: GMAIL_UNAVAILABLE_ALERT },
@@ -116,6 +121,8 @@ const InboxCreateBodySchema = z.object({ name: z.string().catch("") }).catch({ n
 export function initReadlistPreferencesRoutes(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setSmartReadlistRule: SetSmartReadlistRule;
+	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	listReadlistFitOverrides: ListReadlistFitOverrides;
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
@@ -230,6 +237,9 @@ export function initReadlistPreferencesRoutes(deps: {
 					onboarding,
 					query: req.query,
 					purposeError: error.purposeError,
+					filing: definition.filing?.mode ?? "legacy",
+					smartPurpose: definition.purpose,
+					smartError: error.smartPurposeError,
 					cspNonce: requireCspNonce(req),
 				}),
 				await deps.buildBannerState(req, { preFetchedAccess: access, upgradeSource: "queue-preferences-banner" }),
@@ -304,6 +314,73 @@ export function initReadlistPreferencesRoutes(deps: {
 			answer({ landing: result.firstSetup ? `${landing}${separator}${PREFERENCES_SETUP_SAVED}=1` : landing, scroll: "stay-put" });
 		},
 	);
+
+	router.post(
+		"/queues/:slug/preferences/smart",
+		requireNotLocked,
+		deps.requirePaidFeatures,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				unknownReadlist(res);
+				return;
+			}
+			const typed = typeof req.body?.purpose === "string" ? req.body.purpose : "";
+			const definitions = await deps.listReadlistDefinitions(userId);
+			const decision = decideReadlistPurpose({
+				slug: requested.data,
+				purpose: typed,
+				readlists: readerReadlists(definitions),
+			});
+			if (!decision.ok) {
+				SMART_RULE_REJECTIONS[decision.reason]({ res, slug: requested.data });
+				return;
+			}
+			const outcome = await deps.setSmartReadlistRule({
+				userId,
+				slug: decision.slug,
+				purpose: decision.purpose,
+				effectiveAt: deps.now(),
+			});
+			if (outcome.kind === "readlist-gone") {
+				unknownReadlist(res);
+				return;
+			}
+			res.redirect(303, `${readlistPreferencesPath(decision.slug)}?preferences_saved=1`);
+		},
+	);
+
+	router.post(
+		"/queues/:slug/preferences/smart/off",
+		requireNotLocked,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				unknownReadlist(res);
+				return;
+			}
+			const { turnedOff } = await deps.turnOffSmartReadlistMatching({ userId, slug: requested.data });
+			if (!turnedOff) {
+				unknownReadlist(res);
+				return;
+			}
+			res.redirect(303, `${readlistPreferencesPath(requested.data)}?preferences_saved=1`);
+		},
+	);
+
+	const SMART_RULE_REJECTIONS: Record<
+		ReadlistPurposeRejection,
+		(input: { res: Response; slug: ReadlistSlug }) => void
+	> = {
+		"unknown-readlist": ({ res }) => unknownReadlist(res),
+		"invalid-purpose": ({ res, slug }) => {
+			res.redirect(303, `${readlistPreferencesPath(slug)}?preferences_error=invalid-smart-purpose`);
+		},
+	};
 
 	router.post(
 		"/queues/:slug/preferences/overrides/:id/delete",

@@ -545,7 +545,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		userId: UserId, signals: Awaited<ReturnType<typeof deps.getOnboardingSignals>> | undefined,
 		definitions: readonly ReadlistDefinitionData[], active: ReadlistSlug,
 	) => {
-		const configured = definitions.filter((list) => list.purpose);
+		const configured = definitions.filter((list) => list.filing?.mode === "smart");
 		const candidates = configured.length ? configured : definitions;
 		const nav = composeReadlistNav({
 			readlists: readerReadlists(definitions),

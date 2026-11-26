@@ -80,7 +80,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 			viewport: { width: 390, height: 844 },
 		});
 
-		test("creates, configures and files the first article using the keyboard", async ({ page }, testInfo) => {
+		test("creates, makes smart and files the first article using the keyboard", async ({ page }, testInfo) => {
 			const email = await seedArticle(page, `smart-${testInfo.workerIndex}-${Date.now()}`);
 			await loginAs(page, email);
 			const step = page.locator('[data-test-onboarding-step="create-smart-readlist"]');
@@ -101,19 +101,12 @@ test.describe("The readlist is whole without client JavaScript", () => {
 
 			await openStep();
 			await step.getByRole("button", { name: "Set preferences" }).press("Enter");
-			await expect(page).toHaveURL(/setup=1/);
-			const setupUrl = page.url();
-			expect(new URL(setupUrl).searchParams.get("utm_content")).toBe("set-preferences");
-			const secondTab = await page.context().newPage();
-			await secondTab.goto(setupUrl);
-			const wizard = secondTab.locator('[data-test-wizard-inline="readlist-preferences"]');
-			await wizard.locator('[name="purpose"]').fill("Ideas worth reading again");
-			await wizard.getByRole("button", { name: "Save" }).press("Enter");
-			await expect(secondTab.locator("[data-test-readlist-purpose-text]")).toHaveText("Ideas worth reading again");
-			await secondTab.close();
-			await page.goto(setupUrl);
-			await expect(page.locator("[data-test-readlist-purpose-text]")).toHaveText("Ideas worth reading again");
-			await expect(page.locator('[data-test-wizard-inline="readlist-preferences"]')).toBeHidden();
+			await expect(page).toHaveURL(/#readlist-smart$/);
+			expect(new URL(page.url()).searchParams.get("utm_content")).toBe("set-preferences");
+			const smart = page.locator("#readlist-smart");
+			await smart.locator('[name="purpose"]').fill("Ideas worth reading again");
+			await smart.getByRole("button", { name: "Make this a Smart Readlist" }).press("Enter");
+			await expect(page.locator('[data-test-smart-filing="smart"] [data-test-field="smart-purpose"]')).toHaveValue("Ideas worth reading again");
 
 			await page.goto(`${BASE_URL}/queue?queue=${slug}`);
 			await openStep();

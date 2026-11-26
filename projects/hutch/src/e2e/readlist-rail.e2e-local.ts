@@ -42,7 +42,7 @@ const CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const CREATE_INPUT = "[data-test-readlist-create-input]";
 const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
 const CREATE_ERROR = "[data-test-readlist-create-error]";
-const COMMIT_LABEL = ".readlist-name-form__commit-label";
+const COMMIT_LABEL = ".readlist-name-form__commit-label:not(.readlist-name-form__commit-label--smart)";
 const COMMIT_LOADER = ".readlist-name-form__loader";
 const LIVE_REGION = "#toast-live-region";
 const SAME_DOCUMENT_MARK = "data-test-same-document";

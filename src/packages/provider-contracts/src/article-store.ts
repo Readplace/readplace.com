@@ -397,6 +397,10 @@ export type DeleteReadlistArticleByUrl = (params: {
  * partition-key form) so they can be fed back into the URL-keyed content ops. */
 export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
 
+export type ReadlistFiling =
+	| { mode: "manual" }
+	| { mode: "smart"; revision: number; effectiveAt: Date };
+
 export interface ReadlistDefinitionData {
 	starterCampaignId?: string;
 	slug: ReadlistSlug;
@@ -404,7 +408,32 @@ export interface ReadlistDefinitionData {
 	createdAt: Date;
 	purpose?: string;
 	pinnedAt?: Date;
+	filing?: ReadlistFiling;
 }
+
+export type SetSmartReadlistRule = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+	purpose: string;
+	effectiveAt: Date;
+}) => Promise<{ kind: "set"; revision: number } | { kind: "readlist-gone" }>;
+
+export type TurnOffSmartReadlistMatching = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+}) => Promise<{ turnedOff: boolean }>;
+
+export type FindSmartMatchRevisions = (params: {
+	userId: UserId;
+	storedKey: string;
+}) => Promise<{ kind: "not-in-all" } | { kind: "in-all"; savedAt: Date; revisions: ReadonlyMap<ReadlistSlug, number> }>;
+
+export type RecordSmartMatchRevision = (params: {
+	userId: UserId;
+	storedKey: string;
+	readlist: ReadlistSlug;
+	revision: number;
+}) => Promise<{ recorded: boolean }>;
 
 export type CreateReadlistDefinition = (params: {
 	userId: UserId;
@@ -512,7 +541,8 @@ export type FileIntoLiveReadlistOutcome =
 	| "newer-row-won"
 	| "readlist-gone"
 	| "removed-after-request"
-	| "not-in-all";
+	| "not-in-all"
+	| "smart-rule-changed";
 
 export type FileIntoLiveReadlist = (params: {
 	userId: UserId;
@@ -523,6 +553,7 @@ export type FileIntoLiveReadlist = (params: {
 	suggestionAttribution?: SuggestionAttribution;
 	requestedAt: Date;
 	landsAs: ReadlistFilingLandsAs;
+	smartRule?: { revision: number };
 }) => Promise<{ outcome: FileIntoLiveReadlistOutcome }>;
 
 export type MarkReadlistArticleViewed = (params: {

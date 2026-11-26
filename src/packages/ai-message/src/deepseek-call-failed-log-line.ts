@@ -22,6 +22,7 @@ export type DeepseekCallSite =
 	| "compute-related-articles"
 	| "compute-related-past-reads"
 	| "filter-email-links"
+	| "match-smart-readlists"
 	| "triage-email-links"
 	| "pdf-page-llm-cleanup"
 	| "pdf-page-html-convert"

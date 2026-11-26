@@ -80,7 +80,9 @@ const READLIST_NAME_LENGTH_MESSAGE = `Give the readlist a name of ${READLIST_LAB
 
 export const READLIST_LIMIT_MESSAGE = `You can create up to ${READLIST_MAX_PER_USER} readlists. Delete an existing readlist before creating a new one.`;
 
-export type ReadlistCreateDialogRejection = ReadlistCreateRejection | "name-taken";
+export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat(DEFAULT_LOCALE).format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
+
+export type ReadlistCreateDialogRejection = ReadlistCreateRejection | "name-taken" | "invalid-purpose";
 
 export const READLIST_CREATE_REJECTIONS: Record<ReadlistCreateDialogRejection, { message: string }> = {
 	"invalid-name": {
@@ -91,6 +93,9 @@ export const READLIST_CREATE_REJECTIONS: Record<ReadlistCreateDialogRejection, {
 	},
 	"name-taken": {
 		message: "You already have a readlist with that name, so pick another one.",
+	},
+	"invalid-purpose": {
+		message: READLIST_PURPOSE_INVALID_MESSAGE,
 	},
 };
 
@@ -108,8 +113,6 @@ export const READLIST_RENAME_REJECTIONS: Record<ReadlistRenameRejection, { messa
 };
 
 export const READLIST_UNKNOWN_ARTICLE_MESSAGE = "That article isn't in this readlist.";
-
-export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat(DEFAULT_LOCALE).format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
 
 export type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;
 

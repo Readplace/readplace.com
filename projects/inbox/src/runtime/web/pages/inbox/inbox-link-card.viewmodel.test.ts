@@ -792,7 +792,7 @@ describe("toInboxLinkCardViewModel", () => {
 			expect(vm.fitActions).toEqual([]);
 		});
 
-		it.each(["no-purpose", "readlist-missing"] as const)(
+		it.each(["no-purpose", "readlist-missing", "smart-matching"] as const)(
 			"shows no marker or control for a %s outcome",
 			(decision) => {
 				const vm = build({ fit: [readlistFit({ decision, fit: engine("keep") })] });

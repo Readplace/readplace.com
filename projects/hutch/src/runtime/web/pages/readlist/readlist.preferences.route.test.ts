@@ -250,7 +250,12 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		);
 		const browse = main.querySelector(".readlist__browse");
 		assert(browse, "the column must browse the tabs, the panel and the inboxes");
-		const BROWSE_PARTS = ["[data-test-filters]", "[data-test-readlist-preferences]", "[data-test-readlist-inboxes]"];
+		const BROWSE_PARTS = [
+			"[data-test-filters]",
+			"[data-test-readlist-preferences]",
+			"[data-test-readlist-inboxes]",
+			"[data-test-smart-filing]",
+		];
 		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
 			BROWSE_PARTS,
 		);
@@ -272,6 +277,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 			"[data-test-readlist-preferences]",
 			"[data-test-readlist-inboxes]",
 			"[data-test-readlist-gmail-senders]",
+			"[data-test-smart-filing]",
 		];
 		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
 			BROWSE_PARTS,

@@ -7,7 +7,7 @@
       {{#if several}}
       {{#each readlistPicker.options}}
       <li class="article-body__readlists-item readlist-filter__option" data-test-readlists-row="{{slug}}">
-        <label class="article-body__readlists-option article-body__readlists-choice">{{icon iconName}}<span class="article-body__readlists-option-label">{{label}}</span><input class="form-choice article-body__readlists-checkbox" type="checkbox" name="queue" value="{{slug}}" form="reader-readlists-add" data-test-assign-readlist="{{slug}}"></label>
+        <label class="article-body__readlists-option article-body__readlists-choice">{{icon iconName}}<span class="article-body__readlists-option-label">{{label}}</span>{{#if smart}}<span class="article-body__readlists-smart">{{icon "sparkles"}}</span>{{/if}}<input class="form-choice article-body__readlists-checkbox" type="checkbox" name="queue" value="{{slug}}"{{#if smart}} aria-label="{{accessibleName}}" data-test-readlist-smart{{/if}} form="reader-readlists-add" data-test-assign-readlist="{{slug}}"></label>
       </li>
       {{/each}}
       {{else}}
@@ -16,7 +16,7 @@
         <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
           <input type="hidden" name="queue" value="{{slug}}">
           <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">
-          <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}">{{icon iconName}}<span class="article-body__readlists-option-label">{{label}}</span></button>
+          <button class="article-body__readlists-option" type="submit" data-test-assign-readlist="{{slug}}"{{#if smart}} aria-label="{{accessibleName}}" data-test-readlist-smart{{/if}}>{{icon iconName}}<span class="article-body__readlists-option-label">{{label}}</span>{{#if smart}}<span class="article-body__readlists-smart">{{icon "sparkles"}}</span>{{/if}}</button>
         </form>
       </li>
       {{/each}}
