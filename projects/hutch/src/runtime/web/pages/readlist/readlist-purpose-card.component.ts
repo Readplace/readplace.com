@@ -7,7 +7,7 @@ import { render, truncateAtWordBoundary, withInternalTracking } from "@packages/
 import { type UpgradeOffer, type UpgradeStanding, renderedLockFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
 import {
-	READLIST_PREFERENCES_STEPS,
+	READLIST_PREFERENCES_STEP,
 	READLIST_PREFERENCES_WIZARD_ID,
 	READLIST_PREFERENCES_WIZARD_KEY,
 	type ReadlistPreferencesWizardViewModel,
@@ -38,11 +38,10 @@ export function renderReadlistPurposeWizard(input: {
 	return renderWizard({
 		id: READLIST_PREFERENCES_WIZARD_ID,
 		key: READLIST_PREFERENCES_WIZARD_KEY,
-		steps: READLIST_PREFERENCES_STEPS,
+		step: READLIST_PREFERENCES_STEP,
 		values: input.values,
 		action: withInternalTracking(readlistPurposeActionPath(target), { source: PREFERENCES_SOURCE, content: "save-purpose" }),
 		cancelHref: withInternalTracking(readlistPurposeLandingPath(target), { source: PREFERENCES_SOURCE, content: "cancel" }),
-		submitLabel: "Save",
 		heading: { kind: "task", title: "Edit readlist purpose" },
 		failureMessage: PURPOSE_FAILURE_MESSAGE,
 		error: input.error,

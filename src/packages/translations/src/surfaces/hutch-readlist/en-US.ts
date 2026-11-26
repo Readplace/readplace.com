@@ -125,6 +125,9 @@ export const enUS = {
 			unavailable: "Readplace couldn't get the content of some of these articles, so they can't be read offline.",
 		},
 	},
+	readlistPreferences: {
+		save: "Save",
+	},
 	readlistGmail: {
 		enabled: "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and {readlist}. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
 	},
