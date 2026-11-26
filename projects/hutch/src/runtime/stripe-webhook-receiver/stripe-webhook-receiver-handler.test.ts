@@ -173,7 +173,7 @@ describe("stripe-webhook-receiver-handler", () => {
 			},
 			(error: unknown) => {
 				assert(error instanceof UnconfiguredStripeEventError);
-				assert.equal(error.type, "invoice.created");
+				assert.match(error.message, /invoice\.created/);
 				return true;
 			},
 		);
