@@ -8,7 +8,7 @@ const CAPTURE = `https://web.archive.org/web/2008/${ORIGINAL}`;
 const ARTICLE = "<p>The original article survived.</p>";
 const source: ArchiveSaveHealthSource = {
 	label: "Wayback", url: CAPTURE, expectedDestinationUrl: ORIGINAL,
-	expectedContent: "The original article survived.", expectsThumbnail: false,
+	expectedContent: "The original article survived.",
 	save: { kind: "archive", captureUrl: CAPTURE, requireFreshArchive: true },
 };
 
@@ -155,7 +155,7 @@ it("rejects candidates from a different original and selected IDs absent from th
 const UPLOAD_URL = "https://readplace.com/crawl-canary/upload/run";
 const UPLOADED = "<html><body><p>Crawl canary upload run kept the reader's own capture.</p></body></html>";
 const uploadSource: UploadHealthSource = {
-	label: "Upload", url: UPLOAD_URL, expectedDestinationUrl: UPLOAD_URL, expectedContent: "kept", expectsThumbnail: false,
+	label: "Upload", url: UPLOAD_URL, expectedDestinationUrl: UPLOAD_URL, expectedContent: "kept",
 	save: { kind: "upload", title: "Upload", html: UPLOADED },
 };
 
