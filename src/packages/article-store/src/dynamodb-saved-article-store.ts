@@ -966,21 +966,15 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const order = query.order ?? "desc";
 		const index = listingIndex(partition, query);
 
-		let total: number | undefined;
-		if (query.includeTotal) {
-			let counted = 0;
-			let countStartKey: Record<string, unknown> | undefined;
-			do {
-				const { count, lastEvaluatedKey } = await userArticles.query({
-					...index,
-					Select: "COUNT",
-					ExclusiveStartKey: countStartKey,
-				});
-				counted += count;
-				countStartKey = lastEvaluatedKey;
-			} while (countStartKey);
-			total = counted;
-		}
+		const total = query.includeTotal
+			? await countArticlesInPartition(partition, {
+				userId: query.userId,
+				status: query.status,
+				personalScope: query.personalScope,
+				managedOrigin: query.managedOrigin,
+				sort: query.sort,
+			})
+			: undefined;
 
 		const itemsToSkip = (page - 1) * pageSize;
 		const fetchTarget = pageSize + 1;
@@ -1232,7 +1226,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const countArticlesInPartition = async (
 		partition: string,
-		query: CountArticlesQuery,
+		query: CountArticlesQuery & { sort?: SortField },
 	): Promise<number> => {
 		if (query.discovery) {
 			const matched = await discoveredRowsInPartition(partition, { ...query, discovery: query.discovery });
