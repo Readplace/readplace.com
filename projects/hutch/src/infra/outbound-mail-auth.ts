@@ -38,11 +38,9 @@ export class OutboundMailAuth extends pulumi.ComponentResource {
 			/**
 			 * DKIM public-key record value from Google Admin → Apps → Google
 			 * Workspace → Gmail → Authenticate email (host
-			 * `google._domainkey.<mailDomain>`, selector "google"). Left unset until
-			 * generated in the console, so Pulumi never publishes an empty/invalid
-			 * DKIM record — until then only the apex TXT is created.
+			 * `google._domainkey.<mailDomain>`, selector "google").
 			 */
-			googleDkimRecord?: string;
+			googleDkimRecord: string;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -72,19 +70,17 @@ export class OutboundMailAuth extends pulumi.ComponentResource {
 			{ parent: this },
 		);
 
-		if (args.googleDkimRecord) {
-			new aws.route53.Record(
-				`${name}-google-dkim`,
-				{
-					zoneId,
-					name: `google._domainkey.${args.mailDomain}`,
-					type: "TXT",
-					ttl: 600,
-					records: [splitTxtForRoute53(args.googleDkimRecord)],
-				},
-				{ parent: this },
-			);
-		}
+		new aws.route53.Record(
+			`${name}-google-dkim`,
+			{
+				zoneId,
+				name: `google._domainkey.${args.mailDomain}`,
+				type: "TXT",
+				ttl: 600,
+				records: [splitTxtForRoute53(args.googleDkimRecord)],
+			},
+			{ parent: this },
+		);
 
 		this.registerOutputs({});
 	}
