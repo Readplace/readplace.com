@@ -4,7 +4,7 @@ import type {
 	MediaKindName,
 	UploadId,
 } from "@packages/media-contracts";
-import type { UserId } from "../user/user.types";
+import type { UserId } from "../user/user.schema";
 import type { MediaUploadSession } from "./media-upload-session.types";
 
 export type AnonymousMediaUploadSessionState = "staged" | "inspecting" | "ready" | "rejected";
