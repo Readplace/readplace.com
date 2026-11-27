@@ -4,8 +4,6 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
-	validateSaveableUrl,
-	type SaveableUrl,
 } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, type SavedArticle } from "@packages/domain/article";
 import { HighlightIdSchema } from "@packages/domain/article";
@@ -28,15 +26,9 @@ import {
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 import { buildArticleDeletion } from "../readlist/readlist-card/delete-confirm.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
-import { articleBody } from "@packages/test-fixtures";
+import { articleBody, saveableUrlFixture } from "@packages/test-fixtures";
 import { epubDownloadGuideFor } from "../../shared/epub/epub-download-guide";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
-
-function saveable(value: string): SaveableUrl {
-	const result = validateSaveableUrl(value);
-	assert(result.status === "SUCCESS");
-	return result.url;
-}
 
 const NO_HIGHLIGHTS: ReaderPageHighlights = { rows: [], canonicalContentHash: undefined, scope: undefined, openNote: undefined, copiedUrl: "/queue/abc/highlights/copied" };
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
@@ -67,7 +59,7 @@ const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse(
 	"0123456789abcdef0123456789abcdef",
 );
-const url = saveable("https://example.com/post");
+const url = saveableUrlFixture("https://example.com/post");
 
 function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	return {
@@ -656,7 +648,7 @@ describe("ReaderPage", () => {
 
 	it("points the header's Original link at the redirect destination for a merged article", () => {
 		const article = makeArticle({
-			url: saveable("https://example.com/post.html"),
+			url: saveableUrlFixture("https://example.com/post.html"),
 			destinationUrl: destinationUrl("https://example.com/post"),
 		});
 		const html = Base(

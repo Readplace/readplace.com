@@ -10,19 +10,13 @@ import {
 	type SavedArticle,
 	validateSaveableUrl,
 	withPrivateItemRefusal,
-	type SaveableUrl,
 } from "@packages/domain/article";
+import { saveableUrlFixture } from "@packages/test-fixtures";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import type { CreateHighlightByQuoteOutcome } from "../../shared/article-body/highlights/create-highlight-by-quote";
 import { initClaimViewHighlights } from "./claim-view-highlights";
 import { type ClaimDailySaves, initClaimDailySaves } from "../readlist/daily-save-allowance";
-
-function saveable(value: string): SaveableUrl {
-	const result = validateSaveableUrl(value);
-	assert(result.status === "SUCCESS");
-	return result.url;
-}
 
 const READER = UserIdSchema.parse("reader-1");
 const ARTICLE_URL = "https://example.com/post";
@@ -78,7 +72,7 @@ function claimAnswering(
 	outcome: CreateHighlightByQuoteOutcome,
 	allowance: { claimDailySaves: ClaimDailySaves; savedUrls: string[]; picks: Picks } = { claimDailySaves: grantAll, savedUrls: [], picks: [] },
 ) {
-	const url = saveable(ARTICLE_URL);
+	const url = saveableUrlFixture(ARTICLE_URL);
 	const destinationUrl = articleDestinationUrl({ url, displayUrl: undefined });
 	const saved: SavedArticle = {
 		id: ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef"),

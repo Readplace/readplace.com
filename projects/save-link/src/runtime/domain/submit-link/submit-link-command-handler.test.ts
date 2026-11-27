@@ -13,8 +13,8 @@ import {
 	articleDisplayMetadata,
 	validateSaveableUrl,
 	ANONYMOUS_VIEWER,
-	type SaveableUrl,
 } from "@packages/domain/article";
+import { saveableUrlFixture } from "@packages/test-fixtures";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -62,15 +62,9 @@ import { initAdmitTriagedMessage } from "../filter-email-links/triaged-message-a
 import { initFilingsLeftToFile } from "../filter-email-links/filings-left-to-file";
 import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
-function saveable(value: string): SaveableUrl {
-	const result = validateSaveableUrl(value);
-	assert(result.status === "SUCCESS");
-	return result.url;
-}
-
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
-const exampleUrl = saveable("https://example.com/post");
+const exampleUrl = saveableUrlFixture("https://example.com/post");
 const exampleDestination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 
 const stubAttributes: SQSRecordAttributes = {
