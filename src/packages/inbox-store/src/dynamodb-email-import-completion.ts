@@ -15,6 +15,8 @@ import {
 	InboxAddressSchema,
 	InboxEmailStatusSchema,
 	MessageIdSchema,
+	SupplementalEmailImportSchema,
+	missingEmailDeliveryMode,
 	uniqueGmailOrigins,
 	EmailDeliveryModeSchema,
 } from "@packages/domain/inbox";
@@ -32,6 +34,8 @@ const CompletionRow = z.object({
 	userId: UserIdSchema,
 	receivedAtMessageId: z.string(),
 	outputSelection: dynamoField(SelectionSchema),
+	supplementalSelection: dynamoField(SelectionSchema),
+	supplementalImport: dynamoField(SupplementalEmailImportSchema),
 	savedOutputs: dynamoField(z.set(EmailOutputKeySchema)),
 	gmailOrigins: dynamoField(z.set(z.string())),
 });
@@ -72,13 +76,34 @@ export function initDynamoDbEmailImportCompletion(deps: {
 	const table = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: CompletionRow });
 	const candidates = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: CandidateRow });
 
-	const findSelection = async (key: { userId: string; receivedAtMessageId: string }): Promise<EmailOutputSelection> => {
+	const findSelection = async (key: { userId: string; receivedAtMessageId: string }, field: "outputSelection" | "supplementalSelection"): Promise<EmailOutputSelection> => {
 		const row = await table.get(key, { consistentRead: true });
-		assert(row?.outputSelection, "a selection that lost the conditional write is stored");
-		return row.outputSelection;
+		assert(row?.[field], "a selection that lost the conditional write is stored");
+		return row[field];
 	};
 
 	return {
+		claimSupplementalImport: async ({ userId, receivedAtMessageId, requested, work }) => {
+			const Key = { userId, receivedAtMessageId };
+			const row = await candidates.get(Key, { consistentRead: true });
+			if (row?.status !== "received") return undefined;
+			if (row.supplementalImport !== undefined) {
+				return row.supplementalImport.rawEmailS3Key === work.rawEmailS3Key ? row.supplementalImport : undefined;
+			}
+			const deliveryMode = missingEmailDeliveryMode({ requested, accepted: row.gmailDeliveryMode, selection: row.outputSelection });
+			if (deliveryMode === undefined) return undefined;
+
+			const supplementalImport = { ...work, deliveryMode };
+			const outcome = await writeIfCondition(() => table.update({
+				Key,
+				ConditionExpression: `${ROW_EXISTS} AND attribute_not_exists(supplementalImport)`,
+				UpdateExpression: "SET supplementalImport = :work",
+				ExpressionAttributeValues: { ":work": supplementalImport },
+			}));
+			if (outcome.kind === "written") return supplementalImport;
+			const accepted = (await table.get(Key, { consistentRead: true }))?.supplementalImport;
+			return accepted?.rawEmailS3Key === work.rawEmailS3Key ? accepted : undefined;
+		},
 		addGmailOrigins: async ({ userId, receivedAtMessageId, origins }) => {
 			if (origins.length === 0) return;
 			await table.update({
@@ -88,20 +113,21 @@ export function initDynamoDbEmailImportCompletion(deps: {
 				ExpressionAttributeValues: { ":origins": new Set(origins.map((origin) => JSON.stringify(origin))) },
 			});
 		},
-		selectOutputs: async ({ userId, receivedAtMessageId, selection }) => {
+		selectOutputs: async ({ userId, receivedAtMessageId, selection, supplemental }) => {
+			const field = supplemental ? "supplementalSelection" : "outputSelection";
 			const outcome = await writeIfCondition(() => table.update({
 				Key: { userId, receivedAtMessageId },
-				ConditionExpression: `${ROW_EXISTS} AND attribute_not_exists(outputSelection)`,
-				UpdateExpression: "SET outputSelection = :selection",
+				ConditionExpression: `${ROW_EXISTS} AND attribute_not_exists(${field})`,
+				UpdateExpression: `SET ${field} = :selection`,
 				ExpressionAttributeValues: { ":selection": selection },
 			}));
-			if (outcome.kind === "condition-failed") return findSelection({ userId, receivedAtMessageId });
+			if (outcome.kind === "condition-failed") return findSelection({ userId, receivedAtMessageId }, field);
 			return selection;
 		},
 		amendSelection: async ({ userId, receivedAtMessageId, change }) => {
 			const Key = { userId, receivedAtMessageId };
 			for (;;) {
-				const current = await findSelection(Key);
+				const current = await findSelection(Key, "outputSelection");
 				const next = amendEmailSelection(current, change);
 				if (next === current) return current;
 				const written = await writeIfCondition(() => table.update({
@@ -126,6 +152,8 @@ export function initDynamoDbEmailImportCompletion(deps: {
 			if (row === undefined) return undefined;
 			return {
 				selection: row.outputSelection,
+				...(row.supplementalImport === undefined ? {} : { supplementalImport: row.supplementalImport }),
+				...(row.supplementalSelection === undefined ? {} : { supplementalSelection: row.supplementalSelection }),
 				savedOutputs: row.savedOutputs ?? new Set(),
 				origins: parseOrigins(row.gmailOrigins),
 			};

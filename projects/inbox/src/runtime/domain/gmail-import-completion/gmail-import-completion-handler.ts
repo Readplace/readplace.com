@@ -20,17 +20,18 @@ export function initGmailImportCompletionHandler(deps: {
 				if (detailType === EmailOutputSavedToAllEvent.detailType) {
 					const detail = EmailOutputSavedToAllEvent.detailSchema.parse(envelope.detail);
 					const userId = detail.userId;
+					const output = EmailOutputKeySchema.parse(detail.outputKey);
 					await acknowledgeOutput({
 						userId,
 						receivedAtMessageId: detail.receivedAtMessageId,
-						output: EmailOutputKeySchema.parse(detail.outputKey),
+						output,
 					});
-					const outcome = await evaluate({ userId, receivedAtMessageId: detail.receivedAtMessageId });
+					const outcome = await evaluate({ userId, receivedAtMessageId: detail.receivedAtMessageId, savedOutput: output });
 					logger.info("[gmail-import-completion] output saved to All", { outcome, outputKey: detail.outputKey });
 					continue;
 				}
 				const detail = EmailOutputsSelectedEvent.detailSchema.parse(envelope.detail);
-				const outcome = await evaluate({ userId: detail.userId, receivedAtMessageId: detail.receivedAtMessageId });
+				const outcome = await evaluate({ userId: detail.userId, receivedAtMessageId: detail.receivedAtMessageId, ...(detail.supplemental ? { supplemental: detail.supplemental } : {}) });
 				logger.info("[gmail-import-completion] outputs selected", { outcome, outputCount: detail.outputCount });
 			} catch (error) {
 				logger.error("[gmail-import-completion] record failed", { messageId: record.messageId, error });

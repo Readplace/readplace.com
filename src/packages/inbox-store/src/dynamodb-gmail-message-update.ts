@@ -28,6 +28,7 @@ const UpdateRow = z.object({
 	recordKey: z.string().startsWith(RECORD_PREFIX),
 	receivedAtMessageId: z.string(),
 	origin: GmailMessageOriginSchema,
+	supplemental: dynamoField(z.literal(true)),
 	status: z.enum(["pending", "completed", "failed"]),
 	requestedAt: z.string(),
 	completedAt: dynamoField(z.string()),
@@ -40,12 +41,12 @@ function accountPrefix(accountEmail: GmailAccountEmail): string {
 	return `${RECORD_PREFIX}${gmailAccountKey(accountEmail)}#`;
 }
 
-function updateKey(input: { userId: UserId; origin: GmailMessageOrigin }): { userId: UserId; recordKey: string } {
-	return { userId: input.userId, recordKey: `${accountPrefix(input.origin.accountEmail)}${gmailMessageOriginKey(input.origin)}` };
+function updateKey(input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true }): { userId: UserId; recordKey: string } {
+	return { userId: input.userId, recordKey: `${accountPrefix(input.origin.accountEmail)}${input.supplemental ? "SUPPLEMENTAL#" : ""}${gmailMessageOriginKey(input.origin)}` };
 }
 
 function toUpdate(row: z.infer<typeof UpdateRow>): GmailMessageUpdate {
-	const base = { userId: row.userId, receivedAtMessageId: row.receivedAtMessageId, origin: row.origin, requestedAt: row.requestedAt };
+	const base = { userId: row.userId, receivedAtMessageId: row.receivedAtMessageId, origin: row.origin, requestedAt: row.requestedAt, ...(row.supplemental ? { supplemental: row.supplemental } : {}) };
 	if (row.status === "completed") {
 		assert(row.completedAt, "a completed Gmail update records when it completed");
 		return { ...base, status: "completed", completedAt: row.completedAt, alreadyRead: row.alreadyRead };
@@ -69,11 +70,11 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 	};
 
 	return {
-		claimPending: async ({ userId, origin, now }) => {
+		claimPending: async ({ userId, origin, supplemental, now }) => {
 			const claimUntil = new Date(now.getTime() + CLAIM_MS).toISOString();
 			const result = await writeIfCondition(() =>
 				table.update({
-					Key: updateKey({ userId, origin }),
+					Key: updateKey({ userId, origin, supplemental }),
 					UpdateExpression: "SET claimUntil = :until",
 					ConditionExpression: "#status = :pending AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)",
 					ExpressionAttributeNames: { "#status": "status" },
@@ -82,38 +83,39 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 			);
 			return result.kind === "written" ? claimUntil : undefined;
 		},
-		releaseClaim: async ({ userId, origin, claimUntil }) => {
+		releaseClaim: async ({ userId, origin, supplemental, claimUntil }) => {
 			await writeIfCondition(() =>
 				table.update({
-					Key: updateKey({ userId, origin }),
+					Key: updateKey({ userId, origin, supplemental }),
 					UpdateExpression: "REMOVE claimUntil",
 					ConditionExpression: "claimUntil = :until",
 					ExpressionAttributeValues: { ":until": claimUntil },
 				}),
 			);
 		},
-		recordPending: async ({ userId, receivedAtMessageId, origin, now }) => {
+		recordPending: async ({ userId, receivedAtMessageId, origin, supplemental, now }) => {
 			await writeIfCondition(() =>
 				table.put({
 					Item: {
-						...updateKey({ userId, origin }),
+						...updateKey({ userId, origin, supplemental }),
 						receivedAtMessageId,
 						origin,
+						...(supplemental ? { supplemental } : {}),
 						status: "pending",
 						requestedAt: now.toISOString(),
 					},
 					ConditionExpression: "attribute_not_exists(recordKey)",
 				}),
 			);
-			const recorded = await find({ userId, origin });
+			const recorded = await find({ userId, origin, supplemental });
 			assert(recorded, "a Gmail update is stored once its conditional put settles");
 			return recorded;
 		},
 		find,
-		markCompleted: async ({ userId, origin, now, alreadyRead = false }) => {
+		markCompleted: async ({ userId, origin, supplemental, now, alreadyRead = false }) => {
 			await writeIfCondition(() =>
 				table.update({
-					Key: updateKey({ userId, origin }),
+					Key: updateKey({ userId, origin, supplemental }),
 					UpdateExpression: "SET #status = :completed, completedAt = :now, alreadyRead = :alreadyRead REMOVE failedAt, failureReason, claimUntil",
 					ConditionExpression: "attribute_exists(recordKey)",
 					ExpressionAttributeNames: { "#status": "status" },
@@ -121,10 +123,10 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 				}),
 			);
 		},
-		markFailed: async ({ userId, origin, reason, now }) => {
+		markFailed: async ({ userId, origin, supplemental, reason, now }) => {
 			const written = (await writeIfCondition(() =>
 				table.update({
-					Key: updateKey({ userId, origin }),
+					Key: updateKey({ userId, origin, supplemental }),
 					UpdateExpression: "SET #status = :failed, failedAt = :now, failureReason = :reason REMOVE claimUntil",
 					ConditionExpression: "attribute_exists(recordKey) AND #status = :pending",
 					ExpressionAttributeNames: { "#status": "status" },
@@ -150,10 +152,10 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 			);
 			return pending;
 		},
-		discardPending: async ({ userId, origin }) => {
+		discardPending: async ({ userId, origin, supplemental }) => {
 			const written = (await writeIfCondition(() =>
 				table.delete({
-					Key: updateKey({ userId, origin }),
+					Key: updateKey({ userId, origin, supplemental }),
 					ConditionExpression: "#status = :pending",
 					ExpressionAttributeNames: { "#status": "status" },
 					ExpressionAttributeValues: { ":pending": "pending" },

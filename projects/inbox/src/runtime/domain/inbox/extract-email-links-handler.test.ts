@@ -228,6 +228,7 @@ function makeHarness(opts?: {
 		},
 		putLink: linkStore.putLink,
 		getLink: linkStore.getLink,
+		listLinksByEmail: linkStore.listLinksByEmail,
 		findLinksMeta: linkStore.findLinksMeta,
 		markWindowDispatched: linkStore.markWindowDispatched,
 		putLinksMeta: async (input) => {

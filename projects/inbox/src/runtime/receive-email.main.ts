@@ -90,6 +90,7 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({
+	findCompletion: emailImportCompletion.findCompletion,
 	addGmailOrigins: emailImportCompletion.addGmailOrigins,
 	evaluate: initEvaluateGmailImportCompletion({
 		findCompletion: emailImportCompletion.findCompletion,
