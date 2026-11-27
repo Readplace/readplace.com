@@ -1,13 +1,21 @@
-interface SirenField {
+interface SirenFieldOption {
+	value: string;
+	title: string;
+	selected: boolean;
+}
+
+export interface SirenField {
 	name: string;
 	type: string;
+	title?: string;
 	value?: string | number;
+	options?: SirenFieldOption[];
 	maxBytes?: number;
 	maxItems?: number;
 	maxRequestBytes?: number;
 }
 
-interface SirenAction {
+export interface SirenAction {
 	name: string;
 	href: string;
 	method: string;

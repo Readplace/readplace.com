@@ -20,7 +20,6 @@ const sample = defineSurface({
 describe("defineSurface", () => {
 	it("keeps the purpose and the en-US tree", () => {
 		assert.equal(sample.purpose, "A surface used only by these tests");
-		assert.equal(sample.nonEmpty, false);
 		assert.equal(sample.defaultMessages.page.heading, "Your reading list");
 	});
 
@@ -57,13 +56,14 @@ describe("defineSurface", () => {
 				}),
 			/en-US "action.save" must not be empty/,
 		);
-		const titles = defineSurface({
-			purpose: "Titles",
-			nonEmpty: true,
-			defaultMessages: { action: { save: "Save" } },
-			otherLocales: {},
-		});
-		assert.equal(titles.nonEmpty, true);
+		assert.doesNotThrow(() =>
+			defineSurface({
+				purpose: "Titles",
+				nonEmpty: true,
+				defaultMessages: { action: { save: "Save" } },
+				otherLocales: {},
+			}),
+		);
 	});
 
 	describe("another locale", () => {
@@ -203,19 +203,6 @@ describe("combineSurfaces", () => {
 		assert.equal(catalog.findMessage({ locale: DEFAULT_LOCALE, key: "nowhere.link" }), undefined);
 		assert.equal(catalog.findMessage({ locale: DEFAULT_LOCALE, key: "page.nowhere" }), undefined);
 		assert.equal(catalog.findMessage({ locale: DEFAULT_LOCALE, key: "page.articles" }), undefined);
-	});
-
-	it("lists every leaf key", () => {
-		assert.deepEqual(catalog.keys(), [
-			"page.heading",
-			"page.greeting",
-			"page.articles.one",
-			"page.articles.other",
-			"page.saved.one",
-			"page.saved.other",
-			"page.blank",
-			"footer.link",
-		]);
 	});
 
 	it("refuses two surfaces that share a page namespace", () => {

@@ -6,7 +6,6 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { SavedArticle } from "@packages/domain/article";
 
 import { BULK_ARTICLE_JOB_PREFIX as BULK_PREFIX } from "@packages/article-store";
-export { BULK_PREFIX };
 export const BULK_CHUNK_SIZE = 32;
 export const BULK_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 export const BulkAction = z.discriminatedUnion("kind", [

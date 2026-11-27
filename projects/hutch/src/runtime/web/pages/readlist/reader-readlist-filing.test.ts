@@ -44,7 +44,7 @@ describe("buildReaderReadlistFiling", () => {
 					slug: WORK,
 					label: "Work",
 					createdAt: new Date("2026-08-01T00:00:00.000Z"),
-					filing: { mode: "smart", revision: 1, effectiveAt: new Date("2026-08-01T00:00:00.000Z") },
+					filing: { mode: "smart", purpose: "Engineering practice", revision: 1, effectiveAt: new Date("2026-08-01T00:00:00.000Z") },
 				},
 				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z"), filing: { mode: "manual" } },
 			],

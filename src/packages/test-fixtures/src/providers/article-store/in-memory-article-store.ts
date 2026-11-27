@@ -72,7 +72,6 @@ import type {
 	FindSavedUrls,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
-	ClearReadlistDefinitionPurpose,
 	CountArticlesByUser,
 	CountReadlistArticles,
 	CreateReadlistDefinition,
@@ -93,7 +92,6 @@ import type {
 	RecordReadlistFitOverride,
 	PinReadlistDefinition,
 	RenameReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
 	ReadlistFiling,
@@ -359,10 +357,8 @@ export function initInMemoryArticleStore(): {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -1465,15 +1461,6 @@ export function initInMemoryArticleStore(): {
 		return { unpinned: true };
 	};
 
-	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition || definition.filingMode === "smart") return { updated: false };
-		const firstSetup = !definition.purpose?.trim();
-		definition.purpose = params.purpose;
-		return { updated: true, firstSetup };
-	};
-
 	const setSmartReadlistRule: SetSmartReadlistRule = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
@@ -1494,15 +1481,8 @@ export function initInMemoryArticleStore(): {
 		definition.filingMode = "manual";
 		definition.filingRuleRevision += 1;
 		definition.filingRuleEffectiveAt = undefined;
-		return { turnedOff: true };
-	};
-
-	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
-		if (!definition || definition.filingMode === "smart") return { cleared: false };
 		definition.purpose = undefined;
-		return { cleared: true };
+		return { turnedOff: true };
 	};
 
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
@@ -1551,6 +1531,7 @@ export function initInMemoryArticleStore(): {
 	};
 
 	const filingOf = (definition: {
+		purpose?: string;
 		filingMode?: "manual" | "smart";
 		filingRuleRevision?: number;
 		filingRuleEffectiveAt?: Date;
@@ -1559,8 +1540,14 @@ export function initInMemoryArticleStore(): {
 		if (definition.filingMode === "manual") return { filing: { mode: "manual" } };
 		assert(definition.filingRuleRevision !== undefined, "a smart readlist carries its rule revision");
 		assert(definition.filingRuleEffectiveAt !== undefined, "a smart readlist carries its rule's effective instant");
+		assert(definition.purpose !== undefined, "a smart readlist carries its purpose");
 		return {
-			filing: { mode: "smart", revision: definition.filingRuleRevision, effectiveAt: definition.filingRuleEffectiveAt },
+			filing: {
+				mode: "smart",
+				purpose: definition.purpose,
+				revision: definition.filingRuleRevision,
+				effectiveAt: definition.filingRuleEffectiveAt,
+			},
 		};
 	};
 
@@ -1570,7 +1557,6 @@ export function initInMemoryArticleStore(): {
 			.map((definition) => ({
 				slug: definition.slug,
 				label: definition.label,
-				purpose: definition.purpose,
 				createdAt: definition.createdAt,
 				...(definition.starterCampaignId === undefined ? {} : { starterCampaignId: definition.starterCampaignId }),
 				...(definition.pinnedAt === undefined ? {} : { pinnedAt: definition.pinnedAt }),
@@ -2031,10 +2017,8 @@ export function initInMemoryArticleStore(): {
 		renameReadlistDefinition,
 		pinReadlistDefinition,
 		unpinReadlistDefinition,
-		setReadlistDefinitionPurpose,
 		setSmartReadlistRule,
 		turnOffSmartReadlistMatching,
-		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,
 		findItemOwner,

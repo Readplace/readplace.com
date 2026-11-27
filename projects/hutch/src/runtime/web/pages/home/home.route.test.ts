@@ -686,7 +686,7 @@ describe("GET / metadata", () => {
 		);
 	});
 
-	it("should not include twitter:site when no handle is configured", async () => {
+	it("should render the twitter card, title, description, image and creator meta", async () => {
 		const { doc } = await loadHomepage();
 
 		const twitterMetaNames = Array.from(doc.querySelectorAll('meta[name^="twitter:"]')).map(

@@ -18,12 +18,12 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, HomeReadlistSlugSchema } from "@packages/domain/readlist";
 import { readlistHref } from "../../api/readlist-href";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { HOME_READLIST_SAVED, homeReadlistTarget } from "./readlist-home";
 import { UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
-import { buildQueryString } from "../../api/collection-query";
+import { FIND_ARTICLES_PARAM, buildQueryString } from "../../api/collection-query";
 import {
 	parseReadlistUrl,
 	buildReadlistUrl,
@@ -81,7 +81,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "recordSmartReadlistStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
+		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -114,7 +114,10 @@ export function initReadlistListingRoutes(deps: Pick<
 		const readlistKey = readlistQueryKeyOf(req);
 		const lookup = siren && req.query.lookup === "1" && !urlState.managedSource;
 		const status = lookup && req.query.status === undefined && req.query.tab === undefined ? undefined : tab.status;
-		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status, order: urlState.order, page: urlState.page, url: filterUrl, lookup };
+		const findArticles = siren && !lookup && req.query[FIND_ARTICLES_PARAM.name] === FIND_ARTICLES_PARAM.value
+			? { discovery: parseReadlistUrl(req.query).discovery }
+			: undefined;
+		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status, order: urlState.order, findArticles, page: urlState.page, url: filterUrl, lookup };
 		if (siren && readlistKey === "readlist" && req.query.queue !== undefined && req.query.readlist === undefined) {
 			setSirenCanonicalRedirectCaching(res);
 			res.redirect(303, `${READLIST_PATH}${buildQueryString(canonicalQuery)}`);
@@ -123,7 +126,9 @@ export function initReadlistListingRoutes(deps: Pick<
 
 		tagPageviewSortOrder(res, urlState.order);
 		const order = urlState.order ?? tab.defaultOrder;
-		const discovery = siren ? undefined : storeDiscoveryOf(urlState);
+		const discovery = siren
+			? storeDiscoveryOf({ ...urlState, discovery: findArticles?.discovery })
+			: storeDiscoveryOf(urlState);
 		const pageSize = readlistPageSizeForClient(req.oauthClientId);
 		const result = lookup ? await savedArticleUrlPage({
 			url: filterUrl, userId, status, page: urlState.page, pageSize,
@@ -165,6 +170,8 @@ export function initReadlistListingRoutes(deps: Pick<
 						summaryByUrl: loadedSummaryByUrl,
 					});
 
+			const findArticlesMatchedNothing = discovery !== undefined && result.total === 0 &&
+				await store.countArticlesByUser({ userId, status: tab.status }) > 0;
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			const setHomeTarget = homeSupported ? context.home?.targets.get(urlState.readlist) : undefined;
 			setSirenCollectionCaching(req, res);
@@ -190,6 +197,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						readerProvenanceByUrl,
 						totalLabel: readlistTotalLabel,
 						sort: { options: READLIST_SORT_OPTIONS, current: order },
+						findArticlesMatchedNothing,
 					},
 				),
 			);
@@ -243,11 +251,11 @@ export function initReadlistListingRoutes(deps: Pick<
 	router.post("/queues/:slug/home", requireNotLocked, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const siren = wantsSiren(req);
-		const slug = ReadlistSlugSchema.safeParse(req.params.slug);
+		const slug = HomeReadlistSlugSchema.safeParse(req.params.slug);
 		const target = slug.success && homeReadlistTarget(slug.data, await deps.listReadlistDefinitions(req.userId));
 		const landing = new URL(safeReturnPath(siren ? req.query.returnTo : req.body?.returnTo), "https://readlist.invalid");
 		if (landing.pathname === "/") landing.pathname = READLIST_PATH;
-		if (landing.pathname === READLIST_PATH && !landing.searchParams.has("queue") && !landing.searchParams.has("readlist")) {
+		if (landing.pathname === READLIST_PATH && !["queue", "readlist", "scope"].some((key) => landing.searchParams.has(key))) {
 			landing.searchParams.set(siren ? readlistQueryKeyOf(req) : "queue", DEFAULT_READLIST_SLUG);
 		}
 		landing.searchParams.delete(HOME_READLIST_SAVED);
@@ -317,12 +325,6 @@ export function initReadlistListingRoutes(deps: Pick<
 	router.post("/onboarding/email/done", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.recordEmailStepMarkedDone({ userId: req.userId });
-		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
-	});
-
-	router.post("/onboarding/smart-readlist/dismiss", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		await deps.recordSmartReadlistStepDismissed({ userId: req.userId });
 		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 

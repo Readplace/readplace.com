@@ -38,7 +38,6 @@ A field stays at 16px under a coarse pointer because iOS zooms into a focused fi
 | `.form-field` | Optional column holding a label, its control and its error, 8px apart |
 | `.form-field__label` | The visible label |
 | `.form-field__error` | The error line under the control; hidden while empty |
-| `.form-field__message` | A neutral status line under the control |
 | `.form-input` | A text field |
 | `.form-input--multiline` | A `textarea`: at least 2.5 field-heights tall, resizing vertically |
 | `.form-input--within` with `.form-input__control` | The field box drawn around a borderless inner control and its neighbours (a read-only copyable input and its Copy button); focus on the inner control shows on the box |
@@ -50,7 +49,6 @@ A field stays at 16px under a coarse pointer because iOS zooms into a focused fi
 
 - **A text field** has a 1px `--input` border, `--radius` corners and a `--background` fill — in dark mode that fill sits one step below the `--card` around it, so the field reads as a well. Placeholder text is `--input-placeholder`. The field is named by a visible label above it (14px/500 `--foreground`, 8px gap) or by the heading of the card it sits in; a placeholder is never its only name. A search field the design draws without a label is named by an `.sr-only` label inside a `role="search"` form.
 - **Invalid** is `aria-invalid="true"` on the control, which turns its border `--color-error`; one 12px/500 `--error-text` sentence sits 8px below, tied to the control by `aria-describedby` (announced with `role="alert"` when it appears without a page load).
-- **A neutral field message** (`.form-field__message`) uses the same 12px/500 metrics in `--muted-foreground` for a status line under a field that reports something other than invalid input, such as the readlist import flash. It is never wired to `aria-describedby`.
 - **Disabled** fills the field `--muted` with `--muted-foreground` ink, a `not-allowed` cursor and full opacity; inside a `.form-field` its label greys with it. **In flight:** see [Buttons](iconography/buttons.md#disabled-and-in-flight).
 - **Controls use the body face.** The browser gives `input`, `select`, `textarea` and `button` a system font, so every control declares `font: inherit` (or `font-family: inherit` beside its own size, as `.btn` does), or it shows its value and placeholder in a different face from its label.
 - **An input paired with a button shares the button's height.** `.form-input` carries `height: var(--input-height)`; pair it with a default (L) button, which is 48px — the same as `--input-height` — so the row lines up with no modifier; the input keeps `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never fake it with padding or font-size, and never re-declare the height on the button.

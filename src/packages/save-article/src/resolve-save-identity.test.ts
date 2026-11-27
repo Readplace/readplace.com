@@ -139,6 +139,23 @@ describe("save identity", () => {
 		expect(await h.resolve(shortLink)).toEqual(resolved({ url: ORIGINAL }));
 	});
 
+	it("follows a newsletter tracker past the Reddit media viewer to the image it shows", async () => {
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+		const image = "https://i.redd.it/example1234.png?_bhlid=abc";
+		const h = harness({ targets: { [tracker]: { url: `https://www.reddit.com/media?url=${encodeURIComponent(image)}`, contentSourceUrl: tracker } } });
+		expect(await h.resolve(tracker)).toEqual(resolved({ url: image }));
+		expect(h.claims).toEqual([expect.objectContaining({ aliasUrl: tracker, targetOriginalUrl: image })]);
+	});
+
+	it("follows a newsletter tracker past the Springer PDF viewer to the article page", async () => {
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+		const article = "https://link.springer.com/article/10.1007/s00000-026-00001-x";
+		const viewer = "https://link.springer.com/epdf/10.1007/s00000-026-00001-x?sharing_token=invented-token";
+		const h = harness({ targets: { [tracker]: { url: viewer, contentSourceUrl: tracker } } });
+		expect(await h.resolve(tracker)).toEqual(resolved({ url: article }));
+		expect(h.claims).toEqual([expect.objectContaining({ aliasUrl: tracker, targetOriginalUrl: article })]);
+	});
+
 	it("strips subscriber parameters before fixing the original identity", async () => {
 		const wrapper = "https://open.substack.com/pub/person/p/article";
 		const h = harness({ targets: { [wrapper]: { url: `${ORIGINAL}?r=reader&utm_source=email`, contentSourceUrl: wrapper } } });

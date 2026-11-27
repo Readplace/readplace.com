@@ -22,7 +22,7 @@ export type DeviceClass =
  * same `Product/version` shape, since `okhttp/x` identifies nothing.
  */
 const NATIVE_CLIENT_USER_AGENTS = {
-	ios: /^(?:Readplace|ShareExtension)\/(?:\d+ CFNetwork\/[\d.]+ Darwin\/[\d.]+|build-\d+ iOS\/[\w.]+)$/,
+	ios: /^(?:Readplace|ShareExtension)\/(?:(\d+) CFNetwork\/[\d.]+ Darwin\/[\d.]+|build-(\d+) iOS\/[\w.]+)$/,
 	android: /^Readplace\/\d+ Android\/[\w.]+$/,
 } as const;
 
@@ -48,12 +48,14 @@ export function mcpUaClientOf(userAgent: string | undefined): McpUaClient {
 	return MCP_UA_CLIENTS.other;
 }
 
-export function isReadplaceNativeClient(userAgent: string | undefined): boolean {
-	return readplaceNativeClientOf(userAgent) !== undefined;
+export function iosBuildNumberOf(userAgent: string): number | undefined {
+	const match = NATIVE_CLIENT_USER_AGENTS.ios.exec(userAgent);
+	if (match === null) return undefined;
+	return Number(match[1] ?? match[2]);
 }
 
 export function isBotUserAgent(userAgent: string | undefined): boolean {
-	if (isReadplaceNativeClient(userAgent)) return false;
+	if (readplaceNativeClientOf(userAgent) !== undefined) return false;
 	return isbot(userAgent);
 }
 

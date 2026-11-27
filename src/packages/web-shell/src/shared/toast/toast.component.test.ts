@@ -93,6 +93,7 @@ describe("renderToast", () => {
 		assert(label, "action button must wrap its label in a label span");
 		expect(label.textContent).toBe("Undo");
 		expect(button.querySelectorAll(".toast__action-loader span").length).toBe(3);
+		expect(button.querySelector(".toast__action-loader")?.classList.contains("in-flight-dots")).toBe(true);
 		// Mid-request the label is visibility:hidden (dropped from the a11y tree)
 		// and the loader is aria-hidden, so aria-label carries the button's
 		// accessible name while it is disabled and in flight. aria-label (not

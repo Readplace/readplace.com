@@ -6,7 +6,7 @@ import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import type { DynamoDBRecord } from "aws-lambda";
+import type { AttributeValue, DynamoDBRecord } from "aws-lambda";
 import { initSmartReadlistIntakeHandler } from "./smart-readlist-intake-handler";
 
 const USER = "00000000000000000000000000000001";
@@ -18,8 +18,7 @@ function smartList(effectiveAt: string): ReadlistDefinitionData {
 		slug: ReadlistSlugSchema.parse("a1b2c3d4"),
 		label: "Work",
 		createdAt: new Date("2026-11-01T00:00:00.000Z"),
-		purpose: "Engineering practice",
-		filing: { mode: "smart", revision: 2, effectiveAt: new Date(effectiveAt) },
+		filing: { mode: "smart", purpose: "Engineering practice", revision: 2, effectiveAt: new Date(effectiveAt) },
 	};
 }
 
@@ -33,7 +32,7 @@ const MANUAL_LIST: ReadlistDefinitionData = {
 function streamRecord(params: {
 	eventName?: "INSERT" | "MODIFY" | "REMOVE";
 	sequenceNumber?: string;
-	image?: Record<string, { S: string }>;
+	image?: Record<string, AttributeValue>;
 }): DynamoDBRecord {
 	return {
 		eventName: params.eventName ?? "INSERT",
@@ -75,6 +74,46 @@ function makeHarness(opts: { definitions?: ReadlistDefinitionData[]; listFails?:
 }
 
 describe("initSmartReadlistIntakeHandler", () => {
+	it("leaves an email save to the email path", async () => {
+		const h = makeHarness({});
+
+		const result = await h.run([
+			streamRecord({
+				image: {
+					userId: { S: USER },
+					url: { S: STORED_KEY },
+					savedAt: { S: SAVED_AT },
+					provenance: { M: { kind: { S: "email" }, senderEmail: { S: "news@example.com" } } },
+				},
+			}),
+		]);
+
+		expect(result.batchItemFailures).toEqual([]);
+		expect(h.published).toEqual([]);
+	});
+
+	it("matches a save whose provenance is not email", async () => {
+		const h = makeHarness({});
+
+		await h.run([
+			streamRecord({
+				image: {
+					userId: { S: USER },
+					url: { S: STORED_KEY },
+					savedAt: { S: SAVED_AT },
+					provenance: { M: { kind: { S: "web" } } },
+				},
+			}),
+		]);
+
+		expect(h.published).toEqual([
+			{
+				detailType: MatchSmartReadlistsCommand.detailType,
+				detail: { userId: UserIdSchema.parse(USER), storedKey: STORED_KEY, savedAt: SAVED_AT },
+			},
+		]);
+	});
+
 	it("publishes a match command for a new save in All while a smart readlist's rule covers it", async () => {
 		const h = makeHarness({});
 

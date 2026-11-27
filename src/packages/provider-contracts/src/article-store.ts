@@ -399,14 +399,13 @@ export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
 
 export type ReadlistFiling =
 	| { mode: "manual" }
-	| { mode: "smart"; revision: number; effectiveAt: Date };
+	| { mode: "smart"; purpose: string; revision: number; effectiveAt: Date };
 
 export interface ReadlistDefinitionData {
 	starterCampaignId?: string;
 	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;
-	purpose?: string;
 	pinnedAt?: Date;
 	filing?: ReadlistFiling;
 }
@@ -460,17 +459,6 @@ export type UnpinReadlistDefinition = (params: {
 	userId: UserId;
 	slug: ReadlistSlug;
 }) => Promise<{ unpinned: boolean }>;
-
-export type SetReadlistDefinitionPurpose = (params: {
-	userId: UserId;
-	slug: ReadlistSlug;
-	purpose: string;
-}) => Promise<{ updated: true; firstSetup: boolean } | { updated: false }>;
-
-export type ClearReadlistDefinitionPurpose = (params: {
-	userId: UserId;
-	slug: ReadlistSlug;
-}) => Promise<{ cleared: boolean }>;
 
 export type DeleteReadlistDefinition = (params: {
 	userId: UserId;

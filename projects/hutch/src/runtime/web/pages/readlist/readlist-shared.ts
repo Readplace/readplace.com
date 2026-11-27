@@ -555,13 +555,11 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const candidateSlugs = new Set(candidates.map((list) => list.slug));
 		const target = candidateSlugs.has(active) ? active : [...nav.railEntries, ...nav.moreEntries]
 			.find((list) => candidateSlugs.has(list.slug))?.slug;
-		const dismissed = signals?.smartReadlistStepDismissedAt !== undefined;
 		return {
-			count: signals && !dismissed ? await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured) : undefined,
+			count: signals ? await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured) : undefined,
 			target,
 			configured: configured.length > 0,
 			viewingTarget: target === active,
-			dismissed,
 		};
 	};
 

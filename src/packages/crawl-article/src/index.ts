@@ -73,6 +73,8 @@ export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";
 export { initHnSearchSiteRules } from "./hn-search-site-rules";
 export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";
 export { initOjsGalleySiteRules } from "./ojs-galley-site-rules";
+export { initMercadoLibreOpenFileSiteRules } from "./mercadolibre-open-file-site-rules";
+export { initClaudeArtifactSiteRules } from "./claude-artifact-site-rules";
 export { initGallupDocumentSiteRules } from "./gallup-document-site-rules";
 export { initFtPartnersTransactionSiteRules } from "./ftpartners-transaction-site-rules";
 export { parseYouTubeEmbed } from "./parse-embed-url";

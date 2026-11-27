@@ -12,14 +12,12 @@ import {
 	forEachQueryPage,
 } from "@packages/storage-client";
 import type {
-	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
 	PinReadlistDefinition,
 	ReadlistFiling,
 	RenameReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
 	UnpinReadlistDefinition,
@@ -41,14 +39,35 @@ const ReadlistDefinitionRow = z.object({
 
 const UpdatedFilingRuleRevision = z.object({ filingRuleRevision: z.number() });
 
+const UNCONVERTED_PURPOSE_RULE_REVISION = 0;
+
+function unconvertedPurpose(row: z.infer<typeof ReadlistDefinitionRow>): string | undefined {
+	if (row.filingMode === "smart" || row.filingRuleRevision !== undefined) return undefined;
+	if (row.queuePurpose?.trim()) return row.queuePurpose;
+	return undefined;
+}
+
 function toFiling(row: z.infer<typeof ReadlistDefinitionRow>): { filing?: ReadlistFiling } {
+	const purposeAwaitingConversion = unconvertedPurpose(row);
+	if (purposeAwaitingConversion !== undefined) {
+		return {
+			filing: {
+				mode: "smart",
+				purpose: purposeAwaitingConversion,
+				revision: UNCONVERTED_PURPOSE_RULE_REVISION,
+				effectiveAt: new Date(row.createdAt),
+			},
+		};
+	}
 	if (row.filingMode === undefined) return {};
 	if (row.filingMode === "manual") return { filing: { mode: "manual" } };
 	assert(row.filingRuleRevision !== undefined, "a smart readlist row carries its rule revision");
 	assert(row.filingRuleEffectiveAt !== undefined, "a smart readlist row carries its rule's effective instant");
+	assert(row.queuePurpose !== undefined, "a smart readlist row carries its purpose");
 	return {
 		filing: {
 			mode: "smart",
+			purpose: row.queuePurpose,
 			revision: row.filingRuleRevision,
 			effectiveAt: new Date(row.filingRuleEffectiveAt),
 		},
@@ -59,13 +78,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	client: DynamoDBDocumentClient;
 	userArticlesTableName: string;
 }): {
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	pinReadlistDefinition: PinReadlistDefinition;
 	renameReadlistDefinition: RenameReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
@@ -102,7 +119,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 			.map((row) => ({
 				slug: row.queueSlug,
 				label: row.queueLabel,
-				purpose: row.queuePurpose,
 				...(row.starterCampaignId === undefined
 					? {}
 					: { starterCampaignId: row.starterCampaignId }),
@@ -178,21 +194,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		return { unpinned: true };
 	};
 
-	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.update({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "SET #purpose = :purpose",
-			ReturnValues: "ALL_OLD",
-			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
-			ExpressionAttributeValues: { ":purpose": params.purpose, ":smart": "smart" },
-		}));
-		if (outcome.kind === "condition-failed") return { updated: false };
-		assert(outcome.result.Attributes, "an existing readlist returns its previous attributes");
-		return { updated: true, firstSetup: !outcome.result.Attributes.queuePurpose?.trim() };
-	};
-
 	const setSmartReadlistRule: SetSmartReadlistRule = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => filingRuleRevisions.update({
@@ -226,30 +227,19 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
 			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "SET #mode = :manual, #revision = #revision + :one REMOVE #effectiveAt",
-			ConditionExpression: "#mode = :smart",
+			UpdateExpression:
+				"SET #mode = :manual, #revision = if_not_exists(#revision, :zero) + :one REMOVE #effectiveAt, #purpose",
+			ConditionExpression: "#mode = :smart OR (attribute_exists(#purpose) AND attribute_not_exists(#revision))",
 			ExpressionAttributeNames: {
 				"#mode": "filingMode",
 				"#revision": "filingRuleRevision",
 				"#effectiveAt": "filingRuleEffectiveAt",
+				"#purpose": "queuePurpose",
 			},
-			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":one": 1 },
+			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":zero": 0, ":one": 1 },
 		}));
 		if (outcome.kind === "condition-failed") return { turnedOff: false };
 		return { turnedOff: true };
-	};
-
-	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.update({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "REMOVE #purpose",
-			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
-			ExpressionAttributeValues: { ":smart": "smart" },
-		}));
-		if (outcome.kind === "condition-failed") return { cleared: false };
-		return { cleared: true };
 	};
 
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
@@ -264,13 +254,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	};
 
 	return {
-		clearReadlistDefinitionPurpose,
 		createReadlistDefinition,
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
 		pinReadlistDefinition,
 		renameReadlistDefinition,
-		setReadlistDefinitionPurpose,
 		setSmartReadlistRule,
 		turnOffSmartReadlistMatching,
 		unpinReadlistDefinition,

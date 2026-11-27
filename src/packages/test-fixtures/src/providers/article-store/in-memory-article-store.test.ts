@@ -48,16 +48,16 @@ describe("initInMemoryArticleStore", () => {
 		const count = () => store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK, LATER] });
 		for (const slug of [WORK, LATER]) {
 			await store.createReadlistDefinition({ userId: USER_A, slug, label: slug, createdAt: new Date() });
-			await store.setReadlistDefinitionPurpose({ userId: USER_A, slug, purpose: "Things to study" });
+			await store.setSmartReadlistRule({ userId: USER_A, slug, purpose: "Things to study", effectiveAt: new Date() });
 			for (let i = 0; i < 5; i++) {
 				const index = i + (slug === WORK ? 0 : 4);
 				await store.saveReadlistArticle({ ...makeArticleParams({ url: URL + index }), readlist: slug });
 			}
 		}
 		expect(await count()).toBe(9);
-		await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: LATER });
+		await store.turnOffSmartReadlistMatching({ userId: USER_A, slug: LATER });
 		expect(await count()).toBe(5);
-		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: LATER, purpose: "Review" });
+		await store.setSmartReadlistRule({ userId: USER_A, slug: LATER, purpose: "Review", effectiveAt: new Date() });
 		await store.setReadlistArticleStatus({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK, status: "read" });
 		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK });
 		expect(await count()).toBe(9);
@@ -2267,54 +2267,6 @@ describe("initInMemoryArticleStore", () => {
 			expect(await store.unpinReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({ unpinned: false });
 		});
 
-		it("clears a readlist's purpose and keeps the readlist", async () => {
-			const store = initInMemoryArticleStore();
-			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
-			await store.setReadlistDefinitionPurpose({
-				userId: USER_A,
-				slug: WORK,
-				purpose: "Essays on how teams actually ship.",
-			});
-			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
-				"Essays on how teams actually ship.",
-			]);
-
-			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
-				cleared: true,
-			});
-			expect(
-				(await store.listReadlistDefinitions(USER_A)).map((d) => [d.slug, d.label, d.purpose]),
-			).toEqual([["work", "Work", undefined]]);
-		});
-
-		it("leaves a Smart Readlist's purpose to its smart rule", async () => {
-			const store = initInMemoryArticleStore();
-			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date("2026-08-19T10:00:00.000Z") });
-			await store.setSmartReadlistRule({
-				userId: USER_A,
-				slug: WORK,
-				purpose: "Essays on how teams actually ship.",
-				effectiveAt: new Date("2026-08-20T10:00:00.000Z"),
-			});
-
-			expect(await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Anything" })).toEqual({
-				updated: false,
-			});
-			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({ cleared: false });
-			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
-				"Essays on how teams actually ship.",
-			]);
-		});
-
-		it("reports a readlist the reader does not hold as uncleared", async () => {
-			const store = initInMemoryArticleStore();
-
-			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
-				cleared: false,
-			});
-		});
-
 		it("drops the definition it deletes and leaves the reader's others", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");
@@ -2558,7 +2510,6 @@ describe("initInMemoryArticleStore", () => {
 				{
 					slug: HN_PICKS,
 					label: "Hacker News picks",
-					purpose: undefined,
 					createdAt: new Date(SELECTED_AT),
 					starterCampaignId: "hn-starter-v1",
 				},
@@ -2990,7 +2941,7 @@ describe("initInMemoryArticleStore readlist filing", () => {
 	it("counts an automatic filing already marked read once its purpose is set", async () => {
 		const store = await liveStore();
 		await store.fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt: new Date() } }));
-		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Read at work" });
+		await store.setSmartReadlistRule({ userId: USER_A, slug: WORK, purpose: "Read at work", effectiveAt: new Date() });
 		expect(await store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK] })).toBe(1);
 	});
 
@@ -3486,15 +3437,14 @@ describe("initInMemoryArticleStore smart readlists", () => {
 		expect(await store.setSmartReadlistRule({ ...rule, purpose: "Essays on teams." })).toEqual({ kind: "set", revision: 2 });
 
 		const [definition] = await store.listReadlistDefinitions(USER_A);
-		expect(definition?.purpose).toBe("Essays on teams.");
-		expect(definition?.filing).toEqual({ mode: "smart", revision: 2, effectiveAt: EFFECTIVE_AT });
+		expect(definition?.filing).toEqual({ mode: "smart", purpose: "Essays on teams.", revision: 2, effectiveAt: EFFECTIVE_AT });
 	});
 
 	it("answers readlist-gone when setting a rule on a readlist with no definition", async () => {
 		expect(await initInMemoryArticleStore().setSmartReadlistRule(rule)).toEqual({ kind: "readlist-gone" });
 	});
 
-	it("turns a smart readlist back to manual, bumping the revision and keeping the purpose", async () => {
+	it("turns a smart readlist back to a regular one, bumping the revision and removing the purpose", async () => {
 		const store = await storeWithWork();
 		await store.setSmartReadlistRule(rule);
 
@@ -3503,8 +3453,18 @@ describe("initInMemoryArticleStore smart readlists", () => {
 
 		const [definition] = await store.listReadlistDefinitions(USER_A);
 		expect(definition?.filing).toEqual({ mode: "manual" });
-		expect(definition?.purpose).toBe("Essays on shipping.");
-		expect(await store.setSmartReadlistRule(rule)).toEqual({ kind: "set", revision: 3 });
+		expect(Object.keys(definition ?? {}).sort()).toEqual(["createdAt", "filing", "label", "slug"]);
+	});
+
+	it("continues the revision past a remove when the readlist becomes smart again, with the new purpose", async () => {
+		const store = await storeWithWork();
+		expect(await store.setSmartReadlistRule(rule)).toEqual({ kind: "set", revision: 1 });
+		await store.turnOffSmartReadlistMatching({ userId: USER_A, slug: WORK });
+
+		expect(await store.setSmartReadlistRule({ ...rule, purpose: "Essays on teams." })).toEqual({ kind: "set", revision: 3 });
+
+		const [definition] = await store.listReadlistDefinitions(USER_A);
+		expect(definition?.filing).toEqual({ mode: "smart", purpose: "Essays on teams.", revision: 3, effectiveAt: EFFECTIVE_AT });
 	});
 
 	it("files a smart match only under the readlist's current rule revision", async () => {

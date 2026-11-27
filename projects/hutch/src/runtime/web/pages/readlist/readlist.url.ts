@@ -67,12 +67,16 @@ function searchQueryOf(raw: string | undefined): string | undefined {
 	return q === "" ? undefined : q;
 }
 
+export function hasDiscoveryFilters(discovery: ReadlistFilter): boolean {
+	return discovery.time.length > 0 || discovery.saved.length > 0;
+}
+
 function discoveryOf(parsed: z.infer<typeof ReadlistQuerySchema>): ReadlistDiscovery | undefined {
 	const discovery: ReadlistDiscovery = {
 		q: searchQueryOf(parsed.q),
 		...readlistFilterOf({ time: listOf(parsed.time), saved: listOf(parsed.saved) }),
 	};
-	const active = discovery.q !== undefined || discovery.time.length > 0 || discovery.saved.length > 0;
+	const active = discovery.q !== undefined || hasDiscoveryFilters(discovery);
 	return active ? discovery : undefined;
 }
 
@@ -161,8 +165,6 @@ export const READLIST_GMAIL_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/gma
 
 export const READLIST_SMART_SECTION_ID = "readlist-smart";
 
-export const READLIST_SMART_READLIST_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/smart-readlist/dismiss`;
-
 export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }
@@ -182,12 +184,6 @@ export function readlistPreferencesPath(readlist: ReadlistSlug): string {
 export const PURPOSE_ORIGINS = [...TAB_IDS, "preferences"] as const;
 
 export type PurposeOrigin = (typeof PURPOSE_ORIGINS)[number];
-
-export function readlistPreferencesSetupPath(readlist: ReadlistSlug, from: TabId): string {
-	return `${readlistPreferencesPath(readlist)}?setup_from=${from}`;
-}
-
-export const PREFERENCES_SETUP_SAVED = "preferences_setup_saved";
 
 export function readlistPurposeActionPath(input: { readlist: ReadlistSlug; from: PurposeOrigin }): string {
 	const path = readlistPreferencesPath(input.readlist);

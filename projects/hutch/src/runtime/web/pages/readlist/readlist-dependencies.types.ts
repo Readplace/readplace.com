@@ -46,10 +46,8 @@ import type {
 	RenameReadlistDefinition,
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
-	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
 	CountSmartReadlistArticles,
 	ListUserSavesForUrls,
@@ -133,7 +131,6 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
-	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordMarkReadAcrossQueuesAcknowledged,
 	RecordOnboardingOutstandingVersion,
@@ -187,10 +184,8 @@ export interface ReadlistDependencies {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
 	listReadlistFitOverrides: ListReadlistFitOverrides;
@@ -267,7 +262,6 @@ export interface ReadlistDependencies {
 	 * minimum, so the milestone survives the user later deleting back below it and
 	 * so later renders skip the count query entirely. */
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
-	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;

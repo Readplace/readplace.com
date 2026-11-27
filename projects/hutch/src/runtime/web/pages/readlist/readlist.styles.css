@@ -314,6 +314,14 @@
   min-width: 0;
 }
 
+.readlist-nav__link:has(> .readlist-nav__smart-label) {
+  flex-wrap: wrap;
+}
+
+.readlist-nav__link:has(> .readlist-nav__smart-label) .readlist-row__label {
+  max-width: calc(100% - 3rem - 20px);
+}
+
 .readlist-nav--pinned .readlist-nav__link .readlist-row__label {
   overflow: hidden;
   text-overflow: ellipsis;

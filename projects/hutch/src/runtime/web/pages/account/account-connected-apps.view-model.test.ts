@@ -214,6 +214,19 @@ describe("buildConnectedAppsSection", () => {
 		expect(webSection([builtIn("hutch-chrome-extension")]).rows.map((row) => row.signIn)).toEqual([undefined]);
 	});
 
+	it.each([
+		[[builtIn("hutch-chrome-extension")], "1 app connected"],
+		[[builtIn("hutch-chrome-extension"), CLAUDE], "2 apps connected"],
+	])("summarises the listed apps for the collapsed card (%#)", (clients, title) => {
+		const section = webSection(clients);
+
+		assert(section.state === "listed", "connected apps must be listed");
+		expect(section.summary).toEqual({
+			title,
+			description: "Extensions, apps and AI assistants that can reach your Readplace account.",
+		});
+	});
+
 	it("keeps one row pointing at the ways to save when nothing is connected", () => {
 		const section = webSection([]);
 

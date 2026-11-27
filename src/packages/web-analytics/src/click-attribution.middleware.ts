@@ -1,5 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
+import { extractQueryString, extractReferrerHost } from "./countable-request";
 import { defineCookie } from "./define-cookie";
 import { isSkippedPath } from "./skip-paths";
 
@@ -26,22 +27,8 @@ export const ClickAttributionSchema = z.object({
 
 export type ClickAttribution = z.infer<typeof ClickAttributionSchema>;
 
-function extractQueryString(req: Request, name: string): string | undefined {
-	const value = req.query[name];
-	if (typeof value !== "string" || value === "") return undefined;
-	return value.length > MAX_UTM_VALUE_LENGTH ? value.slice(0, MAX_UTM_VALUE_LENGTH) : value;
-}
-
-function extractReferrerHost(req: Request, ownHost: string): string | undefined {
-	const referer = req.get("referer");
-	if (!referer) return undefined;
-	try {
-		const hostname = new URL(referer).hostname;
-		if (hostname === ownHost) return undefined;
-		return hostname;
-	} catch {
-		return undefined;
-	}
+function extractUtmValue(req: Request, name: string): string | undefined {
+	return extractQueryString(req, name)?.slice(0, MAX_UTM_VALUE_LENGTH);
 }
 
 /**
@@ -87,11 +74,12 @@ export function createClickAttributionMiddleware(deps: {
 			return;
 		}
 
-		const utm_source = extractQueryString(req, "utm_source");
-		const utm_medium = extractQueryString(req, "utm_medium");
-		const utm_campaign = extractQueryString(req, "utm_campaign");
-		const utm_content = extractQueryString(req, "utm_content");
-		const referrer_host = extractReferrerHost(req, deps.ownHost);
+		const utm_source = extractUtmValue(req, "utm_source");
+		const utm_medium = extractUtmValue(req, "utm_medium");
+		const utm_campaign = extractUtmValue(req, "utm_campaign");
+		const utm_content = extractUtmValue(req, "utm_content");
+		const host = extractReferrerHost(req);
+		const referrer_host = host === deps.ownHost ? undefined : host;
 
 		/** Set the cookie on first GET regardless of attribution so organic
 		 * landings still carry `landing_path` / `first_seen_at` on the eventual

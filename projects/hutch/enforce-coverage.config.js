@@ -1,5 +1,14 @@
 const baseConfig = require('../../enforce-coverage.config.base');
 const path = require('path')
+const { getEnv } = require('@packages/require-env')
+
+const e2ePhasesSkipped = getEnv('CLAUDE_CODE_REMOTE') === 'true'
+const coveredInFullOnlyByDynamoDbLocalPhase = [
+  'src/runtime/bulk-articles/dynamo-execution.ts',
+  'src/runtime/bulk-articles/dynamo-preparation.ts',
+  'src/runtime/bulk-articles/selection-store.ts',
+  'src/runtime/media-release/bulk-upload-retention.ts',
+]
 
 const config = {
   ...baseConfig,
@@ -19,5 +28,6 @@ config.enforceCoverage({
     ...(config.extraExcludePatterns || []),
     // Infrastructure layer — deployed via Pulumi, not testable in CI
     'src/infra/**',
+    ...(e2ePhasesSkipped ? coveredInFullOnlyByDynamoDbLocalPhase : []),
   ],
 })

@@ -63,6 +63,23 @@ describe("renderConnectedApps", () => {
 		expect([...section.querySelectorAll("li.account-row[data-test-connected-app]")].map((row) => row.getAttribute("data-test-connected-app"))).toEqual(["chrome", "claude"]);
 	});
 
+	it("collapses the listed apps behind a summary that counts them", () => {
+		const section = sectionFor(CHROME_AND_CLAUDE);
+
+		const disclosure = section.querySelector("details[data-test-connected-apps-disclosure]");
+		assert(disclosure, "listed apps must sit in a collapsible card");
+		expect(disclosure.hasAttribute("open")).toBe(false);
+		expect(disclosure.querySelector(":scope > summary [data-test-connected-apps-summary]")?.textContent).toBe("2 apps connected");
+		expect(disclosure.querySelectorAll("li[data-test-connected-app]")).toHaveLength(2);
+	});
+
+	it("shows the empty row without a collapsible card", () => {
+		const section = sectionFor([]);
+
+		expect(section.querySelector("details[data-test-connected-apps-disclosure]")).toBeNull();
+		expect(section.querySelector('[data-test-connected-app="empty"]')).not.toBeNull();
+	});
+
 	it("draws each app's own logo in the row's well", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 

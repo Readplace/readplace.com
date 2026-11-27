@@ -7,7 +7,7 @@ import { FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changel
 import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
 
-const ChromelessPage = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: false });
+const ChromelessPage = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: false, siteScripts: "" });
 
 const CHANGELOG_VERSION = "a1b2c3d4";
 assert(isChangelogVersion(CHANGELOG_VERSION));
@@ -182,7 +182,7 @@ describe("ChromelessPage", () => {
 	});
 
 	it("injects the dev livereload script only when liveReload is enabled", () => {
-		const live = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: true });
+		const live = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: true, siteScripts: "" });
 		const doc = new JSDOM(live(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
 		expect(doc.querySelector('script[src*="livereload.js"]')).not.toBeNull();
 	});
