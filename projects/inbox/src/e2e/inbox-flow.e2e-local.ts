@@ -48,6 +48,7 @@ for (const javaScriptEnabled of [true, false]) {
 			await menu.locator("summary").press("Space");
 			await menu.getByRole("button", { name: "All senders" }).press("Enter");
 			await expect(page.locator("[data-test-inbox-emails-row]")).toHaveCount(2);
+			await expect(menu.locator("summary")).toContainText("Filter senders");
 		});
 	});
 }

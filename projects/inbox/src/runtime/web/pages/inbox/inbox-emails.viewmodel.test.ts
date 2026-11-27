@@ -64,6 +64,22 @@ describe("toInboxEmailsViewModel", () => {
 		expect(vm.empty).toBeUndefined();
 	});
 
+	it("offers to filter senders when no sender is chosen", () => {
+		const vm = toInboxEmailsViewModel({ emails: [entry()], hasOlder: false, hasNewer: false }, {
+			now: NOW, activeAddresses: [ADDRESS], paidFeaturesLocked: false, senders: ["news@example.com"],
+		});
+		expect(vm.senderFilter?.label).toBe("Filter senders");
+		expect(vm.senderFilter?.currentLabel).toBeUndefined();
+	});
+
+	it("names the chosen sender on the toggle", () => {
+		const vm = toInboxEmailsViewModel({ emails: [entry()], hasOlder: false, hasNewer: false }, {
+			now: NOW, activeAddresses: [ADDRESS], paidFeaturesLocked: false, sender: "news@example.com", senders: ["news@example.com"],
+		});
+		expect(vm.senderFilter?.label).toBe("Sender");
+		expect(vm.senderFilter?.currentLabel).toBe("news@example.com");
+	});
+
 	it("tells an empty inbox with an address to wait for mail, surfacing it to copy instead of a CTA", () => {
 		const { empty } = build([]);
 
