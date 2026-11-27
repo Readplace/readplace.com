@@ -29,28 +29,10 @@ function clipboardCopyFooter(copySelector, textAttr, options) {
 
 const SHARED_CLIENT_BUNDLES = [
   {
-    outfile: "inbox.client.js",
+    outfile: "clipboard-copy.client.js",
     entry: CLIPBOARD_COPY_ENTRY,
     globalName: "ClipboardCopy",
-    footer: clipboardCopyFooter("[data-inbox-copy]", "data-inbox-address"),
-  },
-  {
-    outfile: "install.client.js",
-    entry: CLIPBOARD_COPY_ENTRY,
-    globalName: "ClipboardCopy",
-    footer: clipboardCopyFooter("[data-install-copy]", "data-install-text"),
-  },
-  {
-    outfile: "mcp.client.js",
-    entry: CLIPBOARD_COPY_ENTRY,
-    globalName: "ClipboardCopy",
-    footer: clipboardCopyFooter("[data-mcp-copy]", "data-mcp-text"),
-  },
-  {
-    outfile: "integrations.client.js",
-    entry: CLIPBOARD_COPY_ENTRY,
-    globalName: "ClipboardCopy",
-    footer: clipboardCopyFooter("[data-integrations-copy]", "data-integrations-address", {
+    footer: clipboardCopyFooter("[data-clipboard-copy]", "data-clipboard-text", {
       reattachOnSettle: true,
     }),
   },

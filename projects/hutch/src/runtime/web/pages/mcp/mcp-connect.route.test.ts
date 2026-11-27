@@ -207,20 +207,20 @@ describe("GET /mcp (browser connection guide)", () => {
 		const response = await request(server).get("/mcp").set("Accept", "text/html");
 		const doc = load(response.text);
 
-		const copyTargets = Array.from(doc.querySelectorAll("[data-mcp-copy]")).map((button) => {
+		const copyTargets = Array.from(doc.querySelectorAll("[data-clipboard-copy]")).map((button) => {
 			assert(button.hasAttribute("hidden"), "copy button stays hidden until the script reveals it");
-			return button.getAttribute("data-mcp-text");
+			return button.getAttribute("data-clipboard-text");
 		});
 
 		expect(copyTargets).toContain("https://readplace.com/mcp");
 		expect(copyTargets).toContain(CONNECT_PROMPT);
 		expect(copyTargets).toContain(SAVE_PROMPT);
-		expect(response.text).toContain("/client-dist/mcp.client.js");
+		expect(response.text).toContain("/client-dist/clipboard-copy.client.js");
 	});
 
 	it("targets the rendered copy buttons with the selectors its built bundle wires", async () => {
 		const bundleSource = readFileSync(
-			join(__dirname, "..", "..", "client-dist", "mcp.client.js"),
+			join(__dirname, "..", "..", "client-dist", "clipboard-copy.client.js"),
 			"utf-8",
 		);
 		const copySelector = bundleSource.match(/copySelector:\s*'([^']+)'/)?.[1];

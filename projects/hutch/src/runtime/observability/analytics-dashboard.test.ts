@@ -622,18 +622,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const declared = new Set(Object.values(STREAMS));
 		// Streams no widget QUERY names.
 		//
-		// crawl-outcomes is genuinely unsurfaced — inspected only by ad-hoc Logs
-		// Insights queries. Adding a crawl-outcome widget would drop it from here.
-		//
 		// parse-errors IS surfaced, by routing rather than by a query term: the
 		// forwarder writes it into the errors funnel and the errors widget shows
 		// everything in that group unfiltered. ERROR_STREAMS is what guarantees it
 		// arrives, and observability-filter.test.ts is what guards that.
 		const ignored = new Set<string>([
-			STREAMS.crawlOutcomes,
 			STREAMS.parseErrors,
 		]);
-		expect(ignored.size).toBe(2);
+		expect(ignored.size).toBe(1);
 		const missing = [...declared].filter((s) => !referenced.has(s) && !ignored.has(s));
 		expect(missing).toEqual([]);
 	});

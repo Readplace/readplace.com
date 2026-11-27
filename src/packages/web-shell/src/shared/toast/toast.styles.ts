@@ -1,4 +1,7 @@
-export const TOAST_STYLES = `.toast {
+import { IN_FLIGHT_DOTS_STYLES } from "../in-flight-dots/in-flight-dots.styles";
+
+export const TOAST_STYLES = `${IN_FLIGHT_DOTS_STYLES}
+.toast {
 	position: fixed;
 	left: var(--page-gutter);
 	right: var(--page-gutter);
@@ -87,15 +90,6 @@ export const TOAST_STYLES = `.toast {
  * hx-disabled-elt during the request (progress cursor, full opacity) and its
  * label is kept in flow via visibility so the button width stays stable.
  */
-.toast__action-loader {
-	position: absolute;
-	inset: 0;
-	display: none;
-	align-items: center;
-	justify-content: center;
-	gap: 0.35em;
-}
-
 .toast__action-form.htmx-request .toast__action-label {
 	visibility: hidden;
 }
@@ -106,37 +100,5 @@ export const TOAST_STYLES = `.toast {
 
 .toast__action:disabled {
 	cursor: progress;
-}
-
-.toast__action-loader span {
-	width: 0.4em;
-	height: 0.4em;
-	border-radius: 50%;
-	background: currentColor;
-	animation: toast-action-dot 1.2s ease-in-out infinite both;
-}
-
-.toast__action-loader span:nth-child(2) {
-	animation-delay: 0.4s;
-}
-
-.toast__action-loader span:nth-child(3) {
-	animation-delay: 0.8s;
-}
-
-@keyframes toast-action-dot {
-	0%,
-	100% {
-		transform: scale(0.5);
-	}
-	50% {
-		transform: scale(1);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.toast__action-loader span {
-		animation: none;
-	}
 }
 `;

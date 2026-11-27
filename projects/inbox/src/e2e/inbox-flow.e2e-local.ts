@@ -146,7 +146,7 @@ test.describe("Inbox address copy control", () => {
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		await page.goto("/newsletters/custom-emails");
 
-		const copyButton = page.locator("[data-inbox-copy]").first();
+		const copyButton = page.locator("[data-clipboard-copy]").first();
 		await expect(copyButton).toBeVisible();
 		await expect(copyButton).toHaveText("Copy");
 	});

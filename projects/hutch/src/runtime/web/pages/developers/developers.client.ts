@@ -1,4 +1,8 @@
-import { initClipboardCopy } from "@packages/web-shell/clipboard-copy.client";
+import {
+	CLIPBOARD_COPY_SELECTOR,
+	CLIPBOARD_TEXT_ATTR,
+	initClipboardCopy,
+} from "@packages/web-shell/clipboard-copy.client";
 
 type DevelopersTimerId = ReturnType<typeof setTimeout>;
 
@@ -27,8 +31,6 @@ interface DevelopersDeps {
 }
 
 const NAV_ID = "on-this-page";
-const COPY_SELECTOR = "[data-developers-copy]";
-const TEXT_ATTR = "data-developers-text";
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -40,23 +42,23 @@ export function initDevelopers(deps: DevelopersDeps): void {
 		navigator: deps.navigator,
 		setTimeoutFn: deps.setTimeoutFn,
 		clearTimeoutFn: deps.clearTimeoutFn,
-		copySelector: COPY_SELECTOR,
-		textAttr: TEXT_ATTR,
+		copySelector: CLIPBOARD_COPY_SELECTOR,
+		textAttr: CLIPBOARD_TEXT_ATTR,
 	});
 	let watch: IntersectionWatch | undefined;
 
 	function addCopyButtons(): void {
 		for (const sample of Array.from(deps.document.querySelectorAll(".developers__sample"))) {
-			if (sample.querySelector(COPY_SELECTOR)) continue;
+			if (sample.querySelector(CLIPBOARD_COPY_SELECTOR)) continue;
 			const code = sample.querySelector(".developers__code");
 			assert(code, "every developers sample holds its code");
 			const button = deps.document.createElement("button");
 			button.type = "button";
 			button.className = "btn btn--s btn--on-dark-quiet developers__copy";
 			button.hidden = true;
-			button.setAttribute("data-developers-copy", "");
+			button.setAttribute("data-clipboard-copy", "");
 			button.setAttribute("aria-label", "Copy this sample");
-			button.setAttribute(TEXT_ATTR, String(code.textContent));
+			button.setAttribute(CLIPBOARD_TEXT_ATTR, String(code.textContent));
 			button.textContent = "Copy";
 			sample.prepend(button);
 		}

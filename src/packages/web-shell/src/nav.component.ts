@@ -92,13 +92,6 @@ function currentIconVariant(iconName: IconName): IconVariant {
 	return findIconSvg(iconName, "solid") === undefined ? "stroke" : "solid";
 }
 
-/** Renders no site nav, for a shell that intentionally has none (a bare embed or
- * other minimal surface) — the Base-shell analog of the chromeless page's absent
- * nav. Injected explicitly so "no nav" is a deliberate choice, not a missing dep. */
-export function GlobalEmptyNav(_props: NavProps): string {
-	return "";
-}
-
 function displayItem(
 	item: NavItem,
 	context: { surface: ClickSurface | undefined; currentKey: NavItemKey | undefined },

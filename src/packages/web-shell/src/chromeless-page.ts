@@ -30,7 +30,7 @@ export interface ChromelessPageConfig {
 	 * scripts. Mirrors `BaseConfig.siteScripts`, so a script the whole site relies
 	 * on (rewriting `<time data-local-time>` into the viewer's timezone) reaches
 	 * the chromeless pages too rather than freezing at the server's baseline. */
-	siteScripts?: string;
+	siteScripts: string;
 }
 
 /** The only shell state the chromeless reader renders: the site-wide
@@ -56,7 +56,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 	const liveReloadScript = config.liveReload
 		? `\n<script src="http://localhost:35729/livereload.js?snipver=1"></script>`
 		: "";
-	const siteScripts = config.siteScripts ?? "";
+	const siteScripts = config.siteScripts;
 
 	return (body: PageBody, state: ChromelessBannerState): Component => {
 		const seo: SeoMetadata = body.seo;
