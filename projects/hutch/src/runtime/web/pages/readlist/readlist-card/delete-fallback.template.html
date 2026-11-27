@@ -1,0 +1,13 @@
+<section class="article-delete__fallback" id="{{id}}" tabindex="-1" aria-labelledby="{{id}}-title" aria-describedby="{{id}}-subject {{id}}-body" data-test-delete-fallback="{{articleId}}">
+  <h2 class="article-delete__fallback-title" id="{{id}}-title">{{t "readlistDelete.confirm.title"}}</h2>
+  <p class="article-delete__fallback-subject" id="{{id}}-subject" data-text-from="{{titleSourceId}}">{{title}}</p>
+  <p class="article-delete__fallback-body" id="{{id}}-body">{{t "readlistDelete.confirm.body"}}</p>
+  <form class="article-delete__fallback-form" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{swap}}">
+    <div class="article-delete__fallback-actions">
+      <a class="btn btn--neutral" href="#{{returnId}}" hx-boost="false" data-test-action="delete-fallback-cancel">{{t "popover.cancel"}}</a>
+      <button class="btn btn--primary" type="submit" data-test-action="delete-fallback-confirm">{{t "readlistDelete.label"}}</button>
+      <button class="btn btn--neutral" type="submit" name="ack" value="{{ackNever}}" aria-describedby="{{id}}-never-help" data-test-action="delete-fallback-never">{{t "readlistDelete.confirm.never"}}</button>
+    </div>
+    <p class="article-delete__never-help" id="{{id}}-never-help">{{t "readlistDelete.confirm.neverHelp"}}</p>
+  </form>
+</section>

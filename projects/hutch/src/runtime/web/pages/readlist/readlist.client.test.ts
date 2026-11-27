@@ -625,3 +625,88 @@ describe("initReadlist", () => {
 		});
 	});
 });
+
+describe("initReadlist delete decisions", () => {
+	function settle(document: Document): void {
+		const window = document.defaultView;
+		assert(window, "the document must have a window");
+		document.dispatchEvent(new window.Event("htmx:afterSettle"));
+	}
+
+	function clickOn(target: Element): void {
+		const window = target.ownerDocument.defaultView;
+		assert(window, "the document must have a window");
+		target.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+	}
+
+	function decisionsMarkup(): string {
+		return `
+			<a id="readlist-title-a1" data-test-card-title>Settled title</a>
+			<details class="menu article-body__more" open data-test-reader-menu><summary id="reader-article-menu">More</summary><div class="menu__panel"><a href="#confirm-remove-a1" data-delete-fallback-open data-test-fallback-open>Delete</a><button type="button" data-test-other-item>Share</button></div></details>
+			<h3 id="readlist-delete-confirm-a1-subheading" data-text-from="readlist-title-a1">example.com</h3>
+			<p id="confirm-remove-a1-subject" data-text-from="readlist-title-a1">example.com</p>
+			<p data-text-from="gone-title" data-test-orphan>Kept</p>
+			<button type="button" data-test-cancel>Cancel</button>
+		`;
+	}
+
+	it("brings every copy of an article's title in step once a swap settles", () => {
+		const page = init(decisionsMarkup());
+
+		settle(page.document);
+
+		const texts = Array.from(page.document.querySelectorAll("[data-text-from='readlist-title-a1']"), (node) => node.textContent);
+		expect(texts).toEqual(["Settled title", "Settled title"]);
+		expect(page.document.querySelector("[data-test-orphan]")?.textContent).toBe("Kept");
+	});
+
+	it("leaves a copy that already matches untouched, so a focused control beside it keeps focus", () => {
+		const page = init(decisionsMarkup());
+		settle(page.document);
+		const subheading = page.document.getElementById("readlist-delete-confirm-a1-subheading");
+		assert(subheading, "the subheading must be in the document");
+		const textNode = subheading.firstChild;
+		const cancel = page.document.querySelector<HTMLElement>("[data-test-cancel]");
+		assert(cancel, "the cancel control must be in the document");
+		cancel.focus();
+
+		settle(page.document);
+
+		expect(subheading.firstChild).toBe(textNode);
+		expect(page.activeElement()).toBe(cancel);
+	});
+
+	it("closes the menu when the reader follows the fallback link, so a pending card resumes polling", () => {
+		const page = init(decisionsMarkup());
+		const menu = page.document.querySelector("[data-test-reader-menu]");
+		assert(menu, "the reader menu must be in the document");
+		const link = page.document.querySelector("[data-test-fallback-open]");
+		assert(link, "the fallback link must be in the document");
+
+		clickOn(link);
+
+		expect(menu.hasAttribute("open")).toBe(false);
+	});
+
+	it("keeps the menu open for its other items", () => {
+		const page = init(decisionsMarkup());
+		const menu = page.document.querySelector("[data-test-reader-menu]");
+		assert(menu, "the reader menu must be in the document");
+		const other = page.document.querySelector("[data-test-other-item]");
+		assert(other, "the other menu item must be in the document");
+
+		clickOn(other);
+
+		expect(menu.hasAttribute("open")).toBe(true);
+	});
+
+	it("ignores a fallback link outside any menu", () => {
+		const page = init(`<a href="#confirm-remove-a1" data-delete-fallback-open data-test-loose>Delete</a>`);
+		const link = page.document.querySelector("[data-test-loose]");
+		assert(link, "the loose link must be in the document");
+
+		clickOn(link);
+
+		expect(page.listenerErrors()).toEqual([]);
+	});
+});

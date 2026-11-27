@@ -70,9 +70,13 @@ function readerMenu(doc: Document): Element {
 	return panel;
 }
 
+/** The plain-HTML delete form: the in-page question's while the reader is
+ * still asked, the menu's own once they chose to skip it. */
 function deleteForm(doc: Document): HTMLFormElement {
-	const form = readerMenu(doc).querySelector<HTMLFormElement>("form.article-delete__form");
-	assert(form, "the reader menu must hold the delete form");
+	const form =
+		doc.querySelector<HTMLFormElement>("[data-test-delete-fallback] form") ??
+		readerMenu(doc).querySelector<HTMLFormElement>("form.article-delete__form");
+	assert(form, "the reader must hold a plain delete form");
 	return form;
 }
 
@@ -137,7 +141,7 @@ describe("Deleting an article from the owner reader", () => {
 			expect(deleteForm(doc).querySelector("button")?.textContent).toBe("Delete from this readlist");
 		});
 
-		it("renders the confirmation once, directly under <main> and outside every polled region", async () => {
+		it("renders the confirmation once, in a container under <main> and outside every polled region", async () => {
 			const harness = useApp(withCrawl(createDefaultTestAppFixture(TEST_APP_ORIGIN), { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const articleId = await saveArticle(agent);
@@ -148,12 +152,38 @@ describe("Deleting an article from the owner reader", () => {
 			expect(panels).toHaveLength(1);
 			const [panel] = panels;
 			assert(panel, "the confirmation must be rendered");
-			expect(panel.parentElement?.tagName).toBe("MAIN");
+			expect(panel.parentElement?.parentElement?.tagName).toBe("MAIN");
 			expect(panel.closest("[hx-get], [hx-trigger]")).toBeNull();
+			const section = doc.getElementById(`confirm-remove-${articleId}`);
+			assert(section, "the in-page question must be rendered beside the panel");
+			expect(section.parentElement).toBe(panel.parentElement);
+			expect(section.closest("[hx-get], [hx-trigger]")).toBeNull();
 			expect(panel.getAttribute("popover")).toBe("auto");
 			expect(new Set(Array.from(doc.querySelectorAll("[id]"), (element) => element.id)).size).toBe(
 				doc.querySelectorAll("[id]").length,
 			);
+		});
+
+		it("returns the in-page question's Cancel to the menu toggle and names the article by the reader's own heading", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveArticle(agent);
+
+			const doc = parse((await agent.get(`/queue/${articleId}/view?platform=ios`)).text);
+
+			expect(readerMenu(doc).querySelector("[data-test-action='delete-fallback']")?.getAttribute("href")).toBe(
+				`#confirm-remove-${articleId}`,
+			);
+			const section = doc.getElementById(`confirm-remove-${articleId}`);
+			assert(section, "the in-page question must be rendered");
+			const returnId = (section.querySelector("[data-test-action='delete-fallback-cancel']")?.getAttribute("href") ?? "").slice(1);
+			expect(doc.getElementById(returnId)).toBe(doc.querySelector("[data-test-action='reader-menu']"));
+			const heading = doc.querySelector("[data-test-reader-title]");
+			assert(heading, "the reader must render its heading");
+			for (const mirror of doc.querySelectorAll(`#confirm-remove-${articleId}-subject, #readlist-delete-confirm-${articleId}-subheading`)) {
+				expect(mirror.getAttribute("data-text-from")).toBe(heading.id);
+				expect(mirror.textContent).toBe(heading.textContent);
+			}
 		});
 
 		it("deletes straight from the menu once the reader chose not to be asked again", async () => {
@@ -166,6 +196,7 @@ describe("Deleting an article from the owner reader", () => {
 			const doc = parse((await agent.get(`/queue/${articleId}/view`)).text);
 
 			expect(doc.querySelectorAll("[data-test-confirm-popover='delete']")).toHaveLength(0);
+			expect(doc.querySelectorAll("[data-test-delete-fallback]")).toHaveLength(0);
 			expect(readerMenu(doc).querySelector("[data-test-action='delete']")?.getAttribute("type")).toBe("submit");
 		});
 

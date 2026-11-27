@@ -140,6 +140,7 @@ A popup that opens focused on its own container is a dead stop: the reader must 
 | Popup shape | Opens on | Why |
 |---|---|---|
 | Confirmation, destructive included | its commit control | Enter confirms; Esc still dismisses natively |
+| Removing an article from a readlist (the one exception) | its Cancel | the removal can permanently delete the reader's highlights and notes, so a second Enter after opening must keep the article; the in-flow fallback section takes focus as the fragment target and carries no `autofocus` |
 | Text dialog | the field, always — not only on a 422 | the reader came to type |
 | Required radio group, nothing checked | the first option | there is no choice yet to commit |
 | Choice with a pre-checked option | the submit; the inline plans page takes none | a valid answer is already in place |
