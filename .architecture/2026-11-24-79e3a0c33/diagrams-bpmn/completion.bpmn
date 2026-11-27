@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_completion" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_completion" name="completion" isExecutable="false">
+    <bpmn:serviceTask id="n_SAVE" name="Issue or article saver writes to All">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_ACK" name="EmailOutputSavedToAll">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:startEvent id="n_SELECT" name="EmailOutputsSelected">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="n_WORKER" name="Import completion queue and Lambda">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:dataStoreReference id="n_STATE" name="Accumulate saved outputs and check the relevant selection"></bpmn:dataStoreReference>
+    <bpmn:task id="n_MARK" name="MarkGmailEmailImported carries supplemental for missing work">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateCatchEvent id="n_UPDATE" name="Gmail message update queue and Lambda">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="n_OPT" name="Automatic marking enabled?">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+    <bpmn:dataStoreReference id="n_RECORD" name="Per-origin update record with a separate key for supplemental work"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_API" name="Gmail adds the imported label and removes UNREAD">
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_GRANT" name="GmailModifyPermissionGranted resumes pending updates">
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="n_DONE" name="GmailEmailMarkedImported">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_DLQ" name="Gmail update dead-letter handler">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_SAVE" targetRef="n_ACK" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_SELECT" targetRef="n_WORKER" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_ACK" targetRef="n_WORKER" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_MARK" targetRef="n_UPDATE" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_UPDATE" targetRef="n_OPT" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_GRANT" targetRef="n_UPDATE" />
+    <bpmn:sequenceFlow id="f_11" name="" sourceRef="n_API" targetRef="n_DONE" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_UPDATE" targetRef="n_DLQ" />
+    <bpmn:association id="f_3" sourceRef="n_WORKER" targetRef="n_STATE" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_STATE" targetRef="n_MARK" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_OPT" targetRef="n_RECORD" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_RECORD" targetRef="n_API" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_RECORD" targetRef="n_GRANT" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_completion">
+    <bpmndi:BPMNPlane id="Plane_completion" bpmnElement="Process_completion">
+      <bpmndi:BPMNShape id="n_SAVE_di" bpmnElement="n_SAVE">
+        <dc:Bounds x="51.78" y="31.25" width="167.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ACK_di" bpmnElement="n_ACK">
+        <dc:Bounds x="195.58" y="144.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SELECT_di" bpmnElement="n_SELECT">
+        <dc:Bounds x="297.46" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_WORKER_di" bpmnElement="n_WORKER">
+        <dc:Bounds x="195.58" y="261" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_STATE_di" bpmnElement="n_STATE">
+        <dc:Bounds x="120.58" y="391" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MARK_di" bpmnElement="n_MARK">
+        <dc:Bounds x="119.83" y="528" width="191.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UPDATE_di" bpmnElement="n_UPDATE">
+        <dc:Bounds x="195.58" y="654" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_OPT_di" bpmnElement="n_OPT">
+        <dc:Bounds x="84.08" y="784" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RECORD_di" bpmnElement="n_RECORD">
+        <dc:Bounds x="120.58" y="960" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_API_di" bpmnElement="n_API">
+        <dc:Bounds x="28" y="1127.25" width="193.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GRANT_di" bpmnElement="n_GRANT">
+        <dc:Bounds x="310.46" y="1110.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DONE_di" bpmnElement="n_DONE">
+        <dc:Bounds x="195.58" y="1254" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="269.36" y="807" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="135.66" y="83.25" />
+        <di:waypoint x="135.66" y="113.88" />
+        <di:waypoint x="215.58" y="113.88" />
+        <di:waypoint x="215.58" y="144.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="317.46" y="68" />
+        <di:waypoint x="317.46" y="164.5" />
+        <di:waypoint x="215.58" y="164.5" />
+        <di:waypoint x="215.58" y="261" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="215.58" y="184.5" />
+        <di:waypoint x="215.58" y="261" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="215.58" y="596" />
+        <di:waypoint x="215.58" y="654" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="215.58" y="694" />
+        <di:waypoint x="215.58" y="739" />
+        <di:waypoint x="127.08" y="739" />
+        <di:waypoint x="127.08" y="784" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="325.58" y="1111.1" />
+        <di:waypoint x="220.47" y="693.4" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="124.88" y="1179.25" />
+        <di:waypoint x="124.88" y="1216.63" />
+        <di:waypoint x="215.58" y="1216.63" />
+        <di:waypoint x="215.58" y="1254" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="215.58" y="694" />
+        <di:waypoint x="215.58" y="750.5" />
+        <di:waypoint x="289.36" y="750.5" />
+        <di:waypoint x="289.36" y="807" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="215.58" y="301" />
+        <di:waypoint x="215.58" y="391" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="215.58" y="439" />
+        <di:waypoint x="215.58" y="528" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="127.08" y="870" />
+        <di:waypoint x="127.08" y="915" />
+        <di:waypoint x="215.58" y="915" />
+        <di:waypoint x="215.58" y="960" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="215.58" y="1008" />
+        <di:waypoint x="215.58" y="1067.63" />
+        <di:waypoint x="124.88" y="1067.63" />
+        <di:waypoint x="124.88" y="1127.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="215.58" y="1008" />
+        <di:waypoint x="215.58" y="1059.25" />
+        <di:waypoint x="330.46" y="1059.25" />
+        <di:waypoint x="330.46" y="1110.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

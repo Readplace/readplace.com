@@ -73,7 +73,11 @@ function makeInbox() {
 		published.push({ event, detail: event.detailSchema.parse(detail) });
 	}) as PublishEvent;
 	const evaluateCompletion = initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent });
-	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({ addGmailOrigins: completion.addGmailOrigins, evaluate: evaluateCompletion });
+	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({
+		findCompletion: completion.findCompletion,
+		addGmailOrigins: completion.addGmailOrigins,
+		evaluate: evaluateCompletion,
+	});
 
 	const fetchCalls: {
 		url: string;
@@ -374,7 +378,7 @@ describe("gmail forwarding chain (inbox half)", () => {
 		});
 		assert.equal(held.length, 1);
 		assert.equal(
-			(await senders.findSender({ userId, senderEmail }))?.seenCount,
+			(await senders.listSendersByUserId(userId)).find((s) => s.senderEmail === senderEmail)?.seenCount,
 			1,
 		);
 

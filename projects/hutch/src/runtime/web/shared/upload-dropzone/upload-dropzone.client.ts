@@ -1,4 +1,4 @@
-const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
 const SIREN_ACCEPT = `${SIREN_MEDIA_TYPE}, text/html;q=0.9`;
 
 export type FileKind = "upload" | "links" | "unsupported";

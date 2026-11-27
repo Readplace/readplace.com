@@ -555,13 +555,11 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const candidateSlugs = new Set(candidates.map((list) => list.slug));
 		const target = candidateSlugs.has(active) ? active : [...nav.railEntries, ...nav.moreEntries]
 			.find((list) => candidateSlugs.has(list.slug))?.slug;
-		const dismissed = signals?.smartReadlistStepDismissedAt !== undefined;
 		return {
-			count: signals && !dismissed ? await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured) : undefined,
+			count: signals ? await resolveSmartCount(userId, signals.smartReadlistMinimumReachedAt, configured) : undefined,
 			target,
 			configured: configured.length > 0,
 			viewingTarget: target === active,
-			dismissed,
 		};
 	};
 
@@ -850,7 +848,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const libraryHoldsArticles = input.context.state.readlist !== HAND_PICKED_SCOPE || readlistHoldsArticles
 			|| await storeFor(DEFAULT_READLIST_SLUG).countArticlesByUser({ userId: input.userId, countLimit: 1 }) > 0;
 		const senders = input.context.state.managedSource === "sender" ? await deps.listReceivedSenders(input.userId) : [];
-		const page = ReadlistPage(vm, { ...pageOptions, bulkEnabled: Boolean(deps.bulkArticles), senders, libraryHoldsArticles, keepOffer, query: req.query });
+		const page = ReadlistPage(vm, { ...pageOptions, bulkEnabled: Boolean(deps.bulkArticles), bulkReadEverywhere: deps.bulkArticles?.readEverywhere, senders, libraryHoldsArticles, keepOffer, query: req.query });
 		if (keepOffer.shown) {
 			deps.recordAnalyticsEvent(
 				req,

@@ -133,9 +133,7 @@ export interface SaveArticleGloballyParams {
 }
 
 /** Returned `{ created }` lets the caller distinguish a fresh insert from a
- * no-op upsert on an existing row. The store performs the conditional put
- * only; whether to bump `savedAt` (or take any other follow-up) is a
- * domain decision the caller layers on top via `bumpArticleSavedAt`. */
+ * no-op upsert on an existing row. */
 export type SaveArticleGlobally = (
 	params: SaveArticleGloballyParams,
 ) => Promise<{ created: boolean }>;
@@ -271,16 +269,6 @@ export type MarkRelatedDismissed = (params: {
 	suggestionId: ReaderArticleHashId | undefined;
 }) => Promise<void>;
 
-export interface UserArticleByUrl {
-	userId: UserId;
-	viewedAt?: Date;
-}
-
-/** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan). */
-export type FindUserArticlesByUrl = (
-	url: string,
-) => Promise<UserArticleByUrl[]>;
-
 /** Set-once stamp recording that a reader-ready email was sent for this
  * (user, url). Idempotent: a second call after the stamp exists is a no-op. */
 export type MarkReaderReadyEmailSent = (params: {
@@ -399,14 +387,13 @@ export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;
 
 export type ReadlistFiling =
 	| { mode: "manual" }
-	| { mode: "smart"; revision: number; effectiveAt: Date };
+	| { mode: "smart"; purpose: string; revision: number; effectiveAt: Date };
 
 export interface ReadlistDefinitionData {
 	starterCampaignId?: string;
 	slug: ReadlistSlug;
 	label: string;
 	createdAt: Date;
-	purpose?: string;
 	pinnedAt?: Date;
 	filing?: ReadlistFiling;
 }
@@ -460,17 +447,6 @@ export type UnpinReadlistDefinition = (params: {
 	userId: UserId;
 	slug: ReadlistSlug;
 }) => Promise<{ unpinned: boolean }>;
-
-export type SetReadlistDefinitionPurpose = (params: {
-	userId: UserId;
-	slug: ReadlistSlug;
-	purpose: string;
-}) => Promise<{ updated: true; firstSetup: boolean } | { updated: false }>;
-
-export type ClearReadlistDefinitionPurpose = (params: {
-	userId: UserId;
-	slug: ReadlistSlug;
-}) => Promise<{ cleared: boolean }>;
 
 export type DeleteReadlistDefinition = (params: {
 	userId: UserId;
@@ -596,7 +572,7 @@ export type ListUserSavesForUrls = (params: {
 	userId: UserId;
 	urls: readonly string[];
 	readlists?: readonly ReadlistSlug[];
-}) => Promise<Map<string, { readlist?: ReadlistSlug }[]>>;
+}) => Promise<Map<string, { readlist?: ReadlistSlug; picked?: true }[]>>;
 
 export type WrapperSourceBinding = { contentSourceUrl: string; sourceOriginalUrl: string };
 

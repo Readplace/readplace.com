@@ -137,6 +137,7 @@ function makeHarness(opts?: {
 				});
 			};
 	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({
+		findCompletion: completion.findCompletion,
 		addGmailOrigins: completion.addGmailOrigins,
 		evaluate: initEvaluateGmailImportCompletion({
 			findCompletion: completion.findCompletion,

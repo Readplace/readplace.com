@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { EmailDeliveryMode } from "../mail-identity/email-delivery-mode";
-import { type GmailMessageOrigin, gmailMessageOriginKey } from "../gmail/gmail-message-update";
+import { EMAIL_DELIVERY_FAN_OUT, LEGACY_DELIVERY_MODE, type EmailDeliveryMode } from "../mail-identity/email-delivery-mode";
+import { type GmailMessageOrigin, GmailMessageOriginSchema, gmailMessageOriginKey } from "../gmail/gmail-message-update";
 import type { UserId } from "../user";
-import type { InboxAddress } from "./inbox-address.schema";
+import { type InboxAddress, InboxAddressSchema } from "./inbox-address.schema";
 import type { InboxEmailStatus, MessageId } from "./inbox-email.schema";
 import { type EmailLinkOrdinal, EmailLinkOrdinalSchema } from "./inbox-email-link.schema";
 
@@ -61,7 +61,33 @@ export function emailMatchBatch(readlist: string, start: number): string {
 	return `${start}#${readlist}`;
 }
 
+export const SupplementalEmailImportSchema = z.object({
+	deliveryMode: z.enum(["issue", "links"]),
+	destinationAddresses: z.tuple([InboxAddressSchema], InboxAddressSchema),
+	rawEmailS3Key: z.string(),
+	senderName: z.string(),
+	origin: GmailMessageOriginSchema,
+});
+export type SupplementalEmailImport = z.infer<typeof SupplementalEmailImportSchema>;
+
+export function missingEmailDeliveryMode(input: {
+	requested: EmailDeliveryMode;
+	accepted: EmailDeliveryMode | undefined;
+	selection: EmailOutputSelection | undefined;
+}): SupplementalEmailImport["deliveryMode"] | undefined {
+	const selectedIssue = input.selection?.outputs.includes(ISSUE_OUTPUT_KEY) === true;
+	const selectedLinks = input.selection?.outputs.some((output) => output !== ISSUE_OUTPUT_KEY) === true;
+	const acceptedMode = input.accepted ?? (selectedIssue ? "issue" : LEGACY_DELIVERY_MODE);
+	const accepted = EMAIL_DELIVERY_FAN_OUT[acceptedMode];
+	const requested = EMAIL_DELIVERY_FAN_OUT[input.requested];
+	if (requested.issue && !accepted.issue && !selectedIssue) return "issue";
+	if (requested.links && !accepted.links && !selectedLinks) return "links";
+	return undefined;
+}
+
 export interface EmailImportCompletion {
+	supplementalImport?: SupplementalEmailImport;
+	supplementalSelection?: EmailOutputSelection;
 	selection: EmailOutputSelection | undefined;
 	savedOutputs: ReadonlySet<EmailOutputKey>;
 	origins: GmailMessageOrigin[];
@@ -88,6 +114,12 @@ export interface EmailImportCandidate extends EmailImportCompletion {
 }
 
 export interface EmailImportCompletionStore {
+	claimSupplementalImport: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		requested: EmailDeliveryMode;
+		work: Omit<SupplementalEmailImport, "deliveryMode">;
+	}) => Promise<SupplementalEmailImport | undefined>;
 	addGmailOrigins: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -97,6 +129,7 @@ export interface EmailImportCompletionStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 		selection: EmailOutputSelection;
+		supplemental?: true;
 	}) => Promise<EmailOutputSelection>;
 	amendSelection: (input: {
 		userId: UserId;

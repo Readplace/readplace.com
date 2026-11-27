@@ -138,33 +138,3 @@ export function withPrivateItemRefusal(validate: ValidateSaveableUrl): ValidateS
 function errorResult(code: SaveableUrlErrorCode): SaveableUrlResult {
 	return { status: "ERROR", error: { code, message: SAVEABLE_URL_ERROR_MESSAGES[code] } };
 }
-
-/** Zod schema wrapper around the validator so HTTP boundaries can keep
- * using `safeParse()` for form-field validation. The custom issue carries the
- * error code via its params so callers that need to branch on the failure
- * kind can do so without re-running the validator. */
-export const SaveableUrlSchema = z.string().transform((value, ctx) => {
-	const result = validateSaveableUrl(value);
-	if (result.status === "SUCCESS") return result.url;
-	ctx.addIssue({
-		code: "custom",
-		message: result.error.message,
-		params: { saveableUrlCode: result.error.code },
-	}); /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-	return z.NEVER;
-});
-
-const SaveableUrlIssueParamsSchema = z.object({
-	saveableUrlCode: SaveableUrlErrorCodeSchema,
-});
-
-export function saveableUrlCodeFromIssues(
-	issues: readonly z.core.$ZodIssue[],
-): SaveableUrlErrorCode | undefined {
-	for (const issue of issues) {
-		if (issue.code !== "custom") continue;
-		const parsed = SaveableUrlIssueParamsSchema.safeParse(issue.params);
-		if (parsed.success) return parsed.data.saveableUrlCode;
-	}
-	return undefined;
-}

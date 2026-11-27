@@ -1196,6 +1196,7 @@ export const EmailReceivedEvent = defineEvent({
 		/** "receive" saves kept links to the reader's queue; a "backfill" replay
 		 * re-derives preview rows only — historical mail must never mass-save. */
 		origin: z.enum(["receive", "backfill", "gmail-import"]),
+		supplemental: z.literal(true).optional(),
 	}),
 });
 export type EmailReceivedDetail = z.infer<typeof EmailReceivedEvent.detailSchema>;
@@ -1589,6 +1590,7 @@ export const EmailOutputsSelectedEvent = defineEvent({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		outputCount: z.number().int().nonnegative(),
+		supplemental: z.literal(true).optional(),
 	}),
 });
 export type EmailOutputsSelectedDetail = z.infer<typeof EmailOutputsSelectedEvent.detailSchema>;
@@ -1624,6 +1626,7 @@ export const MarkGmailEmailImportedCommand = defineEvent({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		origin: GmailMessageOriginDetail,
+		supplemental: z.literal(true).optional(),
 	}),
 });
 export type MarkGmailEmailImportedDetail = z.infer<typeof MarkGmailEmailImportedCommand.detailSchema>;

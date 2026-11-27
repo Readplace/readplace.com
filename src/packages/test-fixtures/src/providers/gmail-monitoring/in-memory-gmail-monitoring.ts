@@ -73,7 +73,6 @@ export function initInMemoryGmailMonitoring(deps: { now: () => Date }): GmailMon
 			const page = pageOf([...(notices.get(userId) ?? new Map()).values()], pageToken);
 			return { notices: page.items, nextPageToken: page.nextPageToken };
 		},
-		findNotice: async ({ userId, senderEmail }) => notices.get(userId)?.get(senderEmail),
 		claimNotice: async ({ notice, message }) => {
 			const current = notices.get(notice.userId)?.get(notice.senderEmail);
 			if (current === undefined || current.mailboxId !== notice.mailboxId || current.accountEmail !== notice.accountEmail || current.gatewayAddress !== notice.gatewayAddress || (current.status !== "pending" && current.status !== "sending") || (current.claimUntil ?? 0) > deps.now().getTime()) return undefined;

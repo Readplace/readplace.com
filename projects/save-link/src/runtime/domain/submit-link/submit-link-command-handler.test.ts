@@ -9,12 +9,12 @@ import {
 	MinutesSchema,
 	ReaderArticleHashId,
 	ReaderArticleHashIdSchema,
-	SaveableUrlSchema,
 	articleDestinationUrl,
 	articleDisplayMetadata,
 	validateSaveableUrl,
 	ANONYMOUS_VIEWER,
 } from "@packages/domain/article";
+import { saveableUrlFixture } from "@packages/test-fixtures";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -64,7 +64,7 @@ import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
-const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const exampleUrl = saveableUrlFixture("https://example.com/post");
 const exampleDestination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 
 const stubAttributes: SQSRecordAttributes = {
@@ -289,7 +289,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect((await run(handler, submission)).batchItemFailures).toEqual([]);
 
 		expect(redirectRequests).toEqual([tracker]);
-		expect(await aliases.resolveAlias(tracker)).toBe(destination);
+		expect(await aliases.findIdentityRow(tracker)).toMatchObject({ kind: "alias", targetUrl: destination });
 		expect(new Set(storageKeys).size).toBe(2);
 		expect(new Set(articleOperations)).toEqual(new Set([destination]));
 		expect(await store.findQueueRowKeys({ userId, urls: [destination] })).toEqual([
@@ -309,7 +309,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const canonical = "https://example.com/canonical";
 		for (const slug of [accepted, rejected, unavailable]) {
 			await store.createReadlistDefinition({ userId, slug, label: slug, createdAt: fixedNow() });
-			await store.setReadlistDefinitionPurpose({ userId, slug, purpose: slug });
+			await store.setSmartReadlistRule({ userId, slug, purpose: slug, effectiveAt: fixedNow() });
 		}
 		const submit = createHandler({
 			saveArticleAsRequested: store.saveArticleAsRequested,

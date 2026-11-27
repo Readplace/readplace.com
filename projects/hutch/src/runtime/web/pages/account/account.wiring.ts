@@ -59,9 +59,6 @@ export function accountDependenciesFrom(
 		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
 		stripePublishableKey: deps.stripePublishableKey,
 		trialScheduler: deps.trialScheduler,
-		createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
-		deleteDeferredCancellationSchedule:
-			deps.trialScheduler.deleteDeferredCancellationSchedule,
 		storePendingSignup: deps.storePendingSignup,
 		resolvePriceId: deps.resolvePriceId,
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>

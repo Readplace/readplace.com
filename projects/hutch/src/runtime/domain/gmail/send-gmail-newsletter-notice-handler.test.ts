@@ -9,7 +9,7 @@ import { GmailNewsletterNoticeProcessedEvent, SendGmailNewsletterNoticeCommand }
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { Logger, noopLogger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
-import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
+import type { GmailMonitoringCheckpoint, GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type { EmailMessage } from "@packages/provider-contracts/email";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -20,6 +20,20 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { GmailNewsletterNoticeEmail } from "../../web/auth/gmail-newsletter-notice-email";
 import { initSendGmailNewsletterNoticeHandler, type RenderNewsletterNotice } from "./send-gmail-newsletter-notice-handler";
+
+async function findNotice(
+	store: Pick<GmailMonitoringStore, "listNotices">,
+	{ userId, senderEmail }: Parameters<GmailMonitoringStore["markNoticeSent"]>[0],
+) {
+	let pageToken: string | undefined;
+	do {
+		const page = await store.listNotices({ userId, pageToken });
+		const notice = page.notices.find((candidate) => candidate.senderEmail === senderEmail);
+		if (notice) return notice;
+		pageToken = page.nextPageToken;
+	} while (pageToken);
+	return undefined;
+}
 
 const USER = UserIdSchema.parse("reader");
 const SENDER = ForwardableSenderSchema.parse("letter@example.com");
@@ -34,7 +48,7 @@ const WORK: ReadlistDefinitionData = { slug: ReadlistSlugSchema.parse("work"), l
 function recognizing(newsletters: [ForwardableSender, string | undefined][]): DetectNewsletters {
 	return async () => ({
 		status: "available",
-		recognized: new Map(newsletters.map(([from, name]) => [from, name === undefined ? { from, name: undefined, source: "catalog", match: "domain-wildcard" } : { from, name: NewsletterNameSchema.parse(name), source: "catalog", match: "exact" }])),
+		recognized: new Map(newsletters.map(([from, name]) => [from, name === undefined ? { from, name: undefined, match: "domain-wildcard" } : { from, name: NewsletterNameSchema.parse(name), match: "exact" }])),
 	});
 }
 
@@ -57,7 +71,7 @@ async function harness() {
 	async function run(records = [{ messageId: "notice", body: JSON.stringify({ detail: { userId: USER } }) }]) {
 		const response = await initSendGmailNewsletterNoticeHandler(deps)(buildSqsEvent(records), buildLambdaContext(), () => {}); assert(response); return response;
 	}
-	const status = async (senderEmail: ForwardableSender) => (await monitoring.findNotice({ userId: USER, senderEmail }))?.status;
+	const status = async (senderEmail: ForwardableSender) => (await findNotice(monitoring, { userId: USER, senderEmail }))?.status;
 	return { deps, checkpoint, connections, subscriptions, monitoring, mappings, sent, published, run, observe, status, advance: (ms = 120_001) => { instant += ms; } };
 }
 
@@ -250,7 +264,7 @@ describe("approved Gmail newsletter notices", () => {
 	});
 	it("retries a notice claimed before notices were grouped with its original payload and retry key", async () => {
 		const h = await harness();
-		const notice = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER });
+		const notice = await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER });
 		assert(notice);
 		const original: EmailMessage = {
 			from: "Fayner from Readplace <fayner@readplace.com>",
@@ -412,11 +426,11 @@ describe("redriving a stuck notice email", () => {
 		await h.connections.deleteConnection(USER);
 		await h.run();
 		const batch = await h.monitoring.findNoticeBatch(USER);
-		const notice = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER });
+		const notice = await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER });
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent.length, 1);
 		assert.deepEqual(await h.monitoring.findNoticeBatch(USER), batch);
-		assert.deepEqual(await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }), notice);
+		assert.deepEqual(await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }), notice);
 	});
 	it("announces the sender again after a reconnect once the interval has passed", async () => {
 		const h = await harness();
@@ -527,7 +541,7 @@ describe("redriving a stuck notice email", () => {
 		await h.monitoring.deleteAllByUserId(USER);
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(await h.monitoring.findNoticeBatch(USER), undefined);
-		assert.equal(await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }), undefined);
+		assert.equal(await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }), undefined);
 	});
 });
 

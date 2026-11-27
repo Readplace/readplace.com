@@ -7,8 +7,8 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
 
 const RENDERED_BY_INBOX_PAGES = new Set([
+  "clipboard-copy.client.js",
   "extension-suggestion-banner.client.js",
-  "inbox.client.js",
   "local-time.client.js",
   "menu.client.js",
   "toast.client.js",

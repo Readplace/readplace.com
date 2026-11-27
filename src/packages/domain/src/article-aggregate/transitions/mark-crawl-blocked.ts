@@ -2,6 +2,7 @@ import type { CrawlFailureReason } from "@packages/article-state-types";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
+import { failCrawlAndSkipSummary } from "./fail-crawl-and-skip-summary";
 
 export interface MarkCrawlBlockedInput {
 	reason: Extract<CrawlFailureReason, { kind: "blocked" }>;
@@ -26,16 +27,5 @@ export function markCrawlBlocked(
 	 * markCrawlNotFound: a block never overwrites content a reader can already
 	 * read — otherwise one 403 on a refresh turns a readable article into the
 	 * "we couldn't fetch this" notice and drops its summary. */
-	if (article.crawl.kind === "ready") {
-		return { article, effects: [], writes: [] };
-	}
-
-	const next: Article = {
-		...article,
-		crawl: { kind: "failed", reason: input.reason },
-		summary: { kind: "skipped", reason: "crawl-failed" },
-	};
-	const effects: readonly Effect[] = [];
-	const writes: readonly AggregateField[] = ["crawl", "summary"];
-	return { article: next, effects, writes };
+	return failCrawlAndSkipSummary(article, input.reason);
 }

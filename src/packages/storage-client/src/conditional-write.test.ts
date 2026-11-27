@@ -3,7 +3,8 @@ import {
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
 } from "./index";
-import { transactIfConditions, writeIfCondition } from "./conditional-write";
+import { transactIfConditions, transactWithConflictRetry, writeIfCondition } from "./conditional-write";
+import type { DynamoDBDocumentClient } from "./define-table";
 
 describe("writeIfCondition", () => {
 	it("returns the write's result when the write succeeds", async () => {
@@ -122,5 +123,160 @@ describe("transactIfConditions", () => {
 				throw error;
 			}),
 		).rejects.toBe(error);
+	});
+});
+
+type SendFn = DynamoDBDocumentClient["send"];
+
+function clientAnswering(answers: readonly (Error | undefined)[]): {
+	client: Pick<DynamoDBDocumentClient, "send">;
+	sent: { name: string; input: unknown }[];
+} {
+	const sent: { name: string; input: unknown }[] = [];
+	const send: SendFn = (async (command: { constructor: { name: string }; input: unknown }) => {
+		const answer = answers[sent.length];
+		sent.push({ name: command.constructor.name, input: command.input });
+		if (answer) throw answer;
+		return {};
+	}) as SendFn;
+	return { client: { send }, sent };
+}
+
+function cancelled(codes: readonly string[] | undefined): TransactionCanceledException {
+	return new TransactionCanceledException({
+		message: "Transaction cancelled",
+		$metadata: {},
+		...(codes ? { CancellationReasons: codes.map((Code) => ({ Code })) } : {}),
+	});
+}
+
+const INPUT = { TransactItems: [{ ConditionCheck: { TableName: "t", Key: { pk: "a" }, ConditionExpression: "attribute_exists(pk)" } }] };
+
+describe("transactWithConflictRetry", () => {
+	const notHandled = async () => ({ handled: false as const });
+
+	it("sends the transaction once and returns written when it succeeds", async () => {
+		const { client, sent } = clientAnswering([undefined]);
+		const delays: number[] = [];
+
+		const outcome = await transactWithConflictRetry({
+			client,
+			delay: async (ms) => {
+				delays.push(ms);
+			},
+			maxAttempts: 3,
+			input: INPUT,
+			onCancelled: notHandled,
+		});
+
+		assert.deepEqual(outcome, { kind: "written" });
+		assert.deepEqual(sent, [{ name: "TransactWriteCommand", input: INPUT }]);
+		assert.deepEqual(delays, []);
+	});
+
+	it("returns the decision when the caller handles the cancellation, passing it the full reasons", async () => {
+		const error = new TransactionCanceledException({
+			message: "Transaction cancelled",
+			$metadata: {},
+			CancellationReasons: [{ Code: "ConditionalCheckFailed", Item: { state: { S: "started" } } }, { Code: "None" }],
+		});
+		const { client, sent } = clientAnswering([error]);
+		const seen: unknown[] = [];
+
+		const outcome = await transactWithConflictRetry({
+			client,
+			delay: async () => {},
+			maxAttempts: 3,
+			input: INPUT,
+			onCancelled: async (reasons) => {
+				seen.push(reasons);
+				return { handled: true, value: "closed" };
+			},
+		});
+
+		assert.deepEqual(outcome, { kind: "decided", value: "closed" });
+		assert.deepEqual(seen, [[{ Code: "ConditionalCheckFailed", Item: { state: { S: "started" } } }, { Code: "None" }]]);
+		assert.equal(sent.length, 1);
+	});
+
+	it("retries a transaction conflict with jittered backoff until it succeeds", async () => {
+		const { client, sent } = clientAnswering([cancelled(["TransactionConflict"]), cancelled(["None", "TransactionConflict"]), undefined]);
+		const delays: number[] = [];
+
+		const outcome = await transactWithConflictRetry({
+			client,
+			delay: async (ms) => {
+				delays.push(ms);
+			},
+			maxAttempts: 3,
+			input: INPUT,
+			onCancelled: notHandled,
+		});
+
+		assert.deepEqual(outcome, { kind: "written" });
+		assert.equal(sent.length, 3);
+		assert.equal(delays.length, 2);
+		assert.ok(delays[0] !== undefined && delays[0] >= 0 && delays[0] < 50);
+		assert.ok(delays[1] !== undefined && delays[1] >= 0 && delays[1] < 100);
+	});
+
+	it("rethrows the last conflict once the attempts run out", async () => {
+		const last = cancelled(["TransactionConflict"]);
+		const { client, sent } = clientAnswering([cancelled(["TransactionConflict"]), cancelled(["TransactionConflict"]), last]);
+
+		await expect(
+			transactWithConflictRetry({ client, delay: async () => {}, maxAttempts: 3, input: INPUT, onCancelled: notHandled }),
+		).rejects.toBe(last);
+		assert.equal(sent.length, 3);
+	});
+
+	it("rethrows a cancellation that is neither handled nor a conflict", async () => {
+		const error = cancelled(["ThrottlingError"]);
+		const { client, sent } = clientAnswering([error]);
+
+		await expect(
+			transactWithConflictRetry({ client, delay: async () => {}, maxAttempts: 3, input: INPUT, onCancelled: notHandled }),
+		).rejects.toBe(error);
+		assert.equal(sent.length, 1);
+	});
+
+	it("rethrows an error that is not a cancellation without asking the caller", async () => {
+		const error = new Error("network down");
+		const { client } = clientAnswering([error]);
+		let asked = false;
+
+		await expect(
+			transactWithConflictRetry({
+				client,
+				delay: async () => {},
+				maxAttempts: 3,
+				input: INPUT,
+				onCancelled: async () => {
+					asked = true;
+					return { handled: false };
+				},
+			}),
+		).rejects.toBe(error);
+		assert.equal(asked, false);
+	});
+
+	it("treats a cancellation without reasons as an empty list and rethrows it", async () => {
+		const error = cancelled(undefined);
+		const { client } = clientAnswering([error]);
+		const seen: unknown[] = [];
+
+		await expect(
+			transactWithConflictRetry({
+				client,
+				delay: async () => {},
+				maxAttempts: 3,
+				input: INPUT,
+				onCancelled: async (reasons) => {
+					seen.push(reasons);
+					return { handled: false };
+				},
+			}),
+		).rejects.toBe(error);
+		assert.deepEqual(seen, [[]]);
 	});
 });

@@ -14,6 +14,7 @@ import {
 import type { Page } from "@playwright/test";
 import {
 	FIXED_NOW,
+	LATER_PAGE_TITLE,
 	OVERSIZED_TITLE,
 	WIDE_TITLE,
 	popupListUrl,
@@ -973,6 +974,82 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 					pinnedText: [],
 				});
 			});
+		});
+	});
+
+	test.describe("popup filter scope", () => {
+		const FILTER = "#filter-input";
+		const NO_MATCHES = "#no-matches";
+		const UNIQUE_LATER_TERM = "lisp";
+		const CURRENT_PAGE_TERM = "trust";
+
+		function rowTitles(page: Page): Promise<string[]> {
+			return page.locator(".list-view__item-title").allTextContents();
+		}
+
+		async function recordStatusWrites(page: Page): Promise<void> {
+			await page.evaluate(() => {
+				const status = document.getElementById("no-matches");
+				if (!status) throw new Error("the zero-match status must render");
+				window.__popupStatusWrites = [];
+				new MutationObserver(() => window.__popupStatusWrites?.push(status.textContent ?? "")).observe(status, { childList: true, characterData: true, subtree: true });
+			});
+		}
+
+		test("filters only the loaded page under a visible label and finds a later page's article once that page loads", async ({ page }) => {
+			await open(page, { url: popupListUrl(input.packagedPopup), stub: popupRuntimeStub({ laterPage: true }), wait: LIST_VIEW });
+			await expect(page.getByLabel("Filter this readlist page by title or web address", { exact: true })).toBeVisible();
+			await expect(page.locator(".list-view__search-label")).toBeVisible();
+			await expect(page.locator(FILTER)).not.toHaveAttribute("placeholder");
+
+			await page.locator(FILTER).fill(CURRENT_PAGE_TERM);
+			expect(await rowTitles(page)).toEqual(["Reflections on Trusting Trust"]);
+			await expect(page.locator("#pagination")).toBeHidden();
+
+			await page.locator(FILTER).fill(UNIQUE_LATER_TERM);
+			expect(await rowTitles(page)).toEqual([]);
+			await expect(page.locator(NO_MATCHES)).toHaveText("No matches on this page");
+			await expect(page.locator(NO_MATCHES)).toHaveAttribute("role", "status");
+			await expect(page.locator(FILTER)).toHaveValue(UNIQUE_LATER_TERM);
+			await expect(page.locator(".list-view__search-label")).toBeVisible();
+			expect(await page.evaluate(() => window.__popupLoadPageRequests)).toBe(0);
+
+			await page.locator(FILTER).fill("");
+			await expect(page.locator(NO_MATCHES)).toHaveText("");
+			await page.locator("#pagination .pagination__step--next").click();
+			await expect(page.locator(".list-view__item-title")).toHaveText([LATER_PAGE_TITLE]);
+			await page.locator(FILTER).fill(UNIQUE_LATER_TERM);
+			expect(await rowTitles(page)).toEqual([LATER_PAGE_TITLE]);
+		});
+
+		test("announces the zero-match message once on entry, not again per keystroke, and clears it on recovery", async ({ page }) => {
+			await openList(page);
+			await recordStatusWrites(page);
+			const filter = page.locator(FILTER);
+			await filter.focus();
+
+			await filter.pressSequentially("zzz");
+			await expect(page.locator(NO_MATCHES)).toHaveText("No matches on this page");
+			await filter.press("Backspace");
+			await filter.press("Backspace");
+			await filter.press("Backspace");
+			await expect(page.locator(NO_MATCHES)).toHaveText("");
+
+			expect(await page.evaluate(() => window.__popupStatusWrites)).toEqual(["No matches on this page", ""]);
+			await expect(filter).toBeFocused();
+		});
+
+		test("keeps the filter hidden behind a failed first load until a retry loads the list", async ({ page }) => {
+			await open(page, { url: popupListUrl(input.packagedPopup), stub: popupRuntimeStub({ listReply: "error-then-items" }), wait: LIST_VIEW });
+			await listErrorSettled(page);
+			await expect(page.locator("#list-error-retry")).toBeEnabled();
+			await expect(page.locator(".list-view__search")).toBeHidden();
+			await expect(page.locator("#empty-list")).toBeHidden();
+
+			await page.locator("#list-error-retry").click();
+			await expect(page.locator(".list-view__row")).toHaveCount(4);
+			await expect(page.locator(".list-view__search")).toBeVisible();
+			await expect(page.getByLabel("Filter this readlist page by title or web address", { exact: true })).toBeVisible();
 		});
 	});
 

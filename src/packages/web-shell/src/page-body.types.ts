@@ -19,7 +19,6 @@ export interface SeoMetadata {
 	ogImageAlt?: string;
 	ogImageType?: string;
 	twitterImage?: string;
-	twitterSite?: string;
 	ogType?: "website" | "article";
 	robots?: string;
 	author?: string;

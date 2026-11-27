@@ -35,9 +35,9 @@ export type MediaObjectBytes = {
 	deleteObject: (params: { key: string }) => Promise<void>;
 };
 
-export type HeldObject = { sha256: ObjectSha256; generation: number; key: string };
+type HeldObject = { sha256: ObjectSha256; generation: number; key: string };
 
-export type PutObjectBytes = (key: string) => Promise<void>;
+type PutObjectBytes = (key: string) => Promise<void>;
 
 export type RefObject = (params: {
 	sha256: ObjectSha256;

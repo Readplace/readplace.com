@@ -1,7 +1,8 @@
 import assert from "node:assert";
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { type AdvanceEpochKeeping, isCurrentGrant, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
 import { defineDynamoTable, dynamoField, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/storage-client";
+import { authDiagnosticReference } from "@packages/web-session";
 import { z } from "zod";
 import { CredentialHistory, initRefreshProof, OAuthGrantId, refreshContext } from "../../oauth-refresh/evidence";
 import { authDiagnosticContext } from "../../auth-diagnostics/record";
@@ -28,7 +29,7 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 	const grants = defineDynamoTable({ client, tableName: TableName, schema: grantSchema });
 	const accounts = defineDynamoTable({ client, tableName: TableName, schema: accountSchema });
 	const { fingerprint } = initRefreshProof(deps.secret);
-	const subjectReference = (value: string) => createHmac("sha256", deps.secret).update("auth-diagnostics:subject:").update(value).digest("hex");
+	const subjectReference = (value: string) => authDiagnosticReference({ salt: deps.secret, kind: "subject", value });
 	const ttl = (expiresAt: number) => Math.ceil(expiresAt / 1000) + 30 * 86400;
 	const epochExpression = (epoch: number) => epoch === 0 ? "attribute_not_exists(deletedAt) AND (attribute_not_exists(epoch) OR epoch = :epoch)" : "attribute_not_exists(deletedAt) AND epoch = :epoch";
 	const epochCondition = (userId: string, epoch: number) => ({ ConditionCheck: {

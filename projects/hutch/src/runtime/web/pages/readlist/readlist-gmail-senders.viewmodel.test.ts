@@ -75,7 +75,7 @@ function discovery(overrides: Partial<GmailDiscovery> = {}): GmailDiscovery {
 function recognised(entries: [typeof TLDR, string][]): ReadlistGmailSendersInput["detection"] {
 	return {
 		status: "available",
-		recognized: new Map(entries.map(([from, name]) => [from, { from, name: NewsletterNameSchema.parse(name), source: "catalog" as const, match: "exact" as const }])),
+		recognized: new Map(entries.map(([from, name]) => [from, { from, name: NewsletterNameSchema.parse(name), match: "exact" as const }])),
 	};
 }
 
@@ -229,12 +229,8 @@ describe("toReadlistGmailSenders section copy", () => {
 		assert.equal(vm.links[0].href, "/newsletters/gmail?utm_source=queue-preferences&utm_medium=internal&utm_content=open-gmail-newsletters");
 	});
 
-	it("words the lede by whether the readlist has a purpose", () => {
+	it("words the lede around the readlist's delivery choice", () => {
 		assert.equal(toReadlistGmailSenders(input()).lede, "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and Design. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.");
-		assert.equal(
-			toReadlistGmailSenders(input({ readlist: { ...DESIGN, purpose: "Design systems" } })).lede,
-			"Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and Design. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
-		);
 	});
 });
 

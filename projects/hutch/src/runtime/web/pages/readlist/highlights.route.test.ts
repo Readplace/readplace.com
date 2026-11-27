@@ -5,7 +5,7 @@ import {
 } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { CandidateIdSchema } from "@packages/article-state-types";
-import { HighlightIdSchema } from "@packages/domain/article";
+import { HighlightIdSchema, ReaderArticleHashId } from "@packages/domain/article";
 import {
 	collectTextChunks,
 	normaliseText,
@@ -291,7 +291,11 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			articleId,
 			exact: "readability parser",
 		});
-		const before = await harness.articleStore.findUserArticlesByUrl(url);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user);
+		const viewedAt = async () =>
+			(await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), user.userId))?.viewedAt;
+		const before = await viewedAt();
 
 		const response = await agent
 			.post(createPath(articleId))
@@ -301,9 +305,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.status).toBe(422);
 		expect(response.text).toContain("That passage changed; select it again");
 		expect(doc(response.text).querySelector("main")).not.toBeNull();
-		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual(
-			before,
-		);
+		expect(await viewedAt()).toEqual(before);
 	});
 
 	it("answers the same 422 with the reader and the refusal to an htmx post when exact is not at start", async () => {

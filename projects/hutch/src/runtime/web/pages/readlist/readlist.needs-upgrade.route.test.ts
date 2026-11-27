@@ -9,7 +9,7 @@ const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
 const WORK = ReadlistSlugSchema.parse("work");
 
-async function readerWithArticleAndReadlist(trialEndsAt: Date) {
+async function setUpReader(trialEndsAt: Date) {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 	const email = "needs-upgrade@example.com";
 	await harness.auth.createUser({ email, password: "password123" });
@@ -28,7 +28,11 @@ async function readerWithArticleAndReadlist(trialEndsAt: Date) {
 		userId: lookup.userId,
 		trialEndsAt: trialEndsAt.toISOString(),
 	});
-	return agent;
+	return { agent, harness, userId: lookup.userId };
+}
+
+async function readerWithArticleAndReadlist(trialEndsAt: Date) {
+	return (await setUpReader(trialEndsAt)).agent;
 }
 
 function freePlanReader() {
@@ -107,10 +111,10 @@ describe("a free-plan reader's queue page", () => {
 
 		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences`)).text);
 
-		const lock = doc.querySelector('button[data-test-needs-upgrade="set-up-readlist"]');
-		assert(lock, "the purpose panel must carry the needs-upgrade lock");
+		const lock = doc.querySelector('#readlist-smart button[data-test-needs-upgrade="make-smart-readlist"]');
+		assert(lock, "the Smart section must carry the needs-upgrade lock");
 		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
-		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
+		expect(doc.querySelectorAll('[data-test-form="smart-convert"]')).toHaveLength(0);
 		expect(doc.querySelectorAll('[data-test-action="new-readlist"]')).toHaveLength(1);
 	});
 
@@ -120,7 +124,38 @@ describe("a free-plan reader's queue page", () => {
 		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences`)).text);
 
 		expect(lockKeys(doc)).toEqual([]);
-		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(1);
+		expect(doc.querySelectorAll('[data-test-form="smart-convert"]')).toHaveLength(1);
+	});
+
+	it("offers a regular readlist's Smart section no form and no lock on the iOS surface", async () => {
+		const agent = await freePlanReader();
+
+		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences?platform=ios`)).text);
+
+		const smart = doc.querySelector('#readlist-smart[data-test-smart-filing="manual"]');
+		assert(smart, "the regular readlist must still render its Smart section");
+		expect(smart.querySelectorAll("form")).toHaveLength(0);
+		expect(smart.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
+	});
+
+	it("shows a free-plan Smart Readlist its locked inboxes and its read-only Purpose card", async () => {
+		const { agent, harness, userId } = await setUpReader(new Date(Date.now() - ONE_DAY_MS));
+		await harness.articleStore.setSmartReadlistRule({
+			userId,
+			slug: WORK,
+			purpose: "Essays on how teams actually ship.",
+			effectiveAt: new Date(),
+		});
+
+		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences`)).text);
+
+		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
+		assert(inboxes, "a Smart Readlist must render its inboxes section");
+		expect(Array.from(inboxes.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => lock.getAttribute("data-test-needs-upgrade"))).toEqual(["create-inbox"]);
+		const card = doc.querySelector("section[data-test-readlist-purpose]");
+		assert(card, "a free-plan Smart Readlist must show its purpose read-only");
+		expect(card.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Essays on how teams actually ship.");
+		expect(doc.querySelectorAll('[data-test-action="readlist-purpose-edit"]')).toHaveLength(0);
 	});
 
 	it("keeps the save controls open on the iOS surface, where no plan chooser is offered", async () => {

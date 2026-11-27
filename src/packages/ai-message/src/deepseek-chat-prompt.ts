@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
+import type { CreateAiMessage } from "./create-ai-message.types";
 import type { DeepseekMessage } from "./deepseek-chat.types";
 
 export const DEEPSEEK_SPECIAL_TOKENS = {
@@ -14,15 +14,10 @@ export const DEEPSEEK_PROMPT_TOKEN_MARGIN = 32;
 const JSON_OBJECT_RESPONSE_FORMAT_SECTION =
 	'\n\n## Response Format:\n\nYou MUST strictly adhere to the following schema to reply:\n{"type": "json_object"}';
 
-function flattenContent(content: string | Array<DocumentBlock>): string {
-	if (typeof content === "string") return content;
-	return content.map((block) => block.source.data).join("\n");
-}
-
 export function toDeepseekMessages(params: Parameters<CreateAiMessage>[0]): DeepseekMessage[] {
 	return [
 		{ role: "system", content: params.system },
-		...params.messages.map((msg) => ({ ...msg, content: flattenContent(msg.content) })),
+		...params.messages,
 	];
 }
 

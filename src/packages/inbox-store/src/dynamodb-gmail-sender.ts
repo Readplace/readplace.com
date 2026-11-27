@@ -44,9 +44,6 @@ export function initDynamoDbGmailSender(deps: {
 				ExpressionAttributeValues: { ":now": now, ":subject": subject, ":one": 1 },
 			});
 		},
-		findSender: async ({ userId, senderEmail }) => {
-			return table.get({ userId, senderEmail });
-		},
 		listSendersByUserId: async (userId) => {
 			const senders: GmailSenderEntry[] = [];
 			await forEachQueryPage(table, byUser(userId), async (rows) => {

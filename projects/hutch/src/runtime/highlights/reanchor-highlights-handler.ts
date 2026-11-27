@@ -105,7 +105,6 @@ export function initReanchorHighlightsHandler(deps: {
 				highlights: rows.map((row) => ({ ...row.highlight, userId: row.userId })),
 				anchorTexts,
 			});
-			const { anchored: _anchored, moved: _moved, orphaned: _orphaned, ...placingCounts } = placing;
 
 			const counts = { anchored: 0, moved: 0, orphaned: 0, skipped: 0 };
 			for (const write of writes) {
@@ -124,7 +123,7 @@ export function initReanchorHighlightsHandler(deps: {
 				else counts[write.anchor.anchorState]++;
 			}
 
-			metricLog.info({ event: HIGHLIGHTS_REANCHORED_EVENT, url, ...counts, ...placingCounts });
+			metricLog.info({ event: HIGHLIGHTS_REANCHORED_EVENT, url, ...counts, ...placing });
 			await deps.publishEvent(HighlightsReanchoredEvent, {
 				url,
 				anchored: counts.anchored,

@@ -758,7 +758,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordSmartReadlistMinimumReached: onboardingSignals.recordSmartReadlistMinimumReached,
-		recordSmartReadlistStepDismissed: onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: onboardingSignals.recordGmailStepDismissed,

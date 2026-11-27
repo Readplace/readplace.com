@@ -15,6 +15,7 @@ const DIALOG_FORM = `${DIALOG} form`;
 const CANCEL = `${DIALOG} [data-test-action="disconnect-app-cancel"]`;
 const COMMIT = `${DIALOG} [data-test-action="disconnect-app-confirm"]`;
 const SEE_WAYS_TO_SAVE = '[data-test-connected-app-action="see-ways-to-save"]';
+const TOGGLE = '[data-test-action="connected-apps-toggle"]';
 
 async function signInWithChrome(page: Page, email: string): Promise<void> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -33,6 +34,9 @@ async function openConnectedApps(page: Page): Promise<void> {
 	await page.goto(`${BASE_URL}/account#connected-apps`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-account");
 	await expect(page.locator(SECTION)).toHaveAttribute("data-test-connected-apps-state", "listed");
+	await expect(page.locator(OPEN), "the listed apps start collapsed").toBeHidden();
+	await page.locator(TOGGLE).click();
+	await expect(page.locator(OPEN)).toBeVisible();
 }
 
 async function openDisconnectDialog(page: Page): Promise<void> {

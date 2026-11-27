@@ -342,7 +342,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 		const response = await agent.get(`/queue/${id}/view`).set("Accept", "text/markdown");
 
 		expect(response.status).toBe(200);
-		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+		expect((await harness.articleStore.findArticleById(ReaderArticleHashId.from(url), userId))?.viewedAt).toBeUndefined();
 	});
 
 	it("counts the owner's session fetch as a reader open and a bearer client's fetch as nothing", async () => {

@@ -58,7 +58,7 @@ export function initDisconnectGmail(deps: {
 			});
 		}
 
-		const refreshToken = await credentials.findRefreshTokenByUserId(userId);
+		const refreshToken = (await credentials.findCredentialsByUserId(userId))?.refreshToken;
 		let grantRevoked = false;
 		if (refreshToken !== undefined) {
 			const revoked = await revokeGmailGrant({ refreshToken });

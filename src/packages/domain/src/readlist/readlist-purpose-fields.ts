@@ -18,8 +18,3 @@ export function parseReadlistPurposeFields(text: string): ReadlistPurposeFields 
 		skip: joinLines([rest[skipAt].slice(SKIP_PREFIX.length), ...rest.slice(skipAt + 1)]),
 	};
 }
-
-export function composeReadlistPurposeText(fields: ReadlistPurposeFields): string {
-	const keepLine = `${KEEP_PREFIX}${fields.keep}`;
-	return fields.skip === undefined ? keepLine : `${keepLine}\n${SKIP_PREFIX}${fields.skip}`;
-}

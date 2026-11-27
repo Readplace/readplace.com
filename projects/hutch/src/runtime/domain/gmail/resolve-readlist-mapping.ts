@@ -1,7 +1,7 @@
+import type { EmailDeliveryMode } from "@packages/domain/inbox";
 import {
 	type ForwardableSender,
 	type GmailAccountEmail,
-	type GmailDeliveryMode,
 	type GmailHistoryImportCancelReason,
 	type GmailHistoryImportJob,
 	type GmailMappingStore,
@@ -16,7 +16,7 @@ export type MapSenderToReadlist = (input: {
 	accountEmail: GmailAccountEmail;
 	sender: ForwardableSender;
 	readlists: ReadlistSlug[];
-	deliveryMode: GmailDeliveryMode;
+	deliveryMode: EmailDeliveryMode;
 }) => Promise<{ destinations: [InboxAddress, ...InboxAddress[]] }>;
 
 export function initMapSenderToReadlist(deps: {

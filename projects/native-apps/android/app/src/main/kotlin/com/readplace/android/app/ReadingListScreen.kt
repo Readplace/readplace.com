@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
@@ -72,11 +73,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -113,9 +116,45 @@ private data class PendingDestructive(
 )
 
 @Composable
+internal fun ReadlistHeader(label: String?, description: String?, hint: ReadlistHintContent?, onOpen: (String) -> Unit) {
+	label?.let { name ->
+		Text(
+			text = name,
+			style = MaterialTheme.typography.headlineMedium,
+			color = LocalBrandColors.current.textPrimary,
+			maxLines = 2,
+			overflow = TextOverflow.Ellipsis,
+			modifier = Modifier
+				.padding(start = GUTTER, end = GUTTER, top = 8.dp)
+				.semantics { heading() },
+		)
+	}
+	description?.let { text ->
+		Text(
+			text = text,
+			style = MaterialTheme.typography.bodyMedium,
+			color = LocalBrandColors.current.textSecondary,
+			modifier = Modifier.padding(start = GUTTER, end = GUTTER, top = 4.dp),
+		)
+	}
+	hint?.let { ReadlistHint(hint = it, onOpen = onOpen) }
+	Spacer(modifier = Modifier.height(12.dp))
+}
+
+@Composable
 internal fun ReadlistHint(hint: ReadlistHintContent, onOpen: (String) -> Unit) {
-	Text(text = hint.text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
-	TextButton(onClick = { onOpen(hint.url) }, colors = brandTextButtonColors()) { Text(text = hint.linkLabel) }
+	val labelInset = ButtonDefaults.TextButtonContentPadding.calculateStartPadding(LocalLayoutDirection.current)
+	Text(
+		text = hint.text,
+		style = MaterialTheme.typography.bodySmall,
+		color = LocalBrandColors.current.textSecondary,
+		modifier = Modifier.padding(start = GUTTER, end = GUTTER, top = 4.dp),
+	)
+	TextButton(
+		onClick = { onOpen(hint.url) },
+		colors = brandTextButtonColors(),
+		modifier = Modifier.padding(start = GUTTER - labelInset),
+	) { Text(text = hint.linkLabel) }
 }
 
 @Composable
@@ -221,7 +260,7 @@ fun ReadingListScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { ReadingListTitle(currentReadlistLabel = state.currentReadlistLabel) },
+				title = {},
 				navigationIcon = {
 					TextButton(onClick = onSignOut, colors = brandTextButtonColors()) { Text(text = "Sign out") }
 				},
@@ -252,10 +291,12 @@ fun ReadingListScreen(
 				.padding(insets),
 		) {
 			Column(modifier = Modifier.fillMaxSize()) {
-				state.currentReadlistDescription?.let { description ->
-					Text(text = description, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
-				}
-				state.readlistHint?.let { hint -> ReadlistHint(hint = hint, onOpen = onOpenExternally) }
+				ReadlistHeader(
+					label = state.currentReadlistLabel,
+					description = state.currentReadlistDescription,
+					hint = state.readlistHint,
+					onOpen = onOpenExternally,
+				)
 				if (state.tabs.isNotEmpty()) {
 					TabStrip(
 						tabs = state.tabs,
@@ -600,22 +641,6 @@ private fun AddLinkInstructionsSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-internal fun ReadingListTitle(currentReadlistLabel: String?) {
-	Column {
-		Text(text = "Reading List", maxLines = 1, overflow = TextOverflow.Ellipsis)
-		currentReadlistLabel?.let { label ->
-			Text(
-				text = label,
-				style = MaterialTheme.typography.labelMedium,
-				color = LocalBrandColors.current.textSecondary,
-				maxLines = 1,
-				overflow = TextOverflow.Ellipsis,
-			)
-		}
-	}
-}
-
-@Composable
 private fun ToolbarControl(affordance: Affordance, onTap: () -> Unit) {
 	val presentation = affordance.presentation
 	val colors = LocalBrandColors.current
@@ -875,9 +900,10 @@ private data class PanelEdge(val isFirst: Boolean, val isLast: Boolean) {
 	private companion object {
 		val CORNER_RADIUS = 12.dp
 		val BORDER_WIDTH = 1.dp
-		val GUTTER = 16.dp
 	}
 }
+
+private val GUTTER = 16.dp
 
 @Composable
 private fun RowControlsTray(

@@ -1,5 +1,5 @@
 export const enUS = {
-	senderFilter: { label: "Sender", all: "All senders", unavailable: "No received issues from this sender" },
+	senderFilter: { label: "Sender", filter: "Filter senders", all: "All senders", unavailable: "No received issues from this sender" },
 	emailDetail: {
 		savesHeld: {
 			readlist: "No articles were saved to {label}: saving from the Inbox is part of a paid plan.",

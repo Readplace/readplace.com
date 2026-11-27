@@ -1,10 +1,5 @@
-import type {
-	Article,
-	ArticleFreshness,
-	ArticleMetadata,
-} from "../article.types";
-import type { CanonicalImageUrl } from "../canonical-image-url";
-import type { CanonicalPublishedOn } from "../canonical-published-on";
+import type { Article, ArticleFreshness } from "../article.types";
+import type { CanonicalMetadata } from "../canonical-metadata.types";
 import type { Effect } from "../effects.types";
 import { isCanonicalCandidateRevoked } from "../content-selection.types";
 import { stampReaderAvailability } from "../reader-availability";
@@ -12,14 +7,7 @@ import type { AggregateField } from "../storage.types";
 import { type MetadataDisplay, displayedMetadata } from "./displayed-metadata";
 
 export interface RefreshContentInput {
-	/** `imageUrl` is branded `CanonicalImageUrl` so the only way to populate it
-	 * is `resolveCanonicalImageUrl` (save-link/select-content), which rescues
-	 * an og:image from a losing tier when the winner has none. Passing
-	 * `winnerSource.metadata.imageUrl` directly is a compile error. */
-	metadata: Omit<ArticleMetadata, "imageUrl" | "publishedOn"> & {
-		imageUrl: CanonicalImageUrl;
-		publishedOn: CanonicalPublishedOn;
-	};
+	metadata: CanonicalMetadata;
 	display: Extract<MetadataDisplay, { kind: "candidate" | "row" }>;
 	freshness: ArticleFreshness;
 	estimatedReadTime: number;

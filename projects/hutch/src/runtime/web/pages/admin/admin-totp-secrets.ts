@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { normalizeEmail } from "@packages/domain/user";
 import { z } from "zod";
 
 export const ADMIN_TOTP_SECRETS_PARAMETER_NAME = "/readplace/admin-totp-secrets";
@@ -8,10 +9,6 @@ export type ReadAdminTotpSecrets = () => Promise<ReadonlyMap<string, Buffer>>;
 const AdminTotpSecretHexSchema = z.string().regex(/^[0-9a-f]{40}$/);
 
 const AdminTotpSecretsParameterSchema = z.object({ entries: z.string() });
-
-function normaliseEmail(email: string): string {
-	return email.trim().toLowerCase();
-}
 
 export function parseAdminTotpSecrets(raw: string): ReadonlyMap<string, Buffer> {
 	const entries = raw
@@ -28,7 +25,7 @@ export function parseAdminTotpSecrets(raw: string): ReadonlyMap<string, Buffer> 
 			AdminTotpSecretHexSchema.safeParse(hex).success,
 			`${position} must hold a secret of exactly 40 lower-case hex characters (value not shown)`,
 		);
-		secrets.set(normaliseEmail(email), Buffer.from(hex, "hex"));
+		secrets.set(normalizeEmail(email), Buffer.from(hex, "hex"));
 	});
 	return secrets;
 }
@@ -40,7 +37,7 @@ export function adminTotpSecretFor({
 	secrets: ReadonlyMap<string, Buffer>;
 	email: string;
 }): Buffer | undefined {
-	return secrets.get(normaliseEmail(email));
+	return secrets.get(normalizeEmail(email));
 }
 
 export function adminTotpSecretsParameterValue(raw: string): string {

@@ -44,9 +44,8 @@ export function initObserveTokenOutcome(deps: {
 			res.setHeader("X-Readplace-Refresh-Attempt", proof.sign(context.attempt));
 		}
 		res.on("finish", () => {
-			const fields = TokenRequestFields.parse(req.body);
-			const grantType = grantTypeOf(fields.grant_type);
-			const clientId = fields.client_id ?? "missing";
+			const grantType = grantTypeOf(requestFields.grant_type);
+			const clientId = requestFields.client_id ?? "missing";
 			if (isSuccess(res.statusCode)) {
 				deps.recordUngatedAnalyticsEvent(
 					{ ...buildOAuthTokenIssuedEvent(

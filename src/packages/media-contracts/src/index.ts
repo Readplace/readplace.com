@@ -8,10 +8,9 @@ export {
 	uploadIdOfPrivateItemUrl,
 } from "./private-item";
 export { MediaImageFileSchema, type MediaImageFile, mediaImageFileOf } from "./media-image-file";
-export type { MediaFacts } from "./media-facts.types";
 export { defineMediaKind, type MediaKindManifest, type Meter, type TimedFactsRefusal } from "./media-kind";
-export { isPlayableAudio, type TimedMediaFacts } from "./playable-audio";
-export { AUDIO } from "./kinds/audio";
+export type { TimedMediaFacts } from "./playable-audio";
+export { AUDIO, listenMinutes } from "./kinds/audio";
 export { BOOK } from "./kinds/book";
 export { VIDEO } from "./kinds/video";
 export { MEDIA_KINDS, MediaKindNameSchema, type MediaKindName } from "./media-kinds";

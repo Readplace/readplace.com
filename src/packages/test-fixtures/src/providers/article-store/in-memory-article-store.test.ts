@@ -48,16 +48,16 @@ describe("initInMemoryArticleStore", () => {
 		const count = () => store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK, LATER] });
 		for (const slug of [WORK, LATER]) {
 			await store.createReadlistDefinition({ userId: USER_A, slug, label: slug, createdAt: new Date() });
-			await store.setReadlistDefinitionPurpose({ userId: USER_A, slug, purpose: "Things to study" });
+			await store.setSmartReadlistRule({ userId: USER_A, slug, purpose: "Things to study", effectiveAt: new Date() });
 			for (let i = 0; i < 5; i++) {
 				const index = i + (slug === WORK ? 0 : 4);
 				await store.saveReadlistArticle({ ...makeArticleParams({ url: URL + index }), readlist: slug });
 			}
 		}
 		expect(await count()).toBe(9);
-		await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: LATER });
+		await store.turnOffSmartReadlistMatching({ userId: USER_A, slug: LATER });
 		expect(await count()).toBe(5);
-		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: LATER, purpose: "Review" });
+		await store.setSmartReadlistRule({ userId: USER_A, slug: LATER, purpose: "Review", effectiveAt: new Date() });
 		await store.setReadlistArticleStatus({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK, status: "read" });
 		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(URL + 4), userId: USER_A, readlist: WORK });
 		expect(await count()).toBe(9);
@@ -125,6 +125,34 @@ describe("initInMemoryArticleStore", () => {
 			const fourth = store.holdBulkArticle(USER_A, URL, new Date());
 			await store.deleteAllUserArticles(USER_A);
 			expect(fourth?.()).toBe(false);
+		});
+
+		it("marks every live unread holding of a selected save read once, keeping an earlier read time", async () => {
+			const store = initInMemoryArticleStore();
+			const at = new Date("2026-11-26T10:00:00.000Z");
+			const earlier = new Date("2026-11-20T10:00:00.000Z");
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => true })).toBe(false);
+			const { saved } = await store.saveArticle(makeArticleParams());
+			for (const slug of [WORK, LATER]) {
+				await store.createReadlistDefinition({ userId: USER_A, slug, label: slug, createdAt: earlier });
+				await store.assignSavedArticleToReadlist({ userId: USER_A, readlist: slug, from: DEFAULT_READLIST_SLUG, url: URL, savedAt: earlier });
+			}
+			await store.setReadlistArticleStatus({ id: saved.id, userId: USER_A, readlist: LATER, status: "read" });
+			const later = await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: LATER });
+			const orphan = ReadlistSlugSchema.parse("orphan");
+			await store.createReadlistDefinition({ userId: USER_A, slug: orphan, label: "Orphan", createdAt: earlier });
+			await store.assignSavedArticleToReadlist({ userId: USER_A, readlist: orphan, from: DEFAULT_READLIST_SLUG, url: URL, savedAt: earlier });
+			await store.deleteReadlistDefinition({ userId: USER_A, slug: orphan });
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => false })).toBe(false);
+			expect(store.markReadEverywhereForBulk({ userId: USER_B, url: URL, at, isSelected: () => true })).toBe(false);
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => true })).toBe(true);
+			expect(await store.findArticleById(saved.id, USER_A)).toMatchObject({ status: "read", readAt: at });
+			expect(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK })).toMatchObject({ status: "read", readAt: at });
+			expect(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: LATER }))
+				.toMatchObject({ status: "read", readAt: later?.readAt, statusRevision: later?.statusRevision });
+			expect(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: orphan })).toMatchObject({ status: "unread" });
+			await store.setPurgedAt({ url: URL, at });
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => true })).toBe(false);
 		});
 
 		it("rejects delayed work after a deletion and allows a genuinely later save", async () => {
@@ -448,9 +476,6 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		it("does not clobber real parsed metadata when a stub re-save lands on an existing row", async () => {
-			// Simulates the /view fallback path landing on a row that already
-			// holds parsed metadata: title/excerpt/wordCount must stay intact;
-			// only savedAt is allowed to advance (via bumpArticleSavedAt).
 			const store = initInMemoryArticleStore();
 			const url = "https://example.com/article";
 			const realMetadata = {
@@ -460,7 +485,6 @@ describe("initInMemoryArticleStore", () => {
 				wordCount: 500,
 			};
 			const firstSavedAt = new Date("2026-04-01T12:00:00.000Z");
-			const stubSavedAt = new Date("2026-04-02T12:00:00.000Z");
 
 			await store.saveArticleGlobally({
 				url,
@@ -469,20 +493,16 @@ describe("initInMemoryArticleStore", () => {
 				savedAt: firstSavedAt,
 			});
 
-			const stubResult = await store.saveArticleGlobally({
+			await store.saveArticle(makeArticleParams({
 				url,
 				metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: 0 as Minutes,
-				savedAt: stubSavedAt,
-			});
-			expect(stubResult.created).toBe(false);
-
-			await store.bumpArticleSavedAt({ url, savedAt: stubSavedAt });
+			}));
 
 			const found = await store.findArticleByUrl(url);
 			expect(found?.metadata).toEqual(realMetadata);
 			expect(found?.estimatedReadTime).toBe(3);
-			expect(found?.savedAt).toEqual(stubSavedAt);
+			expect(found?.savedAt.getTime()).toBeGreaterThan(firstSavedAt.getTime());
 		});
 
 		it("bumps the global savedAt when the same user re-saves the article", async () => {
@@ -653,18 +673,6 @@ describe("initInMemoryArticleStore", () => {
 			});
 
 			expect(saved).toEqual([]);
-		});
-
-		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {
-			const store = initInMemoryArticleStore();
-
-			await store.bumpArticleSavedAt({
-				url: "https://example.com/missing",
-				savedAt: new Date("2026-04-02T12:00:00.000Z"),
-			});
-
-			const found = await store.findArticleByUrl("https://example.com/missing");
-			expect(found).toBeNull();
 		});
 	});
 
@@ -1364,7 +1372,7 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.markArticleViewed({ userId: USER_A, url: URL, at });
 
-			expect(await store.findUserArticlesByUrl(URL)).toEqual([{ userId: USER_A, viewedAt: at }]);
+			expect((await store.findArticleById(ReaderArticleHashId.from(URL), USER_A))?.viewedAt).toEqual(at);
 		});
 
 		it("mark stamps on a missing row are no-ops so a delete race cannot resurrect the row", async () => {
@@ -1374,22 +1382,7 @@ describe("initInMemoryArticleStore", () => {
 			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
 			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
-			expect(await store.findUserArticlesByUrl(URL)).toEqual([]);
-		});
-
-		it("findUserArticlesByUrl returns every saver of the URL with their viewedAt, excluding savers of other URLs", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams({ userId: USER_A }));
-			await store.saveArticle(makeArticleParams({ userId: USER_B }));
-			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/other" }));
-			const viewedAt = new Date("2026-05-30T10:00:00.000Z");
-			await store.markArticleViewed({ userId: USER_A, url: URL, at: viewedAt });
-
-			const savers = await store.findUserArticlesByUrl(URL);
-
-			expect(savers).toHaveLength(2);
-			expect(savers).toContainEqual({ userId: USER_A, viewedAt });
-			expect(savers).toContainEqual({ userId: USER_B, viewedAt: undefined });
+			expect(await store.findArticleById(ReaderArticleHashId.from(URL), USER_A)).toBeNull();
 		});
 
 		it("markReaderReadyEmailSent is set-once: a later call does not overwrite the first send", async () => {
@@ -1872,6 +1865,22 @@ describe("initInMemoryArticleStore", () => {
 			expect(saves.get("https://example.com/never-saved")).toEqual([]);
 		});
 
+		it("marks the All save of a picked URL as picked in batched membership", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+			await store.changePersonalPick({
+				userId: USER_A,
+				url: URL,
+				picked: true,
+				request: { requestedAt: "2026-11-20T00:00:00.000Z", attemptId: SaveAttemptIdSchema.parse("pick-1") },
+			});
+
+			const saves = await store.listUserSavesForUrls({ userId: USER_A, urls: [URL] });
+
+			expect(saves.get(URL)).toEqual([{ picked: true }, { readlist: WORK }]);
+		});
+
 		it("restricts batched membership to the supplied readlists, including All only when requested", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());
@@ -2059,17 +2068,8 @@ describe("initInMemoryArticleStore", () => {
 				at,
 			});
 
-			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([
-				{ userId: USER_A, viewedAt: undefined },
-			]);
 			assert.ok(saved.id);
-		});
-
-		it("keeps a readlist copy out of the savers found by URL", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
-
-			expect(await store.findUserArticlesByUrl("https://example.com/article")).toEqual([]);
+			expect((await store.findArticleById(saved.id, USER_A))?.viewedAt).toBeUndefined();
 		});
 
 		it("covers a readlist-only URL when listing everything the reader saved", async () => {
@@ -2249,54 +2249,6 @@ describe("initInMemoryArticleStore", () => {
 				pinned: false,
 			});
 			expect(await store.unpinReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({ unpinned: false });
-		});
-
-		it("clears a readlist's purpose and keeps the readlist", async () => {
-			const store = initInMemoryArticleStore();
-			const createdAt = new Date("2026-08-19T10:00:00.000Z");
-			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
-			await store.setReadlistDefinitionPurpose({
-				userId: USER_A,
-				slug: WORK,
-				purpose: "Essays on how teams actually ship.",
-			});
-			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
-				"Essays on how teams actually ship.",
-			]);
-
-			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
-				cleared: true,
-			});
-			expect(
-				(await store.listReadlistDefinitions(USER_A)).map((d) => [d.slug, d.label, d.purpose]),
-			).toEqual([["work", "Work", undefined]]);
-		});
-
-		it("leaves a Smart Readlist's purpose to its smart rule", async () => {
-			const store = initInMemoryArticleStore();
-			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date("2026-08-19T10:00:00.000Z") });
-			await store.setSmartReadlistRule({
-				userId: USER_A,
-				slug: WORK,
-				purpose: "Essays on how teams actually ship.",
-				effectiveAt: new Date("2026-08-20T10:00:00.000Z"),
-			});
-
-			expect(await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Anything" })).toEqual({
-				updated: false,
-			});
-			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({ cleared: false });
-			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.purpose)).toEqual([
-				"Essays on how teams actually ship.",
-			]);
-		});
-
-		it("reports a readlist the reader does not hold as uncleared", async () => {
-			const store = initInMemoryArticleStore();
-
-			expect(await store.clearReadlistDefinitionPurpose({ userId: USER_A, slug: WORK })).toEqual({
-				cleared: false,
-			});
 		});
 
 		it("drops the definition it deletes and leaves the reader's others", async () => {
@@ -2542,7 +2494,6 @@ describe("initInMemoryArticleStore", () => {
 				{
 					slug: HN_PICKS,
 					label: "Hacker News picks",
-					purpose: undefined,
 					createdAt: new Date(SELECTED_AT),
 					starterCampaignId: "hn-starter-v1",
 				},
@@ -2974,7 +2925,7 @@ describe("initInMemoryArticleStore readlist filing", () => {
 	it("counts an automatic filing already marked read once its purpose is set", async () => {
 		const store = await liveStore();
 		await store.fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt: new Date() } }));
-		await store.setReadlistDefinitionPurpose({ userId: USER_A, slug: WORK, purpose: "Read at work" });
+		await store.setSmartReadlistRule({ userId: USER_A, slug: WORK, purpose: "Read at work", effectiveAt: new Date() });
 		expect(await store.countSmartReadlistArticles({ userId: USER_A, readlists: [WORK] })).toBe(1);
 	});
 
@@ -3470,15 +3421,14 @@ describe("initInMemoryArticleStore smart readlists", () => {
 		expect(await store.setSmartReadlistRule({ ...rule, purpose: "Essays on teams." })).toEqual({ kind: "set", revision: 2 });
 
 		const [definition] = await store.listReadlistDefinitions(USER_A);
-		expect(definition?.purpose).toBe("Essays on teams.");
-		expect(definition?.filing).toEqual({ mode: "smart", revision: 2, effectiveAt: EFFECTIVE_AT });
+		expect(definition?.filing).toEqual({ mode: "smart", purpose: "Essays on teams.", revision: 2, effectiveAt: EFFECTIVE_AT });
 	});
 
 	it("answers readlist-gone when setting a rule on a readlist with no definition", async () => {
 		expect(await initInMemoryArticleStore().setSmartReadlistRule(rule)).toEqual({ kind: "readlist-gone" });
 	});
 
-	it("turns a smart readlist back to manual, bumping the revision and keeping the purpose", async () => {
+	it("turns a smart readlist back to a regular one, bumping the revision and removing the purpose", async () => {
 		const store = await storeWithWork();
 		await store.setSmartReadlistRule(rule);
 
@@ -3487,8 +3437,18 @@ describe("initInMemoryArticleStore smart readlists", () => {
 
 		const [definition] = await store.listReadlistDefinitions(USER_A);
 		expect(definition?.filing).toEqual({ mode: "manual" });
-		expect(definition?.purpose).toBe("Essays on shipping.");
-		expect(await store.setSmartReadlistRule(rule)).toEqual({ kind: "set", revision: 3 });
+		expect(Object.keys(definition ?? {}).sort()).toEqual(["createdAt", "filing", "label", "slug"]);
+	});
+
+	it("continues the revision past a remove when the readlist becomes smart again, with the new purpose", async () => {
+		const store = await storeWithWork();
+		expect(await store.setSmartReadlistRule(rule)).toEqual({ kind: "set", revision: 1 });
+		await store.turnOffSmartReadlistMatching({ userId: USER_A, slug: WORK });
+
+		expect(await store.setSmartReadlistRule({ ...rule, purpose: "Essays on teams." })).toEqual({ kind: "set", revision: 3 });
+
+		const [definition] = await store.listReadlistDefinitions(USER_A);
+		expect(definition?.filing).toEqual({ mode: "smart", purpose: "Essays on teams.", revision: 3, effectiveAt: EFFECTIVE_AT });
 	});
 
 	it("files a smart match only under the readlist's current rule revision", async () => {

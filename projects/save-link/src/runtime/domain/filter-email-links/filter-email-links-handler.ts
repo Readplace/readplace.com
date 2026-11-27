@@ -68,7 +68,7 @@ type Filing = { ordinal: EmailLinkOrdinal; url: string; fit: FileArticleIntoRead
 
 type FilterDecision = {
 	readlistLabel: string;
-	decision: "filtered" | "no-purpose" | "readlist-missing" | "smart-matching";
+	decision: "filtered" | "no-purpose" | "readlist-missing";
 	fit: FitEntry[];
 	filings: Filing[];
 	purposeVersion?: ReadlistPurposeVersion;
@@ -126,10 +126,7 @@ export function initFilterEmailLinksHandler(deps: {
 		if (definition === undefined) {
 			return { ...NO_MODEL_CALL, readlistLabel: DEFAULT_READLIST_LABEL, decision: "readlist-missing" };
 		}
-		if (definition.filing?.mode === "smart") {
-			return { ...NO_MODEL_CALL, readlistLabel: definition.label, decision: "smart-matching" };
-		}
-		const { purpose } = definition;
+		const purpose = definition.filing?.mode === "smart" ? definition.filing.purpose : undefined;
 		if (!purpose?.trim()) {
 			return {
 				...NO_MODEL_CALL,

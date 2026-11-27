@@ -1,5 +1,5 @@
 import type { GmailMessageOrigin } from "@packages/domain/gmail";
-import type { EmailImportCompletionStore } from "@packages/domain/inbox";
+import { type EmailImportCompletionStore, isEmailSavedToAll } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { EvaluateGmailImportCompletion } from "./evaluate-gmail-import-completion";
 
@@ -10,11 +10,17 @@ export type RecordDuplicateGmailOrigin = (input: {
 }) => Promise<void>;
 
 export function initRecordDuplicateGmailOrigin(deps: {
+	findCompletion: EmailImportCompletionStore["findCompletion"];
 	addGmailOrigins: EmailImportCompletionStore["addGmailOrigins"];
 	evaluate: EvaluateGmailImportCompletion;
 }): RecordDuplicateGmailOrigin {
 	return async ({ userId, receivedAtMessageId, origin }) => {
 		if (origin === undefined) return;
+		const completion = await deps.findCompletion({ userId, receivedAtMessageId });
+		const supplementalSaving =
+			completion?.supplementalImport !== undefined &&
+			!isEmailSavedToAll({ selection: completion.supplementalSelection, savedOutputs: completion.savedOutputs });
+		if (supplementalSaving) return;
 		await deps.addGmailOrigins({ userId, receivedAtMessageId, origins: [origin] });
 		await deps.evaluate({ userId, receivedAtMessageId });
 	};

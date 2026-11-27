@@ -7,11 +7,11 @@ import {
 } from "@packages/domain/readlist";
 import type { ReadlistFilter } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { ListReadlistDefinitions, ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { FindSessionReadlistFilter } from "@packages/provider-contracts/auth";
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
-import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTarget } from "./readlist-home";
+import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./readlist-home";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
@@ -84,22 +84,19 @@ export function initResolveReadlistContext(deps: {
 		const { source: _source, sender: _sender, ...plainQuery } = req.query;
 		const parsed = parseReadlistUrl(deps.bulkEnabled === false ? plainQuery : req.query);
 		const requested = withRememberedFilter({ ...parsed, readlist: home?.open && homeSlug === home.preference?.slug ? homeSlug : parsed.readlist }, remembered);
-		const targets = new Map<ReadlistSlug, HomeReadlistPreference>();
-		if (home) {
-			for (const { slug } of readlists) {
-				const target = homeReadlistTarget(slug, definitions);
-				if (target && slug !== homeSlug) targets.set(slug, target);
-			}
-		}
 		const activeReadlist = requested.readlist === HAND_PICKED_SCOPE ? HAND_PICKED : readlists.find((readlist) => readlist.slug === requested.readlist) ?? DEFAULT_READLIST;
 		return {
 			definitions,
 			state: { ...requested, readlist: activeReadlist.slug },
 			activeReadlist,
 			readlists,
-			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
+			activePurpose: readlistPurposeOf(definitions.find((definition) => definition.slug === activeReadlist.slug)),
 			pinnedReadlists: pinnedReadlistSlugs(definitions),
-			...(home ? { home: { slug: homeSlug, entry: homeEntryReadlistOf(home?.preference, definitions), targets } } : {}),
+			...(home ? { home: { slug: homeSlug, entry: homeEntryReadlistOf(home.preference, definitions), targets: homeReadlistTargets(homeSlug, definitions) } } : {}),
 		};
 	};
+}
+
+export function readlistPurposeOf(definition: Pick<ReadlistDefinitionData, "filing"> | undefined): string | undefined {
+	return definition?.filing?.mode === "smart" ? definition.filing.purpose : undefined;
 }

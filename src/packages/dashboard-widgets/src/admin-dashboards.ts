@@ -17,18 +17,14 @@ export interface AdminDashboard {
 	widgets: (identities: ExcludedIdentities) => readonly LogWidgetSpec[];
 }
 
-export function buildAdminDashboards(deps: {
-	analyticsLogGroupName: string;
-	authDiagnosticsLogGroupName: string;
-}): Record<AdminDashboardSlug, AdminDashboard> {
-	const { analyticsLogGroupName } = deps;
+export function buildAdminDashboards(): Record<AdminDashboardSlug, AdminDashboard> {
 	return {
 		"hn-experiment": {
 			title: "Hacker News experiment",
 			description: "Starter assignments, delivery, reader activity and the experiment's latest report.",
 			usesExclusions: true,
 			widgets: (identities) => {
-				const hn = hnStarterWidgets({ analyticsLogGroupName, identities });
+				const hn = hnStarterWidgets({ identities });
 				return [
 					hn.latestReport,
 					hn.latestReportByCohort,
@@ -44,7 +40,7 @@ export function buildAdminDashboards(deps: {
 			description: "Tool calls, transport refusals and handshakes from connected assistants.",
 			usesExclusions: true,
 			widgets: (identities) => {
-				const mcp = mcpWidgets({ analyticsLogGroupName, identities });
+				const mcp = mcpWidgets({ identities });
 				return [
 					mcp.toolCalls,
 					mcp.toolCallsPerDay,
@@ -59,11 +55,11 @@ export function buildAdminDashboards(deps: {
 			description: "OAuth token grants and revocations, and the authentication diagnostics clients report.",
 			usesExclusions: false,
 			widgets: () => {
-				const oauth = oauthTokenWidgets({ analyticsLogGroupName });
+				const oauth = oauthTokenWidgets();
 				return [
 					oauth.tokenGrants,
 					oauth.revocationsPerDay,
-					...Object.values(authDiagnosticsWidgets({ logGroupName: deps.authDiagnosticsLogGroupName })),
+					...Object.values(authDiagnosticsWidgets()),
 				];
 			},
 		},
@@ -72,7 +68,7 @@ export function buildAdminDashboards(deps: {
 			description: "Trials, threshold crossings, panel reach, lifecycle emails, plans views and checkouts, operator accounts excluded.",
 			usesExclusions: true,
 			widgets: (identities) => {
-				const keep = keepEngineWidgets({ analyticsLogGroupName, identities });
+				const keep = keepEngineWidgets({ identities });
 				return [
 					keep.trialsByClient,
 					keep.panelReach,

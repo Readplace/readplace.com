@@ -430,7 +430,7 @@ test("opens the AI assistant guide with working copy buttons from anywhere on it
 
 	await expect(page.locator("main.mcp-connect")).toHaveCount(1);
 	expect(new URL(page.url()).searchParams.get("utm_content")).toBe("ai-assistant-setup");
-	await expect(page.locator("[data-test-server-url] [data-mcp-copy]")).toBeVisible();
+	await expect(page.locator("[data-test-server-url] [data-clipboard-copy]")).toBeVisible();
 });
 
 test("warns that Gmail is experimental before a first connect hands the reader to Google", async ({ page }, testInfo) => {

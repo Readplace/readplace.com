@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { GetObjectCommand, NoSuchKey, S3ServiceException } from "@aws-sdk/client-s3";
-import type { UploadId } from "@packages/media-contracts";
+import { stagedObjectKey, type UploadId } from "@packages/media-contracts";
 
 const PRECONDITION_FAILED = 412;
 
@@ -20,7 +20,7 @@ export function isGone(error: unknown): boolean {
 export function initDownloadStagedObject(deps: { client: { send: (command: GetObjectCommand) => Promise<{ Body?: unknown }> }; bucketName: string; tmpDir: string }): DownloadStagedObject {
 	return async ({ uploadId, etag }) => {
 		const response = await deps.client
-			.send(new GetObjectCommand({ Bucket: deps.bucketName, Key: `pending/${uploadId}/original`, IfMatch: etag }))
+			.send(new GetObjectCommand({ Bucket: deps.bucketName, Key: stagedObjectKey(uploadId), IfMatch: etag }))
 			.catch((error: unknown) => {
 				if (isGone(error)) return "staged-bytes-gone" as const;
 				throw error;

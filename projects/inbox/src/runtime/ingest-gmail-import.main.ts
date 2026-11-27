@@ -85,7 +85,9 @@ export const handler = initIngestGmailImportHandler({
 		addGmailOrigins: emailImportCompletion.addGmailOrigins,
 		publishEvent,
 	}),
+	claimSupplementalImport: emailImportCompletion.claimSupplementalImport,
 	recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+		findCompletion: emailImportCompletion.findCompletion,
 		addGmailOrigins: emailImportCompletion.addGmailOrigins,
 		evaluate: initEvaluateGmailImportCompletion({
 			findCompletion: emailImportCompletion.findCompletion,

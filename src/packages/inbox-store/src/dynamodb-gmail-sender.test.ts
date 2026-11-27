@@ -63,23 +63,6 @@ describe("initDynamoDbGmailSender", () => {
 		});
 	});
 
-	it("reads one sender as a point read", async () => {
-		const { store, commands } = harness(() => ({
-			Item: row({ seenCount: 3 }),
-		}));
-
-		const sender = await store.findSender({ userId: USER, senderEmail: SENDER });
-
-		assert.equal(sender?.seenCount, 3);
-		assert.deepEqual(commands[0].input.Key, { userId: USER, senderEmail: SENDER });
-	});
-
-	it("returns undefined for a sender the reader has never met", async () => {
-		const { store } = harness();
-
-		assert.equal(await store.findSender({ userId: USER, senderEmail: SENDER }), undefined);
-	});
-
 	it("walks every page when listing a reader's senders", async () => {
 		let call = 0;
 		const { store } = harness(() => {

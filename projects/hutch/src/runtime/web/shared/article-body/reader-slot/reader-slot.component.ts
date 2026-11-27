@@ -6,7 +6,6 @@ import {
 	DEFAULT_CRAWL_STAGE,
 	crawlProgressPct,
 	estimateCrawlRemaining,
-	crawlStagePct,
 	type ArticleBody,
 	isPrivateItemUrl,
 } from "@packages/domain/article";
@@ -193,7 +192,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 	}
 	if (input.crawl === undefined) {
 		if (input.content) return ready(input, input.content, oob);
-		return pollOrSlow(input, oob, { pct: crawlStagePct(DEFAULT_CRAWL_STAGE), estimate: undefined });
+		return pollOrSlow(input, oob, { pct: crawlProgressPct({ stage: DEFAULT_CRAWL_STAGE }), estimate: undefined });
 	}
 
 	switch (input.crawl.status) {
@@ -202,7 +201,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
 			if (input.content) return ready(input, input.content, oob);
-			return pollOrSlow(input, oob, { pct: crawlStagePct("crawl-content-uploaded"), estimate: undefined });
+			return pollOrSlow(input, oob, { pct: crawlProgressPct({ stage: "crawl-content-uploaded" }), estimate: undefined });
 		case "pending": {
 			const pct = crawlProgressPct({
 				stage: input.crawl.stage ?? DEFAULT_CRAWL_STAGE,

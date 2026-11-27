@@ -1,11 +1,11 @@
-import type { GmailDeliveryMode } from "@packages/domain/gmail";
 
+import type { EmailDeliveryMode } from "@packages/domain/inbox";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchIntegrations } from "@packages/translations/hutch-integrations";
 
 const { t } = translator(hutchIntegrations, DEFAULT_LOCALE);
 
-export const GMAIL_DELIVERY_COPY: Record<GmailDeliveryMode, { option: string; description: string; row: string }> = {
+export const GMAIL_DELIVERY_COPY: Record<EmailDeliveryMode, { option: string; description: string; row: string }> = {
 	issue: {
 		option: "The issue itself",
 		description: t("gmailDelivery.issue"),

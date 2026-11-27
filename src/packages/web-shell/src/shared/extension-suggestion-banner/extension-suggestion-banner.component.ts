@@ -44,12 +44,12 @@ function renderTemplate(input: {
 
 export function renderExtensionSuggestionBanner(input: {
 	show: boolean;
-	extensionInstalled?: boolean;
+	extensionInstalled: boolean;
 	clickSurface: ClickSurface | undefined;
 }): string {
 	return renderTemplate({
 		show: input.show,
-		extensionInstalled: input.extensionInstalled ?? false,
+		extensionInstalled: input.extensionInstalled,
 		oob: false,
 		clickSurface: input.clickSurface,
 	});

@@ -69,8 +69,7 @@ export interface InboxEmailsPaginationLink {
 
 export interface InboxEmailsViewModel {
 	senderFilter: {
-		currentLabel: string;
-		allSelected: boolean;
+		currentLabel: string | undefined;
 		options: { address: string; selected: boolean }[];
 		label: string;
 		all: string;
@@ -210,10 +209,9 @@ export function toInboxEmailsViewModel(
 ): InboxEmailsViewModel {
 	return {
 		senderFilter: options.senders?.length || options.sender ? {
-			currentLabel: options.sender ? (options.senders?.includes(options.sender) ? options.sender : t("senderFilter.unavailable")) : t("senderFilter.all"),
-			allSelected: !options.sender,
+			currentLabel: options.sender ? (options.senders?.includes(options.sender) ? options.sender : t("senderFilter.unavailable")) : undefined,
 			options: (options.senders ?? []).map(address => ({ address, selected: address === options.sender })),
-			label: t("senderFilter.label"),
+			label: options.sender ? t("senderFilter.label") : t("senderFilter.filter"),
 			all: t("senderFilter.all"),
 			action: buildInboxEmailsUrl({}),
 		} : undefined,

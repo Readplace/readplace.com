@@ -11,6 +11,7 @@ import {
 	type GmailSenderRouting,
 	gmailConnectionState,
 	pickerDeliveryMode,
+	routesHere,
 } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
@@ -33,13 +34,7 @@ import {
 	gmailMappingDestination,
 } from "../integrations/gmail-mappings.viewmodel";
 import { discoveryMatchesConnection } from "../integrations/gmail-save-senders";
-import {
-	chooseState,
-	GMAIL_CHECKLIST_MESSAGES,
-	type GmailChecklistRow,
-	RETRY_ACTION,
-	SELECT_TOGGLE,
-} from "../integrations/gmail-sender-checklist.viewmodel";
+import { assembleGmailChecklist, type GmailChecklistRow } from "../integrations/gmail-sender-checklist.viewmodel";
 import {
 	byRecognitionThenName,
 	type GmailSenderCandidate,
@@ -87,7 +82,7 @@ export interface ReadlistGmailSendersInput extends ReadlistGmailSectionStateInpu
 	modifyScopeGranted: boolean;
 	userId: UserId;
 	offer: UpgradeOffer | undefined;
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
+	readlist: { slug: ReadlistSlug; label: string };
 	readlists: readonly ReadlistRef[];
 	discoveredSenders: readonly DiscoveredGmailSender[];
 	mappings: readonly GmailMapping[];
@@ -226,10 +221,6 @@ export function gmailSenderRoutingFor(input: {
 	return new Map(input.mappings.map((sender): [ForwardableSender, GmailSenderRouting] => [sender.senderEmail, routingOf({ ...input, sender })]));
 }
 
-function routesHere(routing: GmailSenderRouting | undefined, slug: ReadlistSlug): boolean {
-	return routing?.kind === "routed" && routing.readlists.includes(slug);
-}
-
 const LABEL_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
 
 function routedNote(input: { routing: GmailSenderRouting | undefined; readlists: readonly ReadlistRef[] }): string {
@@ -280,19 +271,16 @@ function toReadlistGmailChecklist(input: {
 		{ key: "elsewhere", title: "In other readlists", rows: elsewhere.map(row((candidate) => ({ fields: [], notes: [routedNote({ routing: routingFor(candidate), readlists: input.readlists })] }))), actions: [] },
 		{ key: "known", title: "Known newsletters", rows: known.map(row(() => ({ fields: [], notes: [] }))), actions: [] },
 	];
-	const state = chooseState({ candidates, catalogAvailable: input.catalogAvailable, known });
-	const allTicked = listed.every((candidate) => ticked.has(candidate.email));
-	const toggle = listed.length === 0 ? [] : [{ ...SELECT_TOGGLE[allTicked ? "none" : "all"], formaction: input.saveAction }];
-	return {
-		state,
+	return assembleGmailChecklist({
+		candidates,
+		catalogAvailable: input.catalogAvailable,
+		known,
+		listed,
+		ticked,
+		groups,
 		intro: checklistIntro(input.readlist.label),
-		message: GMAIL_CHECKLIST_MESSAGES[state],
-		groups: groups.filter((group) => group.rows.length > 0),
-		total: listed.length,
-		knownCount: known.length,
-		actions: state === "catalog-unavailable" ? [RETRY_ACTION, ...toggle] : toggle,
-		sender: listed.filter((candidate) => ticked.has(candidate.email)).map((candidate) => candidate.email),
-	};
+		toggleFormaction: input.saveAction,
+	});
 }
 
 const IDLE_DISCOVERY = { state: "idle", mode: "profile", checkedMessageCount: 0 } as const;
@@ -358,13 +346,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 			track,
 		}),
 		checklist,
-		results: {
-			resultsState: results.resultsState,
-			resultsMessage: results.resultsMessage,
-			refineSearch: results.resultsState === "limited",
-			options: results.options,
-			formaction: saveAction,
-		},
+		results: { ...results, formaction: saveAction },
 	};
 }
 

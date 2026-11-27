@@ -98,6 +98,14 @@ final class ReadingListViewTests: XCTestCase {
 		)
 	}
 
+	func testTheReadlistNameIsAnnouncedAsAHeading() {
+		XCTAssertEqual(
+			ReadlistHeader.nameTraits,
+			.isHeader,
+			"the readlist name replaces the navigation title, so VoiceOver must still reach it as the screen's heading"
+		)
+	}
+
 	func testOpensTheHintsLinkThroughTheHandoffOpener() async throws {
 		StubURLProtocol.setHandler { request, _ in
 			request.url?.path == "/auth/handoff" ? .json(200, #"{ "code": "minted" }"#) : .json(404, "{}")

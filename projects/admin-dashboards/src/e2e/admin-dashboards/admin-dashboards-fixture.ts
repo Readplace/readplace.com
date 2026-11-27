@@ -1,5 +1,5 @@
 import type { LogsInsightsRow } from "@packages/provider-contracts/logs-insights";
-import { ANALYTICS_LOG_GROUP, AUTH_DIAGNOSTICS_LOG_GROUP, buildAdminDashboards } from "@packages/dashboard-widgets";
+import { buildAdminDashboards } from "@packages/dashboard-widgets";
 
 export const E2E_DASHBOARDS_NOW = new Date("2026-10-18T06:00:00.000Z");
 
@@ -14,10 +14,7 @@ function daily(input: { day: number; cells: Record<string, string> }): LogsInsig
 }
 
 export function e2eDashboardAnswers(): { queryString: string; rows: readonly LogsInsightsRow[] }[] {
-	const dashboards = buildAdminDashboards({
-		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-		authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-	});
+	const dashboards = buildAdminDashboards();
 	const [latestReport, latestReportByCohort, activatedOverTime, deliveryOutcomes] =
 		dashboards["hn-experiment"].widgets(NO_EXCLUSIONS);
 	const [toolCalls, toolCallsPerDay, , , handshakes] = dashboards.mcp.widgets(NO_EXCLUSIONS);

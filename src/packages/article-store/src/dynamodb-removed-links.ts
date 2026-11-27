@@ -50,6 +50,7 @@ import {
 	removedLinkKey,
 	removedLinksPartition,
 } from "./user-readlist-partition";
+import { listOwnedReadlistSlugs } from "./readlist-definition-rows";
 
 const PartitionItem = z.looseObject({ url: z.string() });
 
@@ -296,21 +297,7 @@ export function initDynamoDbRemovedLinks(deps: {
 	};
 
 	const listKeysOpenedInReadlists: ListKeysOpenedInReadlists = async ({ userId }) => {
-		const readlists: ReadlistSlug[] = [];
-		await forEachQueryPage(
-			userArticles,
-			{
-				KeyConditionExpression: "userId = :userId AND begins_with(#url, :keyPrefix)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: { ":userId": userId, ":keyPrefix": READLIST_DEFINITION_KEY_PREFIX },
-				ProjectionExpression: "#url",
-			},
-			async (items) => {
-				for (const item of items) {
-					readlists.push(ReadlistSlugSchema.parse(item.url.slice(READLIST_DEFINITION_KEY_PREFIX.length)));
-				}
-			},
-		);
+		const readlists = await listOwnedReadlistSlugs({ client: deps.client, tableName: deps.userArticlesTableName, userId });
 		return keysOpenedIn({ userId, readlists });
 	};
 

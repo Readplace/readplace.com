@@ -60,6 +60,7 @@ function inspectCallback(input: { query: Record<string, string>; stateCookie: un
 		query: input.query,
 		queryShape,
 		stateCookie: input.stateCookie,
+		cookieReading: readStateNow(input.stateCookie),
 		checkedAtMs: NOW_MS,
 		ttlMs: TTL_MS,
 		readState,
@@ -85,6 +86,11 @@ describe("initReadGmailOAuthState", () => {
 
 	it("fingerprints the full signed string with SHA-256 and reads a verified payload's age and intent", () => {
 		const state = issuedState({ ageMs: 1_000, kind: "import" });
+
+		expect(readStateNow(state)).toMatchObject({
+			kind: "valid",
+			payload: { createdAt: NOW_MS - 1_000, intent: { kind: "import" } },
+		});
 
 		expect(toGmailOAuthStateInspection(readStateNow(state))).toEqual({
 			present: true,

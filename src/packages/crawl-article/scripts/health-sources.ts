@@ -360,6 +360,14 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectedContent: "simple form containing four distinct fields",
 	},
 	{
+		label: "claude.ai public artifact",
+		url: "https://claude.ai/artifact/Jk4GaJ4PY98xv6tjUt1JJQ",
+		save: { kind: "direct" },
+		expectedContent: ["The middle two hours move half of the water", "Height (m)"],
+		forbiddenContent: ["Couldn’t load this artifact"],
+		expectedDestinationUrl: "https://claude.ai/artifact/Jk4GaJ4PY98xv6tjUt1JJQ",
+	},
+	{
 		// curl-impersonate with Chrome fingerprint.
 		// Exercises --globoff + WHATWG URL re-encoding via the bracketed
 		// path segment `[16505689]`.

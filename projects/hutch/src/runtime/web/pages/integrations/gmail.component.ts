@@ -33,7 +33,7 @@ const GMAIL_ADD_NEWSLETTERS_TEMPLATE = template("gmail-add-newsletters.template.
 const DIALOG_AUTO_DISCOVER_TEMPLATE = '<div hidden data-background-request hx-post="{{action}}" hx-trigger="load" hx-target="#gmail-sender-status" hx-select="#gmail-sender-status" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML show:none" hx-include="#gmail-sender-search-form, #gmail-sender-search" hx-indicator=".gmail__load" data-test-gmail-auto-load-senders="dialog"></div>';
 const PAGE_AUTO_DISCOVER_TEMPLATE = '<div hidden data-background-request hx-post="{{action}}" hx-trigger="load" hx-swap="none" hx-select-oob="#gmail-add-newsletters-form:outerHTML" hx-include="#gmail-add-newsletters-form" data-test-gmail-auto-load-senders="page"></div>';
 
-const GMAIL_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
+const GMAIL_COPY_SCRIPT = `<script src="/client-dist/clipboard-copy.client.js" defer></script>`;
 
 const SUBMIT_LOADER_HTML = renderInFlightDots("gmail__submit-loader in-flight-dots");
 

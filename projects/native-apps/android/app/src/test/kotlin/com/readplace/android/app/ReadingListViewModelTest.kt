@@ -5133,6 +5133,37 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `confirms Hand Picked as Home from the readlists it browses`() = runTest {
+		val handPicked = "/queue?scope=hand-picked"
+		var designated = "/queue?queue=work"
+		server.handle { record ->
+			when (record.path) {
+				"/choose-home" -> {
+					designated = handPicked
+					Stub.redirect(to = handPicked)
+				}
+				else -> {
+					val picked = record.request.url.query == "scope=hand-picked"
+					val chooseHome = if (picked && designated != handPicked) """{"name":"set-home-readlist","title":"Set Hand Picked as home","method":"POST","href":"/choose-home"}""" else ""
+					Stub.json(200, """
+						{"class":["collection","articles"],"entities":[],"links":[{"rel":["home"],"href":"$designated"}],
+						"properties":{"readlists":[{"rel":"readlist","label":"All","href":"/queue"},{"rel":"readlist","label":"Work","href":"/queue?queue=work"}],
+						"browseReadlists":[{"rel":"${if (picked) "current" else "readlist"}","label":"Hand Picked","href":"$handPicked"},
+						{"rel":"readlist","label":"All","href":"/queue"},{"rel":"readlist","label":"Work","href":"/queue?queue=work"}]},
+						"actions":[$chooseHome]}
+					""".trimIndent())
+				}
+			}
+		}
+		val model = viewModel(lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()))
+		model.loadIfNeeded()
+		model.select(handPicked)
+		model.invoke(checkNotNull(model.state.value.setHomeAction))
+		assertEquals("Hand Picked is now your home readlist.", model.state.value.homeStatus)
+		assertNull(model.state.value.setHomeAction)
+	}
+
+	@Test
 	fun `set Home on the loaded readlist and reopen its cached copy after visiting All`() = runTest {
 		val home = "/queue?queue=work"
 		val chooseHome = """, {"name":"set-home-readlist","title":"Set Work as home","method":"POST","href":"/choose-home"}"""

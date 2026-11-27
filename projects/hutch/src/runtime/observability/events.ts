@@ -1,4 +1,5 @@
 import type { CheckoutVariant } from "@packages/provider-contracts/hosted-checkout";
+import type { ReanchorCounts } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { STREAMS } from "@packages/web-analytics";
 
@@ -89,22 +90,14 @@ export interface ReadlistCapApproachedLine {
 
 export const HIGHLIGHTS_REANCHORED_EVENT = "highlights_reanchored";
 
-export interface HighlightsReanchoredLine {
+export type HighlightsReanchoredLine = {
 	event: typeof HIGHLIGHTS_REANCHORED_EVENT;
 	url: string;
 	anchored: number;
 	moved: number;
 	orphaned: number;
 	skipped: number;
-	diffed: number;
-	edited: number;
-	gone: number;
-	notPlaced: number;
-	placedByFallback: number;
-	placedElsewhere: number;
-	basisGranted: number;
-	basisMissing: number;
-}
+} & ReanchorCounts;
 
 export const GMAIL_CONNECTIONS_COUNT_EVENT = "gmail_connections_counted";
 

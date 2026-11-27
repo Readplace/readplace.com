@@ -6,9 +6,9 @@ import {
 	forEachQueryPage,
 } from "@packages/storage-client";
 import { z } from "zod";
-import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailDeliveryModeSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { ForwardableSender, GmailAccountEmail, GmailMapping, GmailMappingStore } from "@packages/domain/gmail";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import { InboxAddressSchema, EmailDeliveryModeSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 
 const GmailMappingRow = z.object({
@@ -20,7 +20,7 @@ const GmailMappingRow = z.object({
 	mappedAddress: dynamoField(InboxAddressSchema),
 	additionalMappedAddresses: dynamoField(z.array(InboxAddressSchema)),
 	mappedAt: dynamoField(z.string()),
-	deliveryMode: dynamoField(GmailDeliveryModeSchema),
+	deliveryMode: dynamoField(EmailDeliveryModeSchema),
 	markImportedAt: dynamoField(z.string()),
 });
 

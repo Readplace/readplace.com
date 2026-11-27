@@ -3,9 +3,9 @@ import type { User } from "@node-oauth/oauth2-server";
 import {
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
-	TransactionCanceledException,
 	defineDynamoTable,
 	forEachQueryPage,
+	transactIfConditions,
 } from "@packages/storage-client";
 import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, laterSignIn, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId as GrantId, type OAuthSignIn } from "@packages/domain/oauth";
 import type {
@@ -44,8 +44,7 @@ export function initOAuthCredentialLifecycle(deps: {
 
 	async function revokeRow(row: OAuthTokenRow, cause: "logout-all" | "account-deletion"): Promise<boolean> {
 		const existingGrant = row.grantId ? await atomic.store.readGrant(row.grantId) : undefined;
-		try {
-			await client.send(new TransactWriteCommand({ TransactItems: [
+		const outcome = await transactIfConditions(() => client.send(new TransactWriteCommand({ TransactItems: [
 				...(existingGrant ? [{ Update: { TableName: tableName, Key: { pk: `grant#${row.grantId}` }, UpdateExpression: "SET #state = :revoked", ExpressionAttributeNames: { "#state": "state" }, ExpressionAttributeValues: { ":revoked": "revoked" }, ConditionExpression: "attribute_exists(pk)" } }] : []),
 				{ Delete: { TableName: tableName, Key: { pk: row.pk }, ConditionExpression: "attribute_exists(pk)" } },
 				{ Delete: { TableName: tableName, Key: { pk: `refresh#${row.refreshToken}` } } },
@@ -55,12 +54,8 @@ export function initOAuthCredentialLifecycle(deps: {
 					UpdateExpression: "SET grantId = if_not_exists(grantId, :grant), fingerprint = :fingerprint, credentialExpiresAt = if_not_exists(credentialExpiresAt, :expiry), expiresAt = if_not_exists(expiresAt, :ttl), revocation = :revocation",
 					ExpressionAttributeValues: { ...historyValues(row), ":revocation": { cause, completedAt: Date.now() } },
 				} },
-			] }));
-		} catch (error) {
-			if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === "ConditionalCheckFailed")) return false;
-			throw error;
-		}
-		return true;
+			] })));
+		return outcome.kind === "written";
 	}
 
 	async function sweep(input: { userId: string; cause: "logout-all" | "account-deletion"; spare: GrantId | undefined }): Promise<void> {

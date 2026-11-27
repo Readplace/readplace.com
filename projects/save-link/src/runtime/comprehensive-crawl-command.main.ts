@@ -15,7 +15,6 @@ import { initChargeOcrPagesForAccount } from "./providers/ocr-page-quota/select-
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
-import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { readEnv } from "@packages/require-env";
 import { parseCoverageRuleModes } from "@packages/domain/article";
@@ -144,7 +143,6 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 const ocrPageQuota = initDynamoDbOcrPageQuota({
 	client: dynamoClient,
 	tableName: rateLimitsTable,
-	rule: OCR_PAGE_QUOTA_RULE,
 	now,
 	delay: (milliseconds) => sleep(milliseconds),
 });

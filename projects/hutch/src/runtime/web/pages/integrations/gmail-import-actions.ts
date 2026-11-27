@@ -62,7 +62,7 @@ export function initGmailImportActions(deps: {
 
 	const readGranted = async (userId: UserId): Promise<boolean> =>
 		hasAnyGmailScope({
-			grantedScope: await gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId),
+			grantedScope: (await gmail.gmailCredentialsStore.findCredentialsByUserId(userId))?.grantedScope,
 			scopes: GMAIL_MESSAGE_READ_SCOPES,
 		});
 

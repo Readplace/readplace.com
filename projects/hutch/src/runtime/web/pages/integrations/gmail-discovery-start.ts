@@ -12,7 +12,7 @@ export type StartGmailDiscovery = (userId: UserId) => Promise<StartGmailDiscover
 export function initStartGmailDiscovery(deps: { gmail: GmailIntegrationDependencies }): StartGmailDiscovery {
 	const { gmail } = deps;
 	return async (userId) => {
-		const scope = await gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId);
+		const scope = (await gmail.gmailCredentialsStore.findCredentialsByUserId(userId))?.grantedScope;
 		if (!hasGmailScope({ grantedScope: scope, scope: GMAIL_METADATA_SCOPE })) return { ok: false, error: "metadata-required" };
 		const previous = await gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId);
 		await gmail.publishStartGmailSenderDiscovery({ userId });

@@ -421,10 +421,12 @@ const extractEmailLinksDynamodb = new DynamoDBAccess("inbox-extract-email-links-
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
 		{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false },
 	],
-	// getEmail (GetItem); putLink (PutItem); setEmailLinkCounts
-	// (UpdateItem); the conditional put needs no Query, and listing is the web
-	// layer's job.
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
+const extractEmailLinksPreviousExtraction = new DynamoDBAccess("inbox-extract-email-links-previous-extraction", {
+	tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query"],
 });
 
 const EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS = 180;
@@ -532,6 +534,7 @@ const extractEmailLinksLambda = new Lambda("inbox-extract-email-links", {
 	},
 	policies: [
 		...extractEmailLinksDynamodb.policies,
+		...extractEmailLinksPreviousExtraction.policies,
 		...extractEmailLinksSubscriptionProvidersRead.policies,
 		...extractEmailLinksAddressesRead.policies,
 		...extractEmailLinksReadlistDefinitionsRead.policies,

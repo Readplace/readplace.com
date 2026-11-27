@@ -125,7 +125,7 @@ final class ShareDemoRecording: XCTestCase {
 		}
 		capture("after-approve")
 
-		let list = app.staticTexts["Reading List"]
+		let list = app.buttons["Sign out"]
 		let reached = list.waitForExistence(timeout: 40)
 		capture(reached ? "reading-list" : "not-signed-in")
 		XCTAssertTrue(reached, "the app must reach the reading list")

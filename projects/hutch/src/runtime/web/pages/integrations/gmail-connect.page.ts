@@ -36,7 +36,7 @@ export function registerGmailConnectRoutes(
 	context: GmailConnectContext,
 ): void {
 	const { router, callbackRouter } = routers;
-	const { trace, readState, verifiedPayload } = context.consent;
+	const { trace, readState } = context.consent;
 	const requireGmailConnectionAccess = initRequireGmailConnectionAccess({ getEffectiveAccess: context.getEffectiveAccess });
 	const write = [
 		trace.guard({ stage: "requireAuth", handler: context.requireAuth }),
@@ -109,15 +109,18 @@ export function registerGmailConnectRoutes(
 
 		trace.enter(req, "state-check");
 		const checkedAtMs = context.now().getTime();
+		const cookieReading = readState({ value: stateCookie, checkedAtMs });
 		trace.record(req, inspectGmailOAuthCallback({
 			query: req.query,
 			queryShape: CallbackQuerySchema.safeParse(req.query).success ? "valid" : "malformed",
 			stateCookie,
+			cookieReading,
 			checkedAtMs,
 			ttlMs: GMAIL_OAUTH_STATE_TTL_MS,
 			readState,
 		}));
-		const payload = verifiedPayload(stateCookie);
+		assert(cookieReading.kind !== "malformed-json", "a validly signed Gmail OAuth state cookie must carry JSON");
+		const payload = cookieReading.kind === "valid" ? cookieReading.payload : undefined;
 		if (typeof req.query.error === "string") {
 			trace.enter(req, "provider-error");
 			const destination = payload?.intent.kind === "import"

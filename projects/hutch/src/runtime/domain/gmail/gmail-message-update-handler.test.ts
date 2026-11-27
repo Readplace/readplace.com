@@ -8,7 +8,7 @@ import { initInMemoryGmailMessageUpdate } from "@packages/test-fixtures/provider
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initGmailMessageUpdateDlqHandler, initGmailMessageUpdateHandler } from "./gmail-message-update-handler";
-import type { MarkGmailEmailImportedOutcome } from "./mark-gmail-email-imported";
+import type { MarkGmailEmailImported, MarkGmailEmailImportedOutcome } from "./mark-gmail-email-imported";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
@@ -17,6 +17,7 @@ const NOW = new Date("2026-10-27T01:00:00.000Z");
 const ORIGIN: GmailMessageOrigin = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 
 const markBody = JSON.stringify({ "detail-type": "MarkGmailEmailImported", detail: { userId: USER, receivedAtMessageId: RAM, origin: ORIGIN } });
+const supplementalBody = JSON.stringify({ "detail-type": "MarkGmailEmailImported", detail: { userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, supplemental: true } });
 const grantedBody = JSON.stringify({ "detail-type": "GmailModifyPermissionGranted", detail: { userId: USER, accountEmail: ACCOUNT } });
 
 function capture() {
@@ -31,7 +32,7 @@ function run(handler: ReturnType<typeof initGmailMessageUpdateHandler>, bodies: 
 	return handler(buildSqsEvent(bodies.map((body, index) => ({ messageId: `m-${index}`, body }))), buildLambdaContext(), () => {});
 }
 
-function handlerWith(outcome: () => Promise<MarkGmailEmailImportedOutcome>) {
+function handlerWith(outcome: (input: Parameters<MarkGmailEmailImported>[0]) => Promise<MarkGmailEmailImportedOutcome>) {
 	const metricLines: GmailEmailUpdateFailedLine[] = [];
 	const updates = initInMemoryGmailMessageUpdate();
 	const { published, publishEvent } = capture();
@@ -139,6 +140,20 @@ describe("initGmailMessageUpdateHandler", () => {
 		assert.deepEqual(h.published, [{ detailType: "MarkGmailEmailImported", detail: { userId: USER, receivedAtMessageId: RAM, origin: ORIGIN } }]);
 	});
 
+	it("resumes a supplemental mark with its own idempotency key", async () => {
+		const marked: unknown[] = [];
+		const h = handlerWith(async (work) => {
+			marked.push(work.supplemental);
+			return { kind: "marked" };
+		});
+		await h.updates.recordPending({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, supplemental: true, now: NOW });
+
+		await run(h.handler, [grantedBody, supplementalBody]);
+
+		assert.deepEqual(h.published[0], { detailType: "MarkGmailEmailImported", detail: { userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, supplemental: true } });
+		assert.deepEqual(marked, [true]);
+	});
+
 	it("fails a record it cannot parse", async () => {
 		const h = handlerWith(async () => ({ kind: "marked" }));
 
@@ -172,6 +187,19 @@ describe("initGmailMessageUpdateDlqHandler", () => {
 			{ detailType: "GmailEmailUpdateFailed", detail: { userId: USER, receivedAtMessageId: RAM, originKind: "history", reason: "dead-lettered" } },
 		]);
 		assert.deepEqual(h.metricLines.map(({ event, reason }) => ({ event, reason })), [{ event: "gmail_email_update_failed", reason: "dead-lettered" }]);
+	});
+
+	it("settles only the supplemental record when its mark is dead-lettered", async () => {
+		const h = dlq();
+		const key = { userId: USER, origin: ORIGIN };
+		await h.updates.recordPending({ ...key, receivedAtMessageId: RAM, now: NOW });
+		await h.updates.markCompleted({ ...key, now: NOW });
+		await h.updates.recordPending({ ...key, receivedAtMessageId: RAM, supplemental: true, now: NOW });
+
+		await run(h.handler, [supplementalBody]);
+
+		assert.equal((await h.updates.find(key))?.status, "completed");
+		assert.equal((await h.updates.find({ ...key, supplemental: true }))?.status, "failed");
 	});
 
 	it("never turns a completed update into a failure", async () => {

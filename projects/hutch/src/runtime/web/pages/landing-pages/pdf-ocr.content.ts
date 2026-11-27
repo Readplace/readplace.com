@@ -10,6 +10,7 @@ import {
 	PLAN_CHOICES,
 	FREE_PLAN_CLOSE,
 	CREATE_FREE_ACCOUNT,
+	SIGNUP_NOTE,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
@@ -129,7 +130,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 			`Reading a link you paste here costs nothing. Keeping a library of them takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Try it on a PDF you already have",
 	closeSecondaryAction: CREATE_FREE_ACCOUNT,

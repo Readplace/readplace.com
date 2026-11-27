@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { normaliseText, type TextRange } from "./text-anchoring";
+import { normaliseText, occurrencesOf, type TextRange } from "./text-anchoring";
 
 export type QuoteLocation =
 	| ({ status: "found" } & TextRange)
@@ -11,16 +11,6 @@ function searchView(value: string): string {
 		.text.replaceAll("\n", " ");
 }
 
-function hitStarts(params: { view: string; quote: string }): number[] {
-	const starts: number[] = [];
-	let from = params.view.indexOf(params.quote);
-	while (from !== -1) {
-		starts.push(from);
-		from = params.view.indexOf(params.quote, from + 1);
-	}
-	return starts;
-}
-
 export function locateQuote(params: {
 	text: string;
 	quote: string;
@@ -29,7 +19,7 @@ export function locateQuote(params: {
 	const quote = searchView(params.quote);
 	assert(quote.length > 0, "locateQuote needs a quote with visible text");
 	const view = params.text.replaceAll("\n", " ");
-	const starts = hitStarts({ view, quote });
+	const starts = occurrencesOf({ text: view, exact: quote });
 	if (starts.length === 0) return { status: "not-found" };
 
 	const found = (start: number): QuoteLocation => ({

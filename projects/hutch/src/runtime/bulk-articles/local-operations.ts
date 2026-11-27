@@ -5,6 +5,7 @@ import { computeVerificationStatus } from "@packages/domain/user";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { PublishLinkDequeued, PublishLinkQueued } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
+import type { SavedArticle } from "@packages/domain/article";
 import type { AssignSavedArticleToReadlist, FindArticlesByUser, FindReadlistRemoval, ListReadlistDefinitions, ListUserSavesForUrl, UpdateArticleStatus } from "@packages/provider-contracts/article-store";
 import type { BulkArticleOperations } from "../web/pages/readlist/bulk-articles.page";
 import { newsletterSourceStore, type NewsletterSourceDependencies } from "../web/pages/readlist/newsletter-source";
@@ -20,6 +21,7 @@ export function initLocalBulkOperations(deps: NewsletterSourceDependencies & {
 		updateArticleStatus: UpdateArticleStatus;
 		listUserSavesForUrl: ListUserSavesForUrl;
 		holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+		markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean;
 	};
 	findUserById: FindUserById; now: () => Date;
 	publishLinkQueued: PublishLinkQueued; publishLinkDequeued: PublishLinkDequeued;
@@ -49,23 +51,32 @@ export function initLocalBulkOperations(deps: NewsletterSourceDependencies & {
 		const id = ReaderArticleHashId.fromResourceUniqueId(target.key);
 		const article = await deps.findArticleById(id, userId);
 		if (!allowed || !article || selectionTarget(article).version !== target.version) { job.skipped++; return; }
-		if (action.kind === "file") {
+		switch (action.kind) {
+		case "file": {
 			const removedAt = await deps.articles.findReadlistRemoval({ userId, readlist: action.destination, url: target.url });
 			if (removedAt && removedAt >= toEventInstant(new Date(job.createdAt))) { job.skipped++; return; }
 			const exists = (await deps.articles.listReadlistDefinitions(userId)).some(list => list.slug === action.destination && list.createdAt.toISOString() === action.createdAt);
 			if (!exists || !(await deps.articles.assignSavedArticleToReadlist({ userId, readlist: action.destination, from: DEFAULT_READLIST_SLUG, url: target.url, savedAt: now })).assigned) { job.skipped++; return; }
-		} else if (action.kind === "read") {
+			break;
+		}
+		case "read":
 			if (article.status !== "unread" || !await deps.articles.updateArticleStatus(id, userId, "read")) { job.skipped++; return; }
-		} else {
+			break;
+		case "read-everywhere":
+			if (!deps.articles.markReadEverywhereForBulk({ userId, url: target.url, at: now, isSelected: current => selectionTarget(current).version === target.version })) { job.skipped++; return; }
+			break;
+		case "remove": {
 			const restore = deps.articles.holdBulkArticle(userId, target.url, now);
 			if (!restore) { job.skipped++; return; }
 			recovery.set(handle, { restore, expires: now.getTime() + BULK_RETENTION_SECONDS * 1000 });
 			job.restorable++;
 			if (!(await deps.articles.listUserSavesForUrl({ userId, url: target.url })).length) await deps.publishLinkDequeued({ userId, url: target.url });
+			break;
+		}
 		}
 		job.completed++;
 	}
-	return { store, async dispatch({ userId, id, generation, intent }) {
+	return { store, readEverywhere: true, async dispatch({ userId, id, generation, intent }) {
 		const job = await store.get(userId, id);
 		if (!job || busy.has(id) || generation !== job.generation || job.expiresAt <= Math.floor(deps.now().getTime() / 1000)) return;
 		busy.add(id);
@@ -83,7 +94,8 @@ export function initLocalBulkOperations(deps: NewsletterSourceDependencies & {
 				while (current?.state === "preparing") {
 					const rows = await list({ userId, status: spec.status, page, pageSize: BULK_CHUNK_SIZE, order: spec.order,
 						discovery, personalScope: spec.source === "picked" ? "picked" : undefined, managedOrigin: spec.source === "unknown" || spec.source === "bulk" ? spec.source : undefined });
-					await store.append(current, rows.articles.filter(item => item.savedAt.toISOString() <= job.createdAt).map(selectionTarget), rows.hasMore ? String(++page) : undefined, deps.now());
+					const accepted = await store.append(current, rows.articles.filter(item => item.savedAt.toISOString() <= job.createdAt).map(selectionTarget), rows.hasMore ? String(++page) : undefined, deps.now());
+					if (!accepted) return;
 					current = await store.get(userId, id);
 				}
 			} else if (current.state === "running" || current.state === "restoring") {

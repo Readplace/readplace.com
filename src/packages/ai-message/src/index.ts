@@ -1,4 +1,4 @@
-export type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
+export type { CreateAiMessage } from "./create-ai-message.types";
 export {
 	initCreateDeepseekMessage,
 	initCreateDeepseekThinkingMessage,

@@ -10,22 +10,30 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
+	TransactWriteCommand,
+	transactIfConditions,
 } from "@packages/storage-client";
 import type {
-	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
 	PinReadlistDefinition,
 	ReadlistFiling,
 	RenameReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
 	UnpinReadlistDefinition,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
-import { READLIST_DEFINITION_KEY_PREFIX, readlistDefinitionKey } from "./user-readlist-partition";
+import {
+	READLIST_DEFINITION_KEY_PREFIX,
+	READLIST_DEFINITIONS_REVISION_ATTRIBUTE,
+	readlistDefinitionKey,
+	readlistDefinitionsRevisionIncrement,
+	readlistDefinitionsRevisionKey,
+} from "./user-readlist-partition";
+
+const MAX_CREATE_ATTEMPTS = 8;
 
 const ReadlistDefinitionRow = z.object({
 	queueSlug: ReadlistSlugSchema,
@@ -46,9 +54,11 @@ function toFiling(row: z.infer<typeof ReadlistDefinitionRow>): { filing?: Readli
 	if (row.filingMode === "manual") return { filing: { mode: "manual" } };
 	assert(row.filingRuleRevision !== undefined, "a smart readlist row carries its rule revision");
 	assert(row.filingRuleEffectiveAt !== undefined, "a smart readlist row carries its rule's effective instant");
+	assert(row.queuePurpose !== undefined, "a smart readlist row carries its purpose");
 	return {
 		filing: {
 			mode: "smart",
+			purpose: row.queuePurpose,
 			revision: row.filingRuleRevision,
 			effectiveAt: new Date(row.filingRuleEffectiveAt),
 		},
@@ -59,13 +69,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	client: DynamoDBDocumentClient;
 	userArticlesTableName: string;
 }): {
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	pinReadlistDefinition: PinReadlistDefinition;
 	renameReadlistDefinition: RenameReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
@@ -74,6 +82,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		client: deps.client,
 		tableName: deps.userArticlesTableName,
 		schema: ReadlistDefinitionRow,
+	});
+	const definitionRevisions = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.userArticlesTableName,
+		schema: z.object({ [READLIST_DEFINITIONS_REVISION_ATTRIBUTE]: z.number().optional() }),
 	});
 	const filingRuleRevisions = defineDynamoTable({
 		client: deps.client,
@@ -102,7 +115,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 			.map((row) => ({
 				slug: row.queueSlug,
 				label: row.queueLabel,
-				purpose: row.queuePurpose,
 				...(row.starterCampaignId === undefined
 					? {}
 					: { starterCampaignId: row.starterCampaignId }),
@@ -118,26 +130,51 @@ export function initDynamoDbReadlistDefinitions(deps: {
 
 	const createReadlistDefinition: CreateReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const owned = await listReadlistDefinitions(params.userId);
-		if (owned.length >= READLIST_MAX_PER_USER) {
-			throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
+		const definitionKey = { userId: params.userId, url: readlistDefinitionKey(params.slug) };
+		for (let attempt = 0; ; attempt++) {
+			assert(attempt < MAX_CREATE_ATTEMPTS, "the reader's readlists kept changing during the create");
+			const revisionKey = readlistDefinitionsRevisionKey(params.userId);
+			const observed = (await definitionRevisions.get(revisionKey, { consistentRead: true }))?.definitionRevision;
+			const owned = await listReadlistDefinitions(params.userId);
+			if (owned.length >= READLIST_MAX_PER_USER) {
+				throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
+			}
+			const outcome = await transactIfConditions(() => deps.client.send(new TransactWriteCommand({
+				TransactItems: [
+					{
+						Put: {
+							TableName: deps.userArticlesTableName,
+							Item: {
+								...definitionKey,
+								queueSlug: params.slug,
+								queueLabel: params.label,
+								createdAt: params.createdAt.toISOString(),
+								filingMode: "manual",
+							},
+							ConditionExpression: "attribute_not_exists(#url)",
+							ExpressionAttributeNames: { "#url": "url" },
+						},
+					},
+					{
+						Update: {
+							TableName: deps.userArticlesTableName,
+							Key: revisionKey,
+							UpdateExpression: "SET #revision = :next",
+							ConditionExpression: observed === undefined ? "attribute_not_exists(#revision)" : "#revision = :observed",
+							ExpressionAttributeNames: { "#revision": READLIST_DEFINITIONS_REVISION_ATTRIBUTE },
+							ExpressionAttributeValues: {
+								":next": (observed ?? 0) + 1,
+								...(observed === undefined ? {} : { ":observed": observed }),
+							},
+						},
+					},
+				],
+			})));
+			if (outcome.kind === "written") return { created: true, ownedCount: owned.length + 1 };
+			if (await readlistDefinitions.get(definitionKey, { consistentRead: true })) {
+				return { created: false, ownedCount: owned.length };
+			}
 		}
-		const outcome = await writeIfCondition(() => readlistDefinitions.put({
-			Item: {
-				userId: params.userId,
-				url: readlistDefinitionKey(params.slug),
-				queueSlug: params.slug,
-				queueLabel: params.label,
-				createdAt: params.createdAt.toISOString(),
-				filingMode: "manual",
-			},
-			ConditionExpression: "attribute_not_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url" },
-		}));
-		if (outcome.kind === "condition-failed") {
-			return { created: false, ownedCount: owned.length };
-		}
-		return { created: true, ownedCount: owned.length + 1 };
 	};
 
 	const renameReadlistDefinition: RenameReadlistDefinition = async (params) => {
@@ -178,21 +215,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		return { unpinned: true };
 	};
 
-	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.update({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "SET #purpose = :purpose",
-			ReturnValues: "ALL_OLD",
-			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
-			ExpressionAttributeValues: { ":purpose": params.purpose, ":smart": "smart" },
-		}));
-		if (outcome.kind === "condition-failed") return { updated: false };
-		assert(outcome.result.Attributes, "an existing readlist returns its previous attributes");
-		return { updated: true, firstSetup: !outcome.result.Attributes.queuePurpose?.trim() };
-	};
-
 	const setSmartReadlistRule: SetSmartReadlistRule = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => filingRuleRevisions.update({
@@ -226,12 +248,13 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
 			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "SET #mode = :manual, #revision = #revision + :one REMOVE #effectiveAt",
+			UpdateExpression: "SET #mode = :manual, #revision = #revision + :one REMOVE #effectiveAt, #purpose",
 			ConditionExpression: "#mode = :smart",
 			ExpressionAttributeNames: {
 				"#mode": "filingMode",
 				"#revision": "filingRuleRevision",
 				"#effectiveAt": "filingRuleEffectiveAt",
+				"#purpose": "queuePurpose",
 			},
 			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":one": 1 },
 		}));
@@ -239,38 +262,31 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		return { turnedOff: true };
 	};
 
-	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.update({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression: "REMOVE #purpose",
-			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
-			ExpressionAttributeValues: { ":smart": "smart" },
-		}));
-		if (outcome.kind === "condition-failed") return { cleared: false };
-		return { cleared: true };
-	};
-
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.delete({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			ConditionExpression: "attribute_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url" },
-		}));
+		const outcome = await transactIfConditions(() => deps.client.send(new TransactWriteCommand({
+			TransactItems: [
+				{
+					Delete: {
+						TableName: deps.userArticlesTableName,
+						Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+						ConditionExpression: "attribute_exists(#url)",
+						ExpressionAttributeNames: { "#url": "url" },
+					},
+				},
+				{ Update: { TableName: deps.userArticlesTableName, ...readlistDefinitionsRevisionIncrement(params.userId) } },
+			],
+		})));
 		if (outcome.kind === "condition-failed") return { deleted: false };
 		return { deleted: true };
 	};
 
 	return {
-		clearReadlistDefinitionPurpose,
 		createReadlistDefinition,
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
 		pinReadlistDefinition,
 		renameReadlistDefinition,
-		setReadlistDefinitionPurpose,
 		setSmartReadlistRule,
 		turnOffSmartReadlistMatching,
 		unpinReadlistDefinition,

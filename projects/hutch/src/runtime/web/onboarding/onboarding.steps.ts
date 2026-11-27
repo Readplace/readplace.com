@@ -12,7 +12,7 @@ import type {
 	OnboardingAction,
 	OnboardingStep,
 } from "./onboarding.types";
-import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH, READLIST_SMART_READLIST_STEP_DISMISS_PATH, READLIST_SMART_SECTION_ID } from "../pages/readlist/readlist.url";
+import { buildReadlistUrl, readlistPreferencesPath, READLIST_CREATE_PATH, READLIST_EMAIL_STEP_DONE_PATH, READLIST_GMAIL_STEP_DISMISS_PATH, READLIST_PATH, READLIST_SMART_SECTION_ID } from "../pages/readlist/readlist.url";
 import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
@@ -199,18 +199,15 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	{
 		id: "create-smart-readlist",
 		isApplicable: (ctx) => ctx.smartReadlist !== undefined,
-		isComplete: (ctx) => ctx.smartReadlist?.count === 10 || ctx.smartReadlist?.dismissed === true,
-		isHidden: (ctx) => ctx.smartReadlist?.count === 10 || ctx.smartReadlist?.dismissed === true,
+		isComplete: (ctx) => ctx.smartReadlist?.count === 10,
+		isHidden: (ctx) => ctx.smartReadlist?.count === 10,
 		title: () => t("smartReadlist.title"),
 		description: ({ smartReadlist: smart }) => smart?.configured ? t("smartReadlist.file")
 			: smart?.target ? t("smartReadlist.configure") : t("smartReadlist.start"),
 		chip: (ctx) => ctx.smartReadlist?.count === undefined ? t("smartReadlist.unavailable")
 			: t("smartReadlist.progress", { count: ctx.smartReadlist.count }),
 		partialProgress: (ctx) => (ctx.smartReadlist?.count ?? 0) / 10,
-		actions: ({ smartReadlist: smart }) => [
-			smartReadlistPrimaryAction(smart),
-			{ key: "smart-readlist-dismiss", method: "POST", href: READLIST_SMART_READLIST_STEP_DISMISS_PATH, label: t("smartReadlist.dismiss"), variant: "text" },
-		],
+		actions: ({ smartReadlist: smart }) => [smartReadlistPrimaryAction(smart)],
 	},
 	{
 		id: "save-enough-for-next-read",
@@ -256,7 +253,7 @@ export function hasOutstandingGmailStep(ctx: OnboardingContext): boolean {
 
 export function hasOutstandingSmartReadlistStep(ctx: OnboardingContext): boolean {
 	const smart = ctx.smartReadlist;
-	return smart !== undefined && !smart.dismissed && smart.count !== undefined && smart.count < 10;
+	return smart !== undefined && smart.count !== undefined && smart.count < 10;
 }
 
 export function firstOutstandingStep(

@@ -650,6 +650,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		listReceivedSenders: inboxEmailStore.listReceivedSenders,
 		bulkArticles: getEnv("BULK_ARTICLES_ENABLED") === "true" ? {
 			store: initDynamoBulkSelections(client, userArticlesTable),
+			readEverywhere: false,
 			dispatch: (detail: import("zod").z.infer<typeof RunBulkArticlesCommand.detailSchema>) => publishEvent(RunBulkArticlesCommand, detail),
 		} : undefined,
 		listSenderIssues: inboxEmailStore.listEmailsByUserId,
@@ -745,7 +746,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordSmartReadlistMinimumReached: onboardingSignals.recordSmartReadlistMinimumReached,
-		recordSmartReadlistStepDismissed: onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: onboardingSignals.recordGmailStepDismissed,

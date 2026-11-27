@@ -42,7 +42,7 @@ import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "../media-release/private-item-release-steps";
 import { type ReleasePrivateItems, initReleasePrivateItems } from "../media-release/release-private-items";
 import { initDeleteAccountHandler } from "./delete-account-handler";
-import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
+import type { GmailMonitoringCheckpoint, GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 import { initDisconnectGmail } from "../domain/gmail/disconnect-gmail";
 import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
@@ -57,6 +57,20 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { TrialNudgeKind } from "@packages/provider-contracts/trial-scheduler";
+
+async function findNotice(
+	store: Pick<GmailMonitoringStore, "listNotices">,
+	{ userId, senderEmail }: Parameters<GmailMonitoringStore["markNoticeSent"]>[0],
+) {
+	let pageToken: string | undefined;
+	do {
+		const page = await store.listNotices({ userId, pageToken });
+		const notice = page.notices.find((candidate) => candidate.senderEmail === senderEmail);
+		if (notice) return notice;
+		pageToken = page.nextPageToken;
+	} while (pageToken);
+	return undefined;
+}
 
 const SEED_NOW = new Date("2026-07-05T00:00:00.000Z");
 const COOLDOWN_MS = 1000 * 60 * 60 * 24 * 365;
@@ -468,7 +482,6 @@ async function seedAccount(
 	await s.onboarding.recordInboxArticleQueued({ userId });
 	await s.onboarding.recordEmailStepMarkedDone({ userId });
 	await s.onboarding.recordGmailStepDismissed({ userId });
-	await s.onboarding.recordSmartReadlistStepDismissed({ userId });
 	await s.onboarding.recordOnboardingOutstandingVersion({ userId, version: "seeded-version" });
 
 	if (subscription === "active") {
@@ -649,14 +662,14 @@ describe("delete-account handler", () => {
 
 		assert.deepEqual(result.batchItemFailures, []);
 		assert.equal(await s.gmail.bundle.gmailConnectionStore.findConnectionByUserId(victim.userId), undefined);
-		assert.equal(await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(victim.userId), undefined);
+		assert.equal((await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(victim.userId))?.refreshToken, undefined);
 		assert.deepEqual(await s.gmail.bundle.gmailSenderStore.listSendersByUserId(victim.userId), []);
 		assert.equal(await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(victim.userId), undefined);
 		assert.equal((await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(bystander.userId))?.generation, "u2");
 
 		assert.deepEqual(s.rewriteCalls, [victim.userId]);
 		assert.deepEqual(s.gmailRevokeTokens, ["gmail-u1"]);
-		assert.equal(await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(bystander.userId), "gmail-u2");
+		assert.equal((await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(bystander.userId))?.refreshToken, "gmail-u2");
 
 		// Victim: every store now returns empty / none.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
@@ -671,7 +684,6 @@ describe("delete-account handler", () => {
 			firstInboxArticleQueuedAt: undefined,
 			emailStepMarkedDoneAt: undefined,
 			gmailStepDismissedAt: undefined,
-			smartReadlistStepDismissedAt: undefined,
 			onboardingOutstandingVersion: undefined,
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,
@@ -762,7 +774,6 @@ describe("delete-account handler", () => {
 			firstInboxArticleQueuedAt: SEED_NOW,
 			emailStepMarkedDoneAt: SEED_NOW,
 			gmailStepDismissedAt: SEED_NOW,
-			smartReadlistStepDismissedAt: SEED_NOW,
 			onboardingOutstandingVersion: "seeded-version",
 			markReadAcrossQueuesAckedAt: undefined,
 			deleteArticleAckedAt: undefined,
@@ -1331,7 +1342,7 @@ describe("delete-account handler", () => {
 			} satisfies GmailMonitoringCheckpoint;
 			assert(await monitoring.startRun({ checkpoint, previous: undefined }));
 			assert(await monitoring.observeSender({ checkpoint, observation: { email: senderEmail, name: undefined, approved: true }, notify: true }));
-			const notice = await monitoring.findNotice({ userId: account.userId, senderEmail });
+			const notice = await findNotice(monitoring, { userId: account.userId, senderEmail });
 			assert(notice);
 			assert(await monitoring.claimNotice({ notice, message: { from: "Readplace <hello@readplace.com>", to: account.email, subject: "Choose a readlist", html: "<p>Choose a readlist</p>" } }));
 			await monitoring.markNoticeSent({ userId: account.userId, senderEmail });
@@ -1340,10 +1351,10 @@ describe("delete-account handler", () => {
 		assert.deepEqual((await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }])).batchItemFailures, []);
 		assert.equal(await monitoring.findCheckpoint(victim.userId), undefined);
 		assert.deepEqual((await monitoring.listObservations({ userId: victim.userId, mailboxId: victim.userId })).observations, []);
-		assert.equal(await monitoring.findNotice({ userId: victim.userId, senderEmail }), undefined);
+		assert.equal(await findNotice(monitoring, { userId: victim.userId, senderEmail }), undefined);
 		assert.equal((await monitoring.findCheckpoint(bystander.userId))?.historyId, "100");
 		assert.equal((await monitoring.listObservations({ userId: bystander.userId, mailboxId: bystander.userId })).observations.length, 1);
-		assert.equal((await monitoring.findNotice({ userId: bystander.userId, senderEmail }))?.status, "sent");
+		assert.equal((await findNotice(monitoring, { userId: bystander.userId, senderEmail }))?.status, "sent");
 	});
 
 	it("erases the deleted account's transcript allowance day and charge rows and leaves another account's", async () => {
@@ -1423,7 +1434,7 @@ describe("delete-account handler", () => {
 		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
 		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
 		assert.equal(
-			await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(account.userId),
+			(await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(account.userId))?.refreshToken,
 			"gmail-revoke-fail",
 		);
 		assert.equal(await s.auth.findEmailByUserId(account.userId), account.email);
@@ -1431,7 +1442,7 @@ describe("delete-account handler", () => {
 		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
 		assert.deepEqual(second.batchItemFailures, []);
 		assert.equal(
-			await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(account.userId),
+			(await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(account.userId))?.refreshToken,
 			undefined,
 		);
 		assert.equal(await s.auth.findEmailByUserId(account.userId), null);

@@ -28,12 +28,6 @@ export function initLambdaEffectDispatcher(deps: {
 			case "generate-summary":
 				await dispatchGenerateSummary({ url: effect.url });
 				return;
-			case "dispatch-generate-summary-retry":
-				/* Same SQS queue + same payload as the initial generate-summary
-				 * dispatch — the attempt counter rides on the aggregate row, not
-				 * the SQS message, so workers don't need a new entry point. */
-				await dispatchGenerateSummary({ url: effect.url });
-				return;
 			case "dispatch-submit-link":
 				/* EventBridge route (not direct SQS): the existing EVENT_BUS_NAME
 				 * is wired on every Lambda, so no new queue / env var / IAM grant

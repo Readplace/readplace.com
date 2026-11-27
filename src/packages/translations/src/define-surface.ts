@@ -15,7 +15,6 @@ type MessageNode = string | { readonly [key: string]: MessageNode };
 
 export type Surface<M extends MessageTree> = {
 	readonly purpose: string;
-	readonly nonEmpty: boolean;
 	readonly defaultMessages: M;
 	readonly locales: { readonly [locale: string]: MessageNode };
 };
@@ -94,7 +93,6 @@ export function defineSurface<const M extends MessageTree, N extends true | unde
 	}
 	return {
 		purpose: input.purpose,
-		nonEmpty,
 		defaultMessages: input.defaultMessages,
 		locales,
 	};
@@ -160,7 +158,6 @@ export function translator<M extends MessageTree>(surface: Surface<M>, locale: S
 
 export type WebCatalog = {
 	readonly findMessage: (input: { readonly locale: SupportedLocale; readonly key: string }) => string | undefined;
-	readonly keys: () => readonly string[];
 };
 
 export function combineSurfaces(surfaces: Readonly<Record<string, Surface<MessageTree>>>): WebCatalog {
@@ -172,7 +169,6 @@ export function combineSurfaces(surfaces: Readonly<Record<string, Surface<Messag
 			owners.set(namespace, name);
 		}
 	}
-	const all = Object.values(surfaces);
 	return {
 		findMessage: ({ locale, key }) => {
 			const owner = owners.get(key.split(".")[0]);
@@ -182,6 +178,5 @@ export function combineSurfaces(surfaces: Readonly<Record<string, Surface<Messag
 			const message = lookupMessage(tree, key);
 			return typeof message === "string" ? message : undefined;
 		},
-		keys: () => all.flatMap((surface) => leavesOf(parseNode(surface.defaultMessages, ""), "").map((leaf) => leaf.path)),
 	};
 }

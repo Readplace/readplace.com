@@ -4,7 +4,7 @@ import {
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
 import { buildMcpReaderPath } from "../pages/readlist/owner-reader-link";
-import type { McpReadlist, McpArticle, McpArticleOutput, RelatedArticleResult, RelatedArticleOutput, McpServerDeps, McpRequestContext } from "./mcp-ports.types";
+import type { McpReadlist, McpArticle, RelatedArticleResult, RelatedArticleOutput, McpServerDeps, McpRequestContext } from "./mcp-ports.types";
 
 interface TextContent {
 	readonly type: "text";
@@ -70,7 +70,7 @@ export function formatReadlistNames(readlists: readonly McpReadlist[]): string {
 	return readlists.map((readlist) => readlist.name).join(", ");
 }
 
-export function formatArticle(article: McpArticleOutput): string {
+export function formatArticle(article: McpArticle): string {
 	const saved = article.publishedOn
 		? `Published ${article.publishedOn}; saved ${formatDate(article.savedAt)}`
 		: `Saved ${formatDate(article.savedAt)}`;
@@ -106,7 +106,7 @@ export function initToolOutputs(deps: Pick<McpServerDeps, "appOrigin" | "logErro
 		return new URL(buildMcpReaderPath(input), deps.appOrigin).toString();
 	}
 
-	function articleOutput(article: McpArticle): McpArticleOutput {
+	function articleOutput(article: McpArticle): McpArticle {
 		return {
 			...article,
 			url: privateArticleUrl({

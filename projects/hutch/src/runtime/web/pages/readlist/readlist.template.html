@@ -48,6 +48,7 @@
                   <div class="menu__panel">
                     {{#each destinations}}<button class="menu__item" name="action" value="file/{{slug}}">{{t "manage.action.file"}} {{label}}</button>{{/each}}
                     {{#if unread}}<button class="menu__item" name="action" value="read">{{t "manage.action.read"}}</button>{{/if}}
+                    {{#if readEverywhere}}<button class="menu__item" name="action" value="read-everywhere">{{t "manage.action.read-everywhere"}}</button>{{/if}}
                     <button class="menu__item" name="action" value="remove">{{t "manage.action.remove"}}</button>
                   </div>
                 </details>
@@ -123,7 +124,6 @@
           {{{onboardingHtml}}}
         </div>
       </div>
-      {{{preferencesSavedHtml}}}
       <div id="status-toast">{{{statusToastHtml}}}</div>
       {{{countsSpanHtml}}}
       {{{readlistRenamesHtml}}}

@@ -22,7 +22,7 @@ const INBOX_EMAILS_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>`;
+const INBOX_SCRIPT = `<script src="/client-dist/clipboard-copy.client.js" defer></script>`;
 
 const EMPTY_ILLUSTRATION_HTML = renderIllustration("book-lightbulb");
 

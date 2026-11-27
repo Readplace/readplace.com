@@ -34,6 +34,8 @@ const MAIN = "main.readlist";
 const BROWSE = ".readlist__browse";
 const FILTER_TABS = "[data-test-filters]";
 const DISCOVERY = "[data-test-discovery]";
+const DISCOVERY_LABEL = "[data-test-discovery-label]";
+const DISCOVERY_CONTROLS = `${DISCOVERY} .readlist-discovery__controls`;
 const LISTING = "[data-test-listing]";
 const LISTING_COUNT = "#readlist-count";
 const ARTICLE = "[data-test-article]";
@@ -149,14 +151,26 @@ async function neverScrollsSideways(page: Page): Promise<void> {
 async function discoveryRowGeometry(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
 	const tabs = await measuredBox(page, FILTER_TABS);
-	const row = await measuredBox(page, DISCOVERY);
+	const region = await measuredBox(page, DISCOVERY);
+	const label = await measuredBox(page, DISCOVERY_LABEL);
+	const row = await measuredBox(page, DISCOVERY_CONTROLS);
 	const field = await measuredBox(page, SEARCH_INPUT);
 	const trigger = await measuredBox(page, FILTER_TRIGGER);
 	const listing = await measuredBox(page, LISTING);
 	const searchGlyph = await measuredBox(page, SEARCH_GLYPH);
 	const filterGlyph = await measuredBox(page, FILTER_GLYPH);
+	assert.ok(near({ actual: label.y, expected: region.y }), "the search label must open the search region");
+	assert.ok(label.x >= region.x - 1 && label.x + label.width <= region.x + region.width + 1, `the search label must stay inside the region, measured label=${label.x}+${label.width}px region=${region.x}+${region.width}px`);
+	assert.ok(near({ actual: row.y - (label.y + label.height), expected: 8 }), "the controls must sit 8px below the search label");
+	assert.ok(near({ actual: row.y + row.height, expected: region.y + region.height }), "the controls must close the search region");
 	assert.ok(near({ actual: row.height, expected: 48 }), `the search row must be 48px high, measured ${row.height}px`);
 	assert.ok(near({ actual: field.height, expected: 48 }), `the search field must be 48px high, measured ${field.height}px`);
+	assert.ok(near({ actual: field.y, expected: trigger.y }), "the search field and the filter button must share one line");
+	assert.ok(near({ actual: trigger.x - (field.x + field.width), expected: 8 }), "the filter button must sit 8px after the search field");
+	assert.ok(
+		near({ actual: searchGlyph.y + searchGlyph.height / 2, expected: field.y + field.height / 2 }),
+		"the search glyph must be centred on the search field",
+	);
 	assert.ok(
 		near({ actual: trigger.width, expected: 48 }) && near({ actual: trigger.height, expected: 48 }),
 		`the filter button must be 48x48, measured ${trigger.width}x${trigger.height}`,
@@ -166,8 +180,8 @@ async function discoveryRowGeometry(page: Page): Promise<void> {
 		`the search field must fill the row less the button and its 8px gap, measured field=${field.width}px row=${row.width}px`,
 	);
 	assert.ok(near({ actual: trigger.x + trigger.width, expected: row.x + row.width }), "the filter button must close the row");
-	assert.ok(near({ actual: row.y - (tabs.y + tabs.height), expected: 32 }), "the search row must sit 32px below the tabs");
-	assert.ok(near({ actual: listing.y - (row.y + row.height), expected: 16 }), "the listing must sit 16px below the search row");
+	assert.ok(near({ actual: region.y - (tabs.y + tabs.height), expected: 32 }), "the search region must sit 32px below the tabs");
+	assert.ok(near({ actual: listing.y - (region.y + region.height), expected: 16 }), "the listing must sit 16px below the search region");
 	assert.ok(
 		near({ actual: searchGlyph.width, expected: 20 }) && near({ actual: searchGlyph.height, expected: 20 }),
 		`the search glyph must be 20px, measured ${searchGlyph.width}x${searchGlyph.height}`,
@@ -416,6 +430,18 @@ test.describe("Readlist search results (phone)", () => {
 		await gotoReadlistQueue(page, `?q=${SEARCH_WORD}`);
 
 		await captureCheckpoint(page, SEARCH_RESULTS_PHONE);
+	});
+});
+
+test.describe("Readlist search results (320px reflow)", () => {
+	test.use({ timezoneId: "UTC", viewport: WCAG_REFLOW_MINIMUM });
+
+	test("wraps the search label above the controls without clipping or sideways scrolling", async ({ page }, testInfo) => {
+		await seedReader(page, `results-reflow-${testInfo.workerIndex}-${Date.now()}`);
+		await gotoReadlistQueue(page, `?q=${SEARCH_WORD}`);
+		await searchResultsSettled(page);
+
+		await discoveryRowGeometry(page);
 	});
 });
 

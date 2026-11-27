@@ -96,7 +96,9 @@ function makeHarness(opts?: {
 
 	const handler = initIngestGmailImportHandler({
 		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
+		claimSupplementalImport: completion.claimSupplementalImport,
 		recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+			findCompletion: completion.findCompletion,
 			addGmailOrigins: completion.addGmailOrigins,
 			evaluate: initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent }),
 		}),
@@ -748,6 +750,7 @@ describe("initIngestGmailImportHandler", () => {
 		const published: unknown[] = [];
 		const handler = initIngestGmailImportHandler({
 			resumeAcceptedGmailEmail: async () => false,
+			claimSupplementalImport: async () => undefined,
 			recordDuplicateGmailOrigin: async () => {},
 			readRawEmail: async () =>
 				tldrIssue({ from: "promo@tldr.tech", messageId: "<issue-42@tldr.tech>" }),
@@ -798,6 +801,7 @@ describe("initIngestGmailImportHandler", () => {
 		const published: unknown[] = [];
 		const handler = initIngestGmailImportHandler({
 			resumeAcceptedGmailEmail: async () => false,
+			claimSupplementalImport: async () => undefined,
 			recordDuplicateGmailOrigin: async () => {},
 			readRawEmail: async () => undefined,
 			deleteRawEmail: async () => {},

@@ -1,6 +1,12 @@
 import assert from "node:assert";
 import type { MediaUploadSession, ReadTimedDuration } from "@packages/domain";
-import { type MediaKindManifest, type Meter, billableSeconds } from "@packages/media-contracts";
+import {
+	type MediaKindManifest,
+	type Meter,
+	type TimedFactsRefusal,
+	type TimedMediaFacts,
+	billableSeconds,
+} from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, ChargedTranscript } from "@packages/provider-contracts/transcript-quota";
 import { COMMIT_ATTEMPT, type TranscriptCharge } from "./commit-received-upload";
 import type { TranscriptRefusalReason } from "./upload.refusal";
@@ -15,11 +21,32 @@ export type ChargeTranscript = (params: {
 	etag: string;
 }) => Promise<ChargeDecision>;
 
-export function refusalOfLowerBound(p: {
+function refusalOfLowerBound(p: {
 	atLeastSeconds: number;
 	allowanceSeconds: number;
 }): "transcript-too-long" | "unreadable-audio" {
 	return billableSeconds(p.atLeastSeconds) > p.allowanceSeconds ? "transcript-too-long" : "unreadable-audio";
+}
+
+export type TimedRefusal =
+	| { kind: "refuse"; reason: TranscriptRefusalReason }
+	| { kind: "timed"; durationSeconds: number };
+
+export function timedRefusalOf(p: {
+	facts: Awaited<ReturnType<ReadTimedDuration>>;
+	kind: { refuseTimedFacts: (facts: TimedMediaFacts) => TimedFactsRefusal | undefined };
+	allowanceSeconds: number;
+}): TimedRefusal {
+	const { facts } = p;
+	if ("unreadable" in facts) return { kind: "refuse", reason: "unreadable-audio" };
+	if ("atLeastSeconds" in facts)
+		return {
+			kind: "refuse",
+			reason: refusalOfLowerBound({ atLeastSeconds: facts.atLeastSeconds, allowanceSeconds: p.allowanceSeconds }),
+		};
+	const refusal = p.kind.refuseTimedFacts(facts);
+	if (refusal !== undefined) return { kind: "refuse", reason: refusal };
+	return { kind: "timed", durationSeconds: facts.durationSeconds };
 }
 
 export function initChargeTranscript(deps: {
@@ -32,15 +59,9 @@ export function initChargeTranscript(deps: {
 		const readDuration = deps.readDurationByMeter.get(kind.meter);
 		assert(readDuration, `no duration reader for the ${kind.meter} meter`);
 		const facts = await readDuration({ uploadId: session.uploadId, etag });
-		if ("unreadable" in facts) return { kind: "refuse", reason: "unreadable-audio" };
-		if ("atLeastSeconds" in facts)
-			return {
-				kind: "refuse",
-				reason: refusalOfLowerBound({ atLeastSeconds: facts.atLeastSeconds, allowanceSeconds: deps.allowanceSeconds }),
-			};
-		const refusal = kind.refuseTimedFacts(facts);
-		if (refusal !== undefined) return { kind: "refuse", reason: refusal };
-		const seconds = billableSeconds(facts.durationSeconds);
+		const timed = timedRefusalOf({ facts, kind, allowanceSeconds: deps.allowanceSeconds });
+		if (timed.kind === "refuse") return timed;
+		const seconds = billableSeconds(timed.durationSeconds);
 		if (seconds > deps.allowanceSeconds) return { kind: "refuse", reason: "transcript-too-long" };
 		const ref = { userId: session.userId, uploadId: session.uploadId, attempt: COMMIT_ATTEMPT };
 		const charge = await deps.chargeTranscriptQuota({ ...ref, seconds });

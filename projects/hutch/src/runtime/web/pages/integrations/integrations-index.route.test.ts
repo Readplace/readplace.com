@@ -554,7 +554,7 @@ describe("GET /newsletters", () => {
 		expect(form.getAttribute("hx-target")).toBe("main");
 		expect(form.getAttribute("hx-select")).toBe("main");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
-		expect(response.text).toContain("/client-dist/integrations.client.js");
+		expect(response.text).toContain("/client-dist/clipboard-copy.client.js");
 	});
 
 	it("renders the alert an interrupted connection redirects back with", async () => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { EmailLinkOrdinal, InboxReadlistOutcome } from "../inbox/inbox-email-link.schema";
-import type { UserId } from "../user/user.types";
+import type { UserId } from "../user/user.schema";
 import type { ReadlistSlug } from "./readlist-name.schema";
 
 export const READLIST_FIT_OVERRIDES_KEPT = 20;

@@ -48,7 +48,7 @@ const READLIST_SAVE_FEEDBACK = ".readlist__lead";
 const ADD_LINK_DIALOG = "#add-link:popover-open";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const READLIST_LAYOUT = ".readlist__layout";
-const READLIST_PREFERENCES = "[data-test-readlist-preferences]";
+const READLIST_PURPOSE_CARD = "[data-test-readlist-purpose]";
 const OPEN_FILTER_DRAWER = "[data-test-discovery-drawer]:popover-open";
 const PUBLIC_READER_ACTION_BAR = "[data-test-view-cta]";
 const ACCOUNT_BILLING = '[data-test-account-section="subscription"]';
@@ -800,7 +800,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			});
 			assert.equal(saved.status(), 200, "a saved purpose must land back on the preferences tab");
 			await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences`, { waitUntil: "domcontentloaded" });
-			await expect(page.locator(READLIST_PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
+			await expect(page.locator(READLIST_PURPOSE_CARD)).toBeVisible();
 			await expect(page.locator(SETUP_GUIDE)).toBeVisible();
 			await expect(page.locator('[data-test-action="readlist-purpose-edit"]')).toBeVisible();
 			await settle(page, READLIST_LAYOUT);

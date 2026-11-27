@@ -26,19 +26,16 @@ export type { GmailCredentialsStore } from "./gmail-credentials.types";
 export type { GmailHeldMailEntry, GmailHeldMailStore } from "./gmail-held-mail.types";
 export type { GmailSenderEntry, GmailSenderStore } from "./gmail-sender.types";
 export {
-	GMAIL_DELIVERY_FAN_OUT,
-	GmailDeliveryModeSchema,
-	LEGACY_DELIVERY_MODE,
 	NEW_MAPPING_DELIVERY_MODE,
 	pickerDeliveryMode,
 	resolveGmailDeliveryMode,
-	type GmailDeliveryMode,
 } from "./gmail-delivery-mode";
 export type { GmailMapping, GmailMappingStore } from "./gmail-mapping.types";
 export type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from "./gmail-discovery.types";
 export { gmailSenderPool, type GmailSenderPool } from "./gmail-sender-pool";
 export {
 	decideGmailReadlistSelection,
+	routesHere,
 	type GmailReadlistSelectionChange,
 	type GmailReadlistSelectionDecision,
 	type GmailReadlistSelectionRejection,

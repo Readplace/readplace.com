@@ -25,7 +25,6 @@ import {
 import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
 import {
 	ANALYTICS_LOG_GROUP,
-	AUTH_DIAGNOSTICS_LOG_GROUP,
 	buildAdminDashboards,
 	CONVERSION_EVENTS,
 	type ExcludedIdentities,
@@ -80,7 +79,7 @@ function collectReferencedStreams(): Set<string> {
 
 function adminDashboardQueries(): string[] {
 	const identities: ExcludedIdentities = { excludedVisitorIds: [EXCLUDED_VISITOR_ID], excludedUserIds: [EXCLUDED_USER_ID] };
-	return Object.values(buildAdminDashboards({ analyticsLogGroupName: ANALYTICS_LOG_GROUP, authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP }))
+	return Object.values(buildAdminDashboards())
 		.flatMap((dashboard) => dashboard.widgets(identities))
 		.map((spec) => spec.query);
 }
@@ -622,18 +621,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const declared = new Set(Object.values(STREAMS));
 		// Streams no widget QUERY names.
 		//
-		// crawl-outcomes is genuinely unsurfaced — inspected only by ad-hoc Logs
-		// Insights queries. Adding a crawl-outcome widget would drop it from here.
-		//
 		// parse-errors IS surfaced, by routing rather than by a query term: the
 		// forwarder writes it into the errors funnel and the errors widget shows
 		// everything in that group unfiltered. ERROR_STREAMS is what guarantees it
 		// arrives, and observability-filter.test.ts is what guards that.
 		const ignored = new Set<string>([
-			STREAMS.crawlOutcomes,
 			STREAMS.parseErrors,
 		]);
-		expect(ignored.size).toBe(2);
+		expect(ignored.size).toBe(1);
 		const missing = [...declared].filter((s) => !referenced.has(s) && !ignored.has(s));
 		expect(missing).toEqual([]);
 	});

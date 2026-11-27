@@ -141,10 +141,13 @@ export function initDynamoDbInboxEmailLink(deps: {
 		schema: InboxEmailLinkRow,
 	});
 
-	const deleteLinksByEmail: InboxEmailLinkStore["deleteLinksByEmail"] = async ({
+	const deleteLinksByEmail = async ({
 		userId,
 		receivedAtMessageId,
-	}) => {
+	}: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}): Promise<void> => {
 		const group = groupKey({ userId, receivedAtMessageId });
 		await forEachQueryPage(
 			table,
@@ -484,7 +487,6 @@ export function initDynamoDbInboxEmailLink(deps: {
 			}, { consistentRead: true });
 			return row === undefined ? undefined : toMeta(row);
 		},
-		deleteLinksByEmail,
 		deleteAllLinksByUserId: async (userId, receivedAtMessageIds) => {
 			for (const receivedAtMessageId of receivedAtMessageIds) {
 				await deleteLinksByEmail({ userId, receivedAtMessageId });
