@@ -1,7 +1,7 @@
 import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initReadArticleContent } from "./read-article-content";
-import type { ContentProvider } from "./read-article-content";
+import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 
 const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";

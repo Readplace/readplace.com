@@ -121,7 +121,6 @@ import type { ParseArticle } from "@packages/article-parser";
 import type {
 	ArticleCrawlVersion,
 	BotDefenseEvent,
-	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	ClaimPendingSignup,
@@ -219,7 +218,6 @@ import type {
 	TurnOffSmartReadlistMatching,
 	FindSmartMatchRevisions,
 	RecordSmartMatchRevision,
-	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
 	FindUserPasswordStatus,
@@ -546,7 +544,6 @@ export interface ArticleStoreBundle {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
-	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
 	findQueueRowKeys: FindQueueRowKeys;
 	hasQueueRow: (key: QueueRowKey) => boolean;
@@ -564,7 +561,6 @@ export interface ArticleStoreBundle {
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	markOcrPagesHeld: MarkOcrPagesHeld;
-	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;

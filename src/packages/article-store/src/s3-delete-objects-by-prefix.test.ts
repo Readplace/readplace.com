@@ -73,6 +73,24 @@ describe("initS3DeleteObjectsByPrefix", () => {
 		]);
 	});
 
+	it("lists a slash-terminated prefix as given and deletes its objects", async () => {
+		const { client, lists, deletes } = fakeClient({
+			"pdf-extract/account/user-1/": [
+				{ Contents: [{ Key: "pdf-extract/account/user-1/upload/page-1.json" }] },
+			],
+		});
+		const del = initS3DeleteObjectsByPrefix({ client, bucketName: "pdf-bucket" });
+
+		await del(["pdf-extract/account/user-1/"]);
+
+		expect(lists).toEqual([
+			{ prefix: "pdf-extract/account/user-1/", continuationToken: undefined },
+		]);
+		expect(deletes).toEqual([
+			{ bucket: "pdf-bucket", keys: ["pdf-extract/account/user-1/upload/page-1.json"] },
+		]);
+	});
+
 	it("issues no delete for an empty prefix", async () => {
 		const { client, deletes } = fakeClient({
 			"content/email-images/bbb/": [{ Contents: [] }],
@@ -85,7 +103,7 @@ describe("initS3DeleteObjectsByPrefix", () => {
 		expect(deletes).toHaveLength(0);
 	});
 
-	it("follows continuation tokens across list pages and skips keyless entries", async () => {
+	it("follows continuation tokens across list pages, skips keyless entries and deletes what it listed", async () => {
 		const { client, lists, deletes } = fakeClient({
 			"content/email-images/ddd/": [
 				{
@@ -101,8 +119,7 @@ describe("initS3DeleteObjectsByPrefix", () => {
 
 		expect(lists.map((list) => list.continuationToken)).toEqual([undefined, "page-2"]);
 		expect(deletes.map((request) => request.keys)).toEqual([
-			["content/email-images/ddd/1.png"],
-			["content/email-images/ddd/2.png"],
+			["content/email-images/ddd/1.png", "content/email-images/ddd/2.png"],
 		]);
 	});
 });
