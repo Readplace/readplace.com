@@ -6,7 +6,7 @@ import {
 	InboxAddressSchema,
 	InboxTokenSchema,
 } from "@packages/domain/inbox";
-import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema, type ReadlistSlug, DEFAULT_READLIST } from "@packages/domain/readlist";
 import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
@@ -20,7 +20,6 @@ import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
-import { DEFAULT_READLIST } from "./readlist.nav";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 import type { ReadlistFilingMode } from "./readlist-smart-filing.component";
 import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";

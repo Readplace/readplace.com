@@ -7,13 +7,12 @@ import type { EffectiveAccess } from "@packages/subscription-access";
 import { PRICING_PANELS, PRICING_PLANS, STATED_PRICING_PANELS } from "@packages/web-shell";
 import { parseHTML } from "linkedom";
 import { SAVES_STAY_STATEMENT } from "../../price-statement";
+import { SUBSCRIBE_PLANS_SOURCES, type SubscribePlansSource } from "@packages/provider-contracts/hosted-checkout";
 import {
 	SUBSCRIBE_PLANS_POPOVER_ID,
-	SUBSCRIBE_PLANS_SOURCES,
 	planChargedWithoutChoice,
 	renderSubscribePlansForm,
 	renderSubscribePlansPopover,
-	type SubscribePlansSource,
 } from "./subscribe-plans.component";
 
 const featuredPanel = PRICING_PANELS.find((panel) => panel.featured);

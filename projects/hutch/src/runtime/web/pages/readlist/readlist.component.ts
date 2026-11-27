@@ -54,7 +54,7 @@ import {
 import { NO_ADD_LINK, renderReadlistAddLink, renderReadlistSaveFeedback } from "./readlist-add-link.component";
 import { READER_PAGE_SCRIPTS, renderReaderSkeleton } from "./reader-skeleton/reader-skeleton.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { DEFAULT_READLIST } from "./readlist.nav";
+import { DEFAULT_READLIST } from "@packages/domain/readlist";
 import { type TabId, tabLabel, tabQuery } from "./readlist.tabs";
 import {
 	type ReadlistDiscovery,

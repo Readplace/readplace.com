@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { READLIST_PREFERENCES_STEPS } from "./readlist-preferences-wizard.component";
+import { READLIST_PREFERENCES_STEP } from "./readlist-preferences-wizard.component";
 
 interface FieldState {
 	invalid: boolean;
@@ -10,7 +10,7 @@ interface FieldState {
 const UNTOUCHED: FieldState = { invalid: false, autofocus: false };
 
 function purposeStepDocument({ invalid, autofocus }: FieldState): Document {
-	const [purposeStep] = READLIST_PREFERENCES_STEPS;
+	const purposeStep = READLIST_PREFERENCES_STEP;
 	const html = purposeStep.template({
 		values: { purpose: "Shipping essays." },
 		field: { idPrefix: "prefs-popover", errorId: "prefs-popover-error", invalid, autofocus },
@@ -24,9 +24,9 @@ function purposeField(state: FieldState): Element {
 	return field;
 }
 
-describe("READLIST_PREFERENCES_STEPS purpose step", () => {
+describe("READLIST_PREFERENCES_STEP purpose step", () => {
 	it("asks what the readlist is for and says why it helps", () => {
-		const [purposeStep] = READLIST_PREFERENCES_STEPS;
+		const purposeStep = READLIST_PREFERENCES_STEP;
 
 		expect(purposeStep.title).toBe("What's this readlist for?");
 		expect(purposeStep.description).toBe(

@@ -290,20 +290,6 @@ function articleMoveOf(input: {
 	};
 }
 
-interface ArticleMoveInput {
-	articleId: string;
-	from: ReadlistSlug;
-	returnQuery: string;
-	filing: ArticleFiling | undefined;
-	personallyPicked: boolean;
-}
-
-function toArticleMove(input: ArticleMoveInput): ArticleMoveViewModel | undefined {
-	const { filing } = input;
-	if (filing === undefined) return undefined;
-	return articleMoveOf({ ...input, filing });
-}
-
 function versionedReaderHref(input: {
 	articleId: string;
 	returnQuery: string;
@@ -322,19 +308,15 @@ export function toReadlistArticleViewModel(params: {
 	readerProvenance: ReaderProvenance | undefined;
 	filters: ReadlistUrlState;
 	pollCount?: number;
-	maxPolls: number;
 	confirmReadlists?: readonly ReadlistRef[];
-	/** Absent means the reader has not chosen to skip the delete confirmation —
-	 * including on render paths that never read the signal, so an unknown answer
-	 * still asks before deleting. */
-	deleteAcknowledged?: boolean;
-	filing?: ArticleFiling;
+	deleteAcknowledged: boolean;
+	filing: ArticleFiling;
 	enclosure: EnclosureRead;
 }): ReadlistArticleViewModel {
-	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
+	const { article, now, returnQuery, summary, crawl, filters } = params;
 	const pollCount = params.pollCount ?? 1;
 	const id = article.id.value;
-	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
+	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls: MAX_POLLS });
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
 	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing, personallyPicked: article.personalPickedAt !== undefined };
@@ -367,7 +349,7 @@ export function toReadlistArticleViewModel(params: {
 		actions: toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
 		deletion,
 		markStatusConfirm,
-		move: toArticleMove(moveInput),
+		move: articleMoveOf(moveInput),
 		cardPollUrl: isProcessing ? buildCardPollUrl({ articleId: id, pollCount: phase.pollCursor, filters }) : undefined,
 		contentState: processing.contentState,
 		readerHref: versionedReaderHref({
@@ -423,12 +405,12 @@ export function toReadlistViewModel(
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
-		effectiveAccess?: EffectiveAccess;
+		effectiveAccess: EffectiveAccess;
 		upgradeOffer?: UpgradeOffer;
 		freePlanBannerDismissed?: boolean;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
-		deleteAcknowledged?: boolean;
-		readlists?: readonly ReadlistRef[];
+		deleteAcknowledged: boolean;
+		readlists: readonly ReadlistRef[];
 		savesByUrl?: ReadonlyMap<string, readonly { readlist?: ReadlistSlug }[]>;
 		moveFlash?: MoveFlash;
 	},
@@ -436,15 +418,7 @@ export function toReadlistViewModel(
 	const now = options.now;
 	const returnQuery = readlistReturnQuery(filters);
 
-	/** When effectiveAccess is omitted the caller is a server-side render path
-	 * that has no authenticated user (Siren API, public reader permalink, etc.)
-	 * — those code paths never reach the banner-rendering template, so we treat
-	 * "no info" as founding/full-access for view-model purposes. The
-	 * authenticated GET /queue handler always passes effectiveAccess. */
-	const access: EffectiveAccess = options.effectiveAccess ?? {
-		tier: "founding",
-		banner: "none",
-	};
+	const access = options.effectiveAccess;
 
 	return {
 		articles: result.articles.map((a) =>
@@ -457,16 +431,12 @@ export function toReadlistViewModel(
 				enclosure: options.enclosureByUrl?.get(a.url) ?? ABSENT_ENCLOSURE,
 				readerProvenance: options.readerProvenanceByUrl?.get(a.url),
 				filters,
-				maxPolls: MAX_POLLS,
 				confirmReadlists: options.confirmReadlistsByUrl?.get(a.url),
 				deleteAcknowledged: options.deleteAcknowledged,
-				filing:
-					options.readlists === undefined
-						? undefined
-						: {
-								readlists: options.readlists,
-								saves: options.savesByUrl?.get(a.url),
-							},
+				filing: {
+					readlists: options.readlists,
+					saves: options.savesByUrl?.get(a.url),
+				},
 			}),
 		),
 		filters,

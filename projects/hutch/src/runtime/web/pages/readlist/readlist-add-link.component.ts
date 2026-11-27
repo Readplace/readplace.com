@@ -13,7 +13,7 @@ import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { ComponentError } from "../../shared/component-error.types";
 import { renderUploadDropzone } from "../../shared/upload-dropzone/upload-dropzone.component";
-import { DEFAULT_READLIST } from "./readlist.nav";
+import { DEFAULT_READLIST } from "@packages/domain/readlist";
 import { READLIST_SAVE_PATH, readlistReturnQuery, type ReadlistUrlState } from "./readlist.url";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";

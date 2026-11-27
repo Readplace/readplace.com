@@ -4,6 +4,8 @@ import {
 	pinnedReadlistSlugs,
 	readerReadlists,
 	type ReadlistSlug,
+	DEFAULT_READLIST,
+	type ReadlistRef,
 } from "@packages/domain/readlist";
 import type { ReadlistFilter } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -12,7 +14,6 @@ import type { FindSessionReadlistFilter } from "@packages/provider-contracts/aut
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
 import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./readlist-home";
-import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
 export { readerReadlists };
@@ -20,14 +21,14 @@ export { readerReadlists };
 export interface ReadlistContext {
 	definitions: Awaited<ReturnType<ListReadlistDefinitions>>;
 	state: ReadlistUrlState;
-	activeReadlist: Readlist;
-	readlists: readonly Readlist[];
+	activeReadlist: ReadlistRef;
+	readlists: readonly ReadlistRef[];
 	activePurpose: string | undefined;
 	pinnedReadlists: readonly ReadlistSlug[];
 	home?: { slug: ReadlistSlug; entry: ReadlistSlug; targets: ReadonlyMap<ReadlistSlug, HomeReadlistPreference> };
 }
 
-const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
+const MAINLINE_READLISTS: readonly ReadlistRef[] = [DEFAULT_READLIST];
 
 export function readlistToFileInto(context: ReadlistContext): ReadlistSlug | undefined {
 	const { slug } = context.activeReadlist;

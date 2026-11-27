@@ -9,16 +9,9 @@ export interface WizardField {
 	autofocus: boolean;
 }
 
-export interface WizardStep<VM extends object, K extends keyof VM = keyof VM> {
+export interface WizardStep<VM extends object> {
 	id: string;
 	title: string;
 	description: string;
-	viewModel: readonly K[];
-	template: (input: { values: Partial<Pick<VM, K>>; field: WizardField }) => string;
-}
-
-export type WizardSteps<VM extends object> = readonly [WizardStep<VM>, ...WizardStep<VM>[]];
-
-export function defineWizardStep<VM extends object>() {
-	return <K extends keyof VM>(step: WizardStep<VM, K>): WizardStep<VM> => step;
+	template: (input: { values: Partial<VM>; field: WizardField }) => string;
 }

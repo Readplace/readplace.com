@@ -10,8 +10,42 @@ import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { toReadlistArticleViewModel, toReadlistViewModel, toSubscriptionBannerState } from "./readlist.viewmodel";
+import { MAX_POLLS } from "@packages/web-shell";
+import {
+	toReadlistArticleViewModel as buildArticleViewModel,
+	toReadlistViewModel as buildReadlistViewModel,
+	toSubscriptionBannerState,
+} from "./readlist.viewmodel";
 import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
+
+
+type ReadlistViewModelOptions = Parameters<typeof buildReadlistViewModel>[2];
+type ArticleViewModelParams = Parameters<typeof buildArticleViewModel>[0];
+
+const LISTING_DEFAULTS = {
+	effectiveAccess: { tier: "founding", banner: "none" },
+	deleteAcknowledged: false,
+	readlists: [],
+} satisfies Pick<ReadlistViewModelOptions, "effectiveAccess" | "deleteAcknowledged" | "readlists">;
+
+function toReadlistViewModel(
+	result: FindArticlesResult,
+	filters: Parameters<typeof buildReadlistViewModel>[1],
+	options: Omit<ReadlistViewModelOptions, keyof typeof LISTING_DEFAULTS> & Partial<ReadlistViewModelOptions>,
+) {
+	return buildReadlistViewModel(result, filters, { ...LISTING_DEFAULTS, ...options });
+}
+
+const CARD_DEFAULTS = {
+	deleteAcknowledged: false,
+	filing: { readlists: [], saves: undefined },
+} satisfies Pick<ArticleViewModelParams, "deleteAcknowledged" | "filing">;
+
+function toReadlistArticleViewModel(
+	params: Omit<ArticleViewModelParams, keyof typeof CARD_DEFAULTS> & Partial<ArticleViewModelParams>,
+) {
+	return buildArticleViewModel({ ...CARD_DEFAULTS, ...params });
+}
 
 const ARTICLE_URL = "https://example.com/post";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -504,7 +538,6 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 		returnQuery: "",
 		summary: undefined,
 		filters: DEFAULT_FILTERS,
-		maxPolls: 3,
 		readerProvenance: undefined,
 	};
 
@@ -522,7 +555,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
-			pollCount: 4,
+			pollCount: MAX_POLLS + 1,
 		});
 		expect(vm.isStalePending).toBe(true);
 		expect(vm.cardPollUrl).toBeUndefined();
@@ -532,7 +565,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "failed", outcomeRevision: 1, reason: "x" },
-			pollCount: 4,
+			pollCount: MAX_POLLS + 1,
 		});
 		expect(vm.isStalePending).toBe(false);
 		expect(vm.cardPollUrl).toBeUndefined();
@@ -542,7 +575,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "unsupported", reason: "x" },
-			pollCount: 4,
+			pollCount: MAX_POLLS + 1,
 		});
 		expect(vm.isStalePending).toBe(false);
 		expect(vm.cardPollUrl).toBeUndefined();
@@ -553,7 +586,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 			...baseParams,
 			crawl: { status: "ready" },
 			summary: { status: "ready", summary: "ok" },
-			pollCount: 4,
+			pollCount: MAX_POLLS + 1,
 		});
 		expect(vm.isStalePending).toBe(false);
 	});
@@ -567,7 +600,6 @@ describe("toReadlistArticleViewModel — via", () => {
 		summary: undefined,
 		crawl: undefined,
 		filters: DEFAULT_FILTERS,
-		maxPolls: 3,
 	};
 
 	it("names the sender an emailed save arrived from", () => {
@@ -621,7 +653,6 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			summary: undefined,
 			crawl: { status: "ready" },
 			filters: DEFAULT_FILTERS,
-			maxPolls: 3,
 			readerProvenance: undefined,
 		});
 		const version = readerVersion(vm.readerHref);
@@ -638,7 +669,6 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			summary: undefined,
 			crawl: { status: "ready" },
 			filters: { readlist: ReadlistSlugSchema.parse("reading"), tab: "queue", order: "desc", page: 1 },
-			maxPolls: 3,
 			readerProvenance: undefined,
 		});
 		expect(vm.readerHref).toMatch(new RegExp(`^/queue/${ARTICLE_ID}/view\\?queue=reading&v=[0-9a-f]{16}$`));
@@ -651,7 +681,6 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			returnQuery: "",
 			crawl: { status: "ready" as const },
 			filters: DEFAULT_FILTERS,
-			maxPolls: 3,
 			readerProvenance: undefined,
 		};
 		const pending = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE, ...base, summary: undefined });
@@ -666,7 +695,6 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			summary: undefined,
 			crawl: { status: "ready" as const },
 			filters: DEFAULT_FILTERS,
-			maxPolls: 3,
 			readerProvenance: undefined,
 		};
 		const earlier = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
@@ -694,12 +722,6 @@ describe("toReadlistViewModel — move", () => {
 			label: `Shelf ${index + 1}`,
 		}));
 	}
-
-	it("offers no move without the reader's readlists", () => {
-		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
-
-		expect(vm.articles[0].move).toBeUndefined();
-	});
 
 	it("adds an article on All to each custom readlist that does not hold it yet, in rail order", () => {
 		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {

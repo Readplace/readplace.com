@@ -2,8 +2,6 @@ import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { z } from "zod";
 import {
 	readlistFilterOf,
-	resolveArticleDiscovery,
-	type ArticleDiscoveryQuery,
 	type ReadlistFilter,
 } from "@packages/domain/article";
 import {
@@ -101,10 +99,6 @@ export function discoveryParams(discovery: ReadlistDiscovery | undefined): LinkP
 		...discovery.time.map((value) => ["time", value] as const),
 		...discovery.saved.map((value) => ["saved", value] as const),
 	];
-}
-
-export function toArticleDiscoveryQuery(discovery: ReadlistDiscovery, now: Date): ArticleDiscoveryQuery {
-	return resolveArticleDiscovery({ ...discovery, now });
 }
 
 function readlistQueryString(state: Partial<ReadlistUrlState>, extraParams: LinkParams = []): string {

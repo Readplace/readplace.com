@@ -73,6 +73,7 @@ import { readerMarkStatusConfirm } from "../reader/reader.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import {
 	isNativeClient,
+	isNativeSurface,
 	isNativeSurfaceMarked,
 	APP_SHELL_QUERY,
 	PLATFORM_QUERY,
@@ -80,7 +81,7 @@ import {
 } from "../../onboarding/native-client";
 import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, SaveArticleReadlistsSchema, isAppPlatform, readerReadlistFilingFrom, } from "./readlist-shared";
+import { type ReadlistShared, SaveArticleReadlistsSchema, readerReadlistFilingFrom, } from "./readlist-shared";
 import { ReadlistDestinationSchema, ReadlistDestinationsSchema, ReadlistSlugsSchema } from "./readlist-slugs";
 
 /** Minute-precision UTC id as recorded in the crawl-version log, e.g.
@@ -306,7 +307,6 @@ export function initReadlistCardRoutes(
 			readerProvenance,
 			filters,
 			pollCount: requestedPoll + 1,
-			maxPolls: MAX_POLLS,
 			confirmReadlists: confirmReadlistsByUrl?.get(article.url),
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 			filing: {
@@ -386,7 +386,7 @@ export function initReadlistCardRoutes(
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
-		if (isAppPlatform(req) && !parsedId.success) {
+		if (isNativeSurface(req) && !parsedId.success) {
 			res.status(404).type("html").send("");
 			return;
 		}
@@ -402,7 +402,7 @@ export function initReadlistCardRoutes(
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 
-		if (isAppPlatform(req)) {
+		if (isNativeSurface(req)) {
 			closeAppReader(req, res);
 			return;
 		}

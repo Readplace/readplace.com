@@ -174,5 +174,5 @@ export function initLocalHighlights(deps: {
 
 	const remove = (id: string): boolean => write(all().filter((item) => item.id !== id));
 
-	return { all, list, anchorsOn, isAvailable, add, setNote, remove };
+	return { all, anchorsOn, isAvailable, add, setNote, remove };
 }

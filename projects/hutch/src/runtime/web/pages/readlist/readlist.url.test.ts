@@ -5,7 +5,6 @@ import {
 	canonicalReadlistPageRedirect,
 	parseReadlistUrl,
 	readlistFitOverrideDeletePath,
-	toArticleDiscoveryQuery,
 } from "./readlist.url";
 
 describe("parseReadlistUrl", () => {
@@ -259,14 +258,6 @@ describe("search and filters in the readlist URL", () => {
 		const state = parseReadlistUrl({ queue: ReadlistSlugSchema.parse("work"), q: "finance" });
 
 		expect(buildReadlistCountsUrl(state)).toBe("/queue/counts?queue=work&q=finance");
-	});
-
-	it("resolves the saved windows against the clock it is given", () => {
-		const now = new Date("2026-10-10T12:00:00.000Z");
-
-		expect(toArticleDiscoveryQuery({ time: [], saved: ["today"] }, now).savedAtRanges).toEqual([
-			{ from: new Date("2026-10-09T12:00:00.000Z") },
-		]);
 	});
 });
 

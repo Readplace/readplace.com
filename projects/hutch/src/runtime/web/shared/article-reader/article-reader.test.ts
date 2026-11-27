@@ -78,9 +78,6 @@ function initFakeDeps(initial: {
 	content?: string;
 	/** undefined means "use the default fake article"; null means "row missing". */
 	article?: GlobalArticleData | null;
-	/** Defaults to the public-reader behaviour (expanded) so existing assertions
-	 * stay green; the collapse case overrides it to false. */
-	summaryOpen?: boolean;
 	contentFetchedAt?: string;
 	crawlVersions?: ArticleCrawlVersion[];
 	requestResolutionOnView?: RequestResolutionOnView;
@@ -127,7 +124,6 @@ function initFakeDeps(initial: {
 				: { contentFetchedAt: state.contentFetchedAt },
 		formatDocumentTitle: (title) => `${title} — TestReader`,
 		appOrigin: "https://readplace.com",
-		summaryOpen: initial.summaryOpen ?? true,
 		requestResolutionOnView: initial.requestResolutionOnView,
 	};
 	return { state, deps, reads, ownerLookups };
@@ -651,46 +647,10 @@ describe("initArticleReader", () => {
 			expect(track.getAttribute("aria-valuenow")).toBe("90");
 		});
 
-		it("renders a ready summary expanded (summaryOpen: true) and stops polling", async () => {
+		it("renders a ready summary collapsed with its toggle beacon", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "ready", summary: "TL;DR" },
-			});
-			const reader = initArticleReader(deps);
-
-			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
-				readerSection: TEST_READER_SECTION,
-				viewer: ANONYMOUS_VIEWER,
-				articleUrl: ARTICLE_URL,
-				articleId: undefined,
-				pollCount: 1,
-				pollUrlBuilder: makePollUrlBuilder(),
-				capture: NO_CAPTURE_WATCH,
-				extensionInstallUrl: undefined,
-				summaryToggleUrl: undefined,
-				provenance: undefined,
-				readerNotice: undefined,
-				ocrPagesHold: undefined,
-				saved: undefined,
-				readerViewFailedOob: () => "",
-				renderDownloadsOob: undefined,
-				renderShareOob: undefined,
-			});
-
-			const doc = parse(toHtml(component));
-			const slot = doc.querySelector("[data-test-reader-summary]");
-			assert(slot, "summary slot must be rendered");
-			expect(slot.getAttribute("data-summary-status")).toBe("ready");
-			const details = doc.querySelector(".tldr-disclosure");
-			assert(details, "summary details element must be rendered");
-			expect(details.hasAttribute("open")).toBe(true);
-		});
-
-		it("renders a ready summary collapsed when the reader is configured summaryOpen: false (internal reader)", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
-				summaryOpen: false,
 			});
 			const reader = initArticleReader(deps);
 

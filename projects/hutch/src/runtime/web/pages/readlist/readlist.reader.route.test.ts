@@ -2314,10 +2314,10 @@ describe("Readlist routes", () => {
 			expect(doc.querySelector(".article-body__reader-notice-title")?.textContent).toBe("Your link is saved");
 		});
 
-		it("answers a tab still carrying the legacy capturing flag with the row's own notice", async () => {
+		it("answers a tab watching from revision zero with the row's own notice", async () => {
 			const { poll } = await savedFailedArticle("https://example.com/unparseable-legacy-tab");
 
-			const doc = await poll("poll=3&capturing=1");
+			const doc = await poll("poll=3&captureSince=0");
 
 			expect([readerRegions(doc).slot, readerRegions(doc).slotPoll]).toEqual(["failed", null]);
 		});

@@ -19,7 +19,7 @@ interface DesignCardAction extends ArticleAction {
 	fallbackClass: string;
 	disabled: boolean;
 	loaderHtml: string;
-	buttonId?: string;
+	buttonId: string;
 }
 
 interface DesignCardTrigger {

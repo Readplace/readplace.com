@@ -18,35 +18,17 @@ describe("renderSummarySlot", () => {
 	it("returns only the slot HTML (no outer page)", () => {
 		const html = renderSummarySlot({
 			summary: { status: "ready", summary: "Point." },
-			summaryOpen: false,
 		});
 
 		expect(html.startsWith("<div")).toBe(true);
 		expect(html.includes("<html")).toBe(false);
 	});
 
-	it("routes status=ready to the ready component", () => {
-		const doc = parse(
-			renderSummarySlot({
-				summary: { status: "ready", summary: "Key points." },
-				summaryOpen: true,
-			}),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-summary]");
-		assert(slot, "summary slot must be rendered");
-		expect(slot.getAttribute("data-summary-status")).toBe("ready");
-		const details = doc.querySelector(".tldr-disclosure");
-		assert(details, "summary details element must be rendered");
-		expect(details.hasAttribute("open")).toBe(true);
-	});
-
 	it("forwards a ready summary's excerpt into the collapsed preview", () => {
 		const doc = parse(
 			renderSummarySlot({
 				summary: { status: "ready", summary: "The full summary.", excerpt: "The teaser." },
-				summaryOpen: false,
-			}),
+				}),
 		);
 
 		expect(doc.querySelector(".tldr-disclosure__preview")?.textContent).toBe("The teaser. view more …");

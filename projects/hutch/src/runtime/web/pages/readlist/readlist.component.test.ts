@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, DEFAULT_READLIST, type ReadlistRef } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
@@ -8,7 +8,6 @@ import type { ReadlistRailViewModel } from "./readlist-rail";
 import { buildArticleDeletion } from "./readlist-card/delete-confirm.component";
 import { moveCreatePopoverId, moveDialogPopoverId } from "./readlist-card/move-dialog.component";
 import { markStatusConfirmPopoverId } from "./mark-status-confirm.component";
-import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { READLIST_CREATE_PATH, type ReadlistUrlState } from "./readlist.url";
 import type { ReadlistArticleViewModel, ReadlistViewModel } from "./readlist.viewmodel";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
@@ -17,7 +16,7 @@ import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-dow
 import { ReadlistPage, type ReadlistPageOptions } from "./readlist.component";
 import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 
-const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
+const WORK: ReadlistRef = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
 const RAIL: ReadlistRailViewModel = {
 	readlists: [DEFAULT_READLIST, WORK],
 	activeReadlist: DEFAULT_READLIST,
@@ -936,7 +935,7 @@ describe("ReadlistPage", () => {
 	});
 
 	it("asks where the articles go only for the readlists the rail says hold some", () => {
-		const finance: Readlist = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance" };
+		const finance: ReadlistRef = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance" };
 		const doc = pageDoc(
 			{},
 			{ rail: { ...RAIL, readlists: [DEFAULT_READLIST, WORK, finance], nonEmptyReadlists: [WORK.slug] } },
@@ -994,7 +993,7 @@ describe("ReadlistPage", () => {
 	});
 
 	it("renders each card's move and create dialogs inside main, outside the cards", () => {
-		const finance: Readlist = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance" };
+		const finance: ReadlistRef = { slug: ReadlistSlugSchema.parse("finance"), label: "Finance" };
 		const movable: ReadlistArticleViewModel = {
 			...CONFIRMED_ARTICLE,
 			move: {

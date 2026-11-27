@@ -50,10 +50,10 @@ import {
 	readlistToFileInto,
 } from "./readlist-context";
 import { HAND_PICKED_SCOPE } from "./built-in-readlists";
-import { DEFAULT_READLIST } from "./readlist.nav";
 import {
 	DEFAULT_READLIST_SLUG,
 	type ReadlistSlug,
+	DEFAULT_READLIST,
 } from "@packages/domain/readlist";
 import { READLIST_TAB_STATUSES, } from "./readlist.tabs";
 import { readlistPageSizeForClient } from "./readlist-page-size";

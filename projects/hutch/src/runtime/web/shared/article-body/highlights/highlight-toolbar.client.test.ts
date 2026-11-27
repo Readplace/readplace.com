@@ -12,14 +12,13 @@ import {
 	renderHighlightNoteFallbackForm,
 } from "./highlight-note-dialog.component";
 import {
-	HIGHLIGHT_SELECTION_EVENT,
 	initHighlightToolbar,
 	POINTER_SETTLE_MS,
 	SELECTION_DEBOUNCE_MS,
 	type ToolbarRect,
 } from "./highlight-toolbar.client";
+import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import {
-	ARTICLE_HIGHLIGHT_CLASS,
 	HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
 	renderHighlightToolbar,
 } from "./highlight-toolbar.component";
@@ -668,80 +667,6 @@ describe("initHighlightToolbar", () => {
 		expect(toolbarOf(h).hidden).toBe(true);
 	});
 
-	it("submits the selection event's own origin", () => {
-		const h = harness();
-		selectWords(h, { from: "beta" });
-
-		h.doc.dispatchEvent(
-			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
-				detail: { origin: "tap" },
-			}),
-		);
-
-		expect(formFields(h.submitted[0])).toEqual({
-			exact: "beta",
-			start: "9",
-			end: "13",
-			origin: "tap",
-			after: "",
-		});
-	});
-
-	it.each([
-		["no detail", undefined],
-		["no origin", {}],
-		["a non-string origin", { origin: 1 }],
-	])("ignores a selection event with %s", (_label, detail) => {
-		const h = harness();
-		selectWords(h, { from: "beta" });
-
-		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail }));
-
-		expect(h.submitted).toHaveLength(0);
-	});
-
-	it("ignores a selection event with no range", () => {
-		const h = harness();
-
-		h.doc.dispatchEvent(
-			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
-				detail: { origin: "tap" },
-			}),
-		);
-
-		expect(h.submitted).toHaveLength(0);
-	});
-
-	it("ignores a selection event outside the article", () => {
-		const h = harness();
-		const outside = h.doc.getElementById("outside");
-		assert(outside);
-		selectWords(h, { from: "Outside", root: outside });
-
-		h.doc.dispatchEvent(
-			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
-				detail: { origin: "tap" },
-			}),
-		);
-
-		expect(h.submitted).toHaveLength(0);
-	});
-
-	it("ignores a selection event on a page without reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal: undefined })}<p id="outside">Outside</p></main>`);
-		const outside = h.doc.getElementById("outside");
-		assert(outside);
-		selectWords(h, { from: "Outside", root: outside });
-
-		h.doc.dispatchEvent(
-			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
-				detail: { origin: "tap" },
-			}),
-		);
-
-		expect(h.submitted).toHaveLength(0);
-	});
-
 	it("a mark click never scrolls the rail or the page", () => {
 		const h = harness(mainHtml({ marks: true }));
 		const mark = markWord(h, "beta");
@@ -1283,7 +1208,8 @@ describe("a highlight saving in the background", () => {
 		h.window.document.dispatchEvent(new h.window.CustomEvent("htmx:beforeRequest", { detail: { elt: form, xhr: {} } }));
 
 		selectWords(h, { from: "zeta" });
-		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail: { origin: "mouse" } }));
+		settleSelection(h);
+		click(h, buttonOf(h));
 
 		assert.equal(h.submitted.length, 1);
 		assert.equal(formFields(form).exact, "beta");
