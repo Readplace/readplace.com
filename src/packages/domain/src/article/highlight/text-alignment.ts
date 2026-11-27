@@ -11,8 +11,6 @@ interface Region {
 type Pair = readonly [number, number];
 
 export interface TextAlignment {
-	basis: string;
-	text: string;
 	basisTokens: Tokens;
 	textTokens: Tokens;
 	imageOf: number[];
@@ -25,7 +23,6 @@ export interface TextAlignment {
 	basisWords: number[][];
 	textWords: number[][];
 	basisCopyKeys: string[];
-	textCopyKeys: string[];
 	standsAt: number[];
 	kept: boolean[];
 	best: Map<string, number>;
@@ -235,8 +232,6 @@ export function alignTexts(params: {
 	for (const image of imageOf) if (image >= 0) kept[image] = true;
 
 	return {
-		basis,
-		text,
 		basisTokens,
 		textTokens,
 		imageOf,
@@ -253,7 +248,6 @@ export function alignTexts(params: {
 			sentenceWords({ index, text, tokens: textTokens, range }),
 		),
 		basisCopyKeys,
-		textCopyKeys,
 		standsAt,
 		kept,
 		best: new Map(),

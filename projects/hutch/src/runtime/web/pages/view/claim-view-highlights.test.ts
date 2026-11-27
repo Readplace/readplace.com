@@ -7,11 +7,11 @@ import {
 	HighlightIdSchema,
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
-	SaveableUrlSchema,
 	type SavedArticle,
 	validateSaveableUrl,
 	withPrivateItemRefusal,
 } from "@packages/domain/article";
+import { saveableUrlFixture } from "@packages/test-fixtures";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import type { CreateHighlightByQuoteOutcome } from "../../shared/article-body/highlights/create-highlight-by-quote";
@@ -72,7 +72,7 @@ function claimAnswering(
 	outcome: CreateHighlightByQuoteOutcome,
 	allowance: { claimDailySaves: ClaimDailySaves; savedUrls: string[]; picks: Picks } = { claimDailySaves: grantAll, savedUrls: [], picks: [] },
 ) {
-	const url = SaveableUrlSchema.parse(ARTICLE_URL);
+	const url = saveableUrlFixture(ARTICLE_URL);
 	const destinationUrl = articleDestinationUrl({ url, displayUrl: undefined });
 	const saved: SavedArticle = {
 		id: ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef"),

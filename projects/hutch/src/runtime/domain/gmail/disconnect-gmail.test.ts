@@ -202,7 +202,7 @@ describe("initDisconnectGmail", () => {
 		assert.deepEqual(await harness.senders.listSendersByUserId(USER), []);
 		assert.deepEqual(harness.rewrites, [USER]);
 		assert.deepEqual(harness.revokes, ["refresh-1"]);
-		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), undefined);
+		assert.equal((await harness.credentials.findCredentialsByUserId(USER))?.refreshToken, undefined);
 		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
 	});
 
@@ -273,7 +273,7 @@ describe("initDisconnectGmail", () => {
 		const result = await harness.disconnect({ userId: USER });
 
 		assert.deepEqual(result, { ok: true, filterRemoved: false, grantRevoked: true });
-		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), undefined);
+		assert.equal((await harness.credentials.findCredentialsByUserId(USER))?.refreshToken, undefined);
 	});
 
 	it("retries rather than half-disconnecting when Gmail is unavailable", async () => {
@@ -285,7 +285,7 @@ describe("initDisconnectGmail", () => {
 			ok: false,
 			reason: "unavailable",
 		});
-		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), "refresh-1");
+		assert.equal((await harness.credentials.findCredentialsByUserId(USER))?.refreshToken, "refresh-1");
 		assert.deepEqual(harness.revokes, []);
 		assert.equal((await harness.addresses.findByAddress(harness.gateway))?.disabledAt, undefined);
 	});
@@ -299,7 +299,7 @@ describe("initDisconnectGmail", () => {
 			ok: false,
 			reason: "unavailable",
 		});
-		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), "refresh-1");
+		assert.equal((await harness.credentials.findCredentialsByUserId(USER))?.refreshToken, "refresh-1");
 		assert.equal((await harness.addresses.findByAddress(harness.gateway))?.disabledAt, undefined);
 	});
 

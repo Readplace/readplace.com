@@ -2,7 +2,6 @@ import assert from "node:assert";
 import type {
 	ForwardableSender,
 	GmailConnection,
-	GmailDeliveryMode,
 	GmailFilterError,
 	GmailHistoryImportCounts,
 	GmailHistoryImportFailureReason,
@@ -16,7 +15,7 @@ import {
 	resolveGmailDeliveryMode,
 	summarizeGmailHistoryImport,
 } from "@packages/domain/gmail";
-import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
+import { type InboxAddressEntry, isLiveAddress, type EmailDeliveryMode } from "@packages/domain/inbox";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { buildReadlistUrl } from "../readlist/readlist.url";
@@ -59,7 +58,7 @@ export interface GmailMappingRow {
 	destinationLabel: string | undefined;
 	destinationLinks: readonly { label: string; href: string }[];
 	destinationNote: string | undefined;
-	deliveryMode: GmailDeliveryMode;
+	deliveryMode: EmailDeliveryMode;
 	deliveryLabel: string;
 	forwarding: GmailForwardingState;
 	forwardingLabel: string;

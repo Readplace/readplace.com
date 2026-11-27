@@ -1,3 +1,4 @@
+import type { EmailDeliveryMode } from "@packages/domain/inbox";
 import type { AlertVariant } from "@packages/web-shell";
 import type {
 	DiscoveredGmailSender,
@@ -5,7 +6,6 @@ import type {
 	GmailConfirmFailureReason,
 	GmailConnection,
 	GmailConnectionState,
-	GmailDeliveryMode,
 	GmailDiscovery,
 	GmailHistoryImportJob,
 	GmailMapping,
@@ -147,7 +147,7 @@ interface GmailDialogViewModel {
 }
 
 interface GmailDeliveryOption {
-	value: GmailDeliveryMode;
+	value: EmailDeliveryMode;
 	label: string;
 	description: string;
 	checked: boolean;
@@ -472,7 +472,7 @@ function dialogFor(input: {
 	};
 }
 
-const DELIVERY_ORDER: readonly GmailDeliveryMode[] = ["issue", "links", "both"];
+const DELIVERY_ORDER: readonly EmailDeliveryMode[] = ["issue", "links", "both"];
 
 function deliveryChoice(input: { state: GmailPickerState; sender: GmailMapping | undefined }): GmailDeliveryChoiceViewModel {
 	const chosen = input.state.delivery ?? pickerDeliveryMode(input.sender);

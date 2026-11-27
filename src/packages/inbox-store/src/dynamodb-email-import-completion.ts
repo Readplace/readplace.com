@@ -6,7 +6,7 @@ import {
 	dynamoField,
 } from "@packages/storage-client";
 import { z } from "zod";
-import { GmailDeliveryModeSchema, GmailMessageOriginSchema } from "@packages/domain/gmail";
+import { GmailMessageOriginSchema } from "@packages/domain/gmail";
 import {
 	type EmailImportCompletionStore,
 	EmailOutputKeySchema,
@@ -16,6 +16,7 @@ import {
 	InboxEmailStatusSchema,
 	MessageIdSchema,
 	uniqueGmailOrigins,
+	EmailDeliveryModeSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 
@@ -40,7 +41,7 @@ const CandidateRow = CompletionRow.extend({
 	senderEmail: z.string(),
 	status: InboxEmailStatusSchema,
 	gmailDestinationAddresses: dynamoField(z.array(InboxAddressSchema)),
-	gmailDeliveryMode: dynamoField(GmailDeliveryModeSchema),
+	gmailDeliveryMode: dynamoField(EmailDeliveryModeSchema),
 });
 
 const CANDIDATE_FIELDS = [

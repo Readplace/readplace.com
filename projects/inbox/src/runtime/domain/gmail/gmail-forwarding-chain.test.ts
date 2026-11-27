@@ -374,7 +374,7 @@ describe("gmail forwarding chain (inbox half)", () => {
 		});
 		assert.equal(held.length, 1);
 		assert.equal(
-			(await senders.findSender({ userId, senderEmail }))?.seenCount,
+			(await senders.listSendersByUserId(userId)).find((s) => s.senderEmail === senderEmail)?.seenCount,
 			1,
 		);
 

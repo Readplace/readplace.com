@@ -34,7 +34,7 @@ const WORK: ReadlistDefinitionData = { slug: ReadlistSlugSchema.parse("work"), l
 function recognizing(newsletters: [ForwardableSender, string | undefined][]): DetectNewsletters {
 	return async () => ({
 		status: "available",
-		recognized: new Map(newsletters.map(([from, name]) => [from, name === undefined ? { from, name: undefined, source: "catalog", match: "domain-wildcard" } : { from, name: NewsletterNameSchema.parse(name), source: "catalog", match: "exact" }])),
+		recognized: new Map(newsletters.map(([from, name]) => [from, name === undefined ? { from, name: undefined, match: "domain-wildcard" } : { from, name: NewsletterNameSchema.parse(name), match: "exact" }])),
 	});
 }
 

@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { parseHttpUrl } from "../inbox/parse-http-url";
 
 export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot" | "archive-outbound" | "share-intent";
 
@@ -98,17 +99,6 @@ const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: HUBSPOT_HOST, path: HUBSPOT_TRACK_PATH, newSavesOnly: true },
 	{ host: "www.quora.com", path: QUORA_CLICK_PATH, newSavesOnly: true },
 ];
-
-function parseHttpUrl(value: string): URL | undefined {
-	let parsed: URL;
-	try {
-		parsed = new URL(value);
-	} catch {
-		return undefined;
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
-	return parsed;
-}
 
 function hostnameOf(parsed: URL): string {
 	return parsed.hostname.endsWith(".") ? parsed.hostname.slice(0, -1) : parsed.hostname;

@@ -40,13 +40,8 @@ function rowOn(params: {
 	};
 }
 
-function countsOf(states: {
-	anchored: number;
-	moved: number;
-	orphaned: number;
-}): ReanchorCounts {
+function countsOf(): ReanchorCounts {
 	return {
-		...states,
 		diffed: 0,
 		edited: 0,
 		gone: 0,
@@ -77,7 +72,7 @@ describe("reanchorArticleHighlights", () => {
 				highlights: [row],
 				anchorTexts: new Map(),
 			}),
-			{ writes: [], counts: countsOf({ anchored: 0, moved: 0, orphaned: 0 }) },
+			{ writes: [], counts: countsOf() },
 		);
 	});
 
@@ -112,7 +107,7 @@ describe("reanchorArticleHighlights", () => {
 		]);
 		assert.deepEqual(
 			result.counts,
-			countsOf({ anchored: 1, moved: 0, orphaned: 0 }),
+			countsOf(),
 		);
 	});
 
@@ -184,7 +179,7 @@ describe("reanchorArticleHighlights", () => {
 		);
 		assert.deepEqual(
 			result.counts,
-			countsOf({ anchored: 1, moved: 1, orphaned: 1 }),
+			countsOf(),
 		);
 	});
 
@@ -277,7 +272,7 @@ describe("reanchorArticleHighlights", () => {
 			return {
 				anchor: write.anchor,
 				words: params.text.slice(write.anchor.start, write.anchor.end),
-				counts: Object.fromEntries(counted),
+				counts: { [write.anchor.anchorState]: 1, ...Object.fromEntries(counted) },
 			};
 		}
 

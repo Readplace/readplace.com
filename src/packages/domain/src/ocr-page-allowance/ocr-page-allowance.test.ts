@@ -24,7 +24,6 @@ describe("pagesLeftInWindow", () => {
 			pagesLeftInWindow({
 				slots: [],
 				nowMs: BASE_SECONDS * 1000,
-				limit: LIMIT,
 			}),
 			98,
 		);
@@ -36,7 +35,6 @@ describe("pagesLeftInWindow", () => {
 			pagesLeftInWindow({
 				slots,
 				nowMs: (BASE_SECONDS + 60) * 1000,
-				limit: LIMIT,
 			}),
 			1,
 		);
@@ -45,19 +43,19 @@ describe("pagesLeftInWindow", () => {
 	it("drops a slot that ended exactly 24 hours ago", () => {
 		const slots: OcrPageSlot[] = [{ slotStart: BASE_SECONDS, pages: 50 }];
 		const nowMs = (BASE_SECONDS + HOUR + DAY) * 1000;
-		assert.equal(pagesLeftInWindow({ slots, nowMs, limit: LIMIT }), 98);
+		assert.equal(pagesLeftInWindow({ slots, nowMs }), 98);
 	});
 
 	it("still counts a slot that ended 23 hours 59 minutes ago", () => {
 		const slots: OcrPageSlot[] = [{ slotStart: BASE_SECONDS, pages: 50 }];
 		const nowMs = (BASE_SECONDS + HOUR + DAY - 60) * 1000;
-		assert.equal(pagesLeftInWindow({ slots, nowMs, limit: LIMIT }), 48);
+		assert.equal(pagesLeftInWindow({ slots, nowMs }), 48);
 	});
 
 	it("never reports fewer than zero pages left", () => {
 		const slots: OcrPageSlot[] = [{ slotStart: BASE_SECONDS, pages: 120 }];
 		assert.equal(
-			pagesLeftInWindow({ slots, nowMs: BASE_SECONDS * 1000, limit: LIMIT }),
+			pagesLeftInWindow({ slots, nowMs: BASE_SECONDS * 1000 }),
 			0,
 		);
 	});
@@ -98,8 +96,8 @@ describe("retryAtFor", () => {
 			{ slotStart: hourStart - HOUR, pages: 28 },
 		];
 		const nowMs = (hourStart + 60) * 1000;
-		assert.equal(pagesLeftInWindow({ slots, nowMs, limit: LIMIT }), 30);
-		const retryAt = retryAtFor({ slots, nowMs, limit: LIMIT, pages: 60 });
+		assert.equal(pagesLeftInWindow({ slots, nowMs }), 30);
+		const retryAt = retryAtFor({ slots, nowMs, pages: 60 });
 		assert.equal(retryAt.getTime(), (hourStart - 3 * HOUR + HOUR + DAY) * 1000);
 	});
 
@@ -109,19 +107,19 @@ describe("retryAtFor", () => {
 			{ slotStart: hourStart - 6 * HOUR, pages: 4 },
 		];
 		const nowMs = (hourStart + 60) * 1000;
-		const retryAt = retryAtFor({ slots, nowMs, limit: LIMIT, pages: 150 });
+		const retryAt = retryAtFor({ slots, nowMs, pages: 150 });
 		assert.equal(retryAt.getTime(), (hourStart - 6 * HOUR + HOUR + DAY) * 1000);
 	});
 
 	it("returns a full window from now for a file over the limit when nothing was charged", () => {
 		const nowMs = (hourStart + 60) * 1000;
-		const retryAt = retryAtFor({ slots: [], nowMs, limit: LIMIT, pages: 150 });
+		const retryAt = retryAtFor({ slots: [], nowMs, pages: 150 });
 		assert.equal(retryAt.getTime(), nowMs + DAY * 1000);
 	});
 
 	it("returns now when the pages already fit", () => {
 		const nowMs = (hourStart + 60) * 1000;
-		const retryAt = retryAtFor({ slots: [], nowMs, limit: LIMIT, pages: 20 });
+		const retryAt = retryAtFor({ slots: [], nowMs, pages: 20 });
 		assert.equal(retryAt.getTime(), nowMs);
 	});
 });
@@ -140,7 +138,7 @@ describe("allowance invariant", () => {
 			nowSeconds += Math.floor(random() * 3 * HOUR);
 			const pages = 1 + Math.floor(random() * 40);
 			const nowMs = nowSeconds * 1000;
-			if (pagesLeftInWindow({ slots, nowMs, limit: LIMIT }) >= pages) {
+			if (pagesLeftInWindow({ slots, nowMs }) >= pages) {
 				slots = addPagesToSlots({ slots, nowMs, pages });
 				charges.push({ atSeconds: nowSeconds, pages });
 			}

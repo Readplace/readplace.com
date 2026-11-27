@@ -8,7 +8,6 @@ import {
 	initTransitionAndPersist,
 	type LogCrawlSettled,
 	type Transition,
-	type UpsertTransition,
 } from "./transition-and-persist";
 
 function seededArticle(url: string): Article {
@@ -335,125 +334,6 @@ describe("initTransitionAndPersist", () => {
 	});
 });
 
-describe("initTransitionAndPersist.upsertAndPersist", () => {
-	const URL = "https://example.com/article";
-
-	it("synthesises a new row when load returns undefined so the entry-point save can render the queue card at t=0", async () => {
-		const { store, saved } = createFakeStore([]);
-		const dispatchEffect: DispatchEffect = async () => {};
-		const transition: UpsertTransition<{ now: string }> = (article, input) => {
-			if (article !== undefined) {
-				throw new Error("expected article to be undefined for this test");
-			}
-			return {
-				article: {
-					url: URL,
-					metadata: {
-						title: "Stub",
-						siteName: "example.com",
-						excerpt: "Saved.",
-						wordCount: 0,
-					},
-					freshness: { contentFetchedAt: input.now },
-					estimatedReadTime: 0,
-					crawl: { kind: "pending", pendingSince: input.now },
-					summary: { kind: "pending", pendingSince: input.now },
-					summaryAutoHeal: { attempts: 0 },
-				},
-				effects: [],
-				writes: ["crawl", "summary", "metadata", "freshness"],
-			};
-		};
-
-		const { upsertAndPersist } = initTransitionAndPersist({
-			store,
-			dispatchEffect,
-			logCrawlSettled: () => {},
-		});
-
-		await upsertAndPersist(transition, {
-			url: URL,
-			input: { now: "2026-05-13T12:00:00.000Z" },
-		});
-
-		assert.equal(saved.length, 1);
-		assert.equal(saved[0]?.article.crawl.kind, "pending");
-	});
-
-	it("passes the existing article through to the transition when load returns a row so subsequent saves can short-circuit", async () => {
-		const { store, saved } = createFakeStore([seededArticle(URL)]);
-		const dispatched: Effect[] = [];
-		const dispatchEffect: DispatchEffect = async (effect) => {
-			dispatched.push(effect);
-		};
-		const transition: UpsertTransition<undefined> = (article) => {
-			assert(article, "expected existing row");
-			return {
-				article,
-				effects: [{ kind: "dispatch-submit-link", url: URL }],
-				writes: [],
-			};
-		};
-
-		const { upsertAndPersist } = initTransitionAndPersist({
-			store,
-			dispatchEffect,
-			logCrawlSettled: () => {},
-		});
-
-		await upsertAndPersist(transition, { url: URL, input: undefined });
-
-		assert.equal(saved.length, 0, "empty writes scope skips the DDB save");
-		assert.deepEqual(dispatched, [
-			{ kind: "dispatch-submit-link", url: URL },
-		]);
-	});
-
-	it("dispatches effects in declared order after save, matching transitionAndPersist's ordering guarantee", async () => {
-		const { store } = createFakeStore([]);
-		const order: string[] = [];
-		const dispatchEffect: DispatchEffect = async (effect) => {
-			order.push(`dispatch:${effect.kind}`);
-		};
-		const transition: UpsertTransition<{ now: string }> = (_article, input) => ({
-			article: {
-				url: URL,
-				metadata: {
-					title: "Stub",
-					siteName: "example.com",
-					excerpt: "Saved.",
-					wordCount: 0,
-				},
-				freshness: { contentFetchedAt: input.now },
-				estimatedReadTime: 0,
-				crawl: { kind: "pending", pendingSince: input.now },
-				summary: { kind: "pending", pendingSince: input.now },
-				summaryAutoHeal: { attempts: 0 },
-			},
-			effects: [{ kind: "dispatch-submit-link", url: URL }],
-			writes: ["crawl", "summary", "metadata", "freshness"],
-		});
-
-		const save: SaveArticle = async () => {
-			order.push("save");
-		};
-		const wrappedStore: ArticleStore = { load: store.load, save };
-
-		const { upsertAndPersist } = initTransitionAndPersist({
-			store: wrappedStore,
-			dispatchEffect,
-			logCrawlSettled: () => {},
-		});
-
-		await upsertAndPersist(transition, {
-			url: URL,
-			input: { now: "2026-05-13T12:00:00.000Z" },
-		});
-
-		assert.deepEqual(order, ["save", "dispatch:dispatch-submit-link"]);
-	});
-});
-
 describe("conditional selection persistence", () => {
 	it("passes the selected pointer with the transition writes before emitting effects", async () => {
 		const url = "https://example.com/article";
@@ -530,15 +410,6 @@ describe("crawl settled emission", () => {
 		assert.deepEqual(emitted, []);
 	});
 
-	it("does not emit when an upsert creates the row", async () => {
-		const { store } = createFakeStore([]);
-		const { logCrawlSettled, emitted } = createCapturingLog();
-		const { upsertAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled });
-
-		await upsertAndPersist(() => ({ article: articleWithCrawl({ kind: "ready" }), effects: [], writes: ["crawl"] }), { url: URL, input: undefined });
-
-		assert.deepEqual(emitted, []);
-	});
 
 	it("does not emit when the save throws", async () => {
 		const store: ArticleStore = {

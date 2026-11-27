@@ -74,7 +74,7 @@ export function initReadReadlistGmailSources(deps: {
 	return async (userId) => {
 		const [connection, grantedScope, discovery, discovered, access] = await Promise.all([
 			gmail.gmailConnectionStore.findConnectionByUserId(userId),
-			gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId),
+			gmail.gmailCredentialsStore.findCredentialsByUserId(userId).then((credentials) => credentials?.grantedScope),
 			gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId),
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
 			deps.getEffectiveAccess(userId),

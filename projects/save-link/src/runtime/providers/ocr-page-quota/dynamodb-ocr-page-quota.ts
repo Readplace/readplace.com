@@ -5,7 +5,6 @@ import {
 	defineDynamoTable,
 } from "@packages/storage-client";
 import { z } from "zod";
-import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { addPagesToSlots, pagesLeftInWindow, retryAtFor } from "@packages/domain/ocr-page-allowance";
 import type { UserId } from "@packages/domain/user";
 import type { ChargeOcrPages, OcrPageCharge } from "@packages/crawl-article";
@@ -27,7 +26,6 @@ export type ChargeOcrPagesFor = (params: { userId: UserId; claimId: string }) =>
 export function initDynamoDbOcrPageQuota(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	rule: RateLimitRule;
 	now: () => Date;
 	delay: (milliseconds: number) => Promise<void>;
 }): { chargeOcrPagesFor: ChargeOcrPagesFor } {
@@ -43,9 +41,9 @@ export function initDynamoDbOcrPageQuota(deps: {
 			const nowMs = deps.now().getTime();
 			const counter = await counters.get(counterKey, { consistentRead: true });
 			const slots = counter?.slots ?? [];
-			const pagesLeft = pagesLeftInWindow({ slots, nowMs, limit: deps.rule.limit });
+			const pagesLeft = pagesLeftInWindow({ slots, nowMs });
 			if (pagesLeft < pages) {
-				return { allowed: false, pagesLeft, retryAt: retryAtFor({ slots, nowMs, limit: deps.rule.limit, pages }) };
+				return { allowed: false, pagesLeft, retryAt: retryAtFor({ slots, nowMs, pages }) };
 			}
 			const expiresAt = Math.floor(nowMs / 1000) + ROW_LIFETIME_SECONDS;
 			const version = counter?.version ?? 0;

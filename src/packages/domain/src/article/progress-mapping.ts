@@ -27,14 +27,8 @@ export const SUMMARY_STAGE_TO_PCT = {
 
 export type SummaryStage = keyof typeof SUMMARY_STAGE_TO_PCT;
 
-export const SUMMARY_STAGES = Object.keys(SUMMARY_STAGE_TO_PCT) as readonly SummaryStage[];
-
 export const DEFAULT_CRAWL_STAGE: CrawlStage = "crawl-fetching";
 export const DEFAULT_SUMMARY_STAGE: SummaryStage = "summary-started";
-
-export function crawlStagePct(stage: CrawlStage): number {
-	return CRAWL_STAGE_TO_PCT[stage];
-}
 
 export function crawlProgressPct(crawl: {
 	stage: CrawlStage;

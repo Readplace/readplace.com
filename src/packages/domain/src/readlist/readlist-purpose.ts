@@ -1,4 +1,5 @@
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "./readlist-name.schema";
+import type { ReadlistSlug } from "./readlist-name.schema";
+import { ownsCustomReadlist } from "./readlist-owned";
 import { parseReadlistPurpose } from "./readlist-purpose.schema";
 
 export type ReadlistPurposeRejection = "unknown-readlist" | "invalid-purpose";
@@ -6,14 +7,6 @@ export type ReadlistPurposeRejection = "unknown-readlist" | "invalid-purpose";
 export type ReadlistPurposeDecision =
 	| { ok: true; slug: ReadlistSlug; purpose: string }
 	| { ok: false; reason: ReadlistPurposeRejection };
-
-function ownsCustomReadlist(params: {
-	slug: ReadlistSlug;
-	readlists: readonly { slug: ReadlistSlug }[];
-}): boolean {
-	if (params.slug === DEFAULT_READLIST_SLUG) return false;
-	return params.readlists.some((readlist) => readlist.slug === params.slug);
-}
 
 export function decideReadlistPurpose(params: {
 	slug: ReadlistSlug;

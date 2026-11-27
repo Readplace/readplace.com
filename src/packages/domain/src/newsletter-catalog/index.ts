@@ -36,6 +36,5 @@ export {
 	type NewsletterRecognition,
 	type NewsletterDetection,
 	type DetectNewsletters,
-	initNewsletterDetectorChain,
 	initCatalogNewsletterDetector,
 } from "./newsletter-detector";

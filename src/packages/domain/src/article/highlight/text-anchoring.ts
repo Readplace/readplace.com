@@ -17,7 +17,7 @@ export interface NormalisableChunk {
 	blockBoundaryBefore: boolean;
 }
 
-export interface RawSpan {
+interface RawSpan {
 	chunk: number;
 	start: number;
 	end: number;

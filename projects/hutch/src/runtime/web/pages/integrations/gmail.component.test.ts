@@ -130,7 +130,7 @@ describe("GMail Newsletters discovery fragments", () => {
 	});
 
 	it("submits the refresh for newly found newsletters through the mapping form", () => {
-		const vm = toGmailPageViewModel(input({ detection: { status: "available", recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), source: "catalog", match: "exact" }]]) }, listed: 0 }));
+		const vm = toGmailPageViewModel(input({ detection: { status: "available", recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), match: "exact" }]]) }, listed: 0 }));
 		const refresh = fragmentDocument(renderGmailSenderStatus(vm, { outOfBandLoadButton: false })).querySelector("[data-test-gmail-refresh-checklist]");
 		assert(refresh);
 		assert.equal(refresh.textContent, "Show 1 newly found newsletter");
@@ -141,7 +141,7 @@ describe("GMail Newsletters discovery fragments", () => {
 describe("GMail Newsletters checklist markup", () => {
 	const mailbox = {
 		discoveredSenders: [{ email: TLDR, name: "Dan" }, { email: BREW, name: undefined }],
-		detection: { status: "available" as const, recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), source: "catalog" as const, match: "exact" as const }]]) },
+		detection: { status: "available" as const, recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), match: "exact" as const }]]) },
 	};
 
 	it("ties each row's checkbox to the mapping form and keeps an added sender's hidden field", () => {
@@ -331,7 +331,7 @@ describe("GMail Newsletters popup markup", () => {
 	});
 
 	it("opens the Add popup on its first newsletter, or on the search with its picker open when there is none", () => {
-		const listed = pageDocument(input({ detection: { status: "available", recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), source: "catalog", match: "exact" }]]) }, state: { add: "1" } }));
+		const listed = pageDocument(input({ detection: { status: "available", recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), match: "exact" }]]) }, state: { add: "1" } }));
 		assert.deepEqual(Array.from(listed.querySelectorAll("[autofocus]"), (target) => target.getAttribute("value")), [TLDR]);
 		const empty = pageDocument(input({ discoveredSenders: [], state: { add: "1" } }));
 		assert.deepEqual(Array.from(empty.querySelectorAll("[autofocus]"), (target) => target.id), ["gmail-sender-search"]);

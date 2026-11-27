@@ -1,6 +1,6 @@
 import type { Enclosure } from "@packages/media-contracts";
 import type { z } from "zod";
-import type { UserId } from "../user/user.types";
+import type { UserId } from "../user/user.schema";
 import type { ArticleDestinationUrl, SiteLabel } from "./article-site";
 import type { MinutesSchema } from "./article.schema";
 import type { ItemMedia } from "./item-media";

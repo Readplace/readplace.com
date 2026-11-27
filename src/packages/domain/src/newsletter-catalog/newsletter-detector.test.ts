@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema } from "../gmail/build-forwarding-filter-query";
 import { NewsletterFromSchema, NewsletterNameSchema, type NewsletterCatalogDocument } from "./newsletter-catalog.schema";
-import {
-	type DetectNewsletters,
-	initCatalogNewsletterDetector,
-	initNewsletterDetectorChain,
-} from "./newsletter-detector";
+import { initCatalogNewsletterDetector } from "./newsletter-detector";
 
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const BREW = ForwardableSenderSchema.parse("crew@morningbrew.com");
@@ -29,7 +25,7 @@ describe("initCatalogNewsletterDetector", () => {
 
 		assert.deepEqual(detection, {
 			status: "available",
-			recognized: new Map([[TLDR, { from: TLDR, name: "TLDR", source: "catalog", match: "exact" }]]),
+			recognized: new Map([[TLDR, { from: TLDR, name: "TLDR", match: "exact" }]]),
 		});
 	});
 
@@ -62,8 +58,8 @@ describe("initCatalogNewsletterDetector", () => {
 		assert.deepEqual(detection, {
 			status: "available",
 			recognized: new Map([
-				[mamund, { from: mamund, name: "Substack", source: "catalog", match: "domain-wildcard" }],
-				[pragmatic, { from: pragmatic, name: "The Pragmatic Engineer", source: "catalog", match: "exact" }],
+				[mamund, { from: mamund, name: "Substack", match: "domain-wildcard" }],
+				[pragmatic, { from: pragmatic, name: "The Pragmatic Engineer", match: "exact" }],
 			]),
 		});
 	});
@@ -90,7 +86,7 @@ describe("initCatalogNewsletterDetector", () => {
 
 		assert.deepEqual(detection, {
 			status: "available",
-			recognized: new Map([[mamund, { from: mamund, name: undefined, source: "catalog", match: "domain-wildcard" }]]),
+			recognized: new Map([[mamund, { from: mamund, name: undefined, match: "domain-wildcard" }]]),
 		});
 	});
 
@@ -114,7 +110,7 @@ describe("initCatalogNewsletterDetector", () => {
 
 		assert.deepEqual(detection, {
 			status: "available",
-			recognized: new Map([[mamund, { from: mamund, name: undefined, source: "catalog", match: "domain-wildcard" }]]),
+			recognized: new Map([[mamund, { from: mamund, name: undefined, match: "domain-wildcard" }]]),
 		});
 	});
 
@@ -122,46 +118,5 @@ describe("initCatalogNewsletterDetector", () => {
 		const detect = initCatalogNewsletterDetector({ readCatalog: async () => ({ ok: false, reason: "unavailable" }) });
 
 		assert.deepEqual(await detect([TLDR]), { status: "unavailable" });
-	});
-});
-
-describe("initNewsletterDetectorChain", () => {
-	it("asks each detector only about senders the earlier detectors left unrecognised", async () => {
-		const asked: string[][] = [];
-		const recognising =
-			(sender: typeof TLDR): DetectNewsletters =>
-			async (senders) => {
-				asked.push([...senders]);
-				return {
-					status: "available",
-					recognized: new Map([[sender, { from: sender, name: undefined, source: "catalog", match: "exact" }]]),
-				};
-			};
-		const detect = initNewsletterDetectorChain({ detectors: [recognising(TLDR), recognising(BREW)] });
-
-		const detection = await detect([TLDR, BREW, SPAM]);
-
-		assert.deepEqual(asked, [[TLDR, BREW, SPAM], [BREW, SPAM]]);
-		assert.deepEqual(detection, {
-			status: "available",
-			recognized: new Map([
-				[TLDR, { from: TLDR, name: undefined, source: "catalog", match: "exact" }],
-				[BREW, { from: BREW, name: undefined, source: "catalog", match: "exact" }],
-			]),
-		});
-	});
-
-	it("reports the chain as unavailable when any detector is unavailable", async () => {
-		const detect = initNewsletterDetectorChain({
-			detectors: [initCatalogNewsletterDetector({ readCatalog: async () => ({ ok: false, reason: "unavailable" }) })],
-		});
-
-		assert.deepEqual(await detect([TLDR]), { status: "unavailable" });
-	});
-
-	it("recognises nothing when no detector is registered", async () => {
-		const detect = initNewsletterDetectorChain({ detectors: [] });
-
-		assert.deepEqual(await detect([TLDR]), { status: "available", recognized: new Map() });
 	});
 });

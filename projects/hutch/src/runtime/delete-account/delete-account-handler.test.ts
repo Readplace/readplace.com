@@ -648,14 +648,14 @@ describe("delete-account handler", () => {
 
 		assert.deepEqual(result.batchItemFailures, []);
 		assert.equal(await s.gmail.bundle.gmailConnectionStore.findConnectionByUserId(victim.userId), undefined);
-		assert.equal(await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(victim.userId), undefined);
+		assert.equal((await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(victim.userId))?.refreshToken, undefined);
 		assert.deepEqual(await s.gmail.bundle.gmailSenderStore.listSendersByUserId(victim.userId), []);
 		assert.equal(await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(victim.userId), undefined);
 		assert.equal((await s.gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(bystander.userId))?.generation, "u2");
 
 		assert.deepEqual(s.rewriteCalls, [victim.userId]);
 		assert.deepEqual(s.gmailRevokeTokens, ["gmail-u1"]);
-		assert.equal(await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(bystander.userId), "gmail-u2");
+		assert.equal((await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(bystander.userId))?.refreshToken, "gmail-u2");
 
 		// Victim: every store now returns empty / none.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
@@ -1420,7 +1420,7 @@ describe("delete-account handler", () => {
 		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
 		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
 		assert.equal(
-			await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(account.userId),
+			(await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(account.userId))?.refreshToken,
 			"gmail-revoke-fail",
 		);
 		assert.equal(await s.auth.findEmailByUserId(account.userId), account.email);
@@ -1428,7 +1428,7 @@ describe("delete-account handler", () => {
 		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
 		assert.deepEqual(second.batchItemFailures, []);
 		assert.equal(
-			await s.gmail.bundle.gmailCredentialsStore.findRefreshTokenByUserId(account.userId),
+			(await s.gmail.bundle.gmailCredentialsStore.findCredentialsByUserId(account.userId))?.refreshToken,
 			undefined,
 		);
 		assert.equal(await s.auth.findEmailByUserId(account.userId), null);

@@ -75,7 +75,7 @@ function discovery(overrides: Partial<GmailDiscovery> = {}): GmailDiscovery {
 function recognised(entries: [typeof TLDR, string][]): ReadlistGmailSendersInput["detection"] {
 	return {
 		status: "available",
-		recognized: new Map(entries.map(([from, name]) => [from, { from, name: NewsletterNameSchema.parse(name), source: "catalog" as const, match: "exact" as const }])),
+		recognized: new Map(entries.map(([from, name]) => [from, { from, name: NewsletterNameSchema.parse(name), match: "exact" as const }])),
 	};
 }
 
