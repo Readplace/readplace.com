@@ -61,15 +61,16 @@
       </div>
     </div>
     <div class="list-view__main">
-      <div class="list-view__search" role="search">
-        <label for="filter-input" class="sr-only">Search this page by title or web address</label>
-        <span class="list-view__search-icon" aria-hidden="true">{{searchIcon}}</span>
-        <input
-          type="text"
-          id="filter-input"
-          class="list-view__filter"
-          placeholder="Search articles or sources&hellip;"
-        >
+      <div class="list-view__search" role="search" hidden>
+        <label for="filter-input" class="list-view__search-label">{{searchLabel}}</label>
+        <div class="list-view__search-field">
+          <span class="list-view__search-icon" aria-hidden="true">{{searchIcon}}</span>
+          <input
+            type="text"
+            id="filter-input"
+            class="list-view__filter"
+          >
+        </div>
       </div>
       <div id="messages" class="messages" role="status" hidden></div>
       <div id="list-warning" class="alert alert--warning alert--visible list-view__alert" role="status" hidden>
@@ -98,10 +99,7 @@
           <p class="list-empty__title">No unread articles</p>
           <p class="list-empty__body">You&rsquo;re all caught up. Save a new article or open some tabs to add them to your readlist.</p>
         </div>
-        <div id="no-matches" class="list-empty" hidden>
-          <p class="list-empty__title">No matching articles</p>
-          <p class="list-empty__body">The search covers this page of your readlist only.</p>
-        </div>
+        <p id="no-matches" class="list-empty__title list-view__no-matches" role="status" data-message="{{noMatchesText}}"></p>
       </div>
     </div>
   </div>
@@ -119,6 +117,7 @@
     </div>
     <div class="list-skeleton__main">
       <div class="list-skeleton__search">
+        <span class="list-skeleton__search-label" aria-hidden="true"></span>
         <p class="list-skeleton__status" role="status">Loading your articles&hellip;</p>
       </div>
       <div class="list-skeleton__list-header" aria-hidden="true">

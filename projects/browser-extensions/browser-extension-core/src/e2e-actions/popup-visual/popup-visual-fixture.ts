@@ -4,6 +4,9 @@ declare global {
 		__popupSaveAllMessages: { type: string; runId?: string; windowId?: number }[];
 		__popupAcknowledgements: number;
 		__popupClosed: number;
+		__popupItemsRequests: number;
+		__popupLoadPageRequests: number;
+		__popupStatusWrites?: string[];
 		__popupEmitRecord?: (kind: EmittedRecord) => void;
 		__popupReleaseFollow?: () => void;
 		__popupReleaseStart?: () => void;
@@ -29,6 +32,22 @@ const ROWS = [
 ];
 
 const DEFAULT_ROW_COUNT = ROWS.length;
+
+export const LATER_PAGE_TITLE = "Notes on Lisp machines";
+
+function laterPageItems(): unknown[] {
+	return [
+		{
+			id: "visual-later-item",
+			url: "https://lisp.example.org/machines",
+			title: LATER_PAGE_TITLE,
+			savedAt: new Date(FIXED_NOW - 9 * 24 * 60 * 60 * 1000).toISOString(),
+			actions: [MARK_AS_READ],
+			links: [{ rel: "read", title: "Read", href: "https://lisp.example.org/machines" }],
+			needsBrowserCapture: false,
+		},
+	];
+}
 
 const TOTAL_PAGES = 9;
 const CURRENT_PAGE_INDEX = 4;
@@ -133,7 +152,7 @@ function notSaveableReply(rowCount: number): unknown {
 
 export type SaveReply = "hold" | "error" | "saved" | "messages" | "not-saveable";
 
-export type ListReply = "items" | "empty" | "error" | "logged-out";
+export type ListReply = "items" | "empty" | "error" | "error-then-items" | "logged-out";
 
 export type SaveAllStart = "acknowledge" | "progress" | "covered" | "held" | "lost" | "rejected";
 
@@ -148,6 +167,9 @@ function listReplyScript(listReply: ListReply, itemsReply: string): string {
 		return JSON.stringify({ ok: true, value: { items: [], pages: [], total: { label: "0 Saved Articles" }, sort: [] } });
 	}
 	if (listReply === "error") return JSON.stringify({ ok: false, reason: "error" });
+	if (listReply === "error-then-items") {
+		return `(++globalThis.__popupItemsRequests === 1 ? ${JSON.stringify({ ok: false, reason: "error" })} : ${itemsReply})`;
+	}
 	if (listReply === "logged-out") return JSON.stringify({ ok: false, reason: "not-logged-in" });
 	return itemsReply;
 }
@@ -166,6 +188,7 @@ export function popupRuntimeStub(options?: {
 	saveAllStart?: SaveAllStart;
 	saveAllFollows?: SaveAllFollow[];
 	seededRuns?: SeededRun[];
+	laterPage?: boolean;
 }): string {
 	const holdItems = options?.holdItems === true;
 	const holdLoadPage = options?.holdLoadPage === true;
@@ -175,12 +198,17 @@ export function popupRuntimeStub(options?: {
 		options?.listReply ?? "items",
 		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, sort: SORT } }),
 	);
+	const loadPageReply = options?.laterPage === true
+		? JSON.stringify({ ok: true, value: { items: laterPageItems(), pages: pages(), total: TOTAL, sort: SORT } })
+		: itemsReply;
 	const pendingBulkSave = options?.pendingBulkSave === true;
 	const saveAllStart = JSON.stringify(options?.saveAllStart ?? "acknowledge");
 	const saveAllFollows = JSON.stringify(options?.saveAllFollows ?? ["finished"]);
 	const seededRuns = JSON.stringify(options?.seededRuns ?? []);
 	return `
 		globalThis.__popupSaveMessages = [];
+		globalThis.__popupItemsRequests = 0;
+		globalThis.__popupLoadPageRequests = 0;
 		globalThis.__popupSaveAllMessages = [];
 		globalThis.__popupAcknowledgements = 0;
 		globalThis.__popupClosed = 0;
@@ -291,12 +319,13 @@ export function popupRuntimeStub(options?: {
 						}
 					}
 					if (message && message.type === "load-page") {
+						globalThis.__popupLoadPageRequests += 1;
 						${
 							holdLoadPage
 								? `return new Promise(function (resolve) {
-										globalThis.__popupReleaseLoadPage = function () { resolve(${itemsReply}); };
+										globalThis.__popupReleaseLoadPage = function () { resolve(${loadPageReply}); };
 									});`
-								: `return Promise.resolve(${itemsReply});`
+								: `return Promise.resolve(${loadPageReply});`
 						}
 					}
 					if (message && message.type === "save-current-tab") {

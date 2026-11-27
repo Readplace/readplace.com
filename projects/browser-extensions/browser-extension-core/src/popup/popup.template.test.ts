@@ -123,19 +123,33 @@ describe("save all tabs control", () => {
 });
 
 describe("search", () => {
-	it("names the search by what it matches, not by its placeholder alone, inside a search landmark", () => {
+	it("labels the filter in visible text above the field, hidden until a page of articles has loaded", () => {
 		expect(template).toContain(
 			[
-				'      <div class="list-view__search" role="search">',
-				'        <label for="filter-input" class="sr-only">Search this page by title or web address</label>',
-				'        <span class="list-view__search-icon" aria-hidden="true">{{searchIcon}}</span>',
-				"        <input",
-				'          type="text"',
-				'          id="filter-input"',
-				'          class="list-view__filter"',
-				'          placeholder="Search articles or sources&hellip;"',
-				"        >",
+				'      <div class="list-view__search" role="search" hidden>',
+				'        <label for="filter-input" class="list-view__search-label">{{searchLabel}}</label>',
+				'        <div class="list-view__search-field">',
+				'          <span class="list-view__search-icon" aria-hidden="true">{{searchIcon}}</span>',
+				"          <input",
+				'            type="text"',
+				'            id="filter-input"',
+				'            class="list-view__filter"',
+				"          >",
+				"        </div>",
 				"      </div>",
+			].join("\n"),
+		);
+	});
+
+	it("gives the filter no placeholder, so the visible label is its only name", () => {
+		expect(template).not.toContain("placeholder=");
+	});
+
+	it("reserves the label's line in the loading skeleton without naming anything to assistive technology", () => {
+		expect(template).toContain(
+			[
+				'      <div class="list-skeleton__search">',
+				'        <span class="list-skeleton__search-label" aria-hidden="true"></span>',
 			].join("\n"),
 		);
 	});
@@ -235,14 +249,9 @@ describe("list states", () => {
 		);
 	});
 
-	it("tells a reader whose search matched nothing where the search looked", () => {
+	it("keeps an empty polite status for a filter that matched nothing on this page, holding its message apart from the text read out", () => {
 		expect(template).toContain(
-			[
-				'        <div id="no-matches" class="list-empty" hidden>',
-				'          <p class="list-empty__title">No matching articles</p>',
-				'          <p class="list-empty__body">The search covers this page of your readlist only.</p>',
-				"        </div>",
-			].join("\n"),
+			'        <p id="no-matches" class="list-empty__title list-view__no-matches" role="status" data-message="{{noMatchesText}}"></p>',
 		);
 	});
 

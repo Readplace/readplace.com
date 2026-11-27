@@ -503,7 +503,6 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
 		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
-		await auditPlaceholder(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 		await auditPlaceholder(page, { path: "/import", selector: FROM_URL_FIELD, view: "import/from-url" });
 	});
 

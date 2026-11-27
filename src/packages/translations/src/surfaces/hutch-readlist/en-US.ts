@@ -99,6 +99,23 @@ export const enUS = {
 			},
 		},
 	},
+	readlistSearch: {
+		label: "Search this readlist tab by title or site",
+		allSources: "Submit to search all sources in this tab by title or site",
+		shownFrom: "Results shown from {source}.",
+		sourceEmpty: {
+			title: "No articles from {source} in {tab}",
+			text: "A search looks in all sources in this tab.",
+			noSender: "No sender selected",
+			noSenderText: "Choose a newsletter sender to see its articles in {tab}.",
+		},
+		sourceNoMatches: {
+			search: "Nothing from {source} in {tab} matches your search. {action} also returns to all sources.",
+			filters: "Nothing from {source} in {tab} matches your filters: ",
+			searchAndFilters: "Nothing from {source} in {tab} matches your search and filters: ",
+			tail: ". Your filters stay on as you browse until you clear them. {action} also returns to all sources.",
+		},
+	},
 	readlistOffline: {
 		banner: {
 			processing: "Some of these articles weren't downloaded with their content. Open them when you're back online to read them.",

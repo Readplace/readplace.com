@@ -49,6 +49,21 @@ describe("renderPopupTemplate", () => {
 		);
 	});
 
+	it.each(["chrome-extension", "firefox-extension"] as const)("labels the %s filter in visible text tied to its field", (utmSource) => {
+		const rendered = renderPopupTemplate({ template, utmSource });
+
+		expect(rendered).toContain(
+			'<label for="filter-input" class="list-view__search-label">Filter this readlist page by title or web address</label>',
+		);
+		expect(rendered).toContain('id="filter-input"');
+	});
+
+	it.each(["chrome-extension", "firefox-extension"] as const)("scopes the %s zero-match message to the page in hand", (utmSource) => {
+		expect(renderPopupTemplate({ template, utmSource })).toContain(
+			'<p id="no-matches" class="list-empty__title list-view__no-matches" role="status" data-message="No matches on this page"></p>',
+		);
+	});
+
 	it("leaves no placeholder unfilled", () => {
 		expect(renderPopupTemplate({ template, utmSource: "firefox-extension" })).not.toContain("{{");
 	});
