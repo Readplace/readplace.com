@@ -3,8 +3,22 @@ import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/doma
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { EmailMessage } from "@packages/provider-contracts/email";
-import type { GmailMonitoringCheckpoint, GmailNewsletterNotice } from "@packages/provider-contracts/gmail-monitoring";
+import type { GmailMonitoringCheckpoint, GmailNewsletterNotice, GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import { initInMemoryGmailMonitoring } from "./in-memory-gmail-monitoring";
+
+async function findNotice(
+	store: Pick<GmailMonitoringStore, "listNotices">,
+	{ userId, senderEmail }: Parameters<GmailMonitoringStore["markNoticeSent"]>[0],
+) {
+	let pageToken: string | undefined;
+	do {
+		const page = await store.listNotices({ userId, pageToken });
+		const notice = page.notices.find((candidate) => candidate.senderEmail === senderEmail);
+		if (notice) return notice;
+		pageToken = page.nextPageToken;
+	} while (pageToken);
+	return undefined;
+}
 
 const USER = UserIdSchema.parse("reader-1");
 const OTHER = UserIdSchema.parse("reader-2");
@@ -63,7 +77,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.deepEqual(await store.findObservation({ userId: USER, mailboxId: CHECKPOINT.mailboxId, senderEmail: SENDER }), observation);
 		assert.equal(await store.findObservation({ userId: OTHER, mailboxId: CHECKPOINT.mailboxId, senderEmail: SENDER }), undefined);
 		assert.deepEqual(await store.listObservedSenders({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("READER@GMAIL.COM") }), [{ email: SENDER, name: "Newsletter" }]);
-		assert.equal(await store.findNotice({ userId: USER, senderEmail: SENDER }), undefined);
+		assert.equal(await findNotice(store, { userId: USER, senderEmail: SENDER }), undefined);
 		const changed = { ...CHECKPOINT, generation: "generation-2", mailboxId: "mailbox-2", accountEmail: GmailAccountEmailSchema.parse("other@gmail.com") };
 		await store.startRun({ checkpoint: changed, previous: CHECKPOINT });
 		assert.deepEqual(await store.listObservedSenders({ userId: USER, accountEmail: ACCOUNT }), []);
@@ -74,7 +88,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		const { store, advance } = fixture();
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		await store.observeSender({ checkpoint: CHECKPOINT, observation: { email: SENDER, name: "Newsletter", approved: true }, notify: true });
-		const pending = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const pending = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(pending);
 		assert.equal(pending.pendingSince, NOW.getTime());
 		assert.equal(await store.claimNotice({ notice: { ...pending, mailboxId: "old-mailbox" }, message: MESSAGE }), undefined);
@@ -86,7 +100,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.equal(first.claimUntil, NOW.getTime() + 120_000);
 		assert.equal(await store.claimNotice({ notice: pending, message: MESSAGE }), undefined);
 		await store.cancelNotice({ userId: USER, senderEmail: SENDER });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sending");
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.status, "sending");
 		advance(120_000);
 		const retry = await store.claimNotice({ notice: first, message: { ...MESSAGE, subject: "Changed catalog title" } });
 		assert(retry);
@@ -94,14 +108,14 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.equal(retry.firstAttemptAt, first.firstAttemptAt);
 		assert.equal(retry.claimUntil, NOW.getTime() + 240_000);
 		await store.markNoticeSent({ userId: USER, senderEmail: SENDER });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.claimUntil, undefined);
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.claimUntil, undefined);
 		assert.equal(await store.claimNotice({ notice: retry, message: MESSAGE }), undefined);
 		await store.observeSender({ checkpoint: CHECKPOINT, observation: { email: SENDER, name: "Renamed", approved: true }, notify: true });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.status, "sent");
 		const reconnected = { ...CHECKPOINT, generation: "generation-2", mailboxId: "mailbox-2" };
 		await store.startRun({ checkpoint: reconnected, previous: CHECKPOINT });
 		await store.observeSender({ checkpoint: reconnected, observation: { email: SENDER, name: undefined, approved: true }, notify: true });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.status, "sent");
 		await store.markNoticeSent({ userId: OTHER, senderEmail: SENDER });
 		await store.cancelNotice({ userId: OTHER, senderEmail: SENDER });
 	});
@@ -111,7 +125,7 @@ describe("initInMemoryGmailMonitoring", () => {
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		await store.observeSender({ checkpoint: CHECKPOINT, observation: { email: SENDER, name: undefined, approved: true }, notify: true });
 		await store.markNoticeSent({ userId: USER, senderEmail: SENDER });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "sent");
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.status, "sent");
 	});
 
 	it("claims one grouped notice per reader at a time, keeps its email across retries and spaces sends by the caller's interval", async () => {
@@ -154,17 +168,17 @@ describe("initInMemoryGmailMonitoring", () => {
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
 		assert.equal((await store.listNotices({ userId: USER })).notices.length, 1);
 		await store.cancelNotice({ userId: USER, senderEmail: SENDER });
-		const cancelled = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const cancelled = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(cancelled);
 		assert.equal(cancelled.status, "cancelled");
 		await store.markNoticeSent({ userId: USER, senderEmail: SENDER });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "cancelled");
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.status, "cancelled");
 		assert.equal(await store.claimNotice({ notice: cancelled, message: MESSAGE }), undefined);
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: false });
-		assert.equal((await store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "cancelled");
+		assert.equal((await findNotice(store, { userId: USER, senderEmail: SENDER }))?.status, "cancelled");
 		advance(60_000);
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
-		const reopened = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const reopened = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert.equal(reopened?.status, "pending");
 		assert.equal(reopened?.pendingSince, NOW.getTime() + 60_000);
 	});
@@ -174,14 +188,14 @@ describe("initInMemoryGmailMonitoring", () => {
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		const observation = { email: SENDER, name: undefined, approved: true };
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
-		const oldNotice = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const oldNotice = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(oldNotice);
 		await store.cancelNotice({ userId: USER, senderEmail: SENDER });
 		const next = { ...CHECKPOINT, generation: "second", mailboxId: "mailbox-2", accountEmail: GmailAccountEmailSchema.parse("other@gmail.com") };
 		await store.startRun({ checkpoint: next, previous: CHECKPOINT });
 		await store.observeSender({ checkpoint: next, observation, notify: true });
 		assert.equal(await store.claimNotice({ notice: oldNotice, message: MESSAGE }), undefined);
-		const current = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const current = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(current);
 		assert.equal((await store.claimNotice({ notice: current, message: MESSAGE }))?.mailboxId, next.mailboxId);
 	});
@@ -195,15 +209,15 @@ describe("initInMemoryGmailMonitoring", () => {
 		const observation = { email: SENDER, name: undefined, approved: true };
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
-		const oldNotice = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const oldNotice = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(oldNotice);
 		const next = { ...CHECKPOINT, ...changed, generation: "second" };
 		await store.startRun({ checkpoint: next, previous: CHECKPOINT });
 		await store.observeSender({ checkpoint: next, observation, notify: false });
-		assert.deepEqual(await store.findNotice({ userId: USER, senderEmail: SENDER }), oldNotice);
+		assert.deepEqual(await findNotice(store, { userId: USER, senderEmail: SENDER }), oldNotice);
 		advance(1_000);
 		await store.observeSender({ checkpoint: next, observation, notify: true });
-		const pending = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const pending = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(pending);
 		assert.equal(pending.status, "pending");
 		assert.equal(pending.pendingSince, NOW.getTime() + 1_000);
@@ -221,15 +235,15 @@ describe("initInMemoryGmailMonitoring", () => {
 		const observation = { email: SENDER, name: undefined, approved: true };
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });
 		await store.observeSender({ checkpoint: CHECKPOINT, observation, notify: true });
-		const pending = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const pending = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		assert(pending);
 		assert(await store.claimNotice({ notice: pending, message: MESSAGE }));
 		if (status === "sent") await store.markNoticeSent({ userId: USER, senderEmail: SENDER });
-		const original = await store.findNotice({ userId: USER, senderEmail: SENDER });
+		const original = await findNotice(store, { userId: USER, senderEmail: SENDER });
 		const next = { ...CHECKPOINT, generation: "second", mailboxId: "mailbox-2", accountEmail: GmailAccountEmailSchema.parse("other@gmail.com"), gatewayAddress: InboxAddressSchema.parse("gmail-new123@read.place") };
 		await store.startRun({ checkpoint: next, previous: CHECKPOINT });
 		await store.observeSender({ checkpoint: next, observation, notify: true });
-		assert.deepEqual(await store.findNotice({ userId: USER, senderEmail: SENDER }), original);
+		assert.deepEqual(await findNotice(store, { userId: USER, senderEmail: SENDER }), original);
 	});
 
 	it("paginates observations and notices, and erases all mailbox and receipt state for only one user", async () => {

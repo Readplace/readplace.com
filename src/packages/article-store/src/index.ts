@@ -16,20 +16,11 @@ export { initDynamoDbRemovedLinks } from "./dynamodb-removed-links";
 export { initDynamoDbSavedLinksJob } from "./dynamodb-saved-links-job";
 export {
 	initCanonicalAliasStore,
-	type ClaimCanonicalAlias,
-	type ResolveCanonicalAlias,
-	type IdentityRow,
-	type FindIdentityRow,
 	type SetArticleDisplayUrl,
-	type PinContentSource,
 	type ReconcileStubMetadata,
-	type FindAdoptedFetchUrl,
-	type FindContentSourceUrl,
 	type AdoptArticleDestination,
 } from "./canonical-alias";
-export type { ArticleStore } from "@packages/domain/article-aggregate";
 export {
-	CrawlVersionEntrySchema,
 	StoredCrawlVersionSchema,
 	normalizeCrawlVersion,
 } from "./crawl-version-log";
@@ -37,11 +28,10 @@ export type { CrawlVersionEntry, StoredCrawlVersion } from "./crawl-version-log"
 export { initS3DeleteContentObjects } from "./s3-delete-content-objects";
 export type { DeleteContentObjects } from "./s3-delete-content-objects";
 export { initS3ListContentKeys } from "./s3-list-content-keys";
+export { initS3DeleteObjectsByPrefix } from "./s3-delete-objects-by-prefix";
 export type { ListContentKeys } from "./s3-list-content-keys";
-export { initCountOtherSaversByUrl } from "./count-other-savers-by-url";
-export type { CountOtherSaversByUrl } from "./count-other-savers-by-url";
-export { initCountSaversByUrl } from "./count-savers-by-url";
-export type { CountSaversByUrl } from "./count-savers-by-url";
+export { initCountOtherSaversByUrl, initCountSaversByUrl } from "./count-savers-by-url";
+export type { CountOtherSaversByUrl, CountSaversByUrl } from "./count-savers-by-url";
 export { initResolveAuthoredContentKeys } from "./resolve-authored-content-keys";
 export type { ResolveAuthoredContentKeys } from "./resolve-authored-content-keys";
 export { initPruneCrawlVersions } from "./prune-crawl-versions";
@@ -57,16 +47,14 @@ export { initDeleteUserArticleLinks } from "./delete-user-article-links";
 export type { DeleteUserArticleLinks } from "./delete-user-article-links";
 export { initReadArticleContent } from "./read-article-content";
 export { initReadArticleContentOrThrow } from "./read-article-content-or-throw";
-export type { ContentProvider, ReadArticleContent } from "./read-article-content";
 export { initS3ReadContent } from "./s3-read-content";
-export { initReadContentLocation, type ReadContentLocation } from "./read-content-location";
+export { initReadContentLocation } from "./read-content-location";
 export { initReadCanonicalSnapshot } from "./read-canonical-snapshot";
 export { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 export { initRevokeContentCandidates, type RevokeContentCandidates } from "./revoke-content-candidates";
 export type { S3GetObject } from "./s3-read-content";
-export { initS3ReadArticleImage } from "./s3-read-image";
+export { initS3ReadArticleImage, readImageObject } from "./s3-read-image";
 export type { S3GetImageObject } from "./s3-read-image";
-export type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 export {
 	initDynamoDbEngagementActivity,
 	initDynamoDbEngagementStarter,

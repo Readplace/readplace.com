@@ -33,7 +33,7 @@ function createFakeTable(seed: Item[], sharedArticles: Item[] = []) {
 			};
 		}
 		const values = Object(input.ExpressionAttributeValues);
-		const prefix = String(values[":issueKeyPrefix"] ?? values[":keyPrefix"] ?? "");
+		const prefix = String(values[":issueKeyPrefix"] ?? values[":keyPrefix"] ?? values[":prefix"] ?? "");
 		const matching = seed
 			.filter((item) => item.userId === values[":userId"] && String(item.url).startsWith(prefix))
 			.sort((a, b) => String(a.url).localeCompare(String(b.url)));
@@ -187,8 +187,8 @@ describe("listKeysOpenedInReadlists", () => {
 	it("reads the reader's readlists, then the links opened in each", async () => {
 		const { removedLinks, sent } = createFakeTable([
 			emailLink("a.com/1"),
-			emailLink("readplace:queue-def/home"),
-			emailLink("readplace:queue-def/work"),
+			{ userId: READER, url: "readplace:queue-def/home", queueSlug: "home", createdAt: "2026-11-01T00:00:00.000Z" },
+			{ userId: READER, url: "readplace:queue-def/work", queueSlug: "work", createdAt: "2026-11-02T00:00:00.000Z" },
 			{ userId: `${READER}#queue/work`, url: "a.com/5", viewedAt: "2026-11-21T00:00:00.000Z" },
 			{ userId: `${READER}#queue/work`, url: "a.com/1" },
 			{ userId: `${READER}#queue/home`, url: "a.com/6", viewedAt: "2026-11-21T00:00:00.000Z" },
@@ -197,9 +197,9 @@ describe("listKeysOpenedInReadlists", () => {
 		const opened = await removedLinks.listKeysOpenedInReadlists({ userId: READER });
 
 		assert.deepEqual([...opened].sort(), ["a.com/5", "a.com/6"]);
-		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :keyPrefix)");
-		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "readplace:queue-def/" });
-		assert.equal(sent[0].ProjectionExpression, "#url");
+		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :prefix)");
+		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":prefix": "readplace:queue-def/" });
+		assert.equal(sent[0].ConsistentRead, true);
 	});
 });
 

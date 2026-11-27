@@ -59,7 +59,7 @@ import { initRemoveSavedLinks } from "./saved-links-job/remove-saved-links";
 import { initCountSavedLinks } from "./saved-links-job/count-saved-links";
 import { initRestoreSavedLinks } from "./saved-links-job/restore-saved-links";
 import { initSavedLinksJobHandler } from "./saved-links-job/saved-links-job-handler";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects } from "@packages/inbox-store";
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbGmailHeldMail, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
@@ -71,6 +71,7 @@ import {
 	initDynamoDbSavedLinksJob,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
+	initS3DeleteObjectsByPrefix,
 	initS3ListContentKeys,
 	initTombstoneArticle,
 } from "@packages/article-store";

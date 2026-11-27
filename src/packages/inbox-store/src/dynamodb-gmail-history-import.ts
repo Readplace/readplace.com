@@ -7,6 +7,7 @@ import {
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
+	withoutUndefinedAttributes,
 } from "@packages/storage-client";
 import { z } from "zod";
 import {
@@ -131,10 +132,6 @@ function toMessage(row: z.infer<typeof MessageRow>): GmailHistoryImportMessage {
 	};
 }
 
-function definedOnly(item: Record<string, unknown>): Record<string, unknown> {
-	return Object.fromEntries(Object.entries(item).filter(([, value]) => value !== undefined));
-}
-
 function countsUnchanged(counts: GmailHistoryImportCounts): {
 	expression: string;
 	names: Record<string, string>;
@@ -211,7 +208,7 @@ export function initDynamoDbGmailHistoryImport(deps: {
 		createJob: async (job) => {
 			const { destinationAddresses: [destinationAddress, ...additionalDestinationAddresses], ...attributes } = job;
 			await jobs.put({
-				Item: definedOnly({
+				Item: withoutUndefinedAttributes({
 					...attributes,
 					...jobKey(job),
 					destinationAddress,

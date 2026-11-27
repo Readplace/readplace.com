@@ -289,7 +289,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect((await run(handler, submission)).batchItemFailures).toEqual([]);
 
 		expect(redirectRequests).toEqual([tracker]);
-		expect(await aliases.resolveAlias(tracker)).toBe(destination);
+		expect(await aliases.findIdentityRow(tracker)).toMatchObject({ kind: "alias", targetUrl: destination });
 		expect(new Set(storageKeys).size).toBe(2);
 		expect(new Set(articleOperations)).toEqual(new Set([destination]));
 		expect(await store.findQueueRowKeys({ userId, urls: [destination] })).toEqual([

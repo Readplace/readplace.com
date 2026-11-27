@@ -133,9 +133,7 @@ export interface SaveArticleGloballyParams {
 }
 
 /** Returned `{ created }` lets the caller distinguish a fresh insert from a
- * no-op upsert on an existing row. The store performs the conditional put
- * only; whether to bump `savedAt` (or take any other follow-up) is a
- * domain decision the caller layers on top via `bumpArticleSavedAt`. */
+ * no-op upsert on an existing row. */
 export type SaveArticleGlobally = (
 	params: SaveArticleGloballyParams,
 ) => Promise<{ created: boolean }>;
@@ -270,16 +268,6 @@ export type MarkRelatedDismissed = (params: {
 	at: Date;
 	suggestionId: ReaderArticleHashId | undefined;
 }) => Promise<void>;
-
-export interface UserArticleByUrl {
-	userId: UserId;
-	viewedAt?: Date;
-}
-
-/** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan). */
-export type FindUserArticlesByUrl = (
-	url: string,
-) => Promise<UserArticleByUrl[]>;
 
 /** Set-once stamp recording that a reader-ready email was sent for this
  * (user, url). Idempotent: a second call after the stamp exists is a no-op. */

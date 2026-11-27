@@ -44,32 +44,28 @@ function conditionFailure() {
 }
 
 describe("initDynamoDbGmailMonitoring", () => {
-	it("reads checkpoints, observations and notification receipts strongly by their exact keys", async () => {
+	it("reads checkpoints and observations strongly by their exact keys", async () => {
 		const observed = { userId: USER, key: `OBS#mailbox-1#${SENDER}`, email: SENDER, name: "Weekly", approved: false, lastMessageAt: NOW.getTime() };
 		const h = harness([
 			{ Item: { ...CHECKPOINT, key: "STATE", pageToken: null } },
 			{ Item: observed },
-			{ Item: { ...NOTICE, key: `NOTICE#${SENDER}` } },
-			{}, {}, {},
+			{}, {},
 		]);
 		const checkpoint = await h.store.findCheckpoint(USER);
 		assert.equal(checkpoint?.historyId, "123");
 		assert.equal(checkpoint?.pageToken, undefined);
 		assert.equal((await h.store.findObservation({ userId: USER, mailboxId: "mailbox-1", senderEmail: SENDER }))?.approved, false);
-		assert.equal((await h.store.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "pending");
 		assert.equal(await h.store.findCheckpoint(USER), undefined);
 		assert.equal(await h.store.findObservation({ userId: USER, mailboxId: "mailbox-1", senderEmail: SENDER }), undefined);
-		assert.equal(await h.store.findNotice({ userId: USER, senderEmail: SENDER }), undefined);
-		assert.deepEqual(h.commands.slice(0, 3), [
+		assert.deepEqual(h.commands.slice(0, 2), [
 			{ TableName: TABLE, Key: { userId: USER, key: "STATE" }, ConsistentRead: true },
 			{ TableName: TABLE, Key: { userId: USER, key: `OBS#mailbox-1#${SENDER}` }, ConsistentRead: true },
-			{ TableName: TABLE, Key: { userId: USER, key: `NOTICE#${SENDER}` }, ConsistentRead: true },
 		]);
 	});
 
 	it("reads a notice row written before pendingSince was recorded", async () => {
-		const h = harness([{ Item: { userId: USER, key: `NOTICE#${SENDER}`, senderEmail: SENDER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, mailboxId: CHECKPOINT.mailboxId, status: "pending" } }]);
-		const notice = await h.store.findNotice({ userId: USER, senderEmail: SENDER });
+		const h = harness([{ Items: [{ userId: USER, key: `NOTICE#${SENDER}`, senderEmail: SENDER, accountEmail: ACCOUNT, gatewayAddress: GATEWAY, mailboxId: CHECKPOINT.mailboxId, status: "pending" }] }]);
+		const [notice] = (await h.store.listNotices({ userId: USER })).notices;
 		assert.equal(notice?.status, "pending");
 		assert.equal(notice?.pendingSince, undefined);
 	});
