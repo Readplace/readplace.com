@@ -256,7 +256,7 @@ export interface ConversionEvent {
 	user_id: UserId;
 	email_hash: string;
 	method: "email" | "google" | "apple";
-	tier: "free" | "trial";
+	tier: "trial";
 	utm_source?: string;
 	utm_medium?: string;
 	utm_campaign?: string;

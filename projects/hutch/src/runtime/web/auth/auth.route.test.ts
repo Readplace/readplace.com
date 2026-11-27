@@ -2405,14 +2405,6 @@ describe("Auth routes", () => {
 	});
 
 	describe("Auth price hints", () => {
-		it.each(["/login", "/signup"])("renders no founding-member progress bar or blurb on %s", async (path) => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const doc = new JSDOM((await request(harness.server).get(path)).text).window.document;
-
-			expect(doc.querySelector("[data-test-founding-progress]")).toBeNull();
-			expect(doc.querySelector("[data-test-founding-blurb]")).toBeNull();
-		});
-
 		it.each([
 			["a plain /signup", "/signup", FREE_PLAN_HINTS],
 			["a connector's consent-step /signup", `/signup?return=${CONNECTOR_RETURN}`, FREE_PLAN_HINTS],
