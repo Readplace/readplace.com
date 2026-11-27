@@ -9,7 +9,8 @@ const { createInterface } = require("node:readline");
 const { getEnv } = require("@packages/require-env");
 const storageRequire = createRequire(path.resolve(__dirname, "../../../src/packages/storage-client/package.json"));
 const { DynamoDBClient, CreateTableCommand, DeleteTableCommand } = storageRequire("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, PutCommand, GetCommand, DeleteCommand, TransactWriteCommand } = storageRequire("@aws-sdk/lib-dynamodb");
+const { TransactionCanceledException } = storageRequire("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, PutCommand, GetCommand, DeleteCommand, QueryCommand, TransactWriteCommand, BatchGetCommand } = storageRequire("@aws-sdk/lib-dynamodb");
 const { initDynamoBulkSelections, initExportBulkArticles } = require("../dist/runtime/bulk-articles/selection-store");
 const { newSelection, articleVersion, targetKey } = require("../dist/runtime/bulk-articles/selection");
 const { ReaderArticleHashId, personalReadlistOrder, personalReadlistPartition } = require("@packages/domain/article");
@@ -17,7 +18,7 @@ const { initBulkPreparation } = require("../dist/runtime/bulk-articles/dynamo-pr
 const { initBulkExecution } = require("../dist/runtime/bulk-articles/dynamo-execution");
 const { initBulkUploadRetention } = require("../dist/runtime/media-release/bulk-upload-retention");
 const { initScheduleHeldUpload } = require("../dist/runtime/media-release/schedule-held-upload");
-const { initDynamoDbSavedArticleStore, initDynamoDbPrivateItem } = require("@packages/article-store");
+const { initDynamoDbSavedArticleStore, initDynamoDbPrivateItem, initDynamoDbReadlistDefinitions, canonicalRemovalKey, UNKNOWN_ORIGIN_FILTER } = require("@packages/article-store");
 const { Logger, noopLogger } = require("@packages/logger");
 
 async function main(endpoint) {
@@ -279,11 +280,373 @@ async function main(endpoint) {
 		assert.equal(await get(saves, { userId: user.userId, url: marker }), undefined);
 		await retention.releaseExpired(marker);
 		assert.deepEqual(released, [privateItem], "an expired schedule cannot rediscover an erased owner");
+		await readEverywhereScenarios({ client, saves, users, articles, store, put, get, setInstant: at => { instant = at; }, now });
 		console.log("Bulk recovery passed with " + steps + " execution checkpoints.");
 	} finally {
 		await Promise.all(tables.map(TableName => dynamo.send(new DeleteTableCommand({ TableName }))));
 		dynamo.destroy();
 	}
+}
+
+const HOUR = 3600_000;
+const DAY = 24 * HOUR;
+const RETENTION_SECONDS = 30 * 86400;
+
+async function readEverywhereScenarios({ client, saves, users, articles, store, put, get, setInstant, now }) {
+	const defs = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: saves });
+	const savedStore = initDynamoDbSavedArticleStore({ client, tableName: articles, userArticlesTableName: saves, logger: Logger.from(noopLogger), now });
+	const owners = new Map();
+	const sideEffects = [];
+	const transactionSizes = [];
+	let cancellations = 0;
+	let rejectKey;
+	let duringEnumeration;
+	let afterHoldings;
+	const injected = () => new TransactionCanceledException({ message: "injected", $metadata: {}, CancellationReasons: [{ Code: "ConditionalCheckFailed" }] });
+	const watched = { send: async command => {
+		if (command instanceof TransactWriteCommand) {
+			const items = command.input.TransactItems;
+			transactionSizes.push(items.length);
+			if (rejectKey && items.some(item => item.Update?.Key?.url === rejectKey)) { cancellations++; throw injected(); }
+			try { return await client.send(command); } catch (error) {
+				if (error instanceof TransactionCanceledException) cancellations++;
+				throw error;
+			}
+		}
+		const result = await client.send(command);
+		if (command instanceof BatchGetCommand && afterHoldings) { const change = afterHoldings; afterHoldings = undefined; await change(); }
+		return result;
+	} };
+	const execute = initBulkExecution({
+		client: watched, userArticlesTable: saves, articlesTable: articles, usersTable: users, now,
+		findUserById: async userId => (await get(users, { email: owners.get(userId).email })),
+		listUserSavesForUrl: async () => assert.fail("a bulk read does not look up other saves"),
+		publishEvent: async (definition, detail) => { sideEffects.push([definition.detailType, detail]); },
+		schedulePrivateRelease: async (...args) => { sideEffects.push(["private-release", args]); },
+		listReadlistDefinitions: async userId => {
+			const lists = await defs.listReadlistDefinitions(userId);
+			if (duringEnumeration) { const change = duringEnumeration; duringEnumeration = undefined; await change(); }
+			return lists;
+		},
+	});
+	const owner = async name => {
+		const user = { userId: name, email: name + "@example.org", emailVerified: true };
+		await put(users, user);
+		owners.set(name, user);
+		return user.userId;
+	};
+	const normalized = row => Object.fromEntries(Object.entries(row).map(([name, value]) => [name, value === null ? undefined : value]));
+	const article = async (userId, name, fields = {}, host = "example.org/everywhere/") => {
+		const key = host + name;
+		const url = "https://" + key;
+		const row = { userId, url: key, status: "unread", savedAt: now().toISOString(), ...fields };
+		await put(saves, row);
+		await put(articles, { url: key, originalUrl: url });
+		return { key, url, row, target: { url, key, version: articleVersion(normalized(row)) } };
+	};
+	const holding = (userId, slug, key, fields = {}) => put(saves, { userId: userId + "#queue/" + slug, url: key, status: "unread", savedAt: now().toISOString(), ...fields });
+	const list = async (userId, slug) => assert((await defs.createReadlistDefinition({ userId, slug, label: slug, createdAt: now() })).created);
+	const row = (userId, key, slug) => get(saves, { userId: slug ? userId + "#queue/" + slug : userId, url: key });
+	const revisionOf = async userId => (await get(saves, { userId, url: "readplace:queue-revision" }))?.definitionRevision;
+	const header = job => store.get(job.userId, job.id);
+	const spec = (extra = {}) => ({ source: "all", sender: undefined, discovery: undefined, order: "desc", page: 1, status: "unread", extent: "all", action: { kind: "read-everywhere" }, ...extra });
+	const confirmed = async (userId, targets, extra) => {
+		const job = newSelection(userId, spec(extra), now());
+		await store.create(job);
+		assert(await store.append(job, targets, undefined, now()));
+		assert(await store.confirm(await header(job), now()));
+		return job;
+	};
+	const finish = async job => {
+		let current = await header(job);
+		for (let steps = 0; current.state === "running"; steps++) {
+			assert(steps < 20);
+			await execute(current, () => 100_000);
+			const next = await header(job);
+			assert(next.generation > current.generation);
+			current = next;
+		}
+		return current;
+	};
+
+	// Omitted and NULL revisions in both positions, an already-read sibling, legacy NULL metadata and Hand Picked ordering.
+	const reader = await owner("everywhere-reader");
+	await list(reader, "weekend");
+	await list(reader, "work");
+	const earlierRead = "2026-11-01T00:00:00.000Z";
+	const one = await article(reader, "one", { viewedAt: null, personalDecision: null, provenance: { kind: "web" }, suggestionAttribution: { campaignId: "c", rank: 2 } });
+	await holding(reader, "weekend", one.key, { statusRevision: null });
+	await holding(reader, "work", one.key, { status: "read", readAt: earlierRead, statusRevision: 3 });
+	const pickedAt = now().toISOString();
+	const two = await article(reader, "two", { statusRevision: null, personalPickedAt: pickedAt,
+		personalScope: personalReadlistPartition(reader, "picked", "unread"), personalOrder: personalReadlistOrder(pickedAt, ReaderArticleHashId.from("https://example.org/everywhere/two")) });
+	await holding(reader, "work", two.key);
+	const upload = await article(reader, randomUUID().replaceAll("-", ""), {}, "uploads.readplace.invalid/");
+	const unrelated = await article(reader, "unrelated");
+	await holding(reader, "weekend", unrelated.key);
+	const stranger = await owner("everywhere-stranger");
+	await put(saves, { ...one.row, userId: stranger });
+	const firstJob = await confirmed(reader, [one.target, two.target, upload.target]);
+	const running = await header(firstJob);
+	const done = await finish(firstJob);
+	assert.equal(done.state, "completed");
+	assert.deepEqual([done.selected, done.completed, done.skipped], [3, 3, 0]);
+	const oneDefault = await row(reader, one.key);
+	const readAt = oneDefault.readAt;
+	assert.deepEqual([oneDefault.status, oneDefault.statusRevision, oneDefault.savedAt, oneDefault.viewedAt, oneDefault.personalDecision], ["read", 1, one.row.savedAt, null, null]);
+	assert.deepEqual(oneDefault.provenance, { kind: "web" });
+	assert.deepEqual(oneDefault.suggestionAttribution, { campaignId: "c", rank: 2 });
+	assert.equal(oneDefault.personalScope, undefined);
+	const weekendCopy = await row(reader, one.key, "weekend");
+	assert.deepEqual([weekendCopy.status, weekendCopy.readAt, weekendCopy.statusRevision], ["read", readAt, 1]);
+	const sibling = await row(reader, one.key, "work");
+	assert.deepEqual([sibling.status, sibling.readAt, sibling.statusRevision, sibling.personalScope], ["read", earlierRead, 3, undefined]);
+	const twoDefault = await row(reader, two.key);
+	assert.deepEqual([twoDefault.status, twoDefault.statusRevision], ["read", 1]);
+	assert.equal(twoDefault.personalScope, personalReadlistPartition(reader, "picked", "read"));
+	assert.equal(twoDefault.personalOrder, personalReadlistOrder(twoDefault.readAt, ReaderArticleHashId.from(two.url)));
+	assert.equal((await row(reader, two.key, "work")).readAt, twoDefault.readAt);
+	assert.equal((await row(reader, upload.key)).status, "read");
+	assert.equal((await row(reader, unrelated.key)).status, "unread");
+	assert.equal((await row(reader, unrelated.key, "weekend")).status, "unread");
+	assert.equal((await row(stranger, one.key)).status, "unread");
+	assert.equal(await get(saves, canonicalRemovalKey(reader, one.key)), undefined);
+
+	// A later filing stays unread, and a replayed command cannot reverse a later explicit mark-unread.
+	await list(reader, "later");
+	await holding(reader, "later", one.key);
+	await put(saves, { ...(await row(reader, one.key)), status: "unread", readAt: undefined, statusRevision: 2 });
+	await execute(running, () => 100_000);
+	assert.equal((await row(reader, one.key)).status, "unread");
+	assert.equal((await row(reader, one.key, "later")).status, "unread");
+	assert.equal((await header(firstJob)).completed, 3);
+
+	// The production export reader still returns a logically expired job whose outer header is live.
+	const exported = await initExportBulkArticles(client, saves)(reader, new Date((done.expiresAt + 86400) * 1000));
+	assert(exported.some(record => record.selection?.spec.action.kind === "read-everywhere"), "export keeps a logically expired new-action header");
+
+	// A reader with no named readlists.
+	const solo = await owner("everywhere-solo");
+	const lone = await article(solo, "lone");
+	assert.equal((await finish(await confirmed(solo, [lone.target]))).completed, 1);
+	assert.deepEqual([(await row(solo, lone.key)).status, await revisionOf(solo)], ["read", undefined]);
+
+	// A readlist created and filed into while the worker enumerates cancels the first commit; the retry marks all three.
+	const racer = await owner("everywhere-racer");
+	await list(racer, "work");
+	const raced = await article(racer, "raced");
+	const racedJob = await confirmed(racer, [raced.target]);
+	let before = cancellations;
+	duringEnumeration = async () => {
+		await list(racer, "weekend");
+		await holding(racer, "weekend", raced.key);
+		await holding(racer, "work", raced.key);
+	};
+	assert.equal((await finish(racedJob)).completed, 1);
+	assert.equal(cancellations, before + 1);
+	for (const slug of [undefined, "weekend", "work"]) assert.equal((await row(racer, raced.key, slug)).status, "read");
+
+	// A filing into an existing, absent partition after the holdings were read.
+	const filer = await owner("everywhere-filer");
+	await list(filer, "work");
+	const filed = await article(filer, "filed");
+	const filedJob = await confirmed(filer, [filed.target]);
+	before = cancellations;
+	afterHoldings = () => holding(filer, "work", filed.key);
+	assert.equal((await finish(filedJob)).completed, 1);
+	assert.equal(cancellations, before + 1);
+	assert.equal((await row(filer, filed.key, "work")).status, "read");
+
+	// Deleting and recreating a readlist under the same slug during enumeration.
+	const recreator = await owner("everywhere-recreator");
+	await list(recreator, "work");
+	const reused = await article(recreator, "reused");
+	const reusedJob = await confirmed(recreator, [reused.target]);
+	duringEnumeration = async () => {
+		assert((await defs.deleteReadlistDefinition({ userId: recreator, slug: "work" })).deleted);
+		await list(recreator, "work");
+		await holding(recreator, "work", reused.key);
+	};
+	assert.equal((await finish(reusedJob)).completed, 1);
+	assert.equal(await revisionOf(recreator), 3);
+	assert.equal((await row(recreator, reused.key, "work")).status, "read");
+
+	// Contention that makes the source ineligible skips it once and leaves its named holdings unread.
+	const ineligible = async (name, change, cancelled = 1) => {
+		const userId = await owner("everywhere-" + name);
+		await list(userId, "weekend");
+		const item = await article(userId, name);
+		await holding(userId, "weekend", item.key);
+		const job = await confirmed(userId, [item.target]);
+		const earlier = cancellations;
+		afterHoldings = () => change(userId, item);
+		const result = await finish(job);
+		assert.deepEqual([result.state, result.completed, result.skipped], ["completed", 0, 1], name);
+		assert.equal(cancellations, earlier + cancelled, name);
+		assert.equal((await row(userId, item.key, "weekend")).status, "unread", name);
+		return { userId, item };
+	};
+	const changedVersion = await ineligible("version", async (userId, item) => put(saves, { ...(await row(userId, item.key)), statusRevision: 2 }));
+	assert.equal((await row(changedVersion.userId, changedVersion.item.key)).status, "unread");
+	await ineligible("retired", async userId => put(users, { ...owners.get(userId), deletedAt: now().toISOString() }));
+	const purged = await ineligible("purged", async (_userId, item) => put(articles, { url: item.key, originalUrl: item.url, purgedAt: now().toISOString() }), 0);
+	assert.equal((await row(purged.userId, purged.item.key)).status, "unread");
+
+	// Definition revision contract on the real table.
+	const creator = await owner("definitions-creator");
+	assert.equal(await revisionOf(creator), undefined);
+	assert.deepEqual(await defs.createReadlistDefinition({ userId: creator, slug: "first", label: "First", createdAt: now() }), { created: true, ownedCount: 1 });
+	assert.equal(await revisionOf(creator), 1);
+	assert.deepEqual(await defs.createReadlistDefinition({ userId: creator, slug: "first", label: "Again", createdAt: now() }), { created: false, ownedCount: 1 });
+	assert.deepEqual(await defs.deleteReadlistDefinition({ userId: creator, slug: "missing" }), { deleted: false });
+	assert.equal(await revisionOf(creator), 1);
+	const veteran = await owner("definitions-veteran");
+	const legacyList = slug => put(saves, { userId: veteran, url: "readplace:queue-def/" + slug, queueSlug: slug, queueLabel: slug, createdAt: now().toISOString() });
+	for (let index = 0; index < 14; index++) await legacyList("legacy" + index);
+	assert.equal(await revisionOf(veteran), undefined);
+	const arrived = [];
+	const barrier = { send: async command => {
+		if (command instanceof TransactWriteCommand && arrived.length < 2) {
+			await new Promise(resolve => { arrived.push(resolve); if (arrived.length === 2) arrived.forEach(go => go()); });
+		}
+		return client.send(command);
+	} };
+	const racing = initDynamoDbReadlistDefinitions({ client: barrier, userArticlesTableName: saves });
+	const outcomes = await Promise.allSettled(["left", "right"].map(slug => racing.createReadlistDefinition({ userId: veteran, slug, label: slug, createdAt: now() })));
+	assert.deepEqual(outcomes.filter(outcome => outcome.status === "fulfilled").map(outcome => outcome.value), [{ created: true, ownedCount: 15 }]);
+	assert.deepEqual(outcomes.filter(outcome => outcome.status === "rejected").map(outcome => outcome.reason.name), ["ReadlistLimitReachedError"]);
+	assert.equal(await revisionOf(veteran), 1);
+	assert.equal((await defs.listReadlistDefinitions(veteran)).length, 15);
+	await savedStore.deleteAllUserArticles(creator);
+	assert.equal(await get(saves, { userId: creator, url: "readplace:queue-revision" }), undefined);
+
+	// The supported maximum of 15 named readlists fits one 21-item transaction.
+	const maxed = await owner("everywhere-maxed");
+	for (let index = 0; index < 15; index++) await list(maxed, "list" + index);
+	const crowded = await article(maxed, "crowded");
+	for (let index = 0; index < 15; index++) await holding(maxed, "list" + index, crowded.key);
+	transactionSizes.length = 0;
+	assert.equal((await finish(await confirmed(maxed, [crowded.target]))).completed, 1);
+	assert.equal(transactionSizes[0], 21);
+	for (let index = 0; index < 15; index++) assert.equal((await row(maxed, crowded.key, "list" + index)).status, "read");
+
+	// Unknown source matches the raw row: explicit NULL provenance is not unknown.
+	const unknownSeed = async name => {
+		const userId = await owner(name);
+		await list(userId, "weekend");
+		const missing = await article(userId, "missing-provenance");
+		const nulled = await article(userId, "null-provenance", { provenance: null });
+		await holding(userId, "weekend", nulled.key);
+		return { userId, missing, nulled };
+	};
+	const savedArticles = new Map();
+	const remember = (...items) => { for (const item of items) savedArticles.set(ReaderArticleHashId.from(item.url).value, { ...normalized(item.row), url: item.url, savedAt: new Date(item.row.savedAt) }); };
+	const prepare = initBulkPreparation({ client, saves, emails: "unused", links: "unused", resolveCanonicalIdentity: async url => url,
+		findArticleById: async (id, userId) => { const found = savedArticles.get(id.value); return found && found.userId === userId ? found : null; } });
+	const pageReader = await unknownSeed("unknown-page");
+	const listed = await client.send(new QueryCommand({ TableName: saves, IndexName: "userId-savedAt-index", KeyConditionExpression: "userId = :userId",
+		FilterExpression: UNKNOWN_ORIGIN_FILTER, ExpressionAttributeValues: { ":userId": pageReader.userId, ":flag": true } }));
+	assert.deepEqual(listed.Items.map(item => item.url), [pageReader.missing.key]);
+	assert.equal((await finish(await confirmed(pageReader.userId, [pageReader.missing.target], { source: "unknown", extent: "page" }))).completed, 1);
+	const allReader = await unknownSeed("unknown-all");
+	remember(allReader.missing, allReader.nulled);
+	const sparse = await owner("unknown-sparse");
+	for (let index = 0; index < 32; index++) await article(sparse, "known-" + index, { provenance: { kind: "web" } });
+	const sparseMatch = await article(sparse, "sparse-match");
+	remember(sparseMatch);
+	const prepared = async userId => {
+		let job = newSelection(userId, spec({ source: "unknown" }), now());
+		await store.create(job);
+		const pages = [];
+		while (job.state === "preparing") {
+			const page = await prepare(job, () => 100_000);
+			pages.push(page.targets.length);
+			assert(await store.append(job, page.targets, page.next, now()));
+			job = await header(job);
+			assert(pages.length < 10);
+		}
+		return { job, pages };
+	};
+	const all = await prepared(allReader.userId);
+	assert.equal(all.job.selected, 1);
+	assert(await store.confirm(all.job, now()));
+	assert.equal((await finish(all.job)).completed, 1);
+	for (const reader_ of [pageReader, allReader]) {
+		assert.equal((await row(reader_.userId, reader_.missing.key)).status, "read");
+		assert.equal((await row(reader_.userId, reader_.nulled.key)).status, "unread");
+		assert.equal((await row(reader_.userId, reader_.nulled.key, "weekend")).status, "unread");
+	}
+	const sparsePrepared = await prepared(sparse);
+	assert.equal(sparsePrepared.job.selected, 1);
+	assert.equal(sparsePrepared.pages[0], 0);
+
+	// Target retention outlives the latest legal retry of a long preparation.
+	const base = (Math.floor(now().getTime() / DAY) + 2) * DAY;
+	const at = (hhmm, days = 0) => base + days * DAY + Number(hhmm.slice(0, 2)) * HOUR + Number(hhmm.slice(3)) * 60_000;
+	setInstant(at("08:00"));
+	const keeper = await owner("everywhere-retention");
+	const kept = [];
+	for (let index = 0; index < 3; index++) kept.push(await article(keeper, "kept-" + index));
+	setInstant(at("09:00"));
+	let retained = newSelection(keeper, spec(), now());
+	await store.create(retained);
+	const cap = at("09:00", 1) / 1000;
+	const targetTtl = async item => (await get(saves, targetKey(retained, item.key))).expiresAt;
+	for (const [index, time] of [[0, "09:00"], [1, "09:50"], [2, "10:30"]]) {
+		setInstant(at(time));
+		assert(await store.append(retained, [kept[index].target], index === 2 ? undefined : String(index), now()));
+		retained = await header(retained);
+		assert.equal(await targetTtl(kept[index]), cap + RETENTION_SECONDS);
+	}
+	assert.equal(retained.state, "preview");
+	setInstant(at("10:45"));
+	assert(await store.confirm(retained, now()));
+	retained = await header(retained);
+	assert.equal(retained.expiresAt, Math.floor(at("10:45", 30) / 1000));
+	for (const item of kept) assert(await targetTtl(item) >= retained.expiresAt);
+	assert(await store.fail(retained));
+	setInstant(at("10:20", 30));
+	const expireRecords = async userId => {
+		const rows = await client.send(new QueryCommand({ TableName: saves, KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
+			ExpressionAttributeNames: { "#url": "url" }, ExpressionAttributeValues: { ":userId": userId, ":prefix": "readplace:bulk-articles/" } }));
+		const expired = rows.Items.filter(item => item.expiresAt <= Math.floor(now().getTime() / 1000));
+		await Promise.all(expired.map(item => client.send(new DeleteCommand({ TableName: saves, Key: { userId, url: item.url } }))));
+		return expired.length;
+	};
+	assert.equal(await expireRecords(keeper), 0);
+	assert(await store.retry(await header(retained)));
+	assert.deepEqual([(await finish(retained)).completed, (await row(keeper, kept[0].key)).status], [3, "read"]);
+
+	// A missing target leaves a count deficit that never reports Finished.
+	const short = await owner("everywhere-short");
+	const shortItems = [await article(short, "a"), await article(short, "b"), await article(short, "c")];
+	const shortJob = await confirmed(short, shortItems.map(item => item.target));
+	await client.send(new DeleteCommand({ TableName: saves, Key: targetKey(shortJob, shortItems[1].key) }));
+	await assert.rejects(execute(await header(shortJob), () => 100_000), /never settled/);
+	const deficit = await header(shortJob);
+	assert.deepEqual([deficit.state, deficit.completed, deficit.selected], ["running", 2, 3]);
+	assert(await store.fail(deficit));
+	assert.deepEqual([(await header(shortJob)).state, (await header(shortJob)).failed], ["failed", 1]);
+
+	// An exhausted target leaves the cursor before it; redelivery finishes the rest and counts the committed one once.
+	const steady = await owner("everywhere-steady");
+	const steadyItems = [];
+	for (let index = 0; index < 3; index++) steadyItems.push(await article(steady, "steady-" + index));
+	const steadyJob = await confirmed(steady, steadyItems.map(item => item.target));
+	const order = (await client.send(new QueryCommand({ TableName: saves, KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
+		ExpressionAttributeNames: { "#url": "url" }, ExpressionAttributeValues: { ":userId": steady, ":prefix": "readplace:bulk-articles/" + steadyJob.id + "/target/" } }))).Items.map(item => item.target.key);
+	const [first, second, third] = order;
+	rejectKey = second;
+	const stuck = await header(steadyJob);
+	await assert.rejects(execute(stuck, () => 100_000), /kept changing/);
+	rejectKey = undefined;
+	const interrupted = await header(steadyJob);
+	assert.deepEqual([interrupted.cursor, interrupted.generation, interrupted.completed], [undefined, stuck.generation, 1]);
+	assert.deepEqual([(await row(steady, first)).statusRevision, (await row(steady, second)).status, (await row(steady, third)).status], [1, "unread", "unread"]);
+	const finished = await finish(steadyJob);
+	assert.deepEqual([finished.state, finished.completed, finished.skipped], ["completed", 3, 0]);
+	for (const key of order) assert.deepEqual([(await row(steady, key)).status, (await row(steady, key)).statusRevision], ["read", 1]);
+	assert.deepEqual(sideEffects, []);
 }
 
 async function runWithJava(directory) {

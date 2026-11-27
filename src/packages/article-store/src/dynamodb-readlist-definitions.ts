@@ -10,6 +10,8 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
+	TransactWriteCommand,
+	transactIfConditions,
 } from "@packages/storage-client";
 import type {
 	CreateReadlistDefinition,
@@ -23,7 +25,15 @@ import type {
 	UnpinReadlistDefinition,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
-import { READLIST_DEFINITION_KEY_PREFIX, readlistDefinitionKey } from "./user-readlist-partition";
+import {
+	READLIST_DEFINITION_KEY_PREFIX,
+	READLIST_DEFINITIONS_REVISION_ATTRIBUTE,
+	readlistDefinitionKey,
+	readlistDefinitionsRevisionIncrement,
+	readlistDefinitionsRevisionKey,
+} from "./user-readlist-partition";
+
+const MAX_CREATE_ATTEMPTS = 8;
 
 const ReadlistDefinitionRow = z.object({
 	queueSlug: ReadlistSlugSchema,
@@ -73,6 +83,11 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		tableName: deps.userArticlesTableName,
 		schema: ReadlistDefinitionRow,
 	});
+	const definitionRevisions = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.userArticlesTableName,
+		schema: z.object({ [READLIST_DEFINITIONS_REVISION_ATTRIBUTE]: z.number().optional() }),
+	});
 	const filingRuleRevisions = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.userArticlesTableName,
@@ -115,26 +130,51 @@ export function initDynamoDbReadlistDefinitions(deps: {
 
 	const createReadlistDefinition: CreateReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const owned = await listReadlistDefinitions(params.userId);
-		if (owned.length >= READLIST_MAX_PER_USER) {
-			throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
+		const definitionKey = { userId: params.userId, url: readlistDefinitionKey(params.slug) };
+		for (let attempt = 0; ; attempt++) {
+			assert(attempt < MAX_CREATE_ATTEMPTS, "the reader's readlists kept changing during the create");
+			const revisionKey = readlistDefinitionsRevisionKey(params.userId);
+			const observed = (await definitionRevisions.get(revisionKey, { consistentRead: true }))?.definitionRevision;
+			const owned = await listReadlistDefinitions(params.userId);
+			if (owned.length >= READLIST_MAX_PER_USER) {
+				throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
+			}
+			const outcome = await transactIfConditions(() => deps.client.send(new TransactWriteCommand({
+				TransactItems: [
+					{
+						Put: {
+							TableName: deps.userArticlesTableName,
+							Item: {
+								...definitionKey,
+								queueSlug: params.slug,
+								queueLabel: params.label,
+								createdAt: params.createdAt.toISOString(),
+								filingMode: "manual",
+							},
+							ConditionExpression: "attribute_not_exists(#url)",
+							ExpressionAttributeNames: { "#url": "url" },
+						},
+					},
+					{
+						Update: {
+							TableName: deps.userArticlesTableName,
+							Key: revisionKey,
+							UpdateExpression: "SET #revision = :next",
+							ConditionExpression: observed === undefined ? "attribute_not_exists(#revision)" : "#revision = :observed",
+							ExpressionAttributeNames: { "#revision": READLIST_DEFINITIONS_REVISION_ATTRIBUTE },
+							ExpressionAttributeValues: {
+								":next": (observed ?? 0) + 1,
+								...(observed === undefined ? {} : { ":observed": observed }),
+							},
+						},
+					},
+				],
+			})));
+			if (outcome.kind === "written") return { created: true, ownedCount: owned.length + 1 };
+			if (await readlistDefinitions.get(definitionKey, { consistentRead: true })) {
+				return { created: false, ownedCount: owned.length };
+			}
 		}
-		const outcome = await writeIfCondition(() => readlistDefinitions.put({
-			Item: {
-				userId: params.userId,
-				url: readlistDefinitionKey(params.slug),
-				queueSlug: params.slug,
-				queueLabel: params.label,
-				createdAt: params.createdAt.toISOString(),
-				filingMode: "manual",
-			},
-			ConditionExpression: "attribute_not_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url" },
-		}));
-		if (outcome.kind === "condition-failed") {
-			return { created: false, ownedCount: owned.length };
-		}
-		return { created: true, ownedCount: owned.length + 1 };
 	};
 
 	const renameReadlistDefinition: RenameReadlistDefinition = async (params) => {
@@ -224,11 +264,19 @@ export function initDynamoDbReadlistDefinitions(deps: {
 
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		const outcome = await writeIfCondition(() => readlistDefinitions.delete({
-			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			ConditionExpression: "attribute_exists(#url)",
-			ExpressionAttributeNames: { "#url": "url" },
-		}));
+		const outcome = await transactIfConditions(() => deps.client.send(new TransactWriteCommand({
+			TransactItems: [
+				{
+					Delete: {
+						TableName: deps.userArticlesTableName,
+						Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+						ConditionExpression: "attribute_exists(#url)",
+						ExpressionAttributeNames: { "#url": "url" },
+					},
+				},
+				{ Update: { TableName: deps.userArticlesTableName, ...readlistDefinitionsRevisionIncrement(params.userId) } },
+			],
+		})));
 		if (outcome.kind === "condition-failed") return { deleted: false };
 		return { deleted: true };
 	};

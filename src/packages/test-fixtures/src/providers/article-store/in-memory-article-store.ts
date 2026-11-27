@@ -267,6 +267,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 
 export function initInMemoryArticleStore(): {
 	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+	markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
 	findUnrestorableArticles: FindUnrestorableArticles;
@@ -1390,6 +1391,16 @@ export function initInMemoryArticleStore(): {
 		return toSavedArticle(article, ua);
 	};
 
+	function markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		const source = article && userArticles.get(userArticleKey(params.userId, article.url));
+		if (!article || article.purgedAt || !source || !params.isSelected(toSavedArticle(article, source))) return false;
+		const unread = [...userArticles.values()].filter((row) => row.userId === params.userId && row.url === article.url && row.status === "unread"
+			&& (row.readlist === undefined || readlistDefinitions.has(readlistDefinitionKey(params.userId, row.readlist))));
+		for (const row of unread) updateStatusIn(row.readlist, article.routeId, params.userId, "read", params.at);
+		return true;
+	}
+
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status, expected) =>
 		updateStatusIn(undefined, id, userId, status, new Date(), expected);
 
@@ -1955,6 +1966,7 @@ export function initInMemoryArticleStore(): {
 		countArticlesByUser,
 		deleteArticle,
 		holdBulkArticle,
+		markReadEverywhereForBulk,
 		onDefaultRowDeleted: (listener) => {
 			defaultRowDeletedListeners.push(listener);
 		},

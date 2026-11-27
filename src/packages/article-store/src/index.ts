@@ -75,6 +75,7 @@ export { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";
 export { initDynamoDbPrivateItem } from "./dynamodb-private-item";
 export { initDynamoDbPrivateItemMedia } from "./dynamodb-private-item-media";
 export { initDynamoDbFindQueueRowKeys } from "./dynamodb-queue-row-keys";
-export { BULK_ARTICLE_JOB_PREFIX, canonicalRemovalKey, readlistDefinitionKey, readlistPartitionValue } from "./user-readlist-partition";
+export { BULK_ARTICLE_JOB_PREFIX, canonicalRemovalKey, READLIST_DEFINITIONS_REVISION_ATTRIBUTE, readlistDefinitionKey, readlistDefinitionsRevisionKey, readlistPartitionValue } from "./user-readlist-partition";
+export { UNKNOWN_ORIGIN_FILTER } from "./unknown-origin-filter";
 
 export { readlistRemovedAtAttribute } from "./readlist-removal-marker";

@@ -32,7 +32,7 @@ import type {
 	WithdrawSavedLinksJob,
 } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { CandidateId, NewsletterLinkRow } from "@packages/domain/article";
+import type { CandidateId, NewsletterLinkRow, SavedArticle } from "@packages/domain/article";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -506,6 +506,7 @@ export interface SubscriptionBillingBundle {
 
 export interface ArticleStoreBundle {
 	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+	markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean;
 	changePersonalPick: ChangePersonalPick;
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;

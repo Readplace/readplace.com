@@ -1,3 +1,4 @@
+import { UNKNOWN_ORIGIN_FILTER } from "./unknown-origin-filter";
 import {
 	type DynamoDBDocumentClient,
 	assembleRowUpdate,
@@ -113,6 +114,7 @@ import {
 	decodeUserArticlePartition,
 	partitionFor,
 	readlistDefinitionKey,
+	readlistDefinitionsRevisionKey,
 	readlistPartitionValue,
 	removedLinksPartition,
 	savedLinksJobKey,
@@ -871,7 +873,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 				expression: "bulkSave = :flag OR provenance.#kind = :import",
 				names: { "#kind": "kind" }, values: { ":import": "import" },
 			} : {
-				expression: "unknownOrigin = :flag OR attribute_not_exists(provenance)", names: {}, values: {},
+				expression: UNKNOWN_ORIGIN_FILTER, names: {}, values: {},
 			};
 			const statusFilter = query.status ? " AND #status = :status" : "";
 			return {
@@ -1504,6 +1506,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		// sweep above can never see it; without this delete a userId-bearing row
 		// would survive account deletion.
 		await saveCursors.delete({ Key: { userId, url: saveCursorUrl(userId) } });
+		await userArticles.delete({ Key: readlistDefinitionsRevisionKey(userId) });
 		await forEachQueryPage(removalRows, {
 			KeyConditionExpression: "userId = :user AND begins_with(#url, :prefix)",
 			ExpressionAttributeNames: { "#url": "url" },

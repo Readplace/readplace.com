@@ -124,6 +124,7 @@ export interface ReadlistOnboarding {
 export interface ReadlistPageOptions {
 	senders?: string[];
 	bulkEnabled?: boolean;
+	bulkReadEverywhere?: boolean;
 	cspNonce: CspNonce;
 	deviceClass: DeviceClass;
 	readlistHoldsArticles: boolean;
@@ -554,6 +555,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				href: withInternalTracking(`/queue/manage/preview${readlistReturnQuery(filters)}`, { source: "manage-articles", content: "preview" }),
 				visible: vm.articles.map(article => article.id),
 				unread: filters.tab === "queue",
+				readEverywhere: filters.tab === "queue" && options.bulkReadEverywhere === true,
 				destinations: options.rail.readlists.filter(list => !isBuiltInReadlist(list.slug)),
 			} : undefined,
 			senderLabel: filters.managedSource === "sender" ? managedSource : undefined,

@@ -424,6 +424,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			saveArticleKeepingPosition: articleStoreMemory.saveArticleKeepingPosition,
 			changePersonalPick: articleStoreMemory.changePersonalPick,
 			holdBulkArticle: articleStoreMemory.holdBulkArticle,
+			markReadEverywhereForBulk: articleStoreMemory.markReadEverywhereForBulk,
 			seedUncertainSave: articleStoreMemory.seedUncertainSave,
 			readHandPickedAt: articleStoreMemory.readHandPickedAt,
 			readNewsletterLinkRows: articleStoreMemory.readNewsletterLinkRows,
