@@ -119,7 +119,6 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
-	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -156,10 +155,8 @@ import type {
 	RenameReadlistDefinition,
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
-	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	PurgeReadlistFitOverrides,
@@ -552,10 +549,8 @@ export interface AppDependencies {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
@@ -640,7 +635,6 @@ export interface AppDependencies {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
-	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;

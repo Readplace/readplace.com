@@ -34,8 +34,6 @@ export type RecordNextReadMinimumReached = (params: {
 
 export type RecordSmartReadlistMinimumReached = (params: { userId: UserId }) => Promise<void>;
 
-export type RecordSmartReadlistStepDismissed = (params: { userId: UserId }) => Promise<void>;
-
 export type RecordInboxArticleQueued = (params: {
 	userId: UserId;
 }) => Promise<void>;
@@ -86,7 +84,6 @@ export type GetOnboardingSignals = (params: {
 	firstInboxArticleQueuedAt: Date | undefined;
 	emailStepMarkedDoneAt: Date | undefined;
 	gmailStepDismissedAt: Date | undefined;
-	smartReadlistStepDismissedAt: Date | undefined;
 	onboardingOutstandingVersion: string | undefined;
 	markReadAcrossQueuesAckedAt: Date | undefined;
 	deleteArticleAckedAt: Date | undefined;

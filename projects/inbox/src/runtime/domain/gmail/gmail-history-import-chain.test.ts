@@ -224,7 +224,14 @@ function makePipeline(preferences?: string) {
 		findInboxAddress: addresses.findByAddress,
 		listReadlistDefinitions: async () => [
 			{ slug: WORK, label: "Work", createdAt: NOW },
-			{ slug: LATER, label: "Later", createdAt: NOW, purpose: preferences },
+			{
+				slug: LATER,
+				label: "Later",
+				createdAt: NOW,
+				...(preferences === undefined
+					? {}
+					: { filing: { mode: "smart" as const, purpose: preferences, revision: 1, effectiveAt: NOW } }),
+			},
 			{
 				slug: ReadlistSlugSchema.parse("science"),
 				label: "Science",

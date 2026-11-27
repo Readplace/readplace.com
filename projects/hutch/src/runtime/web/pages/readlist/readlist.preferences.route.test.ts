@@ -55,6 +55,13 @@ function filterTabs(doc: Document): (string | null)[] {
 	);
 }
 
+async function definitionOf(harness: TestHarness, slug: string) {
+	const definitions = await harness.articleStore.listReadlistDefinitions(await readerId(harness));
+	const definition = definitions.find((candidate) => candidate.slug === ReadlistSlugSchema.parse(slug));
+	assert(definition, "the readlist must have a definition");
+	return definition;
+}
+
 function savePurpose(agent: TestAgent, slug: string, purpose: string) {
 	return agent.post(preferencesPath(slug)).type("form").send({ purpose });
 }
@@ -105,8 +112,23 @@ function inboxesDescription(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("[data-test-inboxes-description]"), (line) => line.textContent);
 }
 
+const PURPOSE_CARD = "[data-test-readlist-purpose]";
+const WIZARD_POPOVER = "#readlist-preferences-wizard";
+const WIZARD_PANEL = "[data-test-readlist-preferences]";
+
+function purposeSurfaces(doc: Document) {
+	const smart = doc.querySelector("[data-test-smart-filing]");
+	assert(smart, "the preferences tab must render its Smart section");
+	return {
+		filing: smart.getAttribute("data-test-smart-filing"),
+		card: doc.querySelector(PURPOSE_CARD) !== null,
+		popover: doc.querySelector(WIZARD_POPOVER) !== null,
+		panel: doc.querySelector(WIZARD_PANEL) !== null,
+	};
+}
+
 function panel(doc: Document): Element {
-	const section = doc.querySelector("[data-test-readlist-preferences]");
+	const section = doc.querySelector(WIZARD_PANEL);
 	assert(section, "the preferences tab must render its panel");
 	return section;
 }
@@ -252,7 +274,6 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		assert(browse, "the column must browse the tabs, the panel and the inboxes");
 		const BROWSE_PARTS = [
 			"[data-test-filters]",
-			"[data-test-readlist-preferences]",
 			"[data-test-readlist-inboxes]",
 			"[data-test-smart-filing]",
 		];
@@ -274,7 +295,6 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		assert(browse, "the column must browse the tabs, the panel, the inboxes and the Gmail newsletters");
 		const BROWSE_PARTS = [
 			"[data-test-filters]",
-			"[data-test-readlist-preferences]",
 			"[data-test-readlist-inboxes]",
 			"[data-test-readlist-gmail-senders]",
 			"[data-test-smart-filing]",
@@ -298,27 +318,6 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		expect(side.querySelectorAll("[data-test-setup-guide]")).toHaveLength(1);
 	});
 
-	it("offers to set the readlist up while it has no purpose", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
-		const empty = panel(doc).querySelector("[data-test-preferences-empty]");
-		assert(empty, "the unset state must show the set-up card");
-		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
-		expect(empty.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Readplace checks new article links from your Readplace inboxes and enabled Gmail newsletters against these preferences.",
-		);
-		const setup = empty.querySelector('[data-test-action="readlist-preferences-setup"]');
-		assert(setup, "the unset state must offer the set-up call to action");
-		expect(setup.textContent).toBe("Set up readlist");
-		expect(setup.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
-		expect(field(doc, "popover").textContent).toBe("");
-	});
-
 	it("shows the stored purpose read-only once it is set, pre-filled for editing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -327,7 +326,6 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("set");
 		const edit = doc.querySelector('[data-test-action="readlist-purpose-edit"]');
 		assert(edit, "the set state must make the Purpose card the edit control");
 		expect(edit.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
@@ -335,14 +333,16 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		expect(panel(doc).querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
 		expect(field(doc, "popover").textContent).toBe(PURPOSE);
 		expect(field(doc, "inline").textContent).toBe(PURPOSE);
-		expect(field(doc, "popover").hasAttribute("required")).toBe(false);
-		expect(field(doc, "inline").hasAttribute("required")).toBe(false);
+		expect(field(doc, "popover").hasAttribute("required")).toBe(true);
+		expect(field(doc, "inline").hasAttribute("required")).toBe(true);
+		expect(purposeSurfaces(doc)).toEqual({ filing: "smart", card: true, popover: true, panel: true });
 	});
 
-	it("requires a purpose in the setup dialog, where there is nothing to remove", async () => {
+	it("requires a purpose in the edit dialog", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -354,10 +354,11 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		expect(panel(doc).className).toContain("readlist-preferences--unset");
+		expect(panel(doc).className).toContain("readlist-listing readlist-preferences");
 		expect(panel(doc).className).not.toContain("readlist-preferences--wizard-open");
 	});
 
@@ -448,45 +449,11 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
 
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
-		expect(panel(doc).classList.contains("readlist-preferences--paid-locked")).toBe(true);
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-purpose-edit"], [data-test-wizard]',
+				'[data-test-readlist-preferences], [data-test-action="readlist-purpose-edit"], [data-test-wizard]',
 			),
 		).toHaveLength(0);
-	});
-
-	it("shows a free-plan reader the unset card with nothing to set it up with", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await makeFreePlan(harness);
-
-		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
-
-		const empty = panel(doc).querySelector("[data-test-preferences-empty]");
-		assert(empty, "a free-plan reader still sees the unset card");
-		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
-		expect(empty.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
-	});
-
-	it("locks Set up readlist for a free-plan reader on the web, opening the page's one plan chooser", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await makeFreePlan(harness);
-
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-
-		const lock = panel(doc).querySelector('[data-test-action="upgrade-open"]');
-		assert(lock, "the unset card must carry the lock");
-		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("set-up-readlist");
-		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
-		expect(panel(doc).querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
-			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-set-up-readlist",
-		);
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"], [data-test-wizard]')).toHaveLength(0);
 	});
 
 	it("locks the set purpose's edit for a free-plan reader on the web", async () => {
@@ -545,8 +512,10 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		expect(panel(doc).querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
-		expect(panel(doc).querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(1);
+		const smart = doc.querySelector("#readlist-smart");
+		assert(smart, "the preferences tab must render its Smart section");
+		expect(smart.querySelectorAll('[data-test-form="smart-convert"]')).toHaveLength(1);
+		expect(smart.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
 	});
 
 	it("offers the move-or-delete choice from the preferences page too", async () => {
@@ -569,32 +538,25 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 describe("POST /queue/queues/:slug/preferences", () => {
 	it("stores the purpose and lands the reader back on the tab with it shown", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const now = new Date();
+		fixture.shared.now = () => now;
+		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await savePurpose(agent, slug, `  ${PURPOSE}  `);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_setup_saved=1`);
+		expect(response.headers.location).toBe(`${preferencesPath(slug)}`);
+		expect((await definitionOf(harness, slug)).filing).toEqual({
+			mode: "smart",
+			purpose: PURPOSE,
+			revision: 1,
+			effectiveAt: now,
+		});
 		const doc = parse((await agent.get(response.headers.location)).text);
-		expect(doc.querySelector("dialog[open]")?.textContent).toContain("New Readlist");
-		expect(doc.querySelector("dialog[open]")?.textContent).toContain("Got it");
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
-	});
-
-	it.each([["queue", ""], ["done", "&tab=done"]])("returns first setup from %s to its listing tab", async (from, tabQuery) => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "Compiler reading");
-		const action = await wizardAction(agent, `${preferencesPath(slug)}?setup_from=${from}`);
-		const result = await savePurposeFromDialog(agent, { action, purpose: PURPOSE });
-		const landing = hxLocation(result).path;
-		expect(landing).toBe(`/queue?queue=${slug}${tabQuery}&preferences_setup_saved=1`);
-		const doc = parse((await agent.get(landing)).text);
-		expect(doc.querySelector("dialog[open]")?.textContent).toContain("Compiler reading");
-		const edited = await savePurposeFromDialog(agent, { action, purpose: "A different purpose" });
-		expect(hxLocation(edited).path).toBe(`/queue?queue=${slug}${tabQuery}`);
 	});
 
 	it("replaces the purpose when the reader edits it", async () => {
@@ -605,10 +567,58 @@ describe("POST /queue/queues/:slug/preferences", () => {
 
 		await savePurpose(agent, slug, "Weekend reading only.");
 
+		expect((await definitionOf(harness, slug)).filing).toMatchObject({
+			mode: "smart",
+			purpose: "Weekend reading only.",
+			revision: 2,
+		});
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(
 			"Weekend reading only.",
 		);
+	});
+
+	it("keeps an emptied purpose off a Smart Readlist, leaving its purpose, revision and effective time as they were", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		const before = (await definitionOf(harness, slug)).filing;
+
+		const responses = [await savePurpose(agent, slug, ""), await savePurpose(agent, slug, "   ")];
+
+		expect(responses.map((response) => response.headers.location)).toEqual([
+			`${preferencesPath(slug)}?preferences_error=invalid-purpose`,
+			`${preferencesPath(slug)}?preferences_error=invalid-purpose`,
+		]);
+		expect((await definitionOf(harness, slug)).filing).toEqual(before);
+	});
+
+	it.each([
+		["with no refusal", ""],
+		["with a purpose refusal in the URL", "?preferences_error=invalid-purpose"],
+	])("renders no purpose wizard or panel for a readlist without a purpose %s", async (_case, query) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const doc = parse((await agent.get(`${preferencesPath(slug)}${query}`)).text);
+
+		expect(purposeSurfaces(doc)).toEqual({ filing: "manual", card: false, popover: false, panel: false });
+	});
+
+	it("keeps an article filed in the readlist listed after its purpose is edited", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		await seedInto(harness, { readlist: slug, url: "https://example.com/filed-before-edit" });
+
+		await savePurpose(agent, slug, "Weekend reading only.");
+
+		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
+		const card = doc.querySelector('[data-test-article-url][href="https://example.com/filed-before-edit"]');
+		assert(card, "the filed article must stay listed in the readlist");
 	});
 
 	it("keeps one readlist's purpose off another's tab", async () => {
@@ -620,13 +630,14 @@ describe("POST /queue/queues/:slug/preferences", () => {
 
 		const doc = parse((await agent.get(preferencesPath(untouched))).text);
 
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
+		expect(purposeSurfaces(doc)).toEqual({ filing: "manual", card: false, popover: false, panel: false });
 	});
 
 	it("sends an empty purpose back to the tab with the wizard open and the reason shown", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 
 		const response = await savePurpose(agent, slug, "   ");
 
@@ -656,8 +667,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		expect(response.headers.location).toBe(
 			`${preferencesPath(slug)}?preferences_error=invalid-purpose`,
 		);
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
+		expect((await definitionOf(harness, slug)).filing).toEqual({ mode: "manual" });
 	});
 
 	it("refuses a submit with no purpose field at all", async () => {
@@ -682,7 +692,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 			.type("form")
 			.send({ purpose: PURPOSE });
 
-		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_setup_saved=1`);
+		expect(response.headers.location).toBe(`${preferencesPath(slug)}`);
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(filterTabs(doc)).toEqual(["unread", "read", "preferences"]);
 	});
@@ -772,6 +782,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 		const action = await wizardAction(agent, preferencesPath(slug));
 
 		const response = await savePurposeFromDialog(agent, { action, purpose: "   " });
@@ -792,6 +803,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 		const action = await wizardAction(agent, preferencesPath(slug));
 		const oversized = "a".repeat(READLIST_PURPOSE_MAX_LENGTH + 1);
 
@@ -805,13 +817,14 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 		const action = await wizardAction(agent, preferencesPath(slug));
 
 		const response = await savePurposeFromDialog(agent, { action, purpose: PURPOSE });
 
 		expect(response.status).toBe(204);
 		expect(hxLocation(response)).toEqual({
-			path: `${preferencesPath(slug)}?preferences_setup_saved=1`,
+			path: `${preferencesPath(slug)}`,
 			source: "#readlist-preferences-wizard",
 			target: "main",
 			select: "main",
@@ -825,11 +838,12 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 		const action = await wizardAction(agent, preferencesPath(slug));
 
 		const response = await savePurposeFromDialog(agent, { action, purpose: PURPOSE });
 
-		expect(hxLocation(response).path).toBe(`${preferencesPath(slug)}?preferences_setup_saved=1`);
+		expect(hxLocation(response).path).toBe(`${preferencesPath(slug)}`);
 	});
 
 	it.each([
@@ -858,7 +872,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 			...fixture,
 			articleStore: {
 				...fixture.articleStore,
-				setReadlistDefinitionPurpose: async () => ({ updated: false }),
+				setSmartReadlistRule: async () => ({ kind: "readlist-gone" as const }),
 			},
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -896,19 +910,6 @@ describe("POST /queue/queues/:slug/preferences from a listing tab", () => {
 		expect(hxLocation(response).path).toBe(`/queue?queue=${slug}${landingQuery}`);
 		const landed = parse((await agent.get(hxLocation(response).path)).text);
 		expect(landed.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Weekend reading only.");
-	});
-
-	it("clears the purpose from the Read tab's dialog and lands back on Read, with no card left", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await slugWithPurpose(agent);
-		const action = await wizardAction(agent, `/queue?queue=${slug}&tab=done`);
-
-		const response = await savePurposeFromDialog(agent, { action, purpose: "  " });
-
-		expect(hxLocation(response).path).toBe(`/queue?queue=${slug}&tab=done`);
-		const landed = parse((await agent.get(hxLocation(response).path)).text);
-		expect(landed.querySelectorAll("[data-test-readlist-purpose]")).toHaveLength(0);
 	});
 
 	it("lands a form post from To read back on To read", async () => {
@@ -959,126 +960,6 @@ describe("POST /queue/queues/:slug/preferences from a listing tab", () => {
 });
 
 describe("POST /queue/queues/:slug/preferences with the purpose emptied", () => {
-	it("shows a fresh confirmation after preferences were cleared", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		const firstSetup = await savePurpose(agent, slug, PURPOSE);
-		await savePurpose(agent, slug, "");
-
-		const staleConfirmation = parse((await agent.get(firstSetup.headers.location)).text);
-		expect(staleConfirmation.querySelector("dialog[data-preferences-saved]")).toBeNull();
-
-		const nextSetup = await savePurpose(agent, slug, PURPOSE);
-		expect(nextSetup.headers.location).toBe(firstSetup.headers.location);
-		const confirmation = parse((await agent.get(nextSetup.headers.location)).text);
-		expect(confirmation.querySelector("dialog[open][data-preferences-saved]")?.textContent).toContain("New Readlist");
-	});
-
-	it.each([
-		["an empty purpose", ""],
-		["a whitespace-only purpose", "  \n  "],
-	])("clears the purpose on %s and lands the reader on the tab, ready to set one up again", async (_case, purpose) => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await savePurpose(agent, slug, PURPOSE);
-
-		const response = await savePurpose(agent, slug, purpose);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(preferencesPath(slug));
-		const doc = parse((await agent.get(response.headers.location)).text);
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
-		expect(field(doc, "popover").textContent).toBe("");
-		expect(filterTabs(doc)).toEqual(["unread", "read", "preferences"]);
-	});
-
-	it("clears the purpose from the dialog and lands back on the tab without moving the page", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await savePurpose(agent, slug, PURPOSE);
-		const action = await wizardAction(agent, preferencesPath(slug));
-
-		const response = await savePurposeFromDialog(agent, { action, purpose: "   " });
-
-		expect(response.status).toBe(204);
-		expect(hxLocation(response)).toEqual({
-			path: preferencesPath(slug),
-			source: "#readlist-preferences-wizard",
-			target: "main",
-			select: "main",
-			swap: "outerHTML show:none",
-		});
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
-	});
-
-	it("refuses a readlist that disappears between the check and the clear", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp({
-			...fixture,
-			articleStore: {
-				...fixture.articleStore,
-				clearReadlistDefinitionPurpose: async () => ({ cleared: false }),
-			},
-		});
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await savePurpose(agent, slug, PURPOSE);
-
-		const response = await savePurpose(agent, slug, "");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
-	});
-
-	it("sends a free-plan reader to the plans page, keeping the purpose", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await savePurpose(agent, slug, PURPOSE);
-		await makeFreePlan(harness);
-
-		const response = await savePurpose(agent, slug, "");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account/plans");
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
-	});
-
-	it("leaves another readlist's purpose in place", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const cleared = await createReadlist(agent, "New Readlist");
-		const kept = await createReadlist(agent, "New Readlist 2");
-		await savePurpose(agent, cleared, PURPOSE);
-		await savePurpose(agent, kept, "Weekend reading only.");
-
-		await savePurpose(agent, cleared, "");
-
-		const doc = parse((await agent.get(preferencesPath(kept))).text);
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("set");
-		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Weekend reading only.");
-	});
-
-	it("stops promising its inboxes a filter once the purpose is gone", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
-		await savePurpose(agent, slug, PURPOSE);
-
-		await savePurpose(agent, slug, "");
-
-		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toEqual([
-			"Send a custom email here and every article each email links to is saved to 'All' and 'New Readlist'.",
-		]);
-	});
-
 	it("no longer answers the old delete route", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1363,9 +1244,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 			(await agent.get(`${preferencesPath(slug)}?preferences_error=unknown-inbox`)).text,
 		);
 
-		expect(panel(doc).className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--unset",
-		);
+		expect(purposeSurfaces(doc)).toEqual({ filing: "manual", card: false, popover: false, panel: false });
 		expect(alertOf(doc).visible).toBe(true);
 	});
 });

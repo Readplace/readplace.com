@@ -435,6 +435,10 @@ describe("every popup opens on its first decision", () => {
 		const madeReadlist = createdSlug(
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 		);
+		await agent
+			.post(`/queue/queues/${madeReadlist}/preferences`)
+			.type("form")
+			.send({ purpose: "Essays on how teams actually ship." });
 		const preferences = parse(
 			(await agent.get(`/queue/queues/${madeReadlist}/preferences`).set(BROWSER_REQUEST_HEADERS)).text,
 		);

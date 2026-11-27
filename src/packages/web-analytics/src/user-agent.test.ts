@@ -1,4 +1,4 @@
-import { mcpUaClientOf, classifyBrowser, classifyDeviceClass, classifyOsFamily, isBotUserAgent } from "./user-agent";
+import { mcpUaClientOf, classifyBrowser, classifyDeviceClass, classifyOsFamily, iosBuildNumberOf, isBotUserAgent } from "./user-agent";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -402,6 +402,23 @@ describe("isBotUserAgent", () => {
 
 	it("still reports an Android User-Agent whose app version is not the integer versionCode carries as a bot", () => {
 		expect(isBotUserAgent("Readplace/beta Android/16")).toBe(true);
+	});
+});
+
+describe("iosBuildNumberOf", () => {
+	it("reads the build from the stock CFNetwork User-Agent", () => {
+		expect(iosBuildNumberOf(NATIVE_APP_USER_AGENT)).toBe(94);
+		expect(iosBuildNumberOf(SHARE_EXTENSION_USER_AGENT)).toBe(94);
+	});
+
+	it("reads the build from the build-number User-Agent", () => {
+		expect(iosBuildNumberOf(NATIVE_APP_BUILD_USER_AGENT)).toBe(111);
+		expect(iosBuildNumberOf(SHARE_EXTENSION_BUILD_USER_AGENT)).toBe(111);
+	});
+
+	it("reads no build from a User-Agent that is not the iOS app", () => {
+		expect(iosBuildNumberOf("Readplace/1 Android/16")).toBeUndefined();
+		expect(iosBuildNumberOf("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBeUndefined();
 	});
 });
 

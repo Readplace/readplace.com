@@ -6,7 +6,6 @@ import {
 	CONFIRM_POPOVER_STYLES,
 	render,
 	renderAlert,
-	renderIllustration,
 	renderToast,
 } from "@packages/web-shell";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
@@ -14,8 +13,8 @@ import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
 import { ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
-import { type UpgradeOffer, renderedLockFor, standingOf } from "../../shared/upgrade-offer/upgrade-offer";
-import { WIZARD_STYLES, type WizardRender } from "../../shared/wizard/wizard.component";
+import { standingOf } from "../../shared/upgrade-offer/upgrade-offer";
+import { WIZARD_STYLES } from "../../shared/wizard/wizard.component";
 import { GMAIL_SENDER_WIDGET_STYLES } from "../integrations/gmail.styles";
 import { readlistAlertFor } from "./readlist-alerts";
 import { STATUS_TOAST_DISMISS_MS } from "./readlist-mutation-fragments";
@@ -39,14 +38,9 @@ import {
 	readlistSideColumn,
 } from "./readlist.component";
 import { READLIST_STYLES } from "./readlist.styles";
-import {
-	READLIST_PREFERENCES_WIZARD_ID,
-	type ReadlistPreferencesWizardViewModel,
-} from "./readlist-preferences-wizard.component";
+import type { ReadlistPreferencesWizardViewModel } from "./readlist-preferences-wizard.component";
 import {
 	READLIST_PURPOSE_CARD_STYLES,
-	type PurposeState,
-	purposeStateOf,
 	renderReadlistPurposeCard,
 	renderReadlistPurposeWizard,
 } from "./readlist-purpose-card.component";
@@ -58,92 +52,15 @@ import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-preferences.template.html"), "utf-8");
 
-const PREFERENCES_SOURCE = "queue-preferences";
-
-const PANEL_CLASS: Record<PurposeState, string> = {
-	unset: "readlist-preferences readlist-preferences--unset",
-	set: "readlist-preferences readlist-preferences--set",
-};
-
-import type { PurposeOrigin } from "./readlist.url";
-import { renderPreferencesSaved } from "./readlist-preferences-saved.component";
-
 const WIZARD_OPEN_CLASS = "readlist-preferences--wizard-open";
-
-const PAID_LOCKED_CLASS = "readlist-preferences--paid-locked";
-
-interface PopoverControl {
-	popoverId: string;
-}
-
-interface PanelControls {
-	modifierClasses: readonly string[];
-	setupActions: readonly PopoverControl[];
-	inlineWizards: readonly string[];
-	wizardPopoverHtml: string;
-	setupLocks: readonly string[];
-}
-
-interface PanelControlsInput {
-	wizard: WizardRender;
-	wizardOpenClasses: readonly string[];
-	state: PurposeState;
-	offer: UpgradeOffer | undefined;
-}
-
-const SETUP_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => readonly string[]> = {
-	unset: (offer) =>
-		renderedLockFor({
-			offer,
-			gated: true,
-			key: "set-up-readlist",
-			label: "Set up readlist",
-			controlClass: "btn btn--neutral readlist-empty__cta",
-			source: PREFERENCES_SOURCE,
-		}),
-	set: () => [],
-};
-
-const PANEL_CONTROLS: Record<PurposeState | "needs-upgrade" | "withheld", (input: PanelControlsInput) => PanelControls> = {
-	unset: (input) => ({
-		modifierClasses: input.wizardOpenClasses,
-		setupActions: [{ popoverId: READLIST_PREFERENCES_WIZARD_ID }],
-		inlineWizards: [input.wizard.inlineHtml],
-		wizardPopoverHtml: input.wizard.popoverHtml,
-		setupLocks: [],
-	}),
-	set: (input) => ({
-		modifierClasses: input.wizardOpenClasses,
-		setupActions: [],
-		inlineWizards: [input.wizard.inlineHtml],
-		wizardPopoverHtml: input.wizard.popoverHtml,
-		setupLocks: [],
-	}),
-	"needs-upgrade": (input) => ({
-		modifierClasses: [PAID_LOCKED_CLASS],
-		setupActions: [],
-		inlineWizards: [],
-		wizardPopoverHtml: "",
-		setupLocks: SETUP_LOCKS[input.state](input.offer),
-	}),
-	withheld: () => ({
-		modifierClasses: [PAID_LOCKED_CLASS],
-		setupActions: [],
-		inlineWizards: [],
-		wizardPopoverHtml: "",
-		setupLocks: [],
-	}),
-};
 
 export interface ReadlistPreferencesViewModel {
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	rail: ReadlistRailViewModel;
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	wizardOpen: boolean;
-	wizardFrom?: PurposeOrigin;
 	purposeError?: string;
 	filing: ReadlistFilingMode;
-	smartPurpose: string | undefined;
 	smartError: string | undefined;
 	inboxes: readonly InboxAddressEntry[];
 	inboxCreate: { submittedName: string | undefined; error: InboxNameError | undefined };
@@ -172,21 +89,17 @@ function statusToastHtml(vm: Pick<ReadlistPreferencesViewModel, "saved" | "inbox
 }
 
 export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageBody {
-	const state = purposeStateOf(vm.readlist);
 	const standing = standingOf({ gated: vm.paidFeaturesLocked, offer: vm.rail.offer });
-	const controls = PANEL_CONTROLS[standing === "open" ? state : standing]({
-		state,
-		offer: vm.rail.offer,
-		wizard: renderReadlistPurposeWizard({
-			readlist: vm.readlist,
-			values: vm.values,
-			from: state === "unset" ? vm.wizardFrom ?? "preferences" : "preferences",
-			error: vm.purposeError,
-		}),
-		wizardOpenClasses: vm.wizardOpen ? [WIZARD_OPEN_CLASS] : [],
-	});
+	const wizard =
+		vm.readlist.purpose !== undefined && standing === "open"
+			? renderReadlistPurposeWizard({
+				readlist: { slug: vm.readlist.slug },
+				values: vm.values,
+				from: "preferences",
+				error: vm.purposeError,
+			})
+			: { inlineHtml: "", popoverHtml: "" };
 	const panels = readlistPanels(vm.rail);
-	const smart = vm.filing === "smart";
 	const side = readlistSideColumn({
 		banner: vm.subscriptionBanner,
 		onboarding: vm.onboarding,
@@ -206,53 +119,45 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),
-		purposeCardHtml: smart ? "" : renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
+		purposeCardHtml: renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
 				readlist: vm.readlist.slug,
 			}),
 		),
-		panelClass: [PANEL_CLASS[state], ...controls.modifierClasses].join(" "),
-		state,
-		smart,
+		panelClass: ["readlist-listing readlist-preferences", ...(vm.wizardOpen ? [WIZARD_OPEN_CLASS] : [])].join(" "),
 		readlistLabel: vm.readlist.label,
-		setupIllustrationHtml: renderIllustration("book-lightbulb"),
-		setupActions: controls.setupActions,
-		setupLocks: controls.setupLocks,
-		inlineWizards: controls.inlineWizards,
+		wizardInlineHtml: wizard.inlineHtml,
 		smartFilingHtml: renderReadlistSmartFiling({
 			slug: vm.readlist.slug,
 			mode: vm.filing,
-			purpose: vm.smartPurpose,
-			paidFeaturesLocked: vm.paidFeaturesLocked,
+			standing,
+			offer: vm.rail.offer,
 			error: vm.smartError,
 		}),
-		inboxesHtml: smart
-			? ""
-			: renderReadlistInboxes(
-				buildReadlistInboxes({
-					readlist: vm.readlist,
-					inboxes: vm.inboxes,
-					readlists: vm.rail.readlists,
-					create: vm.inboxCreate,
-					standing,
-					offer: vm.rail.offer,
-				}),
-			),
-		gmailSendersHtml: smart || vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
+		inboxesHtml: renderReadlistInboxes(
+			buildReadlistInboxes({
+				readlist: vm.readlist,
+				inboxes: vm.inboxes,
+				readlists: vm.rail.readlists,
+				create: vm.inboxCreate,
+				standing,
+				offer: vm.rail.offer,
+			}),
+		),
+		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
 		choicesHtml: renderReadlistFitChoices({
 			readlist: vm.readlist,
 			choices: vm.choices,
 		}),
 		statusToastHtml: statusToastHtml(vm),
-		preferencesSavedHtml: renderPreferencesSaved({ label: vm.readlist.label, purpose: vm.readlist.purpose, query: vm.query }),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
-		wizardPopoverHtml: smart ? "" : controls.wizardPopoverHtml,
+		wizardPopoverHtml: wizard.popoverHtml,
 	});
 
 	return {

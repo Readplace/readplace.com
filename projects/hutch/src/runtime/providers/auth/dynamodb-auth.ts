@@ -1,4 +1,4 @@
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { HomeReadlistSlugSchema } from "@packages/domain/readlist";
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
@@ -96,7 +96,7 @@ const UserRow = z.object({
 	first_seen_at: dynamoField(z.string()),
 	landing_path: dynamoField(z.string()),
 	deletedAt: dynamoField(z.string()),
-	homeReadlist: dynamoField(z.object({ slug: ReadlistSlugSchema, createdAt: z.string().optional() })),
+	homeReadlist: dynamoField(z.object({ slug: HomeReadlistSlugSchema, createdAt: z.string().optional() })),
 	appearance: dynamoField(AppearancePreferenceSchema),
 	displayName: dynamoField(DisplayNameSchema),
 	signupOAuthClientId: dynamoField(OAuthClientIdSchema),

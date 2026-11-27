@@ -50,22 +50,12 @@ describe("Smart Readlist guide", () => {
 		expect(count).toHaveBeenCalledTimes(2);
 	});
 
-	it.each(["/queue", prefs])("lets a reader permanently dismiss the step from %s without counting again", async (path) => {
-		const { agent, count, fixture, userId, view } = await setup();
-		const dismissed = `${cookies}; ${DISMISS_COOKIE_NAME}=fd8f9d8a`;
-		const form = (await view(path)).querySelector(step)?.querySelector('[data-test-onboarding-action="smart-readlist-dismiss"]')?.closest("form");
-		expect(form?.textContent?.trim()).toBe("I don't want to do this");
-		const action = form?.getAttribute("action");
-		assert(action);
-		await agent.post(action).set("User-Agent", chrome).set("Cookie", cookies).expect(303);
-		expect((await fixture.onboardingSignals.getOnboardingSignals({ userId })).smartReadlistStepDismissedAt).toBeInstanceOf(Date);
-		count.mockClear();
-		for (const cookie of [cookies, dismissed]) {
-			expect((await view(path, cookie)).querySelector(step)).toBeNull();
-		}
-		expect((await view(path, dismissed)).querySelector(".setup-guide--hidden")).toBeTruthy();
-		expect((await view("/queue", `${DISMISS_COOKIE_NAME}=no-client`, "unrecognised")).querySelector(".setup-guide--visible")).toBeNull();
-		expect(count).not.toHaveBeenCalled();
+	it.each([["/queue", "open-smart-readlist"], [prefs, "open-all"]])("offers no way to opt out of the step on %s, so every reader tries a Smart Readlist", async (path, primary) => {
+		const { view } = await setup();
+		const row = (await view(path)).querySelector(step);
+		assert(row, "the Smart Readlist step must be rendered");
+		const actions = Array.from(row.querySelectorAll("[data-test-onboarding-action]"), (el) => el.getAttribute("data-test-onboarding-action"));
+		expect(actions).toEqual([primary]);
 	});
 
 	it.each(["initial row", "count"] as const)("a failed first %s read cannot earn success on retry", async (failure) => {
@@ -77,14 +67,6 @@ describe("Smart Readlist guide", () => {
 		const ten = await view("/queue");
 		expect(ten.querySelector(".setup-guide--complete")).toBeNull();
 		expect(ten.querySelector(".setup-guide--hidden")).toBeTruthy();
-	});
-
-	it("keeps the persisted purpose in a stale setup URL carrying an old draft", async () => {
-		const { fixture, userId, view } = await setup();
-		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
-		const doc = await view(`${prefs}?setup=1&purpose=old`);
-		expect(doc.querySelector(".readlist-preferences--wizard-open")).toBeNull();
-		expect(doc.querySelector('[data-test-field="purpose"]')?.textContent).toBe("Ideas to explore");
 	});
 
 	it("awards an earned welcome after nine, and confirms a write whose reply was lost", async () => {
@@ -132,10 +114,10 @@ describe("Smart Readlist guide", () => {
 		expect((await view(prefs, cookie, "unrecognised")).querySelector(".setup-guide--visible")?.querySelector(step)).toBeTruthy();
 	});
 
-	it("sends a reader whose readlist only has a purpose to make it a Smart Readlist, without counting it", async () => {
+	it("sends a reader whose purpose was removed to make it a Smart Readlist, without counting it", async () => {
 		const { fixture, userId, view, count } = await setup();
 		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
-		expect((await fixture.articleStore.listReadlistDefinitions(userId)).find((list) => list.slug === slug)?.purpose).toBe("Ideas to explore");
+		expect((await fixture.articleStore.listReadlistDefinitions(userId)).find((list) => list.slug === slug)?.filing).toEqual({ mode: "manual" });
 		const doc = await view("/queue");
 		const row = doc.querySelector(step);
 		expect(row?.textContent).toContain("0/10");
@@ -164,7 +146,6 @@ describe("Smart Readlist guide", () => {
 		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
 		const empty = (await view(prefs)).querySelector(step);
 		expect(empty?.textContent).toContain("0/10");
-		expect(empty?.querySelector('[name="setup"]')).toBeNull();
 		expect(count).not.toHaveBeenCalled();
 		await fixture.articleStore.setSmartReadlistRule({ userId, slug, purpose: "Restored", effectiveAt: new Date() });
 		expect((await view(prefs)).querySelector(step)?.textContent).toContain("9/10");

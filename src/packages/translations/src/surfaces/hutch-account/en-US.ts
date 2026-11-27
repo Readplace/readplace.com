@@ -1,4 +1,10 @@
 export const enUS = {
+	connectedApps: {
+		summary: {
+			title: { one: "{count} app connected", other: "{count} apps connected" },
+			description: "Extensions, apps and AI assistants that can reach your Readplace account.",
+		},
+	},
 	billing: {
 		freeChip: "Free plan",
 		statusNote: {

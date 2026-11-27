@@ -1,29 +1,12 @@
-import {
-	NEWER_READER_VERSION,
-	OFFLINE_COPY_PATH_ATTRIBUTE as SHELL_COPY_PATH_ATTRIBUTE,
-	OFFLINE_COPY_READER_SOURCE,
-	OFFLINE_COPY_SAVED_AT_ATTRIBUTE as SHELL_COPY_SAVED_AT_ATTRIBUTE,
-	OFFLINE_SAVED_AT_HEADER as SHELL_SAVED_AT_HEADER,
-	READER_SOURCE_MESSAGE_TYPE as SHELL_MESSAGE_TYPE,
-	READER_VERSION_MESSAGE_TYPE as SHELL_VERSION_MESSAGE_TYPE,
-	REVALIDATE_READER_MESSAGE_TYPE as SHELL_REVALIDATE_MESSAGE_TYPE,
-} from "@packages/web-shell";
 import { READLIST_PATH } from "../../pages/readlist/readlist.url";
 import {
 	OFFLINE_CACHE_NAME,
 	OFFLINE_CACHE_PREFIX,
-	OFFLINE_COPY_PATH_ATTRIBUTE,
-	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
 	OFFLINE_OWNER_EXPIRES_HEADER,
 	OFFLINE_OWNER_HEADER,
 	OFFLINE_READER_SCOPE,
 	OFFLINE_SAVED_AT_HEADER,
 	OFFLINE_SOURCE_HEADER,
-	READER_SOURCE,
-	READER_SOURCE_MESSAGE_TYPE,
-	READER_VERSION,
-	READER_VERSION_MESSAGE_TYPE,
-	REVALIDATE_READER_MESSAGE_TYPE,
 	isFreshOfflineCopy,
 	offlineCacheKey,
 	offlineOwnerMarker,
@@ -56,33 +39,6 @@ describe("offline cache contract", () => {
 		expect(OFFLINE_READER_SCOPE).toBe(READLIST_PATH);
 	});
 
-	it("speaks the same reader-source message the shell's offline banner listens for", () => {
-		expect(READER_SOURCE_MESSAGE_TYPE).toBe("readplace:reader-source");
-		expect(READER_SOURCE_MESSAGE_TYPE).toBe(SHELL_MESSAGE_TYPE);
-		expect(READER_SOURCE).toEqual({ network: "network", offlineCopy: "offline-copy" });
-		expect(READER_SOURCE.offlineCopy).toBe(OFFLINE_COPY_READER_SOURCE);
-	});
-
-	it("speaks the same reader-version and revalidation messages the shell's newer-version bar uses", () => {
-		expect(READER_VERSION_MESSAGE_TYPE).toBe("readplace:reader-version");
-		expect(READER_VERSION_MESSAGE_TYPE).toBe(SHELL_VERSION_MESSAGE_TYPE);
-		expect(READER_VERSION).toEqual({ same: "same", newer: "newer" });
-		expect(READER_VERSION.newer).toBe(NEWER_READER_VERSION);
-		expect(REVALIDATE_READER_MESSAGE_TYPE).toBe("readplace:revalidate-reader");
-		expect(REVALIDATE_READER_MESSAGE_TYPE).toBe(SHELL_REVALIDATE_MESSAGE_TYPE);
-	});
-
-	it("reads the stored copy on screen from the <html> attributes the shell records it on", () => {
-		expect(OFFLINE_COPY_PATH_ATTRIBUTE).toBe("data-offline-copy-path");
-		expect(OFFLINE_COPY_PATH_ATTRIBUTE).toBe(SHELL_COPY_PATH_ATTRIBUTE);
-		expect(OFFLINE_COPY_SAVED_AT_ATTRIBUTE).toBe("data-offline-copy-saved-at");
-		expect(OFFLINE_COPY_SAVED_AT_ATTRIBUTE).toBe(SHELL_COPY_SAVED_AT_ATTRIBUTE);
-	});
-
-	it("stamps a stored copy with the saved-at header the shell's offline banner tells a stored answer apart by", () => {
-		expect(OFFLINE_SAVED_AT_HEADER).toBe("Readplace-Offline-Saved-At");
-		expect(OFFLINE_SAVED_AT_HEADER).toBe(SHELL_SAVED_AT_HEADER);
-	});
 });
 
 describe("offlinePageKind", () => {

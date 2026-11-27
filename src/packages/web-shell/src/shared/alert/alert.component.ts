@@ -11,8 +11,8 @@ import {
 export { ALERT_STYLES } from "./alert.styles";
 
 export type AlertVariant = "error" | "warning" | "success" | "info";
-export type AlertTitle = { text: string; element: "p" | "h1" | "h2" };
-export type AlertMessage = { text: string } | { html: string };
+type AlertTitle = { text: string; element: "p" | "h1" | "h2" };
+type AlertMessage = { text: string } | { html: string };
 export type AlertContent =
 	| { variant: AlertVariant; title: AlertTitle; message?: AlertMessage }
 	| { variant: AlertVariant; title?: undefined; message: AlertMessage };

@@ -58,6 +58,7 @@ function renderDisconnectDialog(dialog: ConnectedAppDialog): string {
 export function renderConnectedApps(section: ConnectedAppsSectionViewModel): string {
 	return render(CONNECTED_APPS_TEMPLATE, {
 		state: section.state,
+		summary: section.state === "listed" ? section.summary : undefined,
 		rows: section.rows.map(toTemplateRow),
 		dialogsHtml: section.dialogs.map(renderDisconnectDialog).join(""),
 	});

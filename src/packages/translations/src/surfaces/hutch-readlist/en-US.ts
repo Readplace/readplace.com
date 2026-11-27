@@ -11,7 +11,6 @@ export const enUS = {
 		file: "Save articles that fit its purpose and Readplace adds them to your Smart Readlist. You can also open the “All” readlist and use Add to file one yourself.",
 		progress: "{count}/10 articles saved to Smart Readlists",
 		unavailable: "Progress unavailable",
-		dismiss: "I don't want to do this",
 	},
 	manage: {
 		title: "Manage articles",
@@ -105,13 +104,6 @@ export const enUS = {
 			processing: "Some of these articles weren't downloaded with their content. Open them when you're back online to read them.",
 			unavailable: "Readplace couldn't get the content of some of these articles, so they can't be read offline.",
 		},
-	},
-	readlistPreferences: {
-		saved: "Preferences saved",
-		matching: "Readplace will check article links from every Readplace inbox you own and every Gmail newsletter sender you’ve enabled. Articles that match your preferences will appear in {readlist}.",
-		linkLimit: "Readplace checks the first {limit} unique links in each email for articles.",
-		dismiss: "Got it",
-		setup: "Readplace checks new article links from your Readplace inboxes and enabled Gmail newsletters against these preferences.",
 	},
 	readlistGmail: {
 		enabled: "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and {readlist}. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
@@ -222,10 +214,8 @@ export const enUS = {
 			submit: "Make this a Smart Readlist",
 		},
 		rule: {
-			title: "Matching instructions",
-			body: "Readplace checks each new save from all your sources against these instructions.",
-			purposeLabel: "What should this readlist collect?",
-			submit: "Save instructions",
+			title: "Smart matching",
+			body: "Readplace checks each new save from all your sources against this readlist’s purpose.",
 		},
 		sources: {
 			title: "Sources",
@@ -234,13 +224,13 @@ export const enUS = {
 			gmail: "Gmail",
 		},
 		turnOff: {
-			title: "Turn off smart matching",
-			body: "The articles already in this readlist and their read status stay. New articles arrive only when you file them yourself.",
-			submit: "Turn off smart matching",
+			title: "Remove purpose",
+			body: "This becomes a regular readlist. The articles already in it and their read status stay. Readplace stops checking new saves and emails against it.",
+			submit: "Remove purpose",
 		},
 		paused: {
 			title: "Smart matching is paused",
-			body: "Smart Readlists are part of a paid plan. Upgrade to match new saves again, or turn off smart matching.",
+			body: "Smart Readlists are part of a paid plan. Upgrade to match new saves again, or remove the purpose.",
 		},
 	},
 } as const;

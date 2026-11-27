@@ -6,6 +6,9 @@ export {
 	ReadlistSlugSchema,
 	type ReadlistSlug,
 	DEFAULT_READLIST_SLUG,
+	HandPickedScopeSchema,
+	HAND_PICKED_SCOPE,
+	HomeReadlistSlugSchema,
 	ReadlistLimitReachedError,
 	parseReadlistLabel,
 } from "./readlist-name.schema";
@@ -55,8 +58,6 @@ export {
 } from "./readlist-purpose-fields";
 export {
 	decideReadlistPurpose,
-	decideReadlistPurposeClear,
-	type ReadlistPurposeClearDecision,
 	type ReadlistPurposeDecision,
 	type ReadlistPurposeRejection,
 } from "./readlist-purpose";

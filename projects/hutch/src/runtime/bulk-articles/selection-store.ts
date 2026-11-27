@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { defineDynamoTable, forEachQueryPage, TransactWriteCommand, transactIfConditions, type DynamoDBDocumentClient } from "@packages/storage-client";
 import type { UserId } from "@packages/domain/user";
-import { BULK_PREFIX, BULK_RETENTION_SECONDS, BULK_CHUNK_SIZE, BulkSelection, type BulkSelectionStore, type SelectionTarget, selectionKey, targetKey } from "./selection";
+import { BULK_ARTICLE_JOB_PREFIX as BULK_PREFIX } from "@packages/article-store";
+import { BULK_RETENTION_SECONDS, BULK_CHUNK_SIZE, BulkSelection, type BulkSelectionStore, type SelectionTarget, selectionKey, targetKey } from "./selection";
 
 function uniqueTargets(targets: readonly SelectionTarget[]) {
 	assert(targets.length <= BULK_CHUNK_SIZE, "a preparation step must fit in one transaction");

@@ -5,7 +5,7 @@ import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { EmailIssueSaveSkippedEvent, EmailOutputSavedToAllEvent, SaveEmailIssueCommand } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { ContentProvider, ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PutTierSource } from "@packages/tier-source";
@@ -17,7 +17,6 @@ const LOG_PREFIX = "[SaveEmailIssueCommand]";
 export function initSaveEmailIssueCommandHandler(deps: {
 	readEmailBody: ContentProvider;
 	saveEmailIssue: SaveEmailIssue;
-	listReadlistDefinitions: ListReadlistDefinitions;
 	putTierSource: PutTierSource;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	publishEvent: PublishEvent;
@@ -49,11 +48,6 @@ export function initSaveEmailIssueCommandHandler(deps: {
 				html: body,
 				receivedAt: emailIssueReceivedAt(receivedAtMessageId),
 			});
-			const smartReadlists = new Set(
-				(await deps.listReadlistDefinitions(userId))
-					.filter((definition) => definition.filing?.mode === "smart")
-					.map((definition) => definition.slug),
-			);
 			const outcome = await deps.saveEmailIssue({
 				userId,
 				url,
@@ -61,9 +55,7 @@ export function initSaveEmailIssueCommandHandler(deps: {
 				metadata,
 				estimatedReadTime,
 				provenance: { kind: "email", senderEmail: detail.senderEmail },
-				readlists: detail.readlists
-					.map((readlist) => ReadlistSlugSchema.parse(readlist))
-					.filter((readlist) => !smartReadlists.has(readlist)),
+				readlists: detail.readlists.map((readlist) => ReadlistSlugSchema.parse(readlist)),
 				requestedAt,
 				onSavedToAll: async () => {
 					if (detail.emailOutput === undefined) return;

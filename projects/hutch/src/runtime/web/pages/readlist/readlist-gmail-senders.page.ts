@@ -22,7 +22,7 @@ import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
 
 export type LoadReadlistGmailSenders = (input: {
 	userId: UserId;
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
+	readlist: { slug: ReadlistSlug; label: string };
 	readlists: readonly ReadlistRef[];
 	query: Record<string, unknown>;
 	offer: UpgradeOffer | undefined;
@@ -89,7 +89,7 @@ export function initReadlistGmailSenders(deps: {
 		}
 		const vm = await load({
 			userId,
-			readlist: { slug: definition.slug, label: definition.label, purpose: definition.purpose },
+			readlist: { slug: definition.slug, label: definition.label },
 			readlists,
 			query: req.query,
 			offer: upgradeOfferFor({ req, access: await deps.getEffectiveAccess(userId) }),

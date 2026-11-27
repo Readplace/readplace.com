@@ -27,7 +27,17 @@ import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
 import type { HtmxDelivery } from "./htmx-script";
-import { injectPageStylesIntoMain, injectSiteDialogIntoMain } from "./inject-page-styles";
+import { injectPageStylesIntoMain, insertAfterMainOpenTag } from "./inject-page-styles";
+import {
+	NEWER_READER_VERSION,
+	OFFLINE_COPY_PATH_ATTRIBUTE,
+	OFFLINE_COPY_READER_SOURCE,
+	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
+	OFFLINE_SAVED_AT_HEADER,
+	READER_SOURCE_MESSAGE_TYPE,
+	READER_VERSION_MESSAGE_TYPE,
+	REVALIDATE_READER_MESSAGE_TYPE,
+} from "./offline-reader-protocol";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
@@ -99,15 +109,6 @@ export const OFFLINE_BANNER_TEXT =
 	"Your internet is not working, your reading is offline. Readplace is read-only until you're back online.";
 
 export const NEWER_VERSION_BANNER_TEXT = "There's a newer version of this article reader, want to refresh?";
-
-export const READER_SOURCE_MESSAGE_TYPE = "readplace:reader-source";
-export const OFFLINE_COPY_READER_SOURCE = "offline-copy";
-export const READER_VERSION_MESSAGE_TYPE = "readplace:reader-version";
-export const NEWER_READER_VERSION = "newer";
-export const REVALIDATE_READER_MESSAGE_TYPE = "readplace:revalidate-reader";
-export const OFFLINE_COPY_PATH_ATTRIBUTE = "data-offline-copy-path";
-export const OFFLINE_COPY_SAVED_AT_ATTRIBUTE = "data-offline-copy-saved-at";
-export const OFFLINE_SAVED_AT_HEADER = "Readplace-Offline-Saved-At";
 
 const offlineIndicatorScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
@@ -295,8 +296,7 @@ export interface BaseConfig {
 	 * omits it — like the blog, which ships no such bundle — stays untouched. */
 	siteScripts?: string;
 	/** The site's nav renderer. Mandatory (no default) so every shell states its
-	 * nav explicitly: a site with a nav passes `GlobalNav`, a bare shell passes
-	 * `GlobalEmptyNav`. */
+	 * nav explicitly: a site with a nav passes `GlobalNav`. */
 	renderNav: RenderSiteNav;
 	/** Whether this site's pages load htmx: `HtmxLoaded` for a site whose markup
 	 * carries `hx-*` attributes, `HtmxOmitted` for one that renders none.
@@ -330,7 +330,12 @@ function renderMainContent(body: PageBody, state: BannerState): string {
 	const upgradeStyles = state.upgrade === undefined ? [] : [NEEDS_UPGRADE_STYLES];
 	return injectPageStylesIntoMain({
 		content: dialogs.reduce(
-			(content, dialog) => injectSiteDialogIntoMain({ content, html: dialog.html }),
+			(content, dialog) =>
+				insertAfterMainOpenTag({
+					content,
+					html: dialog.html,
+					missingMainMessage: "PageBody.content must contain a <main> element when a site dialog is provided",
+				}),
 			body.content.html,
 		),
 		styles: [body.styles, ...dialogs.map((dialog) => dialog.styles), ...upgradeStyles].join(""),
@@ -372,7 +377,6 @@ export function initBase(config: BaseConfig): RenderBase {
 			ogImageAlt: seo.ogImageAlt,
 			ogImageType: seo.ogImageType,
 			twitterImage: seo.twitterImage ?? seo.ogImage,
-			twitterSite: seo.twitterSite,
 			structuredDataScript: renderStructuredData(seo.structuredData, state.cspNonce),
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,

@@ -18,6 +18,12 @@ export type ReadlistSlug = z.infer<typeof ReadlistSlugSchema>;
 
 export const DEFAULT_READLIST_SLUG: ReadlistSlug = ReadlistSlugSchema.parse("default");
 
+// Outside the filing slug grammar so a legacy custom slug can always be addressed.
+export const HandPickedScopeSchema = z.literal("~hand-picked").brand<"ReadlistSlug">();
+export const HAND_PICKED_SCOPE = HandPickedScopeSchema.parse("~hand-picked");
+
+export const HomeReadlistSlugSchema = z.union([ReadlistSlugSchema, HandPickedScopeSchema]);
+
 export class ReadlistLimitReachedError extends Error {
 	constructor(readonly limit: number) {
 		super(`Readlist limit of ${limit} reached`);

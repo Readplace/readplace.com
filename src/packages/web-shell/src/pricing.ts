@@ -121,7 +121,6 @@ export function statedPrice(input: {
 
 export interface PricingPlan {
 	readonly name: string;
-	readonly monthlyAmount: string;
 	readonly monthlyDisplay: string;
 	readonly totalAmount: string;
 	readonly totalDisplay: string;
@@ -139,7 +138,6 @@ function toPricingPlan(list: ListPrice, price: StatedPrice): PricingPlan {
 		price.renewalUsd === price.firstChargeUsd ? "" : ` for ${list.firstPeriod}, then ${price.renewal}`;
 	return {
 		name: list.name,
-		monthlyAmount,
 		monthlyDisplay: `$${monthlyAmount}`,
 		totalAmount: toAmount(price.firstChargeUsd),
 		totalDisplay,

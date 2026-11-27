@@ -201,11 +201,11 @@ describe("Inbox emails list route", () => {
 			rows[0].querySelector("[data-test-inbox-empty-address-name]")?.textContent,
 		).toBe("inbox");
 		expect(rows[0].querySelector("input")?.getAttribute("value")).toBe(created.address);
-		const copy = rows[0].querySelector("[data-inbox-copy]");
+		const copy = rows[0].querySelector("[data-clipboard-copy]");
 		assert(copy, "copy button must render alongside the address");
-		expect(copy.getAttribute("data-inbox-address")).toBe(created.address);
+		expect(copy.getAttribute("data-clipboard-text")).toBe(created.address);
 		expect(
-			doc.querySelector('script[src="/client-dist/inbox.client.js"]'),
+			doc.querySelector('script[src="/client-dist/clipboard-copy.client.js"]'),
 		).not.toBeNull();
 	});
 
