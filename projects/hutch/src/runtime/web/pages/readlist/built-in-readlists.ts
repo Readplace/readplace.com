@@ -6,7 +6,8 @@ const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export { HandPickedScopeSchema, HAND_PICKED_SCOPE } from "@packages/domain/readlist";
 export const HAND_PICKED = { slug: HAND_PICKED_SCOPE, label: t("handPicked.label") };
-export const READER_HOME_HREF = "/queue?scope=hand-picked";
+export const HAND_PICKED_HREF = "/queue?scope=hand-picked";
+export const READER_HOME_HREF = "/queue?scope=home";
 
 export const BUILT_IN_READLIST_SLUGS: readonly ReadlistSlug[] = [HAND_PICKED_SCOPE, DEFAULT_READLIST_SLUG];
 

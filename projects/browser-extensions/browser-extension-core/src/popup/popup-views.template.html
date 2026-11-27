@@ -88,7 +88,10 @@
         </div>
       </div>
       <div id="list-header" class="list-view__list-header" hidden>
-        <p class="list-view__count" data-test-list-count></p>
+        <div class="list-view__heading">
+          <p class="list-view__readlist" data-test-list-readlist hidden></p>
+          <p class="list-view__count" data-test-list-count></p>
+        </div>
         <button id="sort-button" class="list-view__sort" type="button" hidden></button>
       </div>
       <div class="list-view__body">
@@ -121,7 +124,10 @@
         <p class="list-skeleton__status" role="status">Loading your articles&hellip;</p>
       </div>
       <div class="list-skeleton__list-header" aria-hidden="true">
-        <span class="list-skeleton__bar list-skeleton__bar--count"></span>
+        <span class="list-skeleton__heading">
+          <span class="list-skeleton__bar list-skeleton__bar--readlist"></span>
+          <span class="list-skeleton__bar list-skeleton__bar--count"></span>
+        </span>
         <span class="list-skeleton__bar list-skeleton__bar--sort"></span>
       </div>
       <div class="list-skeleton__rows" aria-busy="true">

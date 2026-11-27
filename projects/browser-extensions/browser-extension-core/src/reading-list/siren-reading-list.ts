@@ -15,6 +15,7 @@ import type {
 	LoadSort,
 	SavePages,
 	CollectionTotal,
+	CollectionReadlist,
 	LoadPageResult,
 	CollectionPage,
 	TabContent,
@@ -139,6 +140,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		items: ArticleItem[];
 		pages: PageEntry[];
 		total: CollectionTotal | undefined;
+		readlist: CollectionReadlist | undefined;
 		sorts: SortEntry[];
 		followPage: (href: string) => Promise<NavigationResult>;
 	};
@@ -161,6 +163,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			items: adopted.items,
 			pages: adopted.pages.map(({ label, rel }) => ({ label, rel })),
 			total: adopted.total,
+			readlist: adopted.readlist,
 			sort: adopted.sorts.map(({ label, rel, order }) => ({ label, rel, order })),
 		};
 	}
@@ -171,6 +174,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			items: result.items,
 			pages: result.pages,
 			total: result.total,
+			readlist: result.readlist,
 			sorts: result.sorts,
 			followPage: result.followPage,
 		};
@@ -205,8 +209,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	}
 
 	const getItems: GetItems = async () => {
-		const root = await start();
-		const collection = root.homeHref ? await root.followPage(root.homeHref) : root;
+		const collection = await start();
 		trackItems(collection.items);
 		return adoptCollection(collection);
 	};
@@ -359,6 +362,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 					items: ReadingListItem[];
 					pages: PageDescriptor[];
 					total: CollectionTotal | undefined;
+					readlist: CollectionReadlist | undefined;
 					sort: SortDescriptor[];
 					warning?: SaveWarning;
 				} = {
@@ -367,6 +371,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 					items: page.items,
 					pages: page.pages,
 					total: page.total,
+					readlist: page.readlist,
 					sort: page.sort,
 				};
 				if (err.warning) failure.warning = err.warning;
@@ -434,7 +439,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			 * so it becomes the whole of what is loaded. Keeping the page the reader
 			 * was on would splice the article they just acted on back into view. */
 			const page = adoptCollection(result);
-			return { ok: true, items: page.items, pages: page.pages, total: page.total, sort: page.sort, targetUrl };
+			return { ok: true, items: page.items, pages: page.pages, total: page.total, readlist: page.readlist, sort: page.sort, targetUrl };
 		} catch (err) {
 			/** Any advertised action whose target 404s means the item is gone. The
 			 * invoker throws a typed ItemGoneError, so not-found is detected by class

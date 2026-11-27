@@ -1214,7 +1214,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const extensionCors = cors({
 		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
 		methods: ["GET", "POST", "PUT", "DELETE"],
-		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer", "DPoP", "X-Readplace-Auth-Attempt-Id", "X-Readplace-Auth-Context-Id", "X-Readplace-Client-Version", "X-Readplace-Installation-Id"],
+		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer", "DPoP", "X-Readplace-Auth-Attempt-Id", "X-Readplace-Auth-Context-Id", "X-Readplace-Client-Version", "X-Readplace-Home-Readlist", "X-Readplace-Installation-Id"],
 		exposedHeaders: ["DPoP-Nonce", "X-Readplace-Refresh-Attempt"],
 		maxAge: 86400,
 	});

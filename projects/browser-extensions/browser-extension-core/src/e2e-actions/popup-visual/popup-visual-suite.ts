@@ -52,6 +52,7 @@ async function listSettled(page: Page): Promise<void> {
 	await expect(page.locator(".list-view__row")).toHaveCount(4);
 	await expect(page.locator("#pagination")).toBeVisible();
 	await expect(page.locator("[data-test-save-all-count]")).toHaveText("Save 9 tabs");
+	await expect(page.locator("[data-test-list-readlist]")).toHaveText("All");
 	await expect(page.locator("[data-test-list-count]")).toHaveText("86 Saved Articles");
 	await expect(page.locator("#sort-button")).toHaveText("Newest first");
 }

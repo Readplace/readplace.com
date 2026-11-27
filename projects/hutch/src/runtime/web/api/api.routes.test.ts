@@ -1200,6 +1200,7 @@ describe("GET / (Siren entry point)", () => {
 		);
 		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("authorization");
 		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("accept");
+		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("x-readplace-home-readlist");
 	});
 
 	it("keeps the signed-in browser's redirect out of every cache", async () => {
@@ -1209,7 +1210,7 @@ describe("GET / (Siren entry point)", () => {
 		const response = await agent.get("/").set("Accept", "text/html").redirects(0);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?scope=hand-picked");
+		expect(response.headers.location).toBe("/queue?scope=home");
 		expect(response.headers["cache-control"]).toBeUndefined();
 	});
 

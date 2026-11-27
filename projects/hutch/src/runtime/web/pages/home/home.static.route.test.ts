@@ -182,7 +182,7 @@ describe("GET / with Accept: text/markdown", () => {
 		const response = await agent.get("/").set("Accept", "text/markdown");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?scope=hand-picked");
+		expect(response.headers.location).toBe("/queue?scope=home");
 	});
 
 	it("carries the questions a reader would otherwise have to open the page for", async () => {

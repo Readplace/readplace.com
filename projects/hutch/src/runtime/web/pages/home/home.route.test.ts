@@ -41,7 +41,7 @@ describe("GET / (authenticated)", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const response = await agent.get("/");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?scope=hand-picked");
+		expect(response.headers.location).toBe("/queue?scope=home");
 	});
 });
 
