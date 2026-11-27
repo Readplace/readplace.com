@@ -5,7 +5,7 @@ import type { SaveAttemptId, SaveProvenance, SaveTrigger, SaveableUrl, SavedArti
 import type { UserId } from "@packages/domain/user";
 import type { SaveArticleFromUrl, SaveCrawlPending } from "./save-article-from-url";
 
-export interface SaveArticleAtReadlistTopDependencies {
+interface SaveArticleAtReadlistTopDependencies {
 	allocateSavedAt: AllocateSavedAt;
 	saveArticleFromUrl: SaveArticleFromUrl;
 }

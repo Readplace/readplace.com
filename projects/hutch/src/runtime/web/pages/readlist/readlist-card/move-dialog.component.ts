@@ -1,4 +1,4 @@
-import type { ReadlistSlug } from "@packages/domain/readlist";
+import { type ReadlistSlug, DEFAULT_READLIST } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
@@ -7,7 +7,6 @@ import { READLIST_KIND_ICON } from "../../../shared/readlist-kind-icon";
 import { renderReadlistFilter } from "../../../shared/readlist-filter/readlist-filter.component";
 import { isBuiltInReadlist } from "../built-in-readlists";
 import { renderReadlistCreate, renderReadlistCreateForm } from "../readlist-create.component";
-import { DEFAULT_READLIST } from "../readlist.nav";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 

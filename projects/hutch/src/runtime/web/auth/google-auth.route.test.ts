@@ -257,7 +257,7 @@ describe("Google auth routes", () => {
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=hand-picked");
+			expect(response.headers.location).toBe("/queue?scope=home");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await auth.findUserByEmail("free-google@example.com");
@@ -382,7 +382,7 @@ describe("Google auth routes", () => {
 					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
 				expect(response.status).toBe(303);
-				expect(response.headers.location).toBe("/queue?scope=hand-picked");
+				expect(response.headers.location).toBe("/queue?scope=home");
 			}, 30000);
 		});
 
@@ -415,7 +415,7 @@ describe("Google auth routes", () => {
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=hand-picked");
+			expect(response.headers.location).toBe("/queue?scope=home");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await fixture.auth.findUserByEmail("race-google@example.com");
@@ -538,7 +538,7 @@ describe("Google auth routes", () => {
 				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=hand-picked");
+			expect(response.headers.location).toBe("/queue?scope=home");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await auth.findUserByEmail("brand-new@example.com");
@@ -745,7 +745,7 @@ describe("Google auth routes", () => {
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=hand-picked");
+			expect(response.headers.location).toBe("/queue?scope=home");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 		}, 30000);
 
@@ -771,7 +771,7 @@ describe("Google auth routes", () => {
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=hand-picked");
+			expect(response.headers.location).toBe("/queue?scope=home");
 
 			const lookup = await auth.findUserByEmail("existing@example.com");
 			expect(lookup?.userId).toBe(existingUserId);

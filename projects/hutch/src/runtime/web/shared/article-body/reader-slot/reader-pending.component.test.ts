@@ -72,13 +72,13 @@ describe("renderReaderPending", () => {
 		const doc = parse(
 			renderReaderPending({
 				kind: "capture",
-				pollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				pollUrl: "/queue/abc/reader?poll=1&captureSince=0",
 			}),
 		);
 
 		const slot = pendingSlot(doc);
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
-		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1&capturing=1");
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1&captureSince=0");
 		expect(slot.querySelector("[data-test-reader-pending-title]")?.textContent).toBe(
 			"Copying the page from your device",
 		);
@@ -109,7 +109,7 @@ describe("renderReaderPending", () => {
 		const doc = parse(
 			renderReaderPending({
 				kind: "capture",
-				pollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				pollUrl: "/queue/abc/reader?poll=1&captureSince=0",
 			}),
 		);
 

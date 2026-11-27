@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { getDomain } from "tldts";
-import { BodyTooLargeError, type CrawlFetch, readBodyWithCap } from "@packages/crawl-article";
+import { BodyTooLargeError, type CrawlFetch, isHtmlContentType, readBodyWithCap } from "@packages/crawl-article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import {
 	collectImportLinks,
@@ -10,7 +10,6 @@ import {
 
 const MAX_PAGE_BYTES = 5 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 10_000;
-const HTML_CONTENT_TYPES: readonly string[] = ["text/html", "application/xhtml+xml"];
 
 export type ExtractLinksFromPageResult =
 	| { readonly status: "OK"; readonly links: ImportLinksResult }
@@ -25,11 +24,6 @@ export type ExtractLinksFromPageResult =
 export type ExtractLinksFromPageUrl = (
 	pageUrl: string,
 ) => Promise<ExtractLinksFromPageResult>;
-
-function contentTypeIsHtml(contentType: string): boolean {
-	const lower = contentType.toLowerCase().split(";")[0].trim();
-	return HTML_CONTENT_TYPES.includes(lower);
-}
 
 function isDeadlineError(error: unknown): boolean {
 	if (!(error instanceof Error)) return false;
@@ -104,7 +98,7 @@ export function initExtractLinksFromPageUrl(deps: {
 		}
 
 		const contentType = response.headers.get("content-type") ?? "";
-		if (!contentTypeIsHtml(contentType)) {
+		if (!isHtmlContentType(contentType)) {
 			return { status: "UNSUPPORTED_CONTENT_TYPE", contentType };
 		}
 

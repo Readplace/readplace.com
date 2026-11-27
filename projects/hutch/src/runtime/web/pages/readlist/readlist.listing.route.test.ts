@@ -11,6 +11,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createFakeSummaryProvider,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 
@@ -232,7 +233,7 @@ describe("Readlist routes", () => {
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+			const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: createNoopLogError() }).parseHtml });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
@@ -318,10 +319,11 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const actionForms = doc.querySelectorAll(
-				".readlist-article__status-form, .article-delete__form",
+				".readlist-article__status-form, .article-delete__fallback-form",
 			);
 
 			expect(actionForms.length).toBe(2);
+			expect(doc.querySelectorAll(".readlist-article .article-delete__fallback-form")).toHaveLength(0);
 			expect(doc.querySelector("[data-test-action='mark-read']")?.textContent).toBe("Mark as read");
 			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete from this readlist");
 		});

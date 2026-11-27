@@ -24,7 +24,7 @@ export function cleanWrapperTarget(params: { wrapperUrl: string; targetUrl: stri
 	return withNewSavePreparation(validateSaveableUrl)(unwrapWrapperUrl(stripRedirectAddedParams(params)).url);
 }
 
-export interface ResolveSaveIdentityDependencies {
+interface ResolveSaveIdentityDependencies {
 	validateUrl: ValidateSaveableUrl;
 	findIdentityRow: FindIdentityRow;
 	claimAlias: ClaimCanonicalAlias;

@@ -9,7 +9,7 @@ import type {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { type CspNonce, DISTRACTION_FREE_BODY_CLASS, type PageBody } from "@packages/web-shell";
-import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
+import { readerScripts } from "../../shared/reader-nav-script";
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../shared/article-body/table-of-contents/table-of-contents.component";
@@ -98,7 +98,6 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		readerPollUrl: input.readerPollUrl,
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
-		summaryOpen: false,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
@@ -131,10 +130,9 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		styles: RECRAWL_STYLES,
 		bodyClass: `page-admin-recrawl ${DISTRACTION_FREE_BODY_CLASS}`,
 		content: { html: content },
-		scripts: readerScripts({
-			navHide: NAV_HIDE_DISABLED,
-			page: triggerScript + TABLE_OF_CONTENTS_SCRIPT,
-		}),
+		scripts: readerScripts(
+			triggerScript + TABLE_OF_CONTENTS_SCRIPT,
+		),
 	};
 }
 

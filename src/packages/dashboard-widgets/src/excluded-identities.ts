@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import type { ExcludedIdentities } from "@packages/provider-contracts/logs-insights";
 import type { DeviceClass } from "@packages/web-analytics";
 import { z } from "zod";
@@ -17,26 +16,12 @@ const ExcludedIdentitiesSchema = z.object({
 	excludedUserIds: z.array(z.string().regex(USER_ID_SHAPE)),
 });
 
+export function validateExcludedIdentities(value: unknown): ExcludedIdentities {
+	return ExcludedIdentitiesSchema.parse(value);
+}
+
 export function parseExcludedIdentities(json: string): ExcludedIdentities {
-	return ExcludedIdentitiesSchema.parse(JSON.parse(json));
-}
-
-export function assertExcludedVisitorIds(visitorIds: readonly string[]): void {
-	for (const visitorId of visitorIds) {
-		assert(
-			VISITOR_ID_SHAPE.test(visitorId),
-			`excludedVisitorIds entries must be lowercase UUIDs (got: ${visitorId})`,
-		);
-	}
-}
-
-export function assertExcludedUserIds(userIds: readonly string[]): void {
-	for (const userId of userIds) {
-		assert(
-			USER_ID_SHAPE.test(userId),
-			`excludedUserIds entries must be 32-character lowercase hex (got: ${userId})`,
-		);
-	}
+	return validateExcludedIdentities(JSON.parse(json));
 }
 
 function absentOrNotInClause(field: string, values: readonly string[]): string[] {

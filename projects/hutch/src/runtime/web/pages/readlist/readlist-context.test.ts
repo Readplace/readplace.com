@@ -1,8 +1,7 @@
 import type { ReadlistFilter } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, DEFAULT_READLIST } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { initResolveReadlistContext, readlistToFileInto } from "./readlist-context";
-import { DEFAULT_READLIST } from "./readlist.nav";
 
 const WORK = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
 

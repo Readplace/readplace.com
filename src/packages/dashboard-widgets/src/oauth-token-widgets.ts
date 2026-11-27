@@ -1,8 +1,9 @@
 import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
+import { ANALYTICS_LOG_GROUP } from "./log-groups";
 import type { LogWidgetSpec } from "./log-widget-spec.types";
 
-export function oauthTokenWidgets(deps: { analyticsLogGroupName: string }) {
-	const analyticsSource = [deps.analyticsLogGroupName];
+export function oauthTokenWidgets() {
+	const analyticsSource = [ANALYTICS_LOG_GROUP];
 
 	return {
 		tokenGrants: {
@@ -15,7 +16,6 @@ export function oauthTokenWidgets(deps: { analyticsLogGroupName: string }) {
 				"| sort grants desc",
 				"| limit 40",
 			].join(" "),
-			x: 0, y: 210, width: 12, height: 8,
 			view: "table",
 		},
 		revocationsPerDay: {
@@ -26,7 +26,6 @@ export function oauthTokenWidgets(deps: { analyticsLogGroupName: string }) {
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.oauthTokenRevoked}"`,
 				"| stats count(*) as revocations by bin(1d), client_id, outcome",
 			].join(" "),
-			x: 12, y: 254, width: 12, height: 8,
 			view: "timeSeries",
 		},
 	} satisfies Record<string, LogWidgetSpec>;

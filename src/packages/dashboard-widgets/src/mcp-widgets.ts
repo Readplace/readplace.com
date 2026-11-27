@@ -1,13 +1,11 @@
 import { mcpOperationMetadata } from "@packages/domain/mcp";
 import { ANALYTICS_EVENTS, MCP_TOOL_OUTCOMES, STREAMS } from "@packages/web-analytics";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
+import { ANALYTICS_LOG_GROUP } from "./log-groups";
 import type { LogWidgetSpec } from "./log-widget-spec.types";
 
-export function mcpWidgets(deps: {
-	analyticsLogGroupName: string;
-	identities: ExcludedIdentities;
-}) {
-	const analyticsSource = [deps.analyticsLogGroupName];
+export function mcpWidgets(deps: { identities: ExcludedIdentities }) {
+	const analyticsSource = [ANALYTICS_LOG_GROUP];
 	const exclude = excludeNonAudienceClauses(deps.identities);
 
 	return {
@@ -22,7 +20,6 @@ export function mcpWidgets(deps: {
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 194, width: 12, height: 8,
 			view: "table",
 		},
 		toolCallsPerDay: {
@@ -34,7 +31,6 @@ export function mcpWidgets(deps: {
 				...exclude,
 				"| stats count(*) as calls by bin(1d), outcome",
 			].join(" "),
-			x: 12, y: 194, width: 12, height: 8,
 			view: "timeSeries",
 		},
 		calledButNeverSaved: {
@@ -48,7 +44,6 @@ export function mcpWidgets(deps: {
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 202, width: 12, height: 8,
 			view: "table",
 		},
 		transportRefusalsPerDay: {
@@ -59,7 +54,6 @@ export function mcpWidgets(deps: {
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpRequestRefused}"`,
 				"| stats count(*) as refusals by bin(1d), reason, ua_client",
 			].join(" "),
-			x: 0, y: 320, width: 12, height: 8,
 			view: "timeSeries",
 		},
 		handshakes: {
@@ -72,7 +66,6 @@ export function mcpWidgets(deps: {
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 320, width: 12, height: 8,
 			view: "table",
 		},
 	} satisfies Record<string, LogWidgetSpec>;

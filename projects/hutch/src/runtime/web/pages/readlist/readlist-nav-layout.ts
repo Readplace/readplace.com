@@ -1,19 +1,18 @@
 import { isBuiltInReadlist } from "./built-in-readlists";
 import assert from "node:assert";
-import { READLIST_PINNED_MAX, type ReadlistSlug } from "@packages/domain/readlist";
-import type { Readlist } from "./readlist.nav";
+import { READLIST_PINNED_MAX, type ReadlistSlug, type ReadlistRef } from "@packages/domain/readlist";
 
 export const READLIST_NAV_FULL_LIST_MAX = 7;
 
 export interface ReadlistNavLayout {
 	mode: "today" | "pinned-rail";
-	railEntries: readonly Readlist[];
-	moreEntries: readonly Readlist[];
+	railEntries: readonly ReadlistRef[];
+	moreEntries: readonly ReadlistRef[];
 	moreCount: number;
 }
 
 export function composeReadlistNav(input: {
-	readlists: readonly Readlist[];
+	readlists: readonly ReadlistRef[];
 	pinned: readonly ReadlistSlug[];
 	currentSlug: ReadlistSlug;
 }): ReadlistNavLayout {

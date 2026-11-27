@@ -1,35 +1,19 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { resolveWizardStep } from "./wizard";
 import { WIZARD_STYLES, type WizardRender, renderWizard } from "./wizard.component";
-import { defineWizardStep, type WizardHeading, type WizardSteps } from "./wizard.types";
+import type { WizardHeading, WizardStep } from "./wizard.types";
 
 interface SignupViewModel {
 	handle: string;
-	bio: string;
 }
 
-const step = defineWizardStep<SignupViewModel>();
-
-const HANDLE_STEP = step({
+const HANDLE_STEP: WizardStep<SignupViewModel> = {
 	id: "handle",
 	title: "What should we call you?",
 	description: "The name other readers see.",
-	viewModel: ["handle"],
 	template: ({ values, field }) =>
 		`<input name="handle" id="${field.idPrefix}-handle" aria-describedby="${field.errorId}"${field.invalid ? ' aria-invalid="true"' : ""}${field.autofocus ? " autofocus" : ""} value="${values.handle ?? ""}" data-test-field="handle">`,
-});
-
-const BIO_STEP = step({
-	id: "bio",
-	title: "Say something about yourself",
-	description: "A sentence or two.",
-	viewModel: ["bio"],
-	template: ({ values, field }) =>
-		`<input name="bio" id="${field.idPrefix}-bio" aria-describedby="${field.errorId}" value="${values.bio ?? ""}" data-test-field="bio">`,
-});
-
-const STEPS: WizardSteps<SignupViewModel> = [HANDLE_STEP, BIO_STEP];
+};
 
 const FAILURE = "Couldn't save your profile.";
 
@@ -41,11 +25,10 @@ function renderSurfaces(input: {
 	return renderWizard({
 		id: "signup-wizard",
 		key: "signup",
-		steps: STEPS,
+		step: HANDLE_STEP,
 		values: input.values,
 		action: "/signup/wizard?utm_source=signup",
 		cancelHref: "/signup?utm_source=signup",
-		submitLabel: "Save",
 		heading: input.heading ?? { kind: "step" },
 		failureMessage: FAILURE,
 		error: input.error,
@@ -70,26 +53,9 @@ function form(doc: Document, surface: "popover" | "inline"): Element {
 	return element;
 }
 
-describe("resolveWizardStep", () => {
-	it("asks for the earliest slice the reader has not answered yet", () => {
-		assert.equal(resolveWizardStep({ steps: STEPS, values: {} }).id, "handle");
-	});
-
-	it("moves on once an earlier step's slice is filled in", () => {
-		assert.equal(resolveWizardStep({ steps: STEPS, values: { handle: "ada" } }).id, "bio");
-	});
-
-	it("reopens at the first step when every slice is already answered", () => {
-		assert.equal(
-			resolveWizardStep({ steps: STEPS, values: { handle: "ada", bio: "Engineer." } }).id,
-			"handle",
-		);
-	});
-});
-
 describe("renderWizard", () => {
-	it("renders the resolved step into both surfaces at once", () => {
-		const doc = render({ handle: "ada", bio: "Engineer." });
+	it("renders the step into both surfaces at once", () => {
+		const doc = render({ handle: "ada" });
 
 		for (const surface of ["popover", "inline"] as const) {
 			expect(form(doc, surface).getAttribute("data-test-wizard-step")).toBe("handle");
@@ -99,11 +65,11 @@ describe("renderWizard", () => {
 
 	it("gives each surface its own field ids so the two copies never collide", () => {
 		const doc = render({ handle: "ada" });
-		const ids = Array.from(doc.querySelectorAll('[data-test-field="bio"]')).map((field) =>
+		const ids = Array.from(doc.querySelectorAll('[data-test-field="handle"]')).map((field) =>
 			field.getAttribute("id"),
 		);
 
-		expect(ids).toEqual(["signup-wizard-popover-bio", "signup-wizard-inline-bio"]);
+		expect(ids).toEqual(["signup-wizard-popover-handle", "signup-wizard-inline-handle"]);
 	});
 
 	it("points each field at the error paragraph of its own surface", () => {
@@ -186,11 +152,11 @@ describe("renderWizard", () => {
 		assert(panel, "the popover surface must render the shared confirmation frame");
 		assert(inline, "the inline surface must render its own titled section");
 
-		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe(BIO_STEP.title);
+		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe(HANDLE_STEP.title);
 		expect(panel.querySelectorAll(".confirm-popover__subheading")).toHaveLength(0);
-		expect(inline.querySelector(".wizard__title")?.textContent).toBe(BIO_STEP.title);
+		expect(inline.querySelector(".wizard__title")?.textContent).toBe(HANDLE_STEP.title);
 		expect(inline.querySelectorAll(".wizard__subheading")).toHaveLength(0);
-		expect(inline.querySelector(".wizard__description")?.textContent).toBe(BIO_STEP.description);
+		expect(inline.querySelector(".wizard__description")?.textContent).toBe(HANDLE_STEP.description);
 	});
 
 	it("titles the dialog with the task and asks the step's question under it, on both surfaces", () => {
@@ -202,14 +168,14 @@ describe("renderWizard", () => {
 
 		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Edit your profile");
 		expect(Array.from(panel.querySelectorAll(".confirm-popover__subheading"), (h) => h.textContent)).toEqual([
-			BIO_STEP.title,
+			HANDLE_STEP.title,
 		]);
-		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(BIO_STEP.description);
+		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(HANDLE_STEP.description);
 		expect(inline.querySelector(".wizard__title")?.textContent).toBe("Edit your profile");
 		expect(Array.from(inline.querySelectorAll(".wizard__subheading"), (h) => h.textContent)).toEqual([
-			BIO_STEP.title,
+			HANDLE_STEP.title,
 		]);
-		expect(inline.querySelector(".wizard__description")?.textContent).toBe(BIO_STEP.description);
+		expect(inline.querySelector(".wizard__description")?.textContent).toBe(HANDLE_STEP.description);
 	});
 
 	it("offers Cancel before Save on both surfaces, each in the neutral look", () => {

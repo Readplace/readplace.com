@@ -1,7 +1,6 @@
 import { ZodError } from "zod";
 import { noopLogger } from "@packages/logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
-import assert from "node:assert/strict";
 import { initLinkSummariser, MAX_SUMMARY_INPUT_CHARS } from "./link-summariser";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "./summary-stage.types";
@@ -461,7 +460,7 @@ describe("initLinkSummariser", () => {
 		expect(result.excerpt).toBe(`${"x".repeat(MAX_EXCERPT_LENGTH - 1)}…`);
 	});
 
-	it("sends the fitted summary input as the document's data", async () => {
+	it("sends the fitted summary input as the message content", async () => {
 		const createMessage = jest.fn<ReturnType<CreateAiMessage>, Parameters<CreateAiMessage>>(async () => ({
 			content: [{ type: "text", text: JSON.stringify({ summary: "A summary.", excerpt: "Blurb." }) }],
 			usage: { input_tokens: 50, output_tokens: 10 },
@@ -484,13 +483,10 @@ describe("initLinkSummariser", () => {
 
 		const [request] = createMessage.mock.calls[0];
 		const [message] = request.messages;
-		assert(Array.isArray(message.content));
-		const [document] = message.content;
-		assert(document.type === "document");
-		expect(document.source.data).toBe(`fitted <h2>Chapter</h2> within ${MAX_SUMMARY_INPUT_CHARS}`);
+		expect(message.content).toBe(`fitted <h2>Chapter</h2> within ${MAX_SUMMARY_INPUT_CHARS}`);
 	});
 
-	it("passes article content as a document block to createMessage", async () => {
+	it("passes article content as the user message to createMessage", async () => {
 		const createMessage = jest.fn().mockResolvedValue({
 			content: [{ type: "text", text: JSON.stringify({ summary: "A summary.", excerpt: "Blurb." }) }],
 			usage: { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 },
@@ -514,12 +510,7 @@ describe("initLinkSummariser", () => {
 			expect.objectContaining({
 				messages: [{
 					role: "user",
-					content: [{
-						type: "document",
-						source: { type: "text", media_type: "text/plain", data: "Some article content about prompt injection." },
-						title: "Article to summarize",
-						citations: { enabled: true },
-					}],
+					content: "Some article content about prompt injection.",
 				}],
 			}),
 		);

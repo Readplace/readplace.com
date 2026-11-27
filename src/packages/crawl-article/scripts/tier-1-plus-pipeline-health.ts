@@ -174,8 +174,8 @@ describe("Tier 1+ crawl pipeline health", () => {
 				await writeFile(REPORT_PATH, `${JSON.stringify(reports, null, 2)}\n`);
 				const summary = report.outcome === "deduplicated"
 					? `${report.label}: same original card confirmed.`
-					: "freshArchive" in report
-						? `${report.label}: fresh archive ${report.freshArchive}; ${report.outcome} ${report.selected.fresh ? "fresh" : "cached"} ${report.selected.kind} candidate (${report.saveAttemptId}).`
+					: "captureUrl" in report
+						? `${report.label}: ${report.outcome} ${report.selected.fresh ? "fresh" : "cached"} ${report.selected.kind} candidate (${report.saveAttemptId}).`
 						: `${report.label}: ${report.outcome} the uploaded capture by ${report.selectionRule} (${report.saveAttemptId}).`;
 				test.diagnostic(summary);
 				if (STEP_SUMMARY !== undefined) await appendFile(STEP_SUMMARY, `- ${summary}\n`);

@@ -37,3 +37,9 @@ export const CANARY_REPORTS_PATH = "/admin/canary-reports";
 export function canaryReportPath(key: CanaryReportKey): string {
 	return `${CANARY_REPORTS_PATH}/${key.canary}/${key.source}`;
 }
+
+export function countByName(names: readonly string[]): [string, number][] {
+	const counts = new Map<string, number>();
+	for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
+	return Array.from(counts).sort(([nameA, countA], [nameB, countB]) => countB - countA || (nameA < nameB ? -1 : 1));
+}

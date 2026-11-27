@@ -4,7 +4,7 @@ import type { FindArticleByUrl } from "@packages/provider-contracts/article-stor
 import type { RequestStaleCheck } from "@packages/provider-contracts/events";
 import type { ResolveSaveIdentity } from "./resolve-save-identity";
 
-export interface SubmitFreshnessDependencies {
+interface SubmitFreshnessDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	resolveSaveIdentity: ResolveSaveIdentity;

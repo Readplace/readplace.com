@@ -29,10 +29,6 @@ describe("capture watch query", () => {
 		expect(captureWatchQuery(NO_CAPTURE_WATCH)).toBe("");
 	});
 
-	it("reads a tab's legacy capturing flag as a tapped watch from revision zero", () => {
-		expect(parseCaptureWatch({ capturing: "1" })).toEqual({ kind: "watching", since: 0, trigger: "manual" });
-	});
-
 	it.each([
 		{ captureTrigger: undefined, label: "no trigger" },
 		{ captureTrigger: "auto", label: "an unknown trigger" },
@@ -52,7 +48,7 @@ describe("capture watch query", () => {
 		{ query: { captureSince: "-1" }, label: "a negative revision" },
 		{ query: { captureNotice: "2.5" }, label: "a fractional revision" },
 		{ query: { captureSince: ["1", "2"] }, label: "a repeated revision" },
-		{ query: { capturing: "true" }, label: "a legacy flag that is not 1" },
+		{ query: { capturing: "1" }, label: "the retired capturing flag" },
 	])("reads $label as no watch", ({ query }) => {
 		expect(parseCaptureWatch(query)).toEqual(NO_CAPTURE_WATCH);
 	});

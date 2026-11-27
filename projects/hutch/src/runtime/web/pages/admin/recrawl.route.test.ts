@@ -6,7 +6,8 @@ import request from "supertest";
 import { ANONYMOUS_VIEWER, MinutesSchema } from "@packages/domain/article";
 import { mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
 import type { UserId } from "@packages/domain/user";
-import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import { signInPassingAdminChallenge, useTestServer, type TestAppHarness } from "../../../test-app";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import {

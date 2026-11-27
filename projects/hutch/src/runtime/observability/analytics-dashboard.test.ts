@@ -25,7 +25,6 @@ import {
 import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
 import {
 	ANALYTICS_LOG_GROUP,
-	AUTH_DIAGNOSTICS_LOG_GROUP,
 	buildAdminDashboards,
 	CONVERSION_EVENTS,
 	type ExcludedIdentities,
@@ -80,7 +79,7 @@ function collectReferencedStreams(): Set<string> {
 
 function adminDashboardQueries(): string[] {
 	const identities: ExcludedIdentities = { excludedVisitorIds: [EXCLUDED_VISITOR_ID], excludedUserIds: [EXCLUDED_USER_ID] };
-	return Object.values(buildAdminDashboards({ analyticsLogGroupName: ANALYTICS_LOG_GROUP, authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP }))
+	return Object.values(buildAdminDashboards())
 		.flatMap((dashboard) => dashboard.widgets(identities))
 		.map((spec) => spec.query);
 }

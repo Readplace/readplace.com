@@ -72,13 +72,6 @@ export interface ArticleReaderDeps {
 	 * reader emits the OOB <title> fragment using whatever the caller decides.
 	 */
 	formatDocumentTitle: (articleTitle: string) => string;
-	/**
-	 * Whether the TL;DR <details> renders expanded on poll responses. Required
-	 * (not optional) so every reader makes the choice explicit: the internal
-	 * /queue and admin readers default collapsed — an expand is then a
-	 * deliberate, measurable act — while the public /view reader stays open.
-	 */
-	summaryOpen: boolean;
 	requestResolutionOnView: RequestResolutionOnView | undefined;
 }
 

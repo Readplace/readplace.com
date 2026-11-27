@@ -9,7 +9,7 @@ import {
 } from "../../../shared/article-body/article-header/provenance-label";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
 import { renderCrawlEstimate } from "../../../shared/crawl-estimate/crawl-estimate.component";
-import { renderDeleteMenuItems } from "./delete-confirm.component";
+import { articleMenuToggleId, articleTitleId, renderDeleteMenuItems } from "./delete-confirm.component";
 import { renderMoveMenuItems } from "./move-dialog.component";
 import { staleNoticeHtml } from "./stale-notice";
 
@@ -19,7 +19,7 @@ interface DesignCardAction extends ArticleAction {
 	fallbackClass: string;
 	disabled: boolean;
 	loaderHtml: string;
-	buttonId?: string;
+	buttonId: string;
 }
 
 interface DesignCardTrigger {
@@ -52,6 +52,8 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	statusTriggers: DesignCardTrigger[];
 	moveMenuHtml: string;
 	deleteMenuHtml: string;
+	titleId: string;
+	menuToggleId: string;
 	uploadAgainUrl: string;
 	staleNoticeHtml: string;
 }
@@ -150,6 +152,8 @@ export function toReadlistCardDisplayModel(
 		statusTriggers: article.actions.flatMap(toTrigger),
 		moveMenuHtml: article.move === undefined ? "" : renderMoveMenuItems({ move: article.move }),
 		deleteMenuHtml: renderDeleteMenuItems({ deletion: article.deletion, surface: "queue-card" }),
+		titleId: articleTitleId(article.id),
+		menuToggleId: articleMenuToggleId(article.id),
 		uploadAgainUrl: withInternalTracking("/upload", { source: "queue-card", content: "failed-card" }),
 		staleNoticeHtml: article.isStalePending
 			? staleNoticeHtml({

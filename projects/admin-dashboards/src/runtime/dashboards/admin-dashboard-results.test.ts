@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { buildAdminDashboards } from "@packages/dashboard-widgets";
 import { type DashboardWidgetResult, initAdminDashboardResults } from "./admin-dashboard-results";
 
-const [spec] = buildAdminDashboards({
-	analyticsLogGroupName: "/readplace/analytics",
-	authDiagnosticsLogGroupName: "/readplace/auth-diagnostics",
-}).mcp.widgets({ excludedVisitorIds: [], excludedUserIds: [] });
+const [spec] = buildAdminDashboards().mcp.widgets({ excludedVisitorIds: [], excludedUserIds: [] });
 
 function resultsWith(value: string): readonly DashboardWidgetResult[] {
 	return [{ spec, rows: [[{ field: "calls", value }]] }];

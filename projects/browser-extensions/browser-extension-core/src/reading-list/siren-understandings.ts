@@ -21,6 +21,7 @@ import {
 	assertMutationOk,
 	readPageList,
 	readTotal,
+	readReadlist,
 	readSortList,
 } from "./siren-wire";
 import type {
@@ -86,7 +87,7 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			}
 			const body = await readSirenBody(response);
 			const item = context.resolveItem(SirenSubEntitySchema.parse(body));
-			return { items: [item], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: readMessages(body) };
+			return { items: [item], actions: {}, descriptors: {}, pages: [], total: undefined, readlist: undefined, sorts: [], followPage: followPageWith(context), messages: readMessages(body) };
 		};
 	});
 	return handlers;
@@ -147,10 +148,10 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 			if (!response.ok) {
 				const limitMessage = readDailySaveLimitMessage(await response.json().catch(() => null));
 				assert(limitMessage !== undefined, `Bulk save failed: ${response.status}`);
-				return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: allRefusedForTheDay({ manifest, message: limitMessage }) };
+				return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, readlist: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: allRefusedForTheDay({ manifest, message: limitMessage }) };
 			}
 			const body = SaveArticlesResultSchema.parse(await readSirenBody(response));
-			return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
+			return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, readlist: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -190,7 +191,7 @@ async function followSaveFallback(args: {
 		await readSirenBody(fallbackResponse),
 	);
 	const fallbackItem = context.resolveItem(fallbackResponseBody);
-	return { items: [fallbackItem], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [] };
+	return { items: [fallbackItem], actions: {}, descriptors: {}, pages: [], total: undefined, readlist: undefined, sorts: [], followPage: followPageWith(context), messages: [] };
 }
 
 export function initSaveContentUnderstanding(deps: {
@@ -228,7 +229,7 @@ export function initSaveContentUnderstanding(deps: {
 			}
 			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: readMessages(responseBody) };
+			return { items: [item], actions: {}, descriptors: {}, pages: [], total: undefined, readlist: undefined, sorts: [], followPage: followPageWith(context), messages: readMessages(responseBody) };
 		};
 	});
 	return handlers;
@@ -307,6 +308,7 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 					descriptors: {},
 					pages: [],
 					total: undefined,
+					readlist: undefined,
 					sorts: [],
 					followPage: followPageWith(context),
 					messages: [],
@@ -321,6 +323,7 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 				 * filter, because the server built the href. */
 				pages: readPageList({ body, base: context.serverUrl }),
 				total: readTotal(body),
+				readlist: readReadlist(body),
 				sorts: readSortList({ body, base: context.serverUrl }),
 				followPage: followPageWith(context),
 				messages: [],

@@ -103,6 +103,7 @@ const DELETE_ARTICLE_POPOVER = '[data-test-confirm-popover="delete"]';
 const OPEN_DELETE_ARTICLE_POPOVER = `${DELETE_ARTICLE_POPOVER}:popover-open`;
 const DELETE_ARTICLE_NEVER = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm-never"]`;
 const DELETE_ARTICLE_CONFIRM = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-confirm"]`;
+const DELETE_ARTICLE_CANCEL = `${OPEN_DELETE_ARTICLE_POPOVER} [data-test-action="delete-cancel"]`;
 const OPEN_MOVE_ARTICLE_POPOVER = '[data-test-confirm-popover="move"]:popover-open';
 const MOVE_ARTICLE_FORM = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-form="readlist-move"]`;
 const MOVE_ARTICLE_DESTINATION = `${OPEN_MOVE_ARTICLE_POPOVER} [data-test-move-destination]`;
@@ -712,13 +713,18 @@ async function deleteArticleDialogGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const panel = await measuredBox(page, OPEN_DELETE_ARTICLE_POPOVER);
 	const never = await measuredBox(page, DELETE_ARTICLE_NEVER);
+	const cancel = await measuredBox(page, DELETE_ARTICLE_CANCEL);
 	const commit = await measuredBox(page, DELETE_ARTICLE_CONFIRM);
 	assert.ok(near({ actual: panel.width, expected: 600 }));
-	assert.ok(near({ actual: never.y, expected: commit.y }));
-	assert.ok(near({ actual: commit.x, expected: never.x + never.width + 8 }));
-	const leftSlack = never.x - panel.x;
-	const rightSlack = panel.x + panel.width - (commit.x + commit.width);
-	assert.ok(near({ actual: leftSlack, expected: rightSlack }));
+	assert.ok(near({ actual: never.y, expected: cancel.y }));
+	assert.ok(near({ actual: cancel.x, expected: never.x + never.width + 8 }));
+	// Three labels overflow the row, so the commit wraps above the other two.
+	assert.ok(near({ actual: never.y, expected: commit.y + commit.height + 8 }));
+	for (const row of [{ left: never, right: cancel }, { left: commit, right: commit }]) {
+		const leftSlack = row.left.x - panel.x;
+		const rightSlack = panel.x + panel.width - (row.right.x + row.right.width);
+		assert.ok(near({ actual: leftSlack, expected: rightSlack }));
+	}
 }
 
 async function stackedDialogButtons(
@@ -746,7 +752,10 @@ async function createDialogPhoneGeometry(page: Page): Promise<void> {
 }
 
 async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
-	await stackedDialogButtons(page, { panelSelector: OPEN_DELETE_ARTICLE_POPOVER, dismissSelector: DELETE_ARTICLE_NEVER, commitSelector: DELETE_ARTICLE_CONFIRM });
+	await stackedDialogButtons(page, { panelSelector: OPEN_DELETE_ARTICLE_POPOVER, dismissSelector: DELETE_ARTICLE_CANCEL, commitSelector: DELETE_ARTICLE_CONFIRM });
+	const cancel = await measuredBox(page, DELETE_ARTICLE_CANCEL);
+	const never = await measuredBox(page, DELETE_ARTICLE_NEVER);
+	assert.ok(near({ actual: never.y, expected: cancel.y + cancel.height + 8 }));
 }
 
 function moveArticleDialogGeometry(input: { rows: number }): (page: Page) => Promise<void> {

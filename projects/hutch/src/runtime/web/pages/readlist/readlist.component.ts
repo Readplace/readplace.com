@@ -30,7 +30,7 @@ import { buildExtensionInstallUrl, type PitchablePlatform } from "../../onboardi
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import { UPLOAD_DROPZONE_SCRIPT, UPLOAD_DROPZONE_STYLES } from "../../shared/upload-dropzone/upload-dropzone.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
-import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
+import { renderDeletionDecisions } from "./readlist-card/delete-confirm.component";
 import { renderMoveDialogs } from "./readlist-card/move-dialog.component";
 import { renderReadlistDeleteConfirm } from "./readlist-delete-confirm.component";
 import { sortLabel } from "./readlist-sort";
@@ -54,7 +54,7 @@ import {
 import { NO_ADD_LINK, renderReadlistAddLink, renderReadlistSaveFeedback } from "./readlist-add-link.component";
 import { READER_PAGE_SCRIPTS, renderReaderSkeleton } from "./reader-skeleton/reader-skeleton.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { DEFAULT_READLIST } from "./readlist.nav";
+import { DEFAULT_READLIST } from "@packages/domain/readlist";
 import { type TabId, tabLabel, tabQuery } from "./readlist.tabs";
 import {
 	type ReadlistDiscovery,
@@ -658,17 +658,13 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		deleteConfirmsHtml: articles
-			.flatMap((article) =>
-				article.deletion.confirm === undefined
-					? []
-					: [
-							renderDeleteConfirm({
-								confirm: article.deletion.confirm,
-								surface: "queue-card",
-								title: article.title,
-								illustrationHtml: renderIllustration("trash-can"),
-							}),
-						],
+			.map((article) =>
+				renderDeletionDecisions({
+					deletion: article.deletion,
+					surface: "queue-card",
+					title: article.title,
+					illustrationHtml: renderIllustration("trash-can"),
+				}),
 			)
 			.join("\n"),
 		moveDialogsHtml: articles

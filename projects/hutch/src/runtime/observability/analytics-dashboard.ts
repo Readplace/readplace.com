@@ -142,7 +142,9 @@ function readerSaveSurfaceClause(): string {
 	return `(surface in [${list}] or not ispresent(surface))`;
 }
 
-function logWidget(params: LogWidgetSpec & { region: string }): DashboardWidget {
+function logWidget(
+	params: LogWidgetSpec & { x: number; y: number; width: number; height: number; region: string },
+): DashboardWidget {
 	return {
 		type: "log",
 		x: params.x,

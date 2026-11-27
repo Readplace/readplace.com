@@ -156,11 +156,14 @@ describe("search", () => {
 });
 
 describe("count and sort", () => {
-	it("holds the server's count and the sort toggle in one row, hidden until a listing names them", () => {
+	it("holds the readlist's name, the server's count and the sort toggle in one row, hidden until a listing names them", () => {
 		expect(template).toContain(
 			[
 				'      <div id="list-header" class="list-view__list-header" hidden>',
-				'        <p class="list-view__count" data-test-list-count></p>',
+				'        <div class="list-view__heading">',
+				'          <p class="list-view__readlist" data-test-list-readlist hidden></p>',
+				'          <p class="list-view__count" data-test-list-count></p>',
+				"        </div>",
 				'        <button id="sort-button" class="list-view__sort" type="button" hidden></button>',
 				"      </div>",
 			].join("\n"),

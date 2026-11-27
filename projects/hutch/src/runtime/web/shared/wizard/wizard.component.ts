@@ -2,8 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, renderConfirmPopover, renderInFlightDots } from "@packages/web-shell";
 
-import { resolveWizardStep } from "./wizard";
-import type { WizardHeading, WizardSteps, WizardSurface } from "./wizard.types";
+import type { WizardHeading, WizardStep, WizardSurface } from "./wizard.types";
 
 export { WIZARD_STYLES } from "./wizard.styles";
 
@@ -58,16 +57,15 @@ export interface WizardRender {
 export function renderWizard<VM extends object>(input: {
 	id: string;
 	key: string;
-	steps: WizardSteps<VM>;
+	step: WizardStep<VM>;
 	values: Partial<VM>;
 	action: string;
 	cancelHref: string;
-	submitLabel: string;
 	heading: WizardHeading;
 	failureMessage: string;
 	error?: string;
 }): WizardRender {
-	const step = resolveWizardStep({ steps: input.steps, values: input.values });
+	const { step } = input;
 	const invalid = input.error !== undefined;
 	const { title, subheading } = titlesFor(input.heading, step.title);
 
@@ -87,7 +85,6 @@ export function renderWizard<VM extends object>(input: {
 			cancelHref: input.cancelHref,
 			cancelTestAction: `${input.key}-cancel${suffix}`,
 			saveTestAction: `${input.key}-save${suffix}`,
-			submitLabel: input.submitLabel,
 			errorId,
 			error: input.error,
 			loaderHtml: LOADER_HTML,

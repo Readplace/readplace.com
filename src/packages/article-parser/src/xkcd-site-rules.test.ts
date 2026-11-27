@@ -28,7 +28,7 @@ describe("numbered xkcd comic", () => {
 	it("retains the original panel, both image densities, visible hover text, attribution and license", () => {
 		const unavailable = () => { throw new Error("Already fetched"); };
 		const { siteRules } = initArticleSiteRules({ crawlFetch: unavailable, logError: unavailable });
-		const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: unavailable, siteRules, readabilityAdditions, logError: unavailable });
+		const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules, readabilityAdditions, logError: unavailable });
 
 		const result = parseHtml({ url, documentUrl: url, html: source(), thumbnailUrl: null });
 

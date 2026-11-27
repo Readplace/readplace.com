@@ -7,16 +7,29 @@ import { loginAgent, useTestServer } from "../../../test-app";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { HOME_READLIST_HEADER, NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
-import { READER_HOME_HREF } from "./built-in-readlists";
+import { HAND_PICKED_HREF } from "./built-in-readlists";
 
 const useApp = useTestServer();
+const ASKING_ACTION_NAMES = [
+	"save-article",
+	"save-articles",
+	"save-content",
+	"stage-upload",
+	"search",
+	"lookup-article",
+	"find-articles",
+	"create-session",
+	"create-browser-handoff",
+	"report-age-range",
+	"create-readlist",
+];
 
 function view(html: string) {
 	return new JSDOM(html).window.document;
 }
 
 describe("Home readlist", () => {
-	it("returns to the same web view and publishes the new home only to supported native clients", async () => {
+	it("returns to the same web view, publishes the chosen home to any client that asks and offers set-home only to native apps", async () => {
 		const app = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app.server, app.auth);
 		const created = await agent.post("/queue/queues").type("form").send({ label: "Weekend" });
@@ -49,8 +62,11 @@ describe("Home readlist", () => {
 			expect(followed.body.properties.readlists).toContainEqual(expect.objectContaining({ label: "Weekend", rel: "current" }));
 			expect(followed.body.actions).not.toContainEqual(expect.objectContaining({ name: "set-home-readlist" }));
 		}
+		const asking = await siren("/queue").set(HOME_READLIST_HEADER, "1");
+		expect(asking.body.links).toContainEqual({ rel: ["home"], href: `/queue?readlist=${slug}` });
+		expect(asking.body.actions.map(({ name }: { name: string }) => name)).toEqual(ASKING_ACTION_NAMES);
 		const extension = await siren("/queue");
-		expect(extension.body.links).toContainEqual({ rel: ["home"], href: READER_HOME_HREF });
+		expect(extension.body.links).toContainEqual({ rel: ["home"], href: HAND_PICKED_HREF });
 		expect(extension.body.properties.readlists[0]).toMatchObject({ label: "All", rel: "current" });
 
 		const allForm = view((await agent.get(`/queue?queue=${slug}`)).text)
@@ -71,6 +87,31 @@ describe("Home readlist", () => {
 		const nativeAfterReset = await siren("/queue").set(NATIVE_CLIENT_HEADER, "ios").set(HOME_READLIST_HEADER, "1");
 		expect(nativeAfterReset.body.links).toContainEqual({ rel: ["root", "home"], href: "/queue" });
 		expect(nativeAfterReset.body.actions).not.toContainEqual(expect.objectContaining({ name: "set-home-readlist" }));
+	});
+
+	it("opens the chosen home at the home entry address and Hand Picked when none is chosen", async () => {
+		const app = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app.server, app.auth);
+		const current = async (path: string) => view((await agent.get(path)).text)
+			.querySelector('[data-test-readlist][aria-current="page"]')?.getAttribute("data-test-readlist");
+
+		const root = await agent.get("/");
+		expect(root.status).toBe(303);
+		expect(root.headers.location).toBe("/queue?scope=home");
+		expect(await current("/queue?scope=home")).toBe("~hand-picked");
+
+		const created = await agent.post("/queue/queues").type("form").send({ label: "Weekend" });
+		const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+		assert(slug);
+		expect(await current(`/queue?scope=home&queue=${slug}`)).toBe(slug);
+		expect(await current(`/queue?scope=home&readlist=${slug}`)).toBe(slug);
+		const form = view((await agent.get("/queue")).text)
+			.querySelector<HTMLFormElement>(`[data-test-readlist-menu="${slug}"] form:has([data-test-action="readlist-set-home"])`);
+		assert(form);
+		await agent.post(form.getAttribute("action") ?? "").type("form").send({ returnTo: "/queue" });
+
+		expect(await current("/queue?scope=home")).toBe(slug);
+		expect(await current(HAND_PICKED_HREF)).toBe("~hand-picked");
 	});
 
 	it("offers the action in More and the phone switcher, and keeps the marker after a rejected POST", async () => {

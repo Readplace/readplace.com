@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import dns from "node:dns";
 import http2 from "node:http2";
 import net, { type AddressInfo } from "node:net";
-import { fetchH2 } from "./h2-fetch";
+import { initFetchH2 } from "./h2-fetch";
+
+const fetchH2 = initFetchH2({ lookup: dns.lookup, assertHostAllowed: () => {} });
 
 type StreamHandler = (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => void;
 

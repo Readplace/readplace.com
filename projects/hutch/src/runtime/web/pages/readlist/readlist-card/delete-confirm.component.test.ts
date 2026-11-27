@@ -2,16 +2,20 @@ import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import {
 	DELETE_ACK_NEVER,
+	READER_MENU_TOGGLE_ID,
 	buildArticleDeletion,
 	deleteConfirmPopoverId,
 	renderDeleteConfirm,
+	renderDeleteFallback,
 	renderDeleteMenuItems,
+	renderDeletionDecisions,
+	renderRetiredDeletionDecisionsOob,
 } from "./delete-confirm.component";
 
 function panelFor(url: string, title = "A Saved Article") {
 	const { document } = parseHTML(
 		`<div>${renderDeleteConfirm({
-			confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url },
+			confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", fallbackId: "confirm-remove-abc123", url },
 			surface: "queue-card",
 			title,
 		})}</div>`,
@@ -57,38 +61,76 @@ describe("renderDeleteConfirm", () => {
 		expect(panel.getAttribute("id")).toBe("readlist-delete-confirm-abc123");
 	});
 
-	it("names the article for a screen reader without repeating it on screen", () => {
+	it("names the article on screen once, as part of what the panel describes", () => {
 		const doc = panelFor("/queue/abc123/delete", "The Pragmatic Programmer");
 
-		const lead = doc.getElementById("readlist-delete-confirm-abc123-lead");
-		assert(lead, "the panel must name the article it is about");
-		expect(lead.textContent).toBe("Article: The Pragmatic Programmer");
-		expect(lead.className).toBe("sr-only");
+		const panel = doc.querySelector("[data-test-confirm-popover='delete']");
+		const subheading = doc.getElementById("readlist-delete-confirm-abc123-subheading");
+		assert(panel, "a delete panel must be rendered");
+		assert(subheading, "the panel must name the article it is about");
+		expect(subheading.textContent).toBe("The Pragmatic Programmer");
+		expect(subheading.getAttribute("data-text-from")).toBe("readlist-title-abc123");
+		expect(doc.querySelectorAll(".sr-only")).toHaveLength(0);
+		expect(panel.getAttribute("aria-describedby")).toBe(
+			"readlist-delete-confirm-abc123-subheading readlist-delete-confirm-abc123-body",
+		);
+		expect(doc.querySelector(".confirm-popover__title")?.textContent).toBe("Remove this article from this readlist?");
 	});
 
-	it("offers both a plain deletion and one that also silences the panel", () => {
+	it("escapes an article title holding HTML punctuation and keeps it as text", () => {
+		const title = `Tags like <b> & "quotes" aren't markup`;
+		const doc = panelFor("/queue/abc123/delete", title);
+
+		expect(doc.querySelectorAll(".confirm-popover b")).toHaveLength(0);
+		expect(doc.getElementById("readlist-delete-confirm-abc123-subheading")?.textContent).toBe(title);
+	});
+
+	it("offers Cancel, a plain deletion and one that also skips future questions", () => {
 		const doc = panelFor("/queue/abc123/delete");
 
+		const cancel = doc.querySelector("[data-test-action='delete-cancel']");
 		const confirm = doc.querySelector("[data-test-action='delete-confirm']");
 		const never = doc.querySelector("[data-test-action='delete-confirm-never']");
+		assert(cancel, "Cancel must be rendered");
 		assert(confirm, "the plain confirmation must be rendered");
-		assert(never, "the silencing confirmation must be rendered");
+		assert(never, "the skipping confirmation must be rendered");
+		expect(cancel.textContent).toBe("Cancel");
 		expect(confirm.textContent).toBe("Delete from this readlist");
-		expect(never.textContent).toBe("Delete and don't ask again");
-		expect([...doc.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual(["delete-confirm-never", "delete-confirm"]);
+		expect(never.textContent).toBe("Delete and skip future confirmations");
+		expect([...doc.querySelectorAll(".confirm-popover__buttons button")].map((button) => button.getAttribute("data-test-action"))).toEqual([
+			"delete-confirm-never",
+			"delete-cancel",
+			"delete-confirm",
+		]);
+		expect(cancel.getAttribute("type")).toBe("button");
+		expect(cancel.getAttribute("popovertarget")).toBe("readlist-delete-confirm-abc123");
+		expect(cancel.getAttribute("popovertargetaction")).toBe("hide");
+		expect(cancel.classList.contains("btn--neutral")).toBe(true);
 		expect(confirm.classList.contains("btn--primary")).toBe(true);
-		expect(never.classList.contains("btn--neutral")).toBe(true);
-		// Both submit the same form, so the second deletes as well as remembering.
-		expect(confirm.closest("form")).toBe(never.closest("form"));
 		expect(confirm.hasAttribute("name")).toBe(false);
 		expect(never.getAttribute("name")).toBe("ack");
 		expect(never.getAttribute("value")).toBe(DELETE_ACK_NEVER);
 	});
 
-	it("explains that the article can be saved again", () => {
+	it("describes the skipping deletion by its consequence, on that control alone", () => {
+		const doc = panelFor("/queue/abc123/delete");
+
+		const never = doc.querySelector("[data-test-action='delete-confirm-never']");
+		assert(never, "the skipping confirmation must be rendered");
+		const helpId = never.getAttribute("aria-describedby");
+		expect(helpId).toBe("readlist-delete-confirm-abc123-never-help");
+		expect(doc.getElementById(helpId ?? "")?.textContent).toBe(
+			"This also skips the question when you delete other articles from a readlist or the reader.",
+		);
+		expect(doc.querySelectorAll("[aria-describedby='readlist-delete-confirm-abc123-never-help']")).toHaveLength(1);
+	});
+
+	it("warns that the last saved copy's highlights and notes go for good", () => {
 		const body = panelFor("/queue/abc123/delete").querySelector(".confirm-popover__body");
 		assert(body, "the delete panel must explain the outcome");
-		expect(body.textContent).toBe("This article will be removed from this readlist. You can save it again later.");
+		expect(body.textContent).toBe(
+			"Removing your last saved copy can permanently delete its highlights and notes. Saving the article again won't restore them.",
+		);
 	});
 
 	it("boosts the confirmation so deleting re-renders the listing in place", () => {
@@ -103,7 +145,7 @@ describe("renderDeleteConfirm", () => {
 	it("illustrates the panel when the caller supplies artwork", () => {
 		const { document } = parseHTML(
 			`<div>${renderDeleteConfirm({
-				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete" },
+				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", fallbackId: "confirm-remove-abc123", url: "/queue/abc123/delete" },
 				surface: "queue-card",
 				title: "A Saved Article",
 				illustrationHtml: "<svg data-test-trash-illustration></svg>",
@@ -132,8 +174,11 @@ function focusTargets(scope: ParentNode): (string | null)[] {
 }
 
 describe("renderDeleteConfirm opening focus", () => {
-	it("opens on Delete from this readlist, so Enter confirms and the never-ask submit stays a deliberate choice", () => {
-		expect(focusTargets(panelFor("/queue/abc123/delete"))).toEqual(["delete-confirm"]);
+	it("opens on Cancel, so a second Enter leaves the article where it was", () => {
+		const doc = panelFor("/queue/abc123/delete");
+
+		expect(focusTargets(doc)).toEqual(["delete-cancel"]);
+		expect(doc.querySelector("[popover][autofocus]")).toBeNull();
 	});
 });
 
@@ -144,7 +189,7 @@ describe("buildArticleDeletion", () => {
 		expect(deletion).toEqual({
 			articleId: "abc123",
 			url: "/queue/abc123/delete?tab=done",
-			confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete?tab=done" },
+			confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", fallbackId: "confirm-remove-abc123", url: "/queue/abc123/delete?tab=done" },
 		});
 	});
 
@@ -173,7 +218,7 @@ describe("renderDeleteMenuItems", () => {
 		expect(renderDeleteMenuItems({ deletion, surface: "reader" })).toContain("Remove from Hand Picked");
 	});
 
-	it("opens the confirmation and keeps a plain-post fallback while the reader is still asked", () => {
+	it("opens the confirmation, or the in-page question by fragment, while the reader is still asked", () => {
 		const doc = itemsFor({
 			deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
 			surface: "queue-card",
@@ -182,13 +227,16 @@ describe("renderDeleteMenuItems", () => {
 		const trigger = doc.querySelector("[data-test-action='delete']");
 		const fallback = doc.querySelector("[data-test-action='delete-fallback']");
 		assert(trigger, "the confirmation trigger must be rendered");
-		assert(fallback, "the plain-post fallback must be rendered");
+		assert(fallback, "the in-page fallback link must be rendered");
 		expect(trigger.textContent).toBe("Delete from this readlist");
 		expect(fallback.textContent).toBe("Delete from this readlist");
 		expect(trigger.getAttribute("type")).toBe("button");
 		expect(trigger.getAttribute("popovertarget")).toBe("readlist-delete-confirm-abc123");
-		expect(fallback.getAttribute("type")).toBe("submit");
-		expect(fallback.closest("form")?.classList.contains("article-delete__form--fallback")).toBe(true);
+		expect(fallback.tagName).toBe("A");
+		expect(fallback.getAttribute("href")).toBe("#confirm-remove-abc123");
+		expect(fallback.getAttribute("hx-boost")).toBe("false");
+		expect(doc.querySelectorAll("form")).toHaveLength(0);
+		expect(doc.querySelectorAll("button[type='submit']")).toHaveLength(0);
 	});
 
 	it("submits straight away once the reader silenced the confirmation", () => {
@@ -244,7 +292,7 @@ describe("renderDeleteConfirm on the reader", () => {
 	it("credits the confirmed deletion to the reader and lands at the top of the readlist", () => {
 		const { document } = parseHTML(
 			`<div>${renderDeleteConfirm({
-				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete" },
+				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", fallbackId: "confirm-remove-abc123", url: "/queue/abc123/delete" },
 				surface: "reader",
 				title: "A Saved Article",
 			})}</div>`,
@@ -256,5 +304,125 @@ describe("renderDeleteConfirm on the reader", () => {
 			"reader",
 		);
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:window:top");
+	});
+});
+
+describe("renderDeleteFallback", () => {
+	const confirm = {
+		articleId: "1a2b",
+		popoverId: "readlist-delete-confirm-1a2b",
+		fallbackId: "confirm-remove-1a2b",
+		url: "/queue/1a2b/delete?queue=work",
+	};
+
+	function fallbackOn(surface: "queue-card" | "reader", title = "Second of Two Similar Titles") {
+		return parseHTML(`<div>${renderDeleteFallback({ confirm, surface, title })}</div>`).document;
+	}
+
+	it("asks the same question in a labelled section the menu reaches by fragment", () => {
+		const doc = fallbackOn("queue-card");
+
+		const section = doc.querySelector("section");
+		assert(section, "the fallback must be a section");
+		expect(section.id).toBe("confirm-remove-1a2b");
+		expect(section.getAttribute("tabindex")).toBe("-1");
+		expect(doc.getElementById(section.getAttribute("aria-labelledby") ?? "")?.textContent).toBe(
+			"Remove this article from this readlist?",
+		);
+		expect(
+			(section.getAttribute("aria-describedby") ?? "").split(" ").map((id) => doc.getElementById(id)?.textContent),
+		).toEqual([
+			"Second of Two Similar Titles",
+			"Removing your last saved copy can permanently delete its highlights and notes. Saving the article again won't restore them.",
+		]);
+		expect(doc.querySelectorAll("[autofocus]")).toHaveLength(0);
+	});
+
+	it("reaches Cancel first, a fragment link back to the card's menu toggle that never submits", () => {
+		const doc = fallbackOn("queue-card");
+
+		const controls = [...doc.querySelectorAll("a, button")].map((control) => control.getAttribute("data-test-action"));
+		expect(controls).toEqual(["delete-fallback-cancel", "delete-fallback-confirm", "delete-fallback-never"]);
+		const cancel = doc.querySelector("[data-test-action='delete-fallback-cancel']");
+		assert(cancel, "Cancel must be rendered");
+		expect(cancel.getAttribute("href")).toBe("#article-menu-1a2b");
+		expect(cancel.getAttribute("hx-boost")).toBe("false");
+		expect(cancel.textContent).toBe("Cancel");
+	});
+
+	it("returns the reader's Cancel to the reader's menu toggle and mirrors the reader's heading", () => {
+		const doc = fallbackOn("reader");
+
+		expect(doc.querySelector("[data-test-action='delete-fallback-cancel']")?.getAttribute("href")).toBe(
+			`#${READER_MENU_TOGGLE_ID}`,
+		);
+		expect(doc.getElementById("confirm-remove-1a2b-subject")?.getAttribute("data-text-from")).toBe("reader-article-title");
+	});
+
+	it("posts both explicit choices through the existing tracked deletion, and only one skips future questions", () => {
+		const doc = fallbackOn("reader");
+
+		const form = doc.querySelector("form");
+		assert(form, "the fallback must post through a form");
+		const action = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");
+		expect([action.pathname, action.searchParams.get("queue"), action.searchParams.get("utm_source")]).toEqual([
+			"/queue/1a2b/delete",
+			"work",
+			"reader",
+		]);
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:window:top");
+		const never = doc.querySelector("[data-test-action='delete-fallback-never']");
+		const plain = doc.querySelector("[data-test-action='delete-fallback-confirm']");
+		assert(never && plain, "both submitters must be rendered");
+		expect(plain.hasAttribute("name")).toBe(false);
+		expect([never.getAttribute("name"), never.getAttribute("value")]).toEqual(["ack", DELETE_ACK_NEVER]);
+		expect(doc.getElementById(never.getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+			"This also skips the question when you delete other articles from a readlist or the reader.",
+		);
+	});
+
+	it("escapes the title", () => {
+		const doc = fallbackOn("queue-card", "<img src=x> & co");
+
+		expect(doc.querySelectorAll("section img")).toHaveLength(0);
+		expect(doc.getElementById("confirm-remove-1a2b-subject")?.textContent).toBe("<img src=x> & co");
+	});
+});
+
+describe("renderDeletionDecisions", () => {
+	function decisionsFor(acknowledged: boolean) {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged });
+		return parseHTML(
+			`<main>${renderDeletionDecisions({ deletion, surface: "queue-card", title: "A Saved Article" })}</main>`,
+		).document;
+	}
+
+	it("keeps one popover and one in-page question per article, with ids no other article shares", () => {
+		const doc = decisionsFor(false);
+
+		const container = doc.getElementById("readlist-delete-decisions-abc123");
+		assert(container, "the article's decisions must sit in their container");
+		expect(container.querySelectorAll("[popover]")).toHaveLength(1);
+		expect(container.querySelectorAll("section")).toHaveLength(1);
+		const ids = [...doc.querySelectorAll("[id]")].map((node) => node.id);
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(doc.querySelectorAll("form form")).toHaveLength(0);
+	});
+
+	it("still renders the empty container once the reader skips the question, so a later response can address it", () => {
+		const doc = decisionsFor(true);
+
+		const container = doc.getElementById("readlist-delete-decisions-abc123");
+		assert(container, "the container must be rendered");
+		expect(container.innerHTML).toBe("");
+	});
+
+	it("retires an article's decisions out of band by emptying its container", () => {
+		const doc = parseHTML(`<div>${renderRetiredDeletionDecisionsOob("abc123")}</div>`).document;
+
+		const container = doc.getElementById("readlist-delete-decisions-abc123");
+		assert(container, "the retirement must address the container");
+		expect(container.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(container.innerHTML).toBe("");
 	});
 });

@@ -1,10 +1,11 @@
 import assert from "node:assert";
 import {
+	type CancellationReason,
 	type DynamoDBDocumentClient,
-	TransactWriteCommand,
-	TransactionCanceledException,
+	type TransactWriteCommand,
 	defineDynamoTable,
 	forEachQueryPage,
+	transactWithConflictRetry,
 	writeIfCondition,
 } from "@packages/storage-client";
 import type {
@@ -29,7 +30,6 @@ import {
 } from "./ledger-rows";
 
 const MAX_TRANSACT_ATTEMPTS = 3;
-const CONFLICT_RETRY_BASE_DELAY_MS = 50;
 
 const ReturnedChargeStateSchema = z.object({
 	state: z.object({ S: z.enum(["started", "settled", "refunded"]) }),
@@ -44,30 +44,22 @@ type LedgerDeps = {
 	delay: (milliseconds: number) => Promise<void>;
 };
 
-function cancellationCodes(error: TransactionCanceledException): (string | undefined)[] {
-	assert(error.CancellationReasons, "a cancelled transaction names a reason for each item");
-	return error.CancellationReasons.map((reason) => reason.Code);
-}
-
 function initTransact(deps: LedgerDeps) {
 	return async function transact<T>(p: {
 		input: ConstructorParameters<typeof TransactWriteCommand>[0];
-		onCancelled: (error: TransactionCanceledException) => T | undefined;
-		attempt?: number;
+		onCancelled: (reasons: readonly CancellationReason[]) => T | undefined;
 	}): Promise<T | "written"> {
-		const attempt = p.attempt ?? 1;
-		try {
-			await deps.client.send(new TransactWriteCommand(p.input));
-			return "written";
-		} catch (error) {
-			if (!(error instanceof TransactionCanceledException)) throw error;
-			const decided = p.onCancelled(error);
-			if (decided !== undefined) return decided;
-			const conflicted = cancellationCodes(error).includes("TransactionConflict");
-			if (!conflicted || attempt >= MAX_TRANSACT_ATTEMPTS) throw error;
-			await deps.delay(Math.random() * CONFLICT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
-			return transact({ ...p, attempt: attempt + 1 });
-		}
+		const outcome = await transactWithConflictRetry<T>({
+			client: deps.client,
+			delay: deps.delay,
+			maxAttempts: MAX_TRANSACT_ATTEMPTS,
+			input: p.input,
+			onCancelled: async (reasons) => {
+				const decided = p.onCancelled(reasons);
+				return decided === undefined ? { handled: false } : { handled: true, value: decided };
+			},
+		});
+		return outcome.kind === "written" ? "written" : outcome.value;
 	};
 }
 
@@ -109,13 +101,13 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 					},
 				],
 			},
-			onCancelled: (error) => {
-				const [chargeCode, dayCode] = cancellationCodes(error);
-				if (chargeCode === "ConditionalCheckFailed") {
-					const { day } = ReturnedChargeDaySchema.parse(error.CancellationReasons?.[0]?.Item);
+			onCancelled: (reasons) => {
+				const [chargeReason, dayReason] = reasons;
+				if (chargeReason?.Code === "ConditionalCheckFailed") {
+					const { day } = ReturnedChargeDaySchema.parse(chargeReason.Item);
 					return { outcome: "already-charged" as const, day: day.S };
 				}
-				if (dayCode === "ConditionalCheckFailed") return { outcome: "day-spent" as const };
+				if (dayReason?.Code === "ConditionalCheckFailed") return { outcome: "day-spent" as const };
 				return undefined;
 			},
 		});
@@ -202,8 +194,8 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 					expression: "#state IN (:reserved, :started)",
 					values: { ":reserved": "reserved", ":started": "started" },
 				}, returnOnFailure: false }),
-			onCancelled: (error) =>
-				cancellationCodes(error)[0] === "ConditionalCheckFailed" ? { outcome: "closed" as const } : undefined,
+			onCancelled: (reasons) =>
+				reasons[0]?.Code === "ConditionalCheckFailed" ? { outcome: "closed" as const } : undefined,
 		});
 		return result === "written" ? { outcome: "refunded" } : result;
 	};
@@ -211,8 +203,8 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 	const refundUnstartedCharge: RefundUnstartedCharge = async (charge) => {
 		const result = await transact({
 			input: refundInput({ charge, chargeCondition: { expression: "#state = :reserved", values: { ":reserved": "reserved" } }, returnOnFailure: true }),
-			onCancelled: (error) => {
-				const chargeReason = error.CancellationReasons?.[0];
+			onCancelled: (reasons) => {
+				const chargeReason = reasons[0];
 				if (chargeReason?.Code !== "ConditionalCheckFailed") return undefined;
 				if (!chargeReason.Item) return { outcome: "closed" as const };
 				const { state } = ReturnedChargeStateSchema.parse(chargeReason.Item);

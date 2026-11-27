@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "./run-command";
 
-export interface PdfMetadata {
+interface PdfMetadata {
 	readonly numPages: number;
 	readonly title: string | undefined;
 }

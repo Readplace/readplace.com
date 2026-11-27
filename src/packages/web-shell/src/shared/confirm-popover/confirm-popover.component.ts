@@ -16,6 +16,9 @@ export interface ConfirmPopover {
 	subject?: string;
 	title: string;
 	subheading?: string;
+	/** The id of the element whose text this subheading mirrors, for a subheading
+	 * that repeats text a poll can still change, such as an article's title. */
+	subheadingFrom?: string;
 	body: string;
 	bodyItems?: readonly { label: string; icon: IconName }[];
 	lead?: string;
@@ -30,7 +33,7 @@ export interface ConfirmPopover {
 
 function describedFields(popover: ConfirmPopover) {
 	const lead = popover.lead;
-	const subheadings = popover.subheading === undefined ? [] : [popover.subheading];
+	const subheadings = popover.subheading === undefined ? [] : [{ text: popover.subheading, from: popover.subheadingFrom }];
 	const hasItems = popover.bodyItems !== undefined;
 	return {
 		besidePassage: popover.placement === "beside-passage",

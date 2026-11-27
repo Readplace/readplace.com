@@ -1,7 +1,7 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
@@ -19,8 +19,8 @@ export function initAdvanceContentFetchedAt(deps: {
 
 	const advanceContentFetchedAt: AdvanceContentFetchedAt = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		try {
-			await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { url: articleResourceUniqueId.value },
 				UpdateExpression: "SET contentFetchedAt = :cfa",
 				ConditionExpression:
@@ -28,12 +28,9 @@ export function initAdvanceContentFetchedAt(deps: {
 					"contentFetchedAt < :cfa OR " +
 					"(attribute_not_exists(contentFetchedAt) AND savedAt <= :cfa))",
 				ExpressionAttributeValues: { ":cfa": params.contentFetchedAt },
-			});
-			return "advanced";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "superseded";
-			throw error;
-		}
+			}),
+		);
+		return outcome.kind === "written" ? "advanced" : "superseded";
 	};
 
 	return { advanceContentFetchedAt };

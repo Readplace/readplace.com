@@ -80,7 +80,6 @@ interface PollResponseBodyInput {
 	summaryPollUrl: string | undefined;
 	capturePollUrls: CapturePollUrls | undefined;
 	capture: ReaderSlotCapture;
-	summaryOpen: boolean;
 	summaryToggleUrl: string | undefined;
 	extensionInstallUrl: string | undefined;
 	metadataOob: string;
@@ -131,7 +130,6 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		crawl: input.crawl,
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
-		summaryOpen: input.summaryOpen,
 		summaryToggleUrl: input.summaryToggleUrl,
 		content: input.content,
 		oob: input.primary !== "summary",
@@ -420,7 +418,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				summaryPollUrl: undefined,
 				capturePollUrls: undefined,
 				capture: { kind: "none" },
-				summaryOpen: deps.summaryOpen,
 				summaryToggleUrl: undefined,
 				extensionInstallUrl: undefined,
 				metadataOob:
@@ -502,7 +499,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryPollUrl,
 			capturePollUrls,
 			capture,
-			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			metadataOob: buildMetadataOob({
@@ -575,7 +571,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryPollUrl,
 			capturePollUrls,
 			capture,
-			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			metadataOob: buildMetadataOob({

@@ -71,6 +71,7 @@ import {
 	isExtensionInstalled,
 } from "../../onboarding/extension-install";
 import {
+	isNativeSurface,
 	nativeSurfaceQuery,
 } from "../../onboarding/native-client";
 import { EXIT_CONFIRM_SCOPE } from "../reader/reader-exit-confirm.component";
@@ -81,7 +82,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { highlightActionUrl } from "./highlight-surface";
 import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
-import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, nextReadLocksFor, NO_PAST_READS, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, readerEpubHrefFor } from "./readlist-shared";
+import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, nextReadLocksFor, NO_PAST_READS, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, readerEpubHrefFor } from "./readlist-shared";
 import { ReadlistSlugsSchema } from "./readlist-slugs";
 
 const pastReadsComputeUrlFor = (params: {
@@ -398,7 +399,7 @@ export function initReaderPageRoutes(deps: Pick<
 				userId: ownedArticle.userId,
 				article: ownedArticle,
 				returnTo: readerReturnPath(req, ownedArticle.id.value),
-				filed: isAppPlatform(req) ? [] : (ReadlistSlugsSchema.safeParse(req.query[FILED_READLIST_PARAM]).data ?? []),
+				filed: isNativeSurface(req) ? [] : (ReadlistSlugsSchema.safeParse(req.query[FILED_READLIST_PARAM]).data ?? []),
 			}),
 			deps.resolveReaderProvenance(ownedArticle.provenance),
 		]);
@@ -575,7 +576,7 @@ export function initReaderPageRoutes(deps: Pick<
 			previouslyRead: paidFeaturesLocked ? NO_PAST_READS : previouslyRead,
 			previouslyReadPollUrl: paidFeaturesLocked ? undefined : previouslyReadPollUrl,
 			previouslyReadComputeUrl:
-				paidFeaturesLocked || previouslyReadBudgetBlocked || (isAppPlatform(req) && isPrefetchRequest(req))
+				paidFeaturesLocked || previouslyReadBudgetBlocked || (isNativeSurface(req) && isPrefetchRequest(req))
 					? undefined
 					: pastReadsComputeUrlFor({
 							articleId: ownedArticle.id.value,
@@ -605,7 +606,7 @@ export function initReaderPageRoutes(deps: Pick<
 
 		res.set(ARTICLE_VERSION_HEADER, contentVersion);
 
-		if (isAppPlatform(req)) {
+		if (isNativeSurface(req)) {
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage(ownedArticle, {
 				appOrigin: deps.appOrigin,

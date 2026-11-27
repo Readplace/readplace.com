@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { calculateReadTime } from "@packages/domain/article";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import {
 	createDefaultTestAppFixture,
 	createFakeApplyParseResult,

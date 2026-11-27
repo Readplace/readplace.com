@@ -125,6 +125,9 @@ export const enUS = {
 			unavailable: "Readplace couldn't get the content of some of these articles, so they can't be read offline.",
 		},
 	},
+	readlistPreferences: {
+		save: "Save",
+	},
 	readlistGmail: {
 		enabled: "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and {readlist}. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
 	},
@@ -192,10 +195,10 @@ export const enUS = {
 	readlistDelete: {
 		label: "Delete from this readlist",
 		confirm: {
-			title: "Delete this article?",
-			body: "This article will be removed from this readlist. You can save it again later.",
-			lead: "Article: {title}",
-			never: "Delete and don't ask again",
+			title: "Remove this article from this readlist?",
+			body: "Removing your last saved copy can permanently delete its highlights and notes. Saving the article again won't restore them.",
+			never: "Delete and skip future confirmations",
+			neverHelp: "This also skips the question when you delete other articles from a readlist or the reader.",
 		},
 	},
 	readlistSaveLimit: {

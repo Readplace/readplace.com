@@ -28,7 +28,6 @@ import type {
 import type {
 	ClaimPayDigest,
 	FindSubscriptionByUserId,
-	PayDigestClaim,
 	ReleasePayDigest,
 	SubscriptionRecord,
 } from "@packages/provider-contracts/subscription-providers";
@@ -110,8 +109,6 @@ interface DigestQuery {
 	emailFilter: DigestEmailFilter;
 }
 
-type DigestClaim = ReaderReadyEmailSlotClaim | PayDigestClaim;
-
 interface DigestKindPlan {
 	kind: QueueDigestKind;
 	emptyReason: Extract<QueueDigestSkipReason, "no-eligible-items" | "pay-no-ready-saves">;
@@ -119,7 +116,7 @@ interface DigestKindPlan {
 	sentKind: QueueDigestSentKind;
 	query: DigestQuery;
 	held: boolean;
-	claim: (urls: readonly string[]) => Promise<DigestClaim>;
+	claim: (urls: readonly string[]) => Promise<ReaderReadyEmailSlotClaim>;
 	release: () => Promise<void>;
 	email: (input: { items: QueueDigestEmailItem[]; links: QueueDigestLinks }) => ReturnType<typeof QueueDigestEmail>;
 }
@@ -341,7 +338,7 @@ function claimRegularDigest(params: {
 }
 
 async function settleHeldClaim(params: {
-	claim: DigestClaim;
+	claim: ReaderReadyEmailSlotClaim;
 	kind: QueueDigestKind;
 	notClaimedWarning: string;
 	userId: UserId;

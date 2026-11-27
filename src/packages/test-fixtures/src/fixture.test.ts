@@ -8,6 +8,7 @@ import {
 	createNoopLogError,
 	stubCrawlArticle,
 	createFakeApplyParseResult,
+	initCrawlThenParse,
 	createFakePublishLinkSaved,
 	createFakePublishSaveAnonymousLink,
 	createFakePublishRecrawlLinkInitiated,
@@ -15,7 +16,8 @@ import {
 } from "./fixture";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseHtml } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 
 describe("createFakeSummaryProvider", () => {
 	it("forces a failed summary back to pending and exposes the stored state", async () => {
@@ -239,6 +241,61 @@ describe("stubCrawlArticle", () => {
 		if (result.status === "fetched") {
 			expect(result.html).toContain("example.com");
 		}
+	});
+});
+
+describe("initCrawlThenParse", () => {
+	const parsed: ReturnType<ParseHtml> = { ok: true, coverage: [], article: { title: "T", siteName: "S", excerpt: "E", wordCount: 1, content: "<p>T</p>" } };
+
+	it("parses the crawled HTML at the crawl's terminal URL with its thumbnail", async () => {
+		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(() => parsed);
+		const parseArticle = initCrawlThenParse({
+			crawlArticle: async () => ({ status: "fetched", html: "<p>body</p>", bodyHash: "a".repeat(64), finalUrl: "https://example.com/final", thumbnailUrl: "https://example.com/t.jpg" }),
+			parseHtml,
+		});
+
+		expect(await parseArticle("https://example.com/start")).toBe(parsed);
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/start",
+			documentUrl: "https://example.com/final",
+			fetchedDocument: true,
+			html: "<p>body</p>",
+			thumbnailUrl: "https://example.com/t.jpg",
+		});
+	});
+
+	it("parses at the requested URL with no thumbnail when the crawl reports neither", async () => {
+		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(() => parsed);
+		const parseArticle = initCrawlThenParse({
+			crawlArticle: async () => ({ status: "fetched", html: "<p>body</p>", bodyHash: "a".repeat(64) }),
+			parseHtml,
+		});
+
+		await parseArticle("https://example.com/start");
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/start",
+			documentUrl: "https://example.com/start",
+			fetchedDocument: undefined,
+			html: "<p>body</p>",
+			thumbnailUrl: null,
+		});
+	});
+
+	it("returns an error for an invalid URL without crawling", async () => {
+		const crawlArticle = jest.fn();
+		const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: () => parsed });
+
+		expect(await parseArticle("not-a-url")).toEqual({ ok: false, reason: "Invalid URL" });
+		expect(crawlArticle).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ status: "failed" as const, decision: undefined },
+		{ status: "not-modified" as const },
+	])("returns an error when the crawl does not fetch the page ($status)", async (crawled) => {
+		const parseArticle = initCrawlThenParse({ crawlArticle: async () => crawled, parseHtml: () => parsed });
+
+		expect(await parseArticle("https://example.com/article")).toEqual({ ok: false, reason: "Could not fetch article" });
 	});
 });
 

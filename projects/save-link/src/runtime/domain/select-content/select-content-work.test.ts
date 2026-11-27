@@ -676,7 +676,7 @@ describe("initSelectContentWork", () => {
 describe("the video card fallback", () => {
 	const VIDEO_URL = "https://www.youtube.com/watch?v=I-jk9ni4XWk";
 	const CARD = {
-		title: "How to Live to be 100+", author: "TED", excerpt: "Video by TED on YouTube.", watchUrl: VIDEO_URL,
+		title: "How to Live to be 100+", excerpt: "Video by TED on YouTube.", watchUrl: VIDEO_URL,
 		posterUrl: "https://i.ytimg.com/vi/I-jk9ni4XWk/hqdefault.jpg",
 		html: '<p class="reader-embed-facade"><a href="https://www.youtube.com/watch?v=I-jk9ni4XWk" target="_blank" rel="noopener noreferrer"><img src="https://i.ytimg.com/vi/I-jk9ni4XWk/hqdefault.jpg" alt="Watch on YouTube" loading="lazy"></a></p>',
 	};

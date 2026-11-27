@@ -91,7 +91,7 @@ export interface NavItem {
 	linkClass: string;
 	trackSource: string;
 	trackContent: string;
-	handPicked?: boolean;
+	scope?: "home";
 	trackTerm?: ClickSurface;
 	lock?: { popoverId: string };
 }
@@ -175,7 +175,7 @@ export interface BannerState {
 	cspNonce: CspNonce;
 }
 
-const NAV_READLIST = { ...navItem({ key: "queue", label: "Readlist", path: "/queue?scope=hand-picked", method: "GET", iconName: "book" }), handPicked: true };
+const NAV_READLIST = { ...navItem({ key: "queue", label: "Readlist", path: "/queue?scope=home", method: "GET", iconName: "book" }), scope: "home" as const };
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-down" });
 const NAV_INBOX = navItem({ key: "inbox", label: "Newsletters", path: "/inbox", method: "GET", iconName: "news" });
 const NAV_INTEGRATIONS = navItem({

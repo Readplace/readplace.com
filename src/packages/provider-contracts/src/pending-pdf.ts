@@ -5,5 +5,3 @@ export type PutPendingPdf = (params: {
 	saveAttemptId: SaveAttemptId;
 	bytes: Buffer;
 }) => Promise<void>;
-
-export type ReadPendingPdf = (url: string, options: { saveAttemptId: SaveAttemptId }) => Promise<Buffer>;

@@ -53,6 +53,7 @@ import {
 	extensionInstallUrlIfMissing,
 } from "../../onboarding/extension-install";
 import {
+	isNativeSurface,
 	nativeSurfaceQuery,
 } from "../../onboarding/native-client";
 import type { SavedArticle } from "@packages/domain/article";
@@ -60,7 +61,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, nextReadLocksFor, NO_PAST_READS, isAppPlatform, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
+import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, nextReadLocksFor, NO_PAST_READS, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
 
 const HTMX_STOP_POLLING_STATUS = 286;
 
@@ -77,7 +78,7 @@ export function initReaderPanelRoutes(
 	const { saveArticleAtReadlistTop, requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
-		isAppPlatform(req)
+		isNativeSurface(req)
 			? NO_READER_VIEW_FAILED_OOB
 			: extensionSuggestionBannerOob(req);
 

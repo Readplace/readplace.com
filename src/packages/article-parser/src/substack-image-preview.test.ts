@@ -51,7 +51,6 @@ function noIo(): never {
 
 const { parseHtml } = initReadabilityParser({
 	coverageRules: { inspect: () => [] },
-	crawlArticle: noIo,
 	siteRules: initArticleSiteRules({ crawlFetch: noIo, logError: noIo }).siteRules,
 	readabilityAdditions,
 	logError: noIo,

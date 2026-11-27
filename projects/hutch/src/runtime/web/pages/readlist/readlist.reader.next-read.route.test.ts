@@ -6,6 +6,7 @@ import {
 	createFakeApplyParseResult,
 	createFakePublishLinkSaved,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -39,13 +40,12 @@ async function buildPendingReaderWithSuggestion() {
 		bodyHash: "a".repeat(64),
 	});
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
 		logError: createNoopLogError(),
-	});
+	}).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

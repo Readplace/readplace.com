@@ -174,29 +174,6 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		expect(delays[0]).toBeLessThan(50);
 	});
 
-	it("rethrows a conflict that persists on every attempt after six attempts with a growing jittered delay between them", async () => {
-		const conflict = cancelled(["None", "TransactionConflict"]);
-		const client = sequencedClient([conflict, conflict, conflict, conflict, conflict, conflict, {}]);
-		const delays: number[] = [];
-		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
-			client: client.client,
-			tableName: TABLE,
-			scope: "render-crawl",
-			rule: HOUR_BUDGET,
-			now: midWindowNow,
-			delay: recordDelay(delays),
-		});
-
-		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toBe(conflict);
-		assert.equal(client.calls(), 6);
-		assert.equal(delays.length, 5);
-		expect(delays[0]).toBeLessThan(50);
-		expect(delays[1]).toBeLessThan(100);
-		expect(delays[2]).toBeLessThan(200);
-		expect(delays[3]).toBeLessThan(400);
-		expect(delays[4]).toBeLessThan(800);
-	});
-
 	it("resolves as an idempotent re-consume when a retry after a conflict finds the claim already committed", async () => {
 		const client = sequencedClient([cancelled(["None", "TransactionConflict"]), cancelled(["ConditionalCheckFailed", "None"])]);
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({

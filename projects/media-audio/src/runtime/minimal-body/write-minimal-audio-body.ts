@@ -3,6 +3,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
+import { listenMinutes } from "@packages/media-contracts";
 import {
 	candidateProvenance,
 	KIND_BY_TIER,
@@ -28,7 +29,7 @@ export function initWriteMinimalAudioBody(deps: {
 	publishEvent: PublishEvent;
 }): WriteMinimalAudioBody {
 	return async (params) => {
-		const minutes = Math.ceil(params.durationSeconds / 60);
+		const minutes = listenMinutes(params.durationSeconds);
 		const body = buildAudioBody({
 			title: params.title,
 			fileName: params.fileName,

@@ -5,20 +5,32 @@ const newestFirst: SortDescriptor = { label: "Newest first", rel: "current", ord
 const oldestFirst: SortDescriptor = { label: "Oldest first", rel: "sort", order: "asc" };
 
 describe("buildListHeaderView", () => {
+	it("passes the server's readlist label through verbatim", () => {
+		const view = buildListHeaderView({ total: undefined, readlist: { label: "Hand Picked" }, sort: [] });
+
+		expect(view.readlistLabel).toBe("Hand Picked");
+	});
+
+	it("leaves the readlist name out when the server named no current readlist", () => {
+		const view = buildListHeaderView({ total: undefined, readlist: undefined, sort: [] });
+
+		expect(view.readlistLabel).toBeNull();
+	});
+
 	it("passes the server's count label through verbatim", () => {
-		const view = buildListHeaderView({ total: { label: "86 Saved Articles" }, sort: [] });
+		const view = buildListHeaderView({ total: { label: "86 Saved Articles" }, readlist: undefined, sort: [] });
 
 		expect(view.countLabel).toBe("86 Saved Articles");
 	});
 
 	it("leaves the count out when the server sent no total", () => {
-		const view = buildListHeaderView({ total: undefined, sort: [newestFirst, oldestFirst] });
+		const view = buildListHeaderView({ total: undefined, readlist: undefined, sort: [newestFirst, oldestFirst] });
 
 		expect(view.countLabel).toBeNull();
 	});
 
 	it("names the current order with a down arrow and toggles to the other", () => {
-		const view = buildListHeaderView({ total: undefined, sort: [newestFirst, oldestFirst] });
+		const view = buildListHeaderView({ total: undefined, readlist: undefined, sort: [newestFirst, oldestFirst] });
 
 		expect(view.sort).toEqual({ label: "Newest first", iconName: "arrow-down", toggleIndex: 1 });
 	});
@@ -26,6 +38,7 @@ describe("buildListHeaderView", () => {
 	it("names an ascending current order with an up arrow", () => {
 		const view = buildListHeaderView({
 			total: undefined,
+			readlist: undefined,
 			sort: [
 				{ label: "Newest first", rel: "sort", order: "desc" },
 				{ label: "Oldest first", rel: "current", order: "asc" },
@@ -36,7 +49,7 @@ describe("buildListHeaderView", () => {
 	});
 
 	it("offers no sort when the server lists no other order", () => {
-		const view = buildListHeaderView({ total: undefined, sort: [newestFirst] });
+		const view = buildListHeaderView({ total: undefined, readlist: undefined, sort: [newestFirst] });
 
 		expect(view.sort).toBeNull();
 	});
@@ -44,6 +57,7 @@ describe("buildListHeaderView", () => {
 	it("offers no sort when no order is current", () => {
 		const view = buildListHeaderView({
 			total: undefined,
+			readlist: undefined,
 			sort: [oldestFirst, { label: "Newest first", rel: "sort", order: "desc" }],
 		});
 
@@ -51,7 +65,7 @@ describe("buildListHeaderView", () => {
 	});
 
 	it("offers no sort when the server sent none", () => {
-		const view = buildListHeaderView({ total: undefined, sort: [] });
+		const view = buildListHeaderView({ total: undefined, readlist: undefined, sort: [] });
 
 		expect(view.sort).toBeNull();
 	});

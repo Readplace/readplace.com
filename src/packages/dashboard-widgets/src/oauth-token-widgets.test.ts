@@ -3,7 +3,7 @@ import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-i
 import { ANALYTICS_LOG_GROUP } from "./log-groups";
 import { oauthTokenWidgets } from "./oauth-token-widgets";
 
-const widgets = oauthTokenWidgets({ analyticsLogGroupName: ANALYTICS_LOG_GROUP });
+const widgets = oauthTokenWidgets();
 
 const IDENTITIES: ExcludedIdentities = {
 	excludedVisitorIds: ["11111111-1111-4111-8111-111111111111"],

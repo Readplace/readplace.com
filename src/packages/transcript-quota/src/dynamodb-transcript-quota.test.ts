@@ -171,29 +171,6 @@ describe("initDynamoDbTranscriptCharge", () => {
 		});
 		assert.equal(sent.length, 2);
 	});
-
-	it("throws after three conflicted attempts", async () => {
-		const conflict = cancelled([{ Code: "None" }, { Code: "TransactionConflict" }]);
-		const { chargeTranscriptQuota, sent } = charge({ outcomes: [conflict, conflict, conflict] });
-
-		await assert.rejects(chargeTranscriptQuota({ ...REF, seconds: 600 }), TransactionCanceledException);
-		assert.equal(sent.length, 3);
-	});
-
-	it("rethrows a cancellation that is neither a condition nor a conflict", async () => {
-		const { chargeTranscriptQuota, sent } = charge({
-			outcomes: [cancelled([{ Code: "None" }, { Code: "ThrottlingError" }])],
-		});
-
-		await assert.rejects(chargeTranscriptQuota({ ...REF, seconds: 600 }), TransactionCanceledException);
-		assert.equal(sent.length, 1);
-	});
-
-	it("rethrows an error that is not a cancellation", async () => {
-		const { chargeTranscriptQuota } = charge({ outcomes: [new Error("network down")] });
-
-		await assert.rejects(chargeTranscriptQuota({ ...REF, seconds: 600 }), /network down/);
-	});
 });
 
 describe("initDynamoDbTranscriptLedger", () => {

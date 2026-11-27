@@ -124,7 +124,6 @@ function parsedHeadings(input: {
 } {
 	const { parseHtml } = initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle: async () => ({ status: "fetched" as const, html: "", bodyHash: "a".repeat(64) }),
 		siteRules: input.siteRules,
 		readabilityAdditions,
 		logError: () => {},

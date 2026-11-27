@@ -101,8 +101,8 @@ export function initReadlistListingRoutes(deps: Pick<
 			);
 		}
 		const siren = wantsSiren(req);
-		const homeSupported = nativeClient !== undefined && req.get(HOME_READLIST_HEADER) === "1";
-		const home = !siren || homeSupported ? {
+		const homeRequested = req.get(HOME_READLIST_HEADER) === "1";
+		const home = !siren || homeRequested ? {
 			preference: await deps.findHomeReadlist(userId),
 			open: !siren && req.query.utm_medium !== "extension" && Object.keys(req.query).every((key) => key.startsWith("utm_")),
 		} : undefined;
@@ -173,7 +173,7 @@ export function initReadlistListingRoutes(deps: Pick<
 			const findArticlesMatchedNothing = discovery !== undefined && result.total === 0 &&
 				await store.countArticlesByUser({ userId, status: tab.status }) > 0;
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
-			const setHomeTarget = homeSupported ? context.home?.targets.get(urlState.readlist) : undefined;
+			const setHomeTarget = nativeClient !== undefined && homeRequested ? context.home?.targets.get(urlState.readlist) : undefined;
 			setSirenCollectionCaching(req, res);
 			if (req.query[HOME_READLIST_SAVED] !== undefined) res.set("Cache-Control", "private, no-cache");
 			res.type(SIREN_MEDIA_TYPE).json(
@@ -184,7 +184,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
 						pinnedReadlists: context.pinnedReadlists,
-						homeHref: homeSupported ? readlistHref({ readlist: context.home?.slug ?? HAND_PICKED_SCOPE, readlistKey }) : undefined,
+						homeHref: homeRequested ? readlistHref({ readlist: context.home?.slug ?? HAND_PICKED_SCOPE, readlistKey }) : undefined,
 						setHome: setHomeTarget && { target: setHomeTarget, label: context.activeReadlist.label },
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						now: deps.now(),
@@ -305,7 +305,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		const hasClient = hasInstallableClient(req);
 		const gmailEligible = hasClient && deps.findGmailConnectionByUserId !== undefined &&
 			gmailEligibleFor(req, await deps.getEffectiveAccess(req.userId));
-		const version = dismissTokenFor(hasClient, gmailEligible);
+		const version = dismissTokenFor({ hasClient, gmailEligible });
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true, secure: deps.secureCookies });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));

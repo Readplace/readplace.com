@@ -1,4 +1,4 @@
-import { ANALYTICS_LOG_GROUP, AUTH_DIAGNOSTICS_LOG_GROUP, assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "@packages/dashboard-widgets";
+import { ANALYTICS_LOG_GROUP, AUTH_DIAGNOSTICS_LOG_GROUP, EXCLUDED_IDENTITIES_PARAMETER_NAME, validateExcludedIdentities } from "@packages/dashboard-widgets";
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
@@ -107,10 +107,10 @@ import { requireEnv } from "@packages/require-env";
 const config = new pulumi.Config();
 const storedAdminTotpSecrets = pulumi.secret(adminTotpSecretsParameterValue(requireEnv("ADMIN_TOTP_SECRETS")));
 const stage = config.require("stage");
-const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
-assertExcludedUserIds(excludedUserIds);
-const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
-assertExcludedVisitorIds(excludedVisitorIds);
+const { excludedVisitorIds, excludedUserIds } = validateExcludedIdentities({
+	excludedVisitorIds: config.requireObject("excludedVisitorIds"),
+	excludedUserIds: config.requireObject("excludedUserIds"),
+});
 new aws.ssm.Parameter("excluded-identities", {
 	name: EXCLUDED_IDENTITIES_PARAMETER_NAME,
 	type: "String",

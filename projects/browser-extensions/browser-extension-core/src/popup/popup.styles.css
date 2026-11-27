@@ -529,7 +529,15 @@ input {
   border-bottom: 1px solid var(--border);
 }
 
-.list-view__count {
+.list-view__heading,
+.list-skeleton__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.list-view__readlist {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -537,8 +545,22 @@ input {
   font-size: var(--text-sm);
   font-weight: 600;
   line-height: 20px;
+  color: var(--foreground);
+}
+
+.list-view__count {
+  flex: none;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 20px;
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
+}
+
+.list-view__readlist:not([hidden]) + .list-view__count {
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 
 .list-view__sort {
@@ -811,6 +833,10 @@ input {
   border-radius: var(--radius-sm);
   background: currentColor;
   opacity: 0.25;
+}
+
+.list-skeleton__bar--readlist {
+  width: 90px;
 }
 
 .list-skeleton__bar--count {

@@ -1,10 +1,9 @@
 import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
-import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug, type ReadlistRef } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import type { ReadlistContext } from "./readlist-context";
-import type { Readlist } from "./readlist.nav";
 import { READLIST_ERROR_LIMIT } from "./readlist.error";
 import { HOME_READLIST_SAVED } from "./readlist-home";
 import { READLIST_PATH, READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
@@ -12,8 +11,8 @@ import { READLIST_PATH, READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQu
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export interface ReadlistRailViewModel {
-	readlists: readonly Readlist[];
-	activeReadlist: Readlist;
+	readlists: readonly ReadlistRef[];
+	activeReadlist: ReadlistRef;
 	newReadlistAction: string;
 	limitAlertHref: string;
 	canCreate: boolean;
