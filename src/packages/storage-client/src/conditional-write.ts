@@ -66,12 +66,12 @@ export async function transactWithConflictRetry<T>(p: {
 	client: Pick<DynamoDBDocumentClient, "send">;
 	delay: (milliseconds: number) => Promise<void>;
 	maxAttempts: number;
-	input: TransactWriteCommandInput;
+	transactInput: TransactWriteCommandInput;
 	onCancelled: (reasons: readonly CancellationReason[]) => Promise<CancellationDecision<T>>;
 }): Promise<ConflictRetryOutcome<T>> {
 	for (let attempt = 1; ; attempt++) {
 		try {
-			await p.client.send(new TransactWriteCommand(p.input));
+			await p.client.send(new TransactWriteCommand(p.transactInput));
 			return { kind: "written" };
 		} catch (error) {
 			if (!(error instanceof TransactionCanceledException)) throw error;

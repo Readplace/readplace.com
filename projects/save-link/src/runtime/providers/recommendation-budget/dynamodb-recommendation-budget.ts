@@ -68,7 +68,7 @@ export function initDynamoDbRecommendationBudget(deps: {
 			client: deps.client,
 			delay: deps.delay,
 			maxAttempts: MAX_TRANSACTION_ATTEMPTS,
-			input: { TransactItems: input.items },
+			transactInput: { TransactItems: input.items },
 			onCancelled: (reasons) => input.onCancelled(reasons.map((reason) => reason.Code)),
 		});
 		return outcome.kind === "written" ? input.onSuccess : outcome.value;

@@ -7,7 +7,6 @@ import { stagedObjectKey } from "@packages/media-contracts";
 
 const POST_POLICY_TTL_SECONDS = 3600;
 
-
 export function initS3MediaPending(deps: { presignerClient: S3Client; client: S3Client; bucketName: string }): {
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;

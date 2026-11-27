@@ -46,14 +46,14 @@ type LedgerDeps = {
 
 function initTransact(deps: LedgerDeps) {
 	return async function transact<T>(p: {
-		input: ConstructorParameters<typeof TransactWriteCommand>[0];
+		transactInput: ConstructorParameters<typeof TransactWriteCommand>[0];
 		onCancelled: (reasons: readonly CancellationReason[]) => T | undefined;
 	}): Promise<T | "written"> {
 		const outcome = await transactWithConflictRetry<T>({
 			client: deps.client,
 			delay: deps.delay,
 			maxAttempts: MAX_TRANSACT_ATTEMPTS,
-			input: p.input,
+			transactInput: p.transactInput,
 			onCancelled: async (reasons) => {
 				const decided = p.onCancelled(reasons);
 				return decided === undefined ? { handled: false } : { handled: true, value: decided };
@@ -73,7 +73,7 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 		if (seconds > deps.allowanceSeconds) return { outcome: "over-allowance" };
 		const charge = chargeRowOf({ userId, uploadId, attempt, seconds, now: deps.now() });
 		const result = await transact({
-			input: {
+			transactInput: {
 				TransactItems: [
 					{
 						Put: {
@@ -190,7 +190,7 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 
 	const refundTranscriptCharge: RefundTranscriptCharge = async (charge) => {
 		const result = await transact({
-			input: refundInput({ charge, chargeCondition: {
+			transactInput: refundInput({ charge, chargeCondition: {
 					expression: "#state IN (:reserved, :started)",
 					values: { ":reserved": "reserved", ":started": "started" },
 				}, returnOnFailure: false }),
@@ -202,7 +202,7 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 
 	const refundUnstartedCharge: RefundUnstartedCharge = async (charge) => {
 		const result = await transact({
-			input: refundInput({ charge, chargeCondition: { expression: "#state = :reserved", values: { ":reserved": "reserved" } }, returnOnFailure: true }),
+			transactInput: refundInput({ charge, chargeCondition: { expression: "#state = :reserved", values: { ":reserved": "reserved" } }, returnOnFailure: true }),
 			onCancelled: (reasons) => {
 				const chargeReason = reasons[0];
 				if (chargeReason?.Code !== "ConditionalCheckFailed") return undefined;

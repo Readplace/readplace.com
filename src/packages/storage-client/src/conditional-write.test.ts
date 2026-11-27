@@ -165,7 +165,7 @@ describe("transactWithConflictRetry", () => {
 				delays.push(ms);
 			},
 			maxAttempts: 3,
-			input: INPUT,
+			transactInput: INPUT,
 			onCancelled: notHandled,
 		});
 
@@ -187,7 +187,7 @@ describe("transactWithConflictRetry", () => {
 			client,
 			delay: async () => {},
 			maxAttempts: 3,
-			input: INPUT,
+			transactInput: INPUT,
 			onCancelled: async (reasons) => {
 				seen.push(reasons);
 				return { handled: true, value: "closed" };
@@ -209,7 +209,7 @@ describe("transactWithConflictRetry", () => {
 				delays.push(ms);
 			},
 			maxAttempts: 3,
-			input: INPUT,
+			transactInput: INPUT,
 			onCancelled: notHandled,
 		});
 
@@ -225,7 +225,7 @@ describe("transactWithConflictRetry", () => {
 		const { client, sent } = clientAnswering([cancelled(["TransactionConflict"]), cancelled(["TransactionConflict"]), last]);
 
 		await expect(
-			transactWithConflictRetry({ client, delay: async () => {}, maxAttempts: 3, input: INPUT, onCancelled: notHandled }),
+			transactWithConflictRetry({ client, delay: async () => {}, maxAttempts: 3, transactInput: INPUT, onCancelled: notHandled }),
 		).rejects.toBe(last);
 		assert.equal(sent.length, 3);
 	});
@@ -235,7 +235,7 @@ describe("transactWithConflictRetry", () => {
 		const { client, sent } = clientAnswering([error]);
 
 		await expect(
-			transactWithConflictRetry({ client, delay: async () => {}, maxAttempts: 3, input: INPUT, onCancelled: notHandled }),
+			transactWithConflictRetry({ client, delay: async () => {}, maxAttempts: 3, transactInput: INPUT, onCancelled: notHandled }),
 		).rejects.toBe(error);
 		assert.equal(sent.length, 1);
 	});
@@ -250,7 +250,7 @@ describe("transactWithConflictRetry", () => {
 				client,
 				delay: async () => {},
 				maxAttempts: 3,
-				input: INPUT,
+				transactInput: INPUT,
 				onCancelled: async () => {
 					asked = true;
 					return { handled: false };
@@ -270,7 +270,7 @@ describe("transactWithConflictRetry", () => {
 				client,
 				delay: async () => {},
 				maxAttempts: 3,
-				input: INPUT,
+				transactInput: INPUT,
 				onCancelled: async (reasons) => {
 					seen.push(reasons);
 					return { handled: false };

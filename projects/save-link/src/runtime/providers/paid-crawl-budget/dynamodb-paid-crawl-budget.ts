@@ -61,7 +61,7 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 			client: deps.client,
 			delay: deps.delay,
 			maxAttempts: MAX_CONSUME_ATTEMPTS,
-			input: {
+			transactInput: {
 				TransactItems: [
 					{
 						// Per-message idempotency claim. The create-if-absent condition
