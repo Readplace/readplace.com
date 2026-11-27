@@ -12,6 +12,7 @@ import request from "supertest";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { createAccessToken, saveAccessTokenForClient, saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import { loginAgent, useTestServer } from "../../../test-app";
+import { initInMemoryBulkSelections } from "../../../bulk-articles/selection-store";
 
 const useApp = useTestServer();
 
@@ -30,6 +31,7 @@ interface SeededArticle {
 	minutes?: number;
 	savedAt?: Date;
 	readlist?: string;
+	imported?: boolean;
 }
 
 function pinnedFixture(summary: SummaryProvider = createFakeSummaryProvider({ findItemOwner: async () => undefined })) {
@@ -64,7 +66,7 @@ async function seed(harness: TestHarness, article: SeededArticle): Promise<void>
 			wordCount: article.minutes === undefined ? 0 : article.minutes * 238,
 		},
 		estimatedReadTime: MinutesSchema.parse(article.minutes ?? 0),
-		provenance: { kind: "web" as const },
+		provenance: article.imported ? { kind: "import" as const } : { kind: "web" as const },
 		savedAt: article.savedAt ?? new Date(NOW.getTime() - HOUR),
 		saveTrigger: "manual" as const,
 	};
@@ -1240,5 +1242,148 @@ describe("find-articles (Siren search and filters for the apps)", () => {
 		const token = await appToken(harness);
 
 		expect(urlsOf(await find(harness, token, { q: "quick read" }))).toEqual([QUICK.url]);
+	});
+});
+
+const useManagedApp = useTestServer({ bulkArticles: { store: initInMemoryBulkSelections(), dispatch: async () => {}, readEverywhere: true } });
+
+describe("Readlist search scope under Manage articles", () => {
+	const IMPORTED_ATLAS: SeededArticle = { url: "https://maps.example.org/atlas", title: "Atlas of rivers", imported: true };
+	const SAVED_ATLAS: SeededArticle = { url: "https://notes.example.org/atlas", title: "Atlas of cities" };
+
+	function label(doc: Document): string | null | undefined {
+		return doc.querySelector('label[for="readlist-search-input"]')?.textContent;
+	}
+
+	function scopeDescription(doc: Document): string | null | undefined {
+		return doc.querySelector("[data-test-discovery-scope]")?.textContent;
+	}
+
+	function emptyCopy(doc: Document): [string | null | undefined, string | null | undefined] {
+		return [doc.querySelector("[data-test-empty-title]")?.textContent, doc.querySelector(".readlist-empty__text")?.textContent];
+	}
+
+	function sourceLink(doc: Document, name: string): string {
+		const link = Array.from(doc.querySelectorAll(".readlist__source-menu a")).find((anchor) => anchor.textContent === name);
+		const href = link?.getAttribute("href");
+		assert(href, `the ${name} source link must render`);
+		return href;
+	}
+
+	async function followEmptyAction(agent: TestAgent, doc: Document, key: string): Promise<Document> {
+		const form = element(doc, `[data-test-empty-action="${key}"]`).closest("form");
+		assert(form, "the empty-state action must be a form");
+		const fields = new URLSearchParams(hiddenFields(form).map(([name, value]) => [name ?? "", value ?? ""]));
+		if (form.getAttribute("method") === "GET") return page(agent, `${actionOf(form)}?${fields}`);
+		const response = await agent.post(actionOf(form)).type("form").send(fields.toString());
+		expect(response.status).toBe(303);
+		return page(agent, response.headers.location);
+	}
+
+	it("labels the next submission as searching all sources and shows which source the current results come from", async () => {
+		const harness = useManagedApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedAll(harness, [IMPORTED_ATLAS, SAVED_ATLAS]);
+
+		const bulk = await page(agent, "/queue?source=bulk");
+		expect([label(bulk), scopeDescription(bulk), element(bulk, "[data-test-discovery-search]").getAttribute("value")]).toEqual([
+			"Submit to search all sources in this tab by title or site",
+			undefined,
+			"",
+		]);
+
+		const filled = await page(agent, "/queue?source=bulk&q=Atlas");
+		const input = element(filled, "[data-test-discovery-search]");
+		expect([label(filled), scopeDescription(filled), input.getAttribute("value"), input.getAttribute("aria-describedby")]).toEqual([
+			"Submit to search all sources in this tab by title or site",
+			"Results shown from Bulk import.",
+			"Atlas",
+			"readlist-search-scope",
+		]);
+		expect(listedUrls(filled)).toEqual([IMPORTED_ATLAS.url]);
+
+		const resubmitted = await page(agent, searchSubmission(filled, "Atlas"));
+		expect([label(resubmitted), scopeDescription(resubmitted), element(resubmitted, "[data-test-discovery-search]").getAttribute("value")]).toEqual([
+			"Search this readlist tab by title or site",
+			undefined,
+			"Atlas",
+		]);
+		expect([...listedUrls(resubmitted)].sort()).toEqual([IMPORTED_ATLAS.url, SAVED_ATLAS.url].sort());
+	});
+
+	it("keeps the search usable on an empty source and clears back to all sources", async () => {
+		const harness = useManagedApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(harness, SAVED_ATLAS);
+
+		const searched = await page(agent, "/queue?q=Atlas");
+		const bulkHref = new URL(sourceLink(searched, "Bulk import"), TEST_APP_ORIGIN);
+		expect([bulkHref.searchParams.get("source"), bulkHref.searchParams.get("q")]).toEqual(["bulk", "Atlas"]);
+
+		const empty = await page(agent, `${bulkHref.pathname}${bulkHref.search}`);
+		expect(listedUrls(empty)).toEqual([]);
+		expect(element(empty, "[data-test-discovery]").classList.contains("readlist-discovery--visible")).toBe(true);
+		expect(scopeDescription(empty)).toBe("Results shown from Bulk import.");
+		expect(emptyCopy(empty)).toEqual([
+			"No matching articles",
+			"Nothing from Bulk import in To Read matches your search. Clear search also returns to all sources.",
+		]);
+		expect(element(empty, '[data-test-empty-action="clear-discovery"]').textContent).toBe("Clear search");
+
+		expect(listedUrls(await page(agent, searchSubmission(empty, "Atlas")))).toEqual([SAVED_ATLAS.url]);
+
+		const cleared = await followEmptyAction(agent, empty, "clear-discovery");
+		expect([element(cleared, "[data-test-discovery-search]").getAttribute("value"), label(cleared)]).toEqual([
+			"",
+			"Search this readlist tab by title or site",
+		]);
+		expect(listedUrls(cleared)).toEqual([SAVED_ATLAS.url]);
+	});
+
+	it("names the empty source and tab when nothing is searched, offering all sources", async () => {
+		const harness = useManagedApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(harness, SAVED_ATLAS);
+
+		const empty = await page(agent, "/queue?source=bulk");
+		expect(element(empty, "[data-test-discovery]").classList.contains("readlist-discovery--visible")).toBe(true);
+		expect(emptyCopy(empty)).toEqual(["No articles from Bulk import in To Read", "A search looks in all sources in this tab."]);
+		expect(listedUrls(await followEmptyAction(agent, empty, "all-sources"))).toEqual([SAVED_ATLAS.url]);
+	});
+
+	it("shows the source search on a new account instead of the first-save onboarding", async () => {
+		const harness = useManagedApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const empty = await page(agent, "/queue?source=bulk");
+		expect(element(empty, "[data-test-discovery]").classList.contains("readlist-discovery--visible")).toBe(true);
+		expect(emptyCopy(empty)[0]).toBe("No articles from Bulk import in To Read");
+
+		expect(emptyCopy(await page(agent, "/queue"))[0]).toBe("Nothing saved yet");
+	});
+
+	it("says no sender is selected rather than inventing one", async () => {
+		const harness = useManagedApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(harness, SAVED_ATLAS);
+
+		expect(emptyCopy(await page(agent, "/queue?source=sender"))).toEqual([
+			"No sender selected",
+			"Choose a newsletter sender to see its articles in To Read.",
+		]);
+		expect(emptyCopy(await page(agent, "/queue?source=sender&sender=news%40example.org"))[0]).toBe(
+			"No articles from news@example.org in To Read",
+		);
+	});
+
+	it("names the source and remembered filters when a filtered source matches nothing", async () => {
+		const harness = useManagedApp(pinnedFixture());
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(harness, SAVED_ATLAS);
+
+		const empty = await page(agent, "/queue?source=bulk&time=under-5");
+		const [title, text] = emptyCopy(empty);
+		expect(title).toBe("No matching articles");
+		expect(text).toMatch(/^Nothing from Bulk import in To Read matches your filters: .+\. Your filters stay on as you browse until you clear them\. Clear filters also returns to all sources\.$/);
 	});
 });

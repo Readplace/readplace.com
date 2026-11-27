@@ -54,7 +54,6 @@ export interface GmailMonitoringStore {
 	listObservations: (input: { userId: UserId; mailboxId: string; pageToken?: string }) => Promise<{ observations: GmailSenderObservation[]; nextPageToken: string | undefined }>;
 	listObservedSenders: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<DiscoveredGmailSender[]>;
 	listNotices: (input: { userId: UserId; pageToken?: string }) => Promise<{ notices: GmailNewsletterNotice[]; nextPageToken: string | undefined }>;
-	findNotice: (input: { userId: UserId; senderEmail: ForwardableSender }) => Promise<GmailNewsletterNotice | undefined>;
 	claimNotice: (input: { notice: GmailNewsletterNotice; message: EmailMessage }) => Promise<GmailNewsletterNotice | undefined>;
 	markNoticeSent: (input: { userId: UserId; senderEmail: ForwardableSender }) => Promise<void>;
 	cancelNotice: (input: { userId: UserId; senderEmail: ForwardableSender }) => Promise<void>;

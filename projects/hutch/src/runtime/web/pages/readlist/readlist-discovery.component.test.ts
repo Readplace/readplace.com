@@ -84,7 +84,7 @@ describe("buildReadlistDiscovery", () => {
 		]).toEqual(["GET", "/queue", "search", "true", "main", "main", "outerHTML show:none", ".readlist-listing"]);
 	});
 
-	it("names the search field with a hidden label and shows the query being searched", () => {
+	it("names the search field with a visible label for what it searches and shows the query being searched", () => {
 		const doc = discoveryDoc({
 			filters: { ...UNFILTERED, discovery: { q: "São Paulo", time: [], saved: [] } },
 		});
@@ -96,12 +96,66 @@ describe("buildReadlistDiscovery", () => {
 			input.getAttribute("name"),
 			input.getAttribute("value"),
 			input.getAttribute("placeholder"),
+			input.getAttribute("aria-describedby"),
 			input.getAttribute("enterkeyhint"),
 			input.getAttribute("autocomplete"),
-		]).toEqual(["readlist-search-input", "search", "q", "São Paulo", "Search articles or sources…", "search", "off"]);
+		]).toEqual(["readlist-search-input", "search", "q", "São Paulo", null, null, "search", "off"]);
 		const label = element(doc, 'label[for="readlist-search-input"]');
-		expect(label.textContent).toBe("Search articles");
-		expect(label.classList.contains("sr-only")).toBe(true);
+		expect(label.textContent).toBe("Search this readlist tab by title or site");
+		expect(label.classList.contains("sr-only")).toBe(false);
+		expect(doc.querySelectorAll('label[for="readlist-search-input"]').length).toBe(1);
+		expect(doc.querySelector("[data-test-discovery-scope]")).toBeNull();
+	});
+
+	it("places the label above the row of search and filter controls", () => {
+		const row = element(discoveryDoc(), "[data-test-discovery]");
+
+		expect(Array.from(row.children, (child) => child.className)).toEqual([
+			"form-field__label readlist-discovery__label",
+			"readlist-discovery__controls",
+		]);
+	});
+
+	it("tells a reader in a managed source that the next search covers all sources in the tab", () => {
+		const doc = discoveryDoc({
+			filters: { ...UNFILTERED, managedSource: "bulk" },
+			tabHoldsRows: false,
+		});
+
+		expect(element(doc, 'label[for="readlist-search-input"]').textContent).toBe(
+			"Submit to search all sources in this tab by title or site",
+		);
+		expect(doc.querySelector("[data-test-discovery-scope]")).toBeNull();
+		expect(element(doc, "[data-test-discovery]").classList.contains("readlist-discovery--visible")).toBe(true);
+	});
+
+	it("describes which source the shown results come from when a managed source holds a query", () => {
+		const doc = discoveryDoc({
+			filters: { ...UNFILTERED, managedSource: "bulk", discovery: { q: "Atlas", time: [], saved: [] } },
+		});
+
+		const scope = element(doc, "[data-test-discovery-scope]");
+		expect([scope.getAttribute("id"), scope.textContent]).toEqual(["readlist-search-scope", "Results shown from Bulk import."]);
+		const input = element(doc, "[data-test-discovery-search]");
+		expect([input.getAttribute("value"), input.getAttribute("aria-describedby")]).toEqual(["Atlas", "readlist-search-scope"]);
+		expect(hiddenFields(element(doc, '[data-test-form="readlist-search"]')).map(([name]) => name)).not.toContain("source");
+	});
+
+	it("names the selected newsletter sender as escaped text in the source description", () => {
+		const doc = discoveryDoc({
+			filters: { ...UNFILTERED, managedSource: "sender", sender: "<news@example.com>", discovery: { q: "Atlas", time: [], saved: [] } },
+		});
+
+		expect(element(doc, "[data-test-discovery-scope]").textContent).toBe("Results shown from <news@example.com>.");
+		expect(element(doc, "[data-test-discovery-scope]").children.length).toBe(0);
+	});
+
+	it("names the newsletter source by its management name when no sender is selected", () => {
+		const doc = discoveryDoc({
+			filters: { ...UNFILTERED, managedSource: "sender", discovery: { q: "Atlas", time: [], saved: [] } },
+		});
+
+		expect(element(doc, "[data-test-discovery-scope]").textContent).toBe("Results shown from Newsletter sender.");
 	});
 
 	it("carries the rest of the page state into a search, starting again at the first page", () => {

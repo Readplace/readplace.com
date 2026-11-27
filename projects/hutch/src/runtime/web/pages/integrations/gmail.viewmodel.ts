@@ -31,12 +31,11 @@ import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsVi
 import { type GmailChecklistCommand, type GmailChecklistGroup, type GmailSenderChecklist, toGmailSenderChecklist } from "./gmail-sender-checklist.viewmodel";
 import {
 	type GmailSenderCandidate,
-	type GmailSenderOption,
-	type GmailSenderResultsState,
 	gmailSenderCandidates,
 	gmailSenderName,
 	toGmailSenderResults,
 } from "./gmail-sender-picker.viewmodel";
+import type { GmailSenderResultsView } from "./gmail-sender-widget.component";
 import { type GmailSenderStatusViewModel, toGmailSenderStatus } from "./gmail-sender-status.viewmodel";
 import {
 	buildGmailMailboxUrl,
@@ -97,13 +96,6 @@ export interface GmailPageInput {
 }
 
 export type GmailDialogMode = "none" | "add" | "edit";
-
-interface GmailSenderResultsViewModel {
-	resultsState: GmailSenderResultsState;
-	resultsMessage: string;
-	refineSearch: boolean;
-	options: GmailSenderOption[];
-}
 
 interface GmailReadlistOption { slug: string; label: string; selected: boolean; locked: boolean }
 
@@ -191,7 +183,7 @@ export interface GmailPageViewModel {
 	notificationSender: string | undefined;
 	status: GmailSenderStatusViewModel;
 	checklist: GmailSenderChecklist;
-	results: GmailSenderResultsViewModel;
+	results: GmailSenderResultsView;
 	readlistPicker: GmailReadlistPickerViewModel;
 	delivery: GmailDeliveryChoiceViewModel;
 	save: GmailSaveViewModel;
@@ -397,7 +389,7 @@ function readlistPicker(input: {
 		confirmLabel: input.pending ? "Confirm readlists" : "Apply readlists",
 		readlistName: input.page.state.readlist_name ?? "",
 		nameMaxLength: READLIST_LABEL_MAX_LENGTH,
-		limitMessage: `You can keep up to ${READLIST_MAX_PER_USER} readlists. Choose an existing readlist.`,
+		limitMessage: GMAIL_PAGE_ERRORS.readlist_limit,
 	};
 }
 
@@ -608,12 +600,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			track: ({ href, content }) => trackGmail(href, content),
 		}),
 		checklist: focus === "checklist" ? { ...checklist, groups: focusChecklist(checklist.groups) } : checklist,
-		results: {
-			resultsState: results.resultsState,
-			resultsMessage: results.resultsMessage,
-			refineSearch: results.resultsState === "limited",
-			options: results.options,
-		},
+		results,
 		readlistPicker: readlistPicker({ page: input, state: pickerState, selected: selectedReadlists, pending }),
 		delivery: deliveryChoice({ state: pickerState, sender: anchor }),
 		save,

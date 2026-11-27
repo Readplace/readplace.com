@@ -1,4 +1,3 @@
-import { withInternalTracking } from "@packages/web-shell";
 import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	PASTE_A_LINK,
@@ -6,12 +5,10 @@ import {
 	FREE_PLAN_CLOSE,
 	CREATE_FREE_ACCOUNT,
 	founderLine,
+	SIGNUP_NOTE,
+	bodyLink,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
-
-function track(path: string, content: string): string {
-	return withInternalTracking(path, { source: "lp-article-to-epub-body", content });
-}
 
 export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 	lastModified: "2026-11-19",
@@ -63,9 +60,9 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 	mechanismLede: "An article, not a printout.",
 	mechanismParagraphs: [
 		"The EPUB opens with the article's title, the site it came from and its excerpt. If the AI TL;DR has been written by the time you press the button, it follows as its own section, ahead of the body.",
-		`Images are written into the file rather than linked, so they show on a device with no network. They share a size budget, and an image past it is left out, which keeps the file small enough to email. <a href="${track("/blog/read-your-saved-articles-on-a-kindle-or-kobo", "post-kindle-or-kobo")}">How the file is built</a>.`,
-		`A PDF link works too. Readplace reads the PDF into text first, so the EPUB reflows on a small screen. <a href="${track("/pdf-reflow", "pdf-reflow")}">Reading a PDF on a phone</a> has its own page.`,
-		`An EPUB can also go the other way. <a href="${track("/upload", "upload")}">Upload a DRM-free EPUB</a>, up to 200 MB, and it opens in the same reader, with its chapters in the table of contents. Uploading needs an account; the download doesn't.`,
+		`Images are written into the file rather than linked, so they show on a device with no network. They share a size budget, and an image past it is left out, which keeps the file small enough to email. <a href="${bodyLink("article-to-epub", "/blog/read-your-saved-articles-on-a-kindle-or-kobo", "post-kindle-or-kobo")}">How the file is built</a>.`,
+		`A PDF link works too. Readplace reads the PDF into text first, so the EPUB reflows on a small screen. <a href="${bodyLink("article-to-epub", "/pdf-reflow", "pdf-reflow")}">Reading a PDF on a phone</a> has its own page.`,
+		`An EPUB can also go the other way. <a href="${bodyLink("article-to-epub", "/upload", "upload")}">Upload a DRM-free EPUB</a>, up to 200 MB, and it opens in the same reader, with its chapters in the table of contents. Uploading needs an account; the download doesn't.`,
 	],
 	comparisons: [],
 	limitsTitle: "What this does not do",
@@ -113,7 +110,7 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 			`Downloading an EPUB from a link you paste here costs nothing. Saving articles to a readlist takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Try it on an article you meant to read",
 	closeSecondaryAction: CREATE_FREE_ACCOUNT,

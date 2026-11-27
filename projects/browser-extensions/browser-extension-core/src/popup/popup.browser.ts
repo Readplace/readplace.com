@@ -454,20 +454,25 @@ export function initPopup(deps: {
 		header.hidden = view.countLabel === null && sort === null;
 	}
 
+	function setNoMatches(shown: boolean): void {
+		const noMatches = elementById("no-matches");
+		const message = shown ? String(noMatches.dataset.message) : "";
+		if (noMatches.textContent !== message) noMatches.textContent = message;
+	}
+
 	function renderLinks(items: ReadingListItem[]) {
 		const linkList = elementById("link-list");
 		const emptyList = elementById("empty-list");
-		const noMatches = elementById("no-matches");
 		const search = document.querySelector<HTMLElement>(".list-view__search");
 		if (!search) throw new Error("list search element not found");
 
 		linkList.replaceChildren();
 		emptyList.hidden = true;
-		noMatches.hidden = true;
 		setListError(null);
 
 		if (currentItems.length === 0) {
 			search.hidden = true;
+			setNoMatches(false);
 			elementById("list-header").hidden = true;
 			emptyList.hidden = false;
 			renderPagination(buildPaginationView([]));
@@ -476,9 +481,9 @@ export function initPopup(deps: {
 
 		search.hidden = false;
 		renderListHeader();
+		setNoMatches(items.length === 0);
 
 		if (items.length === 0) {
-			noMatches.hidden = false;
 			renderPagination(buildPaginationView(visiblePageList()));
 			return;
 		}

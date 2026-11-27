@@ -1,3 +1,4 @@
+import type { AuthenticatedUserId } from "@packages/domain/user";
 import type { AppDependencies } from "../../server";
 import type { McpServerDeps } from "./mcp-ports.types";
 import { initMcpSaveLink } from "./mcp-save-link";
@@ -5,6 +6,11 @@ import { initRecordMcpHandshake, initRecordMcpToolCall } from "./mcp-analytics";
 import { initMcpArticleOperations } from "./article-operations";
 import type { initMcpReadlistOperations } from "./readlist-operations";
 import type { initMcpHighlightOperations } from "./highlight-operations";
+
+interface AccessDenied {
+	readonly status: "access_denied";
+	readonly message: string;
+}
 
 export function mcpServerDependenciesFrom(
 	deps: Pick<AppDependencies, "now" | "logError" | "findReadlistArticles" | "findArticlesByUser" | "findArticlesAcrossReadlists" | "readArticleContent" | "findGeneratedSummary" | "findRelatedArticles" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "refreshArticleIfStale" | "publishSubmitLink" | "baseUrl" | "consumeRateLimit" | "rateLimitRules">,
@@ -35,22 +41,23 @@ export function mcpServerDependenciesFrom(
 		resolveReadlistMembership,
 		resolveOwnedArticle,
 	} = built;
+	function gated<Params extends { userId: AuthenticatedUserId }, Result>(
+		op: (params: Params) => Promise<Result>,
+	): (params: Params) => Promise<Result | AccessDenied> {
+		return async (params) => {
+			const access = await resolveSaveAccess(params.userId);
+			if (!access.allowed) return { status: "access_denied", message: access.message };
+			return op(params);
+		};
+	}
 	return {
 		appOrigin,
 		resolveToolAccess,
 		consumeRateLimit: deps.consumeRateLimit,
 		mcpCallRule: deps.rateLimitRules.mcpCall,
 		listReadlists: readlistOperations.listReadlists,
-		createReadlist: async (params) => {
-			const access = await resolveSaveAccess(params.userId);
-			if (!access.allowed) return { status: "access_denied", message: access.message };
-			return readlistOperations.createReadlist(params);
-		},
-		addToReadlist: async (params) => {
-			const access = await resolveSaveAccess(params.userId);
-			if (!access.allowed) return { status: "access_denied", message: access.message };
-			return readlistOperations.addToReadlist(params);
-		},
+		createReadlist: gated(readlistOperations.createReadlist),
+		addToReadlist: gated(readlistOperations.addToReadlist),
 		recordToolCall: initRecordMcpToolCall({
 			recordUngatedAnalyticsEvent,
 			now: deps.now,
@@ -61,11 +68,7 @@ export function mcpServerDependenciesFrom(
 		}),
 		logError: deps.logError,
 		listHighlights: highlightOperations.listHighlights,
-		createHighlight: async (params) => {
-			const access = await resolveSaveAccess(params.userId);
-			if (!access.allowed) return { status: "access_denied", message: access.message };
-			return highlightOperations.createHighlight(params);
-		},
+		createHighlight: gated(highlightOperations.createHighlight),
 		saveLink: initMcpSaveLink({
 			now: deps.now,
 			resolveSaveAccess,

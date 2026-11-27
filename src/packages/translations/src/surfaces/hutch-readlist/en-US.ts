@@ -29,8 +29,10 @@ export const enUS = {
 		action: {
 			file: "Add to readlist",
 			read: "Mark as read in “All”",
+			"read-everywhere": "Mark as read in every readlist",
 			remove: "Remove from “All”",
 		},
+		staleForm: "This form is out of date. Refresh the page and choose the action again.",
 		confirmBy: "Confirm by",
 		restoreBy: "Restore by",
 		retry: "Retry unfinished work",
@@ -44,6 +46,7 @@ export const enUS = {
 			completed: "Completed",
 			skipped: "Skipped",
 			failed: "Failed",
+			unfinished: "Unfinished articles",
 			restorable: "Restorable",
 			restoredCount: "Restored",
 		},
@@ -97,6 +100,23 @@ export const enUS = {
 				android: "Save your first article with the {button} button, or use the Readplace Android app to save it from the share sheet.",
 				other: "Save your first article with the {button} button, or set up one-tap saving from {surfaces}.",
 			},
+		},
+	},
+	readlistSearch: {
+		label: "Search this readlist tab by title or site",
+		allSources: "Submit to search all sources in this tab by title or site",
+		shownFrom: "Results shown from {source}.",
+		sourceEmpty: {
+			title: "No articles from {source} in {tab}",
+			text: "A search looks in all sources in this tab.",
+			noSender: "No sender selected",
+			noSenderText: "Choose a newsletter sender to see its articles in {tab}.",
+		},
+		sourceNoMatches: {
+			search: "Nothing from {source} in {tab} matches your search. {action} also returns to all sources.",
+			filters: "Nothing from {source} in {tab} matches your filters: ",
+			searchAndFilters: "Nothing from {source} in {tab} matches your search and filters: ",
+			tail: ". Your filters stay on as you browse until you clear them. {action} also returns to all sources.",
 		},
 	},
 	readlistOffline: {

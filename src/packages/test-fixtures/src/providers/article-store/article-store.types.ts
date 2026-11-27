@@ -1,7 +1,5 @@
 export type {
 	ArticleFreshnessData,
-	BumpArticleSavedAt,
-	BumpArticleSavedAtParams,
 	CountArticlesByUser,
 	CountArticlesQuery,
 	DeleteArticle,
@@ -16,7 +14,6 @@ export type {
 	FindArticlesQuery,
 	FindArticlesResult,
 	FindUnreadSavesForDigest,
-	FindUserArticlesByUrl,
 	GlobalArticleData,
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
@@ -28,5 +25,4 @@ export type {
 	SortOrder,
 	UnreadSavesForDigestPage,
 	UpdateArticleStatus,
-	UserArticleByUrl,
 } from "@packages/provider-contracts/article-store";

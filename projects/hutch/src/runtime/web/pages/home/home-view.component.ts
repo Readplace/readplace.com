@@ -203,13 +203,12 @@ function buildHeroActions(input: {
 	const target =
 		article === undefined
 			? undefined
-			: {
+			: trackedLink({
 					label: article.display,
-					href: withInternalTracking(`/view?url=${encodeURIComponent(input.lastViewUrl)}`, {
-						source: TRACKING_SOURCE,
-						content: "hero-last-view-article",
-					}),
-				};
+					href: `/view?url=${encodeURIComponent(input.lastViewUrl)}`,
+					content: "hero-last-view-article",
+					source: TRACKING_SOURCE,
+				});
 	const saveLastView = renderAction({
 		key: "hero-save-last-view",
 		label:
@@ -251,13 +250,7 @@ export function buildHomeView(params: {
 					: trackedLink({ ...way.bodyLink, content: way.bodyLink.trackContent, source: "home-ways" }),
 			examples: way.examples,
 			bodyTail: way.bodyTail,
-			links: way.links.map((link) => ({
-				label: link.label,
-				href: withInternalTracking(link.href, {
-					source: "home-ways",
-					content: link.trackContent,
-				}),
-			})),
+			links: way.links.map((link) => trackedLink({ ...link, content: link.trackContent, source: "home-ways" })),
 		})),
 		waysNoteLead: ways.noteLead,
 		waysNoteLink: trackedLink({ ...ways.noteLink, source: "home-ways" }),

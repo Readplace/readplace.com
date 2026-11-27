@@ -15,6 +15,7 @@ import { RegularReader } from "../../shared/article-body/reader-actions/reader-a
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { RECRAWL_STYLES } from "./recrawl.styles";
+import { autoSubmitScript } from "../../shared/auto-submit-script";
 import { displayableReadTime } from "@packages/domain/article";
 
 /**
@@ -29,24 +30,6 @@ import { displayableReadTime } from "@packages/domain/article";
 export function recrawlPathFor(articleUrl: string): string {
 	return `/admin/recrawl?url=${encodeURIComponent(articleUrl)}`;
 }
-
-// POST-Redirect-GET: the recrawl is a state mutation, so the operator's
-// browser submits it via POST instead of firing it on the read-only GET.
-const recrawlTriggerScript = (cspNonce: CspNonce) => `
-<script nonce="${cspNonce}">
-	(function () {
-		function run() {
-			var form = document.querySelector('[data-auto-submit]');
-			if (form) form.requestSubmit();
-		}
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', run, { once: true });
-		} else {
-			run();
-		}
-	})();
-</script>
-`;
 
 function renderRecrawlForm(action: string | undefined): string {
 	if (action === undefined) {
@@ -136,7 +119,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	const recrawlForm = renderRecrawlForm(input.recrawlFormAction);
 	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<div class="admin-recrawl__body" data-article-body>${innerContent}</div><div class="admin-recrawl__rail">${railHtml}</div></main>`;
 	const triggerScript =
-		input.recrawlFormAction === undefined ? "" : recrawlTriggerScript(input.cspNonce);
+		input.recrawlFormAction === undefined ? "" : autoSubmitScript(input.cspNonce);
 
 	return {
 		seo: {

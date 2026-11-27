@@ -41,7 +41,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { wantsSiren } from "../../content-negotiation";
 import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
 import { initMultipartUpload } from "./multipart-upload";
-import { buildImportDailyLimitUrl, parseImportDailyLimitSavedCount, parseImportPage } from "./import.url";
+import { buildImportDailyLimitUrl, buildImportUrl, parseImportDailyLimitSavedCount, parseImportPage } from "./import.url";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import type { LogError } from "@packages/logger";
@@ -298,7 +298,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 
 		const page = parseImportPage(req.query);
-		res.redirect(303, page > 1 ? `/import/${parsedId.data}?page=${page}` : `/import/${parsedId.data}`);
+		res.redirect(303, buildImportUrl(parsedId.data, page));
 	});
 
 	router.post("/:id/toggle-all", async (req: Request, res: Response) => {
@@ -316,7 +316,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 
 		const page = parseImportPage(req.query);
-		res.redirect(303, page > 1 ? `/import/${parsedId.data}?page=${page}` : `/import/${parsedId.data}`);
+		res.redirect(303, buildImportUrl(parsedId.data, page));
 	});
 
 	router.post(

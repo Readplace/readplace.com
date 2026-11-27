@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, renderAlert } from "@packages/web-shell";
+import { render, renderAlert, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { SAVE_ERROR_STYLES } from "./save-error.styles";
@@ -10,6 +10,19 @@ const SAVE_ERROR_TEMPLATE = readFileSync(join(__dirname, "save-error.template.ht
 const COUNTDOWN_SECONDS = 5;
 
 const COUNTDOWN_SCRIPT = `<script src="/client-dist/save-error.client.js" defer></script>`;
+
+export function readerErrorLink(input: {
+	signedIn: boolean;
+	source: "save-error" | "view-error";
+}): { redirectUrl: string; linkLabel: string } {
+	return {
+		redirectUrl: withInternalTracking(input.signedIn ? "/queue" : "/", {
+			source: input.source,
+			content: input.signedIn ? "back-to-queue" : "home",
+		}),
+		linkLabel: input.signedIn ? "Go to your readlist" : "Go to homepage",
+	};
+}
 
 export function SaveErrorPage(input: {
 	redirectUrl: string;

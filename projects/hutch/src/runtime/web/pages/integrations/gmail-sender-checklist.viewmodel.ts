@@ -52,7 +52,7 @@ export interface GmailSenderChecklist {
 const GMAIL_CHECKLIST_INTRO =
 	"These are the known newsletters in your Gmail. Tick the ones to send to your readlists. Looking for a sender that isn't listed? Search all your senders below and it joins this list.";
 
-export const GMAIL_CHECKLIST_MESSAGES: Record<GmailChecklistState, string> = {
+const GMAIL_CHECKLIST_MESSAGES: Record<GmailChecklistState, string> = {
 	listed: "",
 	"catalog-unavailable": "Newsletter suggestions are unavailable right now. Try again, or search all your senders below.",
 	"no-discovered-senders": "No senders discovered yet.",
@@ -66,14 +66,14 @@ const GMAIL_CHECKLIST_TITLES: Record<GmailChecklistGroup["key"], string> = {
 	added: "Senders you added",
 };
 
-export const SELECT_TOGGLE: Record<GmailChecklistSelect, GmailChecklistAction> = {
+const SELECT_TOGGLE: Record<GmailChecklistSelect, GmailChecklistAction> = {
 	all: { key: "select", name: "select", value: "all", label: "Select all" },
 	none: { key: "select", name: "select", value: "none", label: "Clear selection" },
 };
 
-export const RETRY_ACTION: GmailChecklistAction = { key: "retry", name: undefined, value: "", label: "Try again" };
+const RETRY_ACTION: GmailChecklistAction = { key: "retry", name: undefined, value: "", label: "Try again" };
 
-export function chooseState(input: { candidates: readonly GmailSenderCandidate[]; catalogAvailable: boolean; known: readonly GmailSenderCandidate[] }): GmailChecklistState {
+function chooseState(input: { candidates: readonly GmailSenderCandidate[]; catalogAvailable: boolean; known: readonly GmailSenderCandidate[] }): GmailChecklistState {
 	if (input.candidates.length === 0) return "no-discovered-senders";
 	if (!input.catalogAvailable) return "catalog-unavailable";
 	if (input.known.length > 0) return "listed";
@@ -84,6 +84,42 @@ export function tickedEmails(input: { requested: readonly string[]; select: Gmai
 	if (input.select === "all") return new Set(input.listed.map((candidate) => candidate.email));
 	if (input.select === "none") return new Set();
 	return new Set(input.requested);
+}
+
+export function assembleGmailChecklist<G extends { rows: readonly GmailChecklistRow[] }>(input: {
+	candidates: readonly GmailSenderCandidate[];
+	catalogAvailable: boolean;
+	known: readonly GmailSenderCandidate[];
+	listed: readonly GmailSenderCandidate[];
+	ticked: ReadonlySet<string>;
+	groups: readonly G[];
+	intro: string;
+	toggleFormaction?: string;
+}): {
+	state: GmailChecklistState;
+	intro: string;
+	message: string;
+	groups: G[];
+	total: number;
+	knownCount: number;
+	actions: GmailChecklistAction[];
+	sender: ForwardableSender[];
+} {
+	const { listed, ticked, toggleFormaction } = input;
+	const state = chooseState(input);
+	const allTicked = listed.every((candidate) => ticked.has(candidate.email));
+	const select = SELECT_TOGGLE[allTicked ? "none" : "all"];
+	const toggle = listed.length === 0 ? [] : [toggleFormaction === undefined ? select : { ...select, formaction: toggleFormaction }];
+	return {
+		state,
+		intro: input.intro,
+		message: GMAIL_CHECKLIST_MESSAGES[state],
+		groups: input.groups.filter((group) => group.rows.length > 0),
+		total: listed.length,
+		knownCount: input.known.length,
+		actions: state === "catalog-unavailable" ? [RETRY_ACTION, ...toggle] : toggle,
+		sender: listed.filter((candidate) => ticked.has(candidate.email)).map((candidate) => candidate.email),
+	};
 }
 
 export function toGmailSenderChecklist(input: {
@@ -119,18 +155,8 @@ export function toGmailSenderChecklist(input: {
 			actions: [{ name: "dismiss", label: "Remove" }],
 		},
 	];
-	const state = chooseState({ candidates, catalogAvailable: input.catalogAvailable, known });
-	const allTicked = listed.every((candidate) => ticked.has(candidate.email));
-	const toggle = listed.length === 0 ? [] : [SELECT_TOGGLE[allTicked ? "none" : "all"]];
 	return {
-		state,
-		intro: GMAIL_CHECKLIST_INTRO,
-		message: GMAIL_CHECKLIST_MESSAGES[state],
-		groups: groups.filter((group) => group.rows.length > 0),
-		total: listed.length,
-		knownCount: known.length,
-		actions: state === "catalog-unavailable" ? [RETRY_ACTION, ...toggle] : toggle,
-		sender: listed.filter((candidate) => ticked.has(candidate.email)).map((candidate) => candidate.email),
+		...assembleGmailChecklist({ candidates, catalogAvailable: input.catalogAvailable, known, listed, ticked, groups, intro: GMAIL_CHECKLIST_INTRO }),
 		added: added.map((candidate) => candidate.email),
 	};
 }

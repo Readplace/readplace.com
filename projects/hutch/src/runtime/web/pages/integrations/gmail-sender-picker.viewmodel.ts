@@ -24,6 +24,7 @@ export interface GmailSenderOption {
 export interface GmailSenderResults {
 	resultsState: GmailSenderResultsState;
 	resultsMessage: string;
+	refineSearch: boolean;
 	options: GmailSenderOption[];
 }
 
@@ -100,6 +101,7 @@ export function toGmailSenderResults(input: {
 	return {
 		resultsState,
 		resultsMessage: resultsMessage({ resultsState, search, total: matches.length }),
+		refineSearch: resultsState === "limited",
 		options: matches.slice(0, GMAIL_SENDER_OPTION_LIMIT).map((candidate) => ({
 			email: candidate.email,
 			name: gmailSenderName(candidate),

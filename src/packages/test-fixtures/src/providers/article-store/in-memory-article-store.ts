@@ -116,7 +116,6 @@ import type {
 	FindReadlistArticleById,
 	FindReadlistArticles,
 	FindUnreadSavesForDigest,
-	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
@@ -267,6 +266,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 
 export function initInMemoryArticleStore(): {
 	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+	markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
 	findUnrestorableArticles: FindUnrestorableArticles;
@@ -294,7 +294,6 @@ export function initInMemoryArticleStore(): {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
-	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -321,7 +320,6 @@ export function initInMemoryArticleStore(): {
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	markOcrPagesHeld: MarkOcrPagesHeld;
-	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
@@ -1390,6 +1388,16 @@ export function initInMemoryArticleStore(): {
 		return toSavedArticle(article, ua);
 	};
 
+	function markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		const source = article && userArticles.get(userArticleKey(params.userId, article.url));
+		if (!article || article.purgedAt || !source || !params.isSelected(toSavedArticle(article, source))) return false;
+		const unread = [...userArticles.values()].filter((row) => row.userId === params.userId && row.url === article.url && row.status === "unread"
+			&& (row.readlist === undefined || readlistDefinitions.has(readlistDefinitionKey(params.userId, row.readlist))));
+		for (const row of unread) updateStatusIn(row.readlist, article.routeId, params.userId, "read", params.at);
+		return true;
+	}
+
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status, expected) =>
 		updateStatusIn(undefined, id, userId, status, new Date(), expected);
 
@@ -1604,17 +1612,6 @@ export function initInMemoryArticleStore(): {
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
 		if (!ua) return;
 		ua.ocrPagesHold = hold;
-	};
-
-	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const result: { userId: UserId; viewedAt?: Date }[] = [];
-		for (const ua of userArticles.values()) {
-			if (ua.url === articleResourceUniqueId.value && ua.readlist === undefined) {
-				result.push({ userId: ua.userId, viewedAt: ua.viewedAt });
-			}
-		}
-		return result;
 	};
 
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
@@ -1944,7 +1941,6 @@ export function initInMemoryArticleStore(): {
 		allocateSavedAtSequence,
 		findSavedUrls,
 		saveArticleGlobally,
-		bumpArticleSavedAt,
 		findArticleById,
 		findArticleByUrl,
 		findArticleUrlById,
@@ -1955,6 +1951,7 @@ export function initInMemoryArticleStore(): {
 		countArticlesByUser,
 		deleteArticle,
 		holdBulkArticle,
+		markReadEverywhereForBulk,
 		onDefaultRowDeleted: (listener) => {
 			defaultRowDeletedListeners.push(listener);
 		},
@@ -1981,7 +1978,6 @@ export function initInMemoryArticleStore(): {
 		markSummaryToggled,
 		markRelatedDismissed,
 		markOcrPagesHeld,
-		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUnreadSavesForDigest,
 		saveReadlistArticle,

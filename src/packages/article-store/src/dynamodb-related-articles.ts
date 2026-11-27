@@ -13,7 +13,6 @@ import {
 } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import {
-	writeIfCondition,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
@@ -38,6 +37,7 @@ import {
 	LinkableArticle,
 	descriptionOf,
 	initArticleReads,
+	outcomeOf,
 	readableBy,
 	usable,
 } from "./related-articles-rows";
@@ -63,6 +63,11 @@ const READY_UPDATE_EXPRESSION =
 	"SET relatedStatus = :status, relatedArticles = :articles, relatedComputedAt = :at, relatedInputTokens = :inputTokens, relatedOutputTokens = :outputTokens";
 const SKIPPED_UPDATE_EXPRESSION =
 	"SET relatedStatus = :status, relatedComputedAt = :at REMOVE relatedArticles";
+// Terminal-once: two saves of the same article race each other through
+// the worker, and the loser must not repaint a settled row with its own
+// (equally valid, differently ordered) answer.
+const TERMINAL_ONCE_CONDITION = "attribute_exists(savedAt) AND attribute_not_exists(relatedStatus)";
+const REPLACE_SKIPPED_CONDITION = "attribute_exists(savedAt) AND relatedStatus = :skipped";
 
 export function initDynamoDbRelatedArticles(deps: {
 	client: DynamoDBDocumentClient;
@@ -94,53 +99,54 @@ export function initDynamoDbRelatedArticles(deps: {
 
 	const { readArticles, hydrateCandidates } = initArticleReads({ client, tableName });
 
-	async function writeRelated(params: {
+	function updateRelated(params: {
 		userId: UserId;
 		url: string;
 		updateExpression: string;
+		conditionExpression: string;
 		expressionAttributeValues: Record<string, unknown>;
 	}): Promise<MarkRelatedArticlesOutcome> {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		const outcome = await writeIfCondition(() => userArticles.update({
+		return outcomeOf(() => userArticles.update({
 			Key: { userId: params.userId, url: articleResourceUniqueId.value },
 			UpdateExpression: params.updateExpression,
-			// Terminal-once: two saves of the same article race each other through
-			// the worker, and the loser must not repaint a settled row with its own
-			// (equally valid, differently ordered) answer.
-			ConditionExpression:
-				"attribute_exists(savedAt) AND attribute_not_exists(relatedStatus)",
+			ConditionExpression: params.conditionExpression,
 			ExpressionAttributeValues: params.expressionAttributeValues,
 		}));
-		if (outcome.kind === "condition-failed") return "superseded";
-		return "stored";
 	}
 
+	const readyValues = (params: Parameters<MarkRelatedArticlesReady>[0]): Record<string, unknown> => ({
+		":status": "ready",
+		":articles": params.relatedArticles.map((link) => ({
+			url: link.url,
+			reason: link.reason,
+		})),
+		":at": params.at.toISOString(),
+		":inputTokens": params.inputTokens,
+		":outputTokens": params.outputTokens,
+	});
+
+	const skippedValues = (params: Parameters<MarkRelatedArticlesSkipped>[0]): Record<string, unknown> => ({
+		":status": "skipped",
+		":at": params.at.toISOString(),
+	});
+
 	const markRelatedArticlesReady: MarkRelatedArticlesReady = async (params) =>
-		writeRelated({
+		updateRelated({
 			userId: params.userId,
 			url: params.url,
 			updateExpression: READY_UPDATE_EXPRESSION,
-			expressionAttributeValues: {
-				":status": "ready",
-				":articles": params.relatedArticles.map((link) => ({
-					url: link.url,
-					reason: link.reason,
-				})),
-				":at": params.at.toISOString(),
-				":inputTokens": params.inputTokens,
-				":outputTokens": params.outputTokens,
-			},
+			conditionExpression: TERMINAL_ONCE_CONDITION,
+			expressionAttributeValues: readyValues(params),
 		});
 
 	const markRelatedArticlesSkipped: MarkRelatedArticlesSkipped = async (params) =>
-		writeRelated({
+		updateRelated({
 			userId: params.userId,
 			url: params.url,
 			updateExpression: SKIPPED_UPDATE_EXPRESSION,
-			expressionAttributeValues: {
-				":status": "skipped",
-				":at": params.at.toISOString(),
-			},
+			conditionExpression: TERMINAL_ONCE_CONDITION,
+			expressionAttributeValues: skippedValues(params),
 		});
 
 	const findRelatedTargetArticle: FindRelatedTargetArticle = async (url, options) => {
@@ -172,24 +178,27 @@ export function initDynamoDbRelatedArticles(deps: {
 		};
 	};
 
-	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (
-		params,
-	) => {
+	const collectSavedUrls = async (params: {
+		userId: UserId;
+		excludeUrl: string;
+		limit: number;
+		query: {
+			IndexName: "userId-savedAt-index" | "userId-readAt-index";
+			FilterExpression?: string;
+			ExpressionAttributeNames?: Record<string, string>;
+			ExpressionAttributeValues?: Record<string, unknown>;
+		};
+	}): Promise<string[]> => {
 		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
 		const savedUrls: string[] = [];
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 
 		do {
 			const { items, lastEvaluatedKey } = await userArticles.query({
-				IndexName: "userId-savedAt-index",
+				...params.query,
 				KeyConditionExpression: "userId = :userId",
-				FilterExpression: "#status = :status",
 				/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
-				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: {
-					":userId": params.userId,
-					":status": "unread",
-				},
+				ExpressionAttributeValues: { ...params.query.ExpressionAttributeValues, ":userId": params.userId },
 				ScanIndexForward: false,
 				ExclusiveStartKey: exclusiveStartKey,
 			});
@@ -201,32 +210,31 @@ export function initDynamoDbRelatedArticles(deps: {
 			exclusiveStartKey = lastEvaluatedKey;
 		} while (exclusiveStartKey && savedUrls.length < params.limit);
 
+		return savedUrls;
+	};
+
+	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (params) => {
+		const savedUrls = await collectSavedUrls({
+			userId: params.userId,
+			excludeUrl: params.excludeUrl,
+			limit: params.limit,
+			query: {
+				IndexName: "userId-savedAt-index",
+				FilterExpression: "#status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": "unread" },
+			},
+		});
 		return hydrateCandidates({ savedUrls, viewer: viewerFor(params.userId) });
 	};
 
-	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (
-		params,
-	) => {
-		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
-		const savedUrls: string[] = [];
-		let exclusiveStartKey: Record<string, unknown> | undefined;
-
-		do {
-			const { items, lastEvaluatedKey } = await userArticles.query({
-				IndexName: "userId-readAt-index",
-				KeyConditionExpression: "userId = :userId",
-				ExpressionAttributeValues: { ":userId": params.userId },
-				ScanIndexForward: false,
-				ExclusiveStartKey: exclusiveStartKey,
-			});
-			for (const item of items) {
-				if (item.url === excludeKey) continue;
-				if (savedUrls.length >= params.limit) break;
-				savedUrls.push(item.url);
-			}
-			exclusiveStartKey = lastEvaluatedKey;
-		} while (exclusiveStartKey && savedUrls.length < params.limit);
-
+	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (params) => {
+		const savedUrls = await collectSavedUrls({
+			userId: params.userId,
+			excludeUrl: params.excludeUrl,
+			limit: params.limit,
+			query: { IndexName: "userId-readAt-index" },
+		});
 		return hydrateCandidates({ savedUrls, viewer: viewerFor(params.userId) });
 	};
 
@@ -307,56 +315,22 @@ export function initDynamoDbRelatedArticles(deps: {
 		return { status: "ready", items };
 	};
 
-	async function replaceSkippedRelated(params: {
-		userId: UserId;
-		url: string;
-		updateExpression: string;
-		expressionAttributeValues: Record<string, unknown>;
-	}): Promise<MarkRelatedArticlesOutcome> {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		const outcome = await writeIfCondition(() => userArticles.update({
-			Key: { userId: params.userId, url: articleResourceUniqueId.value },
-			UpdateExpression: params.updateExpression,
-			ConditionExpression: "attribute_exists(savedAt) AND relatedStatus = :skipped",
-			ExpressionAttributeValues: {
-				...params.expressionAttributeValues,
-				":skipped": "skipped",
-			},
-		}));
-		if (outcome.kind === "condition-failed") return "superseded";
-		return "stored";
-	}
-
-	const readyValues = (params: Parameters<MarkRelatedArticlesReady>[0]): Record<string, unknown> => ({
-		":status": "ready",
-		":articles": params.relatedArticles.map((link) => ({
-			url: link.url,
-			reason: link.reason,
-		})),
-		":at": params.at.toISOString(),
-		":inputTokens": params.inputTokens,
-		":outputTokens": params.outputTokens,
-	});
-
-	const skippedValues = (params: Parameters<MarkRelatedArticlesSkipped>[0]): Record<string, unknown> => ({
-		":status": "skipped",
-		":at": params.at.toISOString(),
-	});
-
 	const replaceSkippedRelatedArticlesWithReady: MarkRelatedArticlesReady = async (params) =>
-		replaceSkippedRelated({
+		updateRelated({
 			userId: params.userId,
 			url: params.url,
 			updateExpression: READY_UPDATE_EXPRESSION,
-			expressionAttributeValues: readyValues(params),
+			conditionExpression: REPLACE_SKIPPED_CONDITION,
+			expressionAttributeValues: { ...readyValues(params), ":skipped": "skipped" },
 		});
 
 	const replaceSkippedRelatedArticlesWithSkip: MarkRelatedArticlesSkipped = async (params) =>
-		replaceSkippedRelated({
+		updateRelated({
 			userId: params.userId,
 			url: params.url,
 			updateExpression: SKIPPED_UPDATE_EXPRESSION,
-			expressionAttributeValues: skippedValues(params),
+			conditionExpression: REPLACE_SKIPPED_CONDITION,
+			expressionAttributeValues: { ...skippedValues(params), ":skipped": "skipped" },
 		});
 
 	const findSkippedNextReadSaves: FindSkippedNextReadSaves = async (url) => {

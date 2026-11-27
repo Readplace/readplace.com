@@ -3,7 +3,7 @@ import { z } from "zod";
 import { defineDynamoTable, forEachQueryPage, TransactWriteCommand, transactIfConditions, type DynamoDBDocumentClient } from "@packages/storage-client";
 import type { UserId } from "@packages/domain/user";
 import { BULK_ARTICLE_JOB_PREFIX as BULK_PREFIX } from "@packages/article-store";
-import { BULK_RETENTION_SECONDS, BULK_CHUNK_SIZE, BulkSelection, type BulkSelectionStore, type SelectionTarget, selectionKey, targetKey } from "./selection";
+import { BULK_RETENTION_SECONDS, BULK_CHUNK_SIZE, BulkSelection, type BulkSelectionStore, headerExpiry, previewExpiry, type SelectionTarget, selectionKey, targetExpiry, targetKey } from "./selection";
 
 function uniqueTargets(targets: readonly SelectionTarget[]) {
 	assert(targets.length <= BULK_CHUNK_SIZE, "a preparation step must fit in one transaction");
@@ -12,7 +12,7 @@ function uniqueTargets(targets: readonly SelectionTarget[]) {
 
 function afterAppend(selection: BulkSelection, added: number, cursor: string | undefined, now: Date): BulkSelection {
 	const { cursor: _previous, ...header } = selection;
-	return { ...header, expiresAt: Math.floor(now.getTime() / 1000) + 3600, ...(cursor === undefined ? {} : { cursor }), state: cursor === undefined ? "preview" : "preparing", generation: selection.generation + 1, selected: selection.selected + added };
+	return { ...header, expiresAt: previewExpiry(selection, now), ...(cursor === undefined ? {} : { cursor }), state: cursor === undefined ? "preview" : "preparing", generation: selection.generation + 1, selected: selection.selected + added };
 }
 
 function canAdvance(current: BulkSelection | undefined, expected: BulkSelection, state: BulkSelection["state"], now: Date) {
@@ -95,7 +95,7 @@ export function initInMemoryBulkSelections(): LocalBulkSelections {
 
 export function initDynamoBulkSelections(client: DynamoDBDocumentClient, tableName: string): BulkSelectionStore {
 	const rows = defineDynamoTable({ client, tableName, schema: z.object({ selection: BulkSelection.optional() }) });
-	const header = (selection: BulkSelection) => ({ ...selectionKey(selection.userId, selection.id), selection: JSON.parse(JSON.stringify(selection)), expiresAt: selection.expiresAt + BULK_RETENTION_SECONDS });
+	const header = (selection: BulkSelection) => ({ ...selectionKey(selection.userId, selection.id), selection: JSON.parse(JSON.stringify(selection)), expiresAt: headerExpiry(selection) });
 	const compare = (selection: BulkSelection, state: string, now: Date) => ({
 		ConditionExpression: "#selection.#state = :state AND #selection.generation = :generation AND #selection.expiresAt > :now",
 		ExpressionAttributeNames: { "#selection": "selection", "#state": "state" },
@@ -125,7 +125,7 @@ export function initDynamoBulkSelections(client: DynamoDBDocumentClient, tableNa
 			const result = await transactIfConditions(() => client.send(new TransactWriteCommand({ TransactItems: [
 				{ Put: { TableName: tableName, Item: header(next), ...compare(selection, "preparing", now) } },
 				...fresh.map(target => ({ Put: {
-					TableName: tableName, Item: { ...targetKey(selection, target.key), target, expiresAt: selection.expiresAt + BULK_RETENTION_SECONDS, outcome: "pending" },
+					TableName: tableName, Item: { ...targetKey(selection, target.key), target, expiresAt: targetExpiry(selection), outcome: "pending" },
 					ConditionExpression: "attribute_not_exists(userId)",
 				} })),
 			] })));

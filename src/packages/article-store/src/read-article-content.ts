@@ -7,8 +7,6 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { LogError } from "@packages/logger";
 
-export type { ContentProvider, ReadArticleContent };
-
 export function initReadArticleContent(deps: {
 	storageProviderQueryOrder: ContentProvider[];
 	findItemOwner: FindItemOwner;

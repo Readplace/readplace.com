@@ -62,14 +62,17 @@ interface GmailOAuthStatePayload {
 	intent: { kind: "connect" | "import" | "modify" };
 }
 
-type GmailOAuthStateReading =
+type GmailOAuthStateReading<P extends GmailOAuthStatePayload = GmailOAuthStatePayload> =
 	| { kind: "absent" }
 	| { kind: "invalid-signature"; fingerprint: string }
 	| { kind: "malformed-json"; fingerprint: string }
 	| { kind: "schema-rejected"; fingerprint: string }
-	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "modify" };
+	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "modify"; payload: P };
 
-type ReadGmailOAuthState = (input: { value: unknown; checkedAtMs: number }) => GmailOAuthStateReading;
+export type ReadGmailOAuthState<P extends GmailOAuthStatePayload = GmailOAuthStatePayload> = (input: {
+	value: unknown;
+	checkedAtMs: number;
+}) => GmailOAuthStateReading<P>;
 
 const KNOWN_PROVIDER_ERRORS: ReadonlySet<string> = new Set([
 	"access_denied",
@@ -117,10 +120,10 @@ function parseJsonWithoutThrowing(text: string): { parsed: true; value: unknown 
 	}
 }
 
-export function initReadGmailOAuthState(deps: {
+export function initReadGmailOAuthState<P extends GmailOAuthStatePayload>(deps: {
 	secret: string;
-	parsePayload: (json: unknown) => GmailOAuthStatePayload | undefined;
-}): ReadGmailOAuthState {
+	parsePayload: (json: unknown) => P | undefined;
+}): ReadGmailOAuthState<P> {
 	return ({ value, checkedAtMs }) => {
 		if (typeof value !== "string" || value === "") return { kind: "absent" };
 		const fingerprint = fingerprintGmailOAuthState(value);
@@ -136,6 +139,7 @@ export function initReadGmailOAuthState(deps: {
 			createdAtMs: payload.createdAt,
 			ageMs: checkedAtMs - payload.createdAt,
 			intentKind: payload.intent.kind,
+			payload,
 		};
 	};
 }
@@ -193,12 +197,13 @@ export function inspectGmailOAuthCallback(input: {
 	query: Request["query"];
 	queryShape: "valid" | "malformed";
 	stateCookie: unknown;
+	cookieReading: GmailOAuthStateReading;
 	checkedAtMs: number;
 	ttlMs: number;
 	readState: ReadGmailOAuthState;
 }): GmailOAuthCallbackInspectedFields {
+	const { cookieReading } = input;
 	const queryReading = input.readState({ value: input.query.state, checkedAtMs: input.checkedAtMs });
-	const cookieReading = input.readState({ value: input.stateCookie, checkedAtMs: input.checkedAtMs });
 	const queryState = toGmailOAuthStateInspection(queryReading);
 	const cookieState = toGmailOAuthStateInspection(cookieReading);
 	const providerError = classifyProviderError(input.query.error);

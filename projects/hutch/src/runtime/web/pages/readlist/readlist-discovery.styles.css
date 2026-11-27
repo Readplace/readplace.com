@@ -1,4 +1,25 @@
 .readlist-discovery {
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.readlist-discovery__label,
+.readlist-discovery__scope {
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.readlist-discovery__label {
+  line-height: 20px;
+}
+
+.readlist-discovery__scope {
+  line-height: 16px;
+}
+
+.readlist-discovery__controls {
+  display: flex;
   align-items: stretch;
   gap: 8px;
   min-width: 0;

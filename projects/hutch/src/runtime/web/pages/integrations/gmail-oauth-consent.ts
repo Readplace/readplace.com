@@ -6,7 +6,7 @@ import type { UserId } from "@packages/domain/user";
 import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { initRecordGmailDiagnostic } from "../../../observability/gmail-diagnostics";
 import { HxRedirectPage } from "../../hx-redirect-page";
-import { signState, verifyState } from "../../auth/oauth-state";
+import { signState } from "../../auth/oauth-state";
 import { GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import {
@@ -14,6 +14,7 @@ import {
 	type GmailOAuthTrace,
 	initGmailOAuthTrace,
 	initReadGmailOAuthState,
+	type ReadGmailOAuthState,
 	toGmailOAuthStateInspection,
 } from "./gmail-oauth-diagnostics";
 import { type ConnectIntent, type StatePayload, StatePayloadSchema } from "./gmail-oauth-intent";
@@ -30,8 +31,7 @@ const REQUESTED_SCOPES: Record<ConnectIntent["kind"], string> = {
 
 export interface GmailOAuthConsent {
 	trace: GmailOAuthTrace;
-	readState: ReturnType<typeof initReadGmailOAuthState>;
-	verifiedPayload: (stateCookie: unknown) => StatePayload | undefined;
+	readState: ReadGmailOAuthState<StatePayload>;
 	begin: (input: { req: Request; res: Response; userId: UserId; intent: ConnectIntent }) => Promise<void>;
 }
 
@@ -50,16 +50,8 @@ export function initGmailOAuthConsent(deps: {
 	});
 	const readState = initReadGmailOAuthState({
 		secret: gmail.stateSecret,
-		parsePayload: (json) => StatePayloadSchema.safeParse(json).data,
+		parsePayload: (json): StatePayload | undefined => StatePayloadSchema.safeParse(json).data,
 	});
-
-	const verifiedPayload = (stateCookie: unknown): StatePayload | undefined => {
-		if (typeof stateCookie !== "string") return undefined;
-		const verified = verifyState({ signed: stateCookie, secret: gmail.stateSecret });
-		if (verified === null) return undefined;
-		const payload = StatePayloadSchema.safeParse(JSON.parse(verified));
-		return payload.success ? payload.data : undefined;
-	};
 
 	const sign = (req: Request, intent: ConnectIntent) => {
 		trace.enter(req, "issue-state");
@@ -119,7 +111,6 @@ export function initGmailOAuthConsent(deps: {
 	return {
 		trace,
 		readState,
-		verifiedPayload,
 		begin: ({ req, res, userId, intent }) => send({ req, res, userId, signed: sign(req, intent) }),
 	};
 }

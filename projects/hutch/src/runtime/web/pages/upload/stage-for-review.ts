@@ -9,8 +9,8 @@ import type {
 	ReadTimedDuration,
 	RecordTimedMediaFacts,
 } from "@packages/domain";
-import type { MediaKindManifest, Meter, TimedFactsRefusal } from "@packages/media-contracts";
-import { refusalOfLowerBound } from "./charge-transcript";
+import type { MediaKindManifest, Meter } from "@packages/media-contracts";
+import { timedRefusalOf } from "./charge-transcript";
 import { defaultFileNameOf, type SettleAnyReceivedUpload, type SettleReceivedUpload } from "./commit-received-upload";
 import type { UploadOutcome } from "./upload.outcome";
 import { type TranscriptRefusalReason, uploadRefusalCopyOf } from "./upload.refusal";
@@ -24,16 +24,6 @@ export type StageForReview = (params: {
 
 function rejectedAs(params: { refusal: TranscriptRefusalReason; allowanceSeconds: number }): MediaInspectionVerdict {
 	return { verdict: "rejected", reason: "unreadable", notice: uploadRefusalCopyOf(params.allowanceSeconds)[params.refusal] };
-}
-
-function timedInspection(params: {
-	refusal: TimedFactsRefusal | undefined;
-	durationSeconds: number;
-	allowanceSeconds: number;
-}): MediaInspectionVerdict {
-	return params.refusal === undefined
-		? { verdict: "inspected", facts: { kind: "audio", shape: "timed", durationSeconds: params.durationSeconds } }
-		: rejectedAs({ refusal: params.refusal, allowanceSeconds: params.allowanceSeconds });
 }
 
 export function initStageForReview(deps: {
@@ -50,26 +40,15 @@ export function initStageForReview(deps: {
 			const readDuration = deps.readDurationByMeter.get(kind.meter);
 			assert(readDuration, `no duration reader for the ${kind.meter} meter`);
 			const facts = await readDuration({ uploadId, etag });
+			const timed = timedRefusalOf({ facts, kind, allowanceSeconds: deps.transcriptAllowanceSeconds });
 			await deps.recordTimedMediaFacts({
 				uploadId,
 				etag,
 				kind: kind.name,
 				inspection:
-					"atLeastSeconds" in facts
-						? rejectedAs({
-								refusal: refusalOfLowerBound({
-									atLeastSeconds: facts.atLeastSeconds,
-									allowanceSeconds: deps.transcriptAllowanceSeconds,
-								}),
-								allowanceSeconds: deps.transcriptAllowanceSeconds,
-							})
-						: "unreadable" in facts
-						? rejectedAs({ refusal: "unreadable-audio", allowanceSeconds: deps.transcriptAllowanceSeconds })
-						: timedInspection({
-								refusal: kind.refuseTimedFacts(facts),
-								durationSeconds: facts.durationSeconds,
-								allowanceSeconds: deps.transcriptAllowanceSeconds,
-							}),
+					timed.kind === "refuse"
+						? rejectedAs({ refusal: timed.reason, allowanceSeconds: deps.transcriptAllowanceSeconds })
+						: { verdict: "inspected", facts: { kind: "audio", shape: "timed", durationSeconds: timed.durationSeconds } },
 			});
 			return { outcome: "staged-for-review", uploadId };
 		}

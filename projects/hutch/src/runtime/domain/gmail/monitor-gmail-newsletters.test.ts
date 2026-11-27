@@ -9,6 +9,21 @@ import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gm
 import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/gmail-monitoring";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initMonitorGmailNewsletters } from "./monitor-gmail-newsletters";
+import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
+
+async function findNotice(
+	store: Pick<GmailMonitoringStore, "listNotices">,
+	{ userId, senderEmail }: Parameters<GmailMonitoringStore["markNoticeSent"]>[0],
+) {
+	let pageToken: string | undefined;
+	do {
+		const page = await store.listNotices({ userId, pageToken });
+		const notice = page.notices.find((candidate) => candidate.senderEmail === senderEmail);
+		if (notice) return notice;
+		pageToken = page.nextPageToken;
+	} while (pageToken);
+	return undefined;
+}
 
 const USER = UserIdSchema.parse("reader");
 const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
@@ -61,10 +76,10 @@ describe("Gmail newsletter monitoring", () => {
 		const h = await harness();
 		assert.deepEqual(await h.run(), []);
 		assert.equal((await h.state()).historyId, "200");
-		assert.equal(await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }), undefined);
+		assert.equal(await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }), undefined);
 		h.mailbox.listIncomingMessageSenders = async () => ({ ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined }], historyId: "300" } });
 		assert.deepEqual(await h.run(), [SENDER]);
-		assert.equal((await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }))?.status, "pending");
+		assert.equal((await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }))?.status, "pending");
 		assert.deepEqual(await h.monitoring.listObservedSenders({ userId: USER, accountEmail: ACCOUNT }), [{ email: SENDER, name: "Letter" }]);
 	});
 	it("catches arrivals during initialization from a profile cursor captured before scanning", async () => {
@@ -92,7 +107,7 @@ describe("Gmail newsletter monitoring", () => {
 		assert.deepEqual(await h.run(), []);
 		h.catalog.records = [record({ from: "*@example.com" })];
 		assert.deepEqual(await h.run(), [SENDER]);
-		const notice = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }); assert(notice);
+		const notice = await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }); assert(notice);
 		await h.monitoring.claimNotice({ notice, message: { from: "Readplace", to: "reader@readplace.test", subject: "Notice", html: "Notice" } });
 		await h.monitoring.markNoticeSent({ userId: USER, senderEmail: SENDER });
 		h.catalog.records = [record({ from: "*@example.com", name: "Renamed" }), record({ name: "Automatic exact" })];
@@ -122,7 +137,7 @@ describe("Gmail newsletter monitoring", () => {
 		await h.run();
 		h.mailbox.listIncomingMessageSenders = async () => ({ ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined }], historyId: "300" } });
 		await h.run();
-		const notice = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }); assert(notice);
+		const notice = await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }); assert(notice);
 		await h.monitoring.claimNotice({ notice, message: { from: "Readplace", to: "reader@readplace.test", subject: "Notice", html: "Notice" } });
 		await h.monitoring.markNoticeSent({ userId: USER, senderEmail: SENDER });
 		await h.connections.deleteConnection(USER);
@@ -321,12 +336,12 @@ describe("monitoring reconnect and resynchronization", () => {
 		const h = await harness(); await h.run();
 		h.mailbox.listIncomingMessageSenders = async () => ({ ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined }], historyId: "300" } });
 		await h.run();
-		const previous = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }); assert(previous);
+		const previous = await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }); assert(previous);
 		const gateway = InboxAddressSchema.parse("gmail-others@read.place");
 		await h.connections.createConnection({ userId: USER, gatewayAddress: gateway });
 		await h.connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
 		assert.deepEqual(await h.run(), [SENDER]);
-		const current = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }); assert(current);
+		const current = await findNotice(h.monitoring, { userId: USER, senderEmail: SENDER }); assert(current);
 		assert.equal(current.gatewayAddress, gateway);
 		assert.equal(current.status, "pending");
 		assert.equal(current.mailboxId, previous.mailboxId);
