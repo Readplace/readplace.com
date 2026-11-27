@@ -564,7 +564,20 @@ describe("ReadlistPage", () => {
 			submission.url.pathname,
 			submission.url.searchParams.get("utm_source"),
 			submission.url.searchParams.get("utm_content"),
-		]).toEqual(["GET", "/queue/queues/work/preferences", "queue-empty", "preferences"]);
+			submission.url.hash,
+		]).toEqual(["GET", "/queue/queues/work/preferences", "queue-empty", "preferences", "#readlist-smart"]);
+	});
+
+	it("sends an empty readlist with a purpose to its preferences, with no jump to the Smart section", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } },
+			{ readlistHoldsArticles: false, purpose: "Papers for the team offsite" },
+		);
+
+		const action = doc.querySelector('[data-test-empty-action="preferences"]');
+		assert(action, "the readlist preferences CTA must be offered");
+		const submission = emptyActionSubmission(action);
+		expect([submission.url.pathname, submission.url.hash]).toEqual(["/queue/queues/work/preferences", ""]);
 	});
 
 	it("marks no other empty-state action as Beta", () => {

@@ -215,12 +215,10 @@ import type {
 	RenameReadlistDefinition,
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
 	FindSmartMatchRevisions,
 	RecordSmartMatchRevision,
-	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
@@ -595,12 +593,10 @@ export interface ArticleStoreBundle {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	findSmartMatchRevisions: FindSmartMatchRevisions;
 	recordSmartMatchRevision: RecordSmartMatchRevision;
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;

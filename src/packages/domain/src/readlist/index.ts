@@ -58,8 +58,6 @@ export {
 } from "./readlist-purpose-fields";
 export {
 	decideReadlistPurpose,
-	decideReadlistPurposeClear,
-	type ReadlistPurposeClearDecision,
 	type ReadlistPurposeDecision,
 	type ReadlistPurposeRejection,
 } from "./readlist-purpose";

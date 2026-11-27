@@ -7,7 +7,7 @@ import {
 } from "@packages/domain/readlist";
 import type { ReadlistFilter } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { ListReadlistDefinitions, ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { FindSessionReadlistFilter } from "@packages/provider-contracts/auth";
 import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
@@ -90,9 +90,13 @@ export function initResolveReadlistContext(deps: {
 			state: { ...requested, readlist: activeReadlist.slug },
 			activeReadlist,
 			readlists,
-			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
+			activePurpose: readlistPurposeOf(definitions.find((definition) => definition.slug === activeReadlist.slug)),
 			pinnedReadlists: pinnedReadlistSlugs(definitions),
 			...(home ? { home: { slug: homeSlug, entry: homeEntryReadlistOf(home.preference, definitions), targets: homeReadlistTargets(homeSlug, definitions) } } : {}),
 		};
 	};
+}
+
+export function readlistPurposeOf(definition: Pick<ReadlistDefinitionData, "filing"> | undefined): string | undefined {
+	return definition?.filing?.mode === "smart" ? definition.filing.purpose : undefined;
 }

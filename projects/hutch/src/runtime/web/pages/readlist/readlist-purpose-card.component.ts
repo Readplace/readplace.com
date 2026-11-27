@@ -6,7 +6,6 @@ import { render, truncateAtWordBoundary, withInternalTracking } from "@packages/
 
 import { type UpgradeOffer, type UpgradeStanding, renderedLockFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
-import type { WizardHeading } from "../../shared/wizard/wizard.types";
 import {
 	READLIST_PREFERENCES_STEPS,
 	READLIST_PREFERENCES_WIZARD_ID,
@@ -25,32 +24,26 @@ const PURPOSE_FAILURE_MESSAGE = "Couldn't save the purpose.";
 
 export type PurposeState = "unset" | "set";
 
-const WIZARD_HEADING: Record<PurposeState, WizardHeading> = {
-	unset: { kind: "step" },
-	set: { kind: "task", title: "Edit readlist purpose" },
-};
-
 export function purposeStateOf(readlist: { purpose?: string }): PurposeState {
 	return readlist.purpose === undefined ? "unset" : "set";
 }
 
 export function renderReadlistPurposeWizard(input: {
-	readlist: { slug: ReadlistSlug; purpose?: string };
+	readlist: { slug: ReadlistSlug };
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	from: PurposeOrigin;
 	error?: string;
 }): WizardRender {
 	const target = { readlist: input.readlist.slug, from: input.from };
-	const state = purposeStateOf(input.readlist);
 	return renderWizard({
 		id: READLIST_PREFERENCES_WIZARD_ID,
 		key: READLIST_PREFERENCES_WIZARD_KEY,
-		steps: READLIST_PREFERENCES_STEPS[state],
+		steps: READLIST_PREFERENCES_STEPS,
 		values: input.values,
 		action: withInternalTracking(readlistPurposeActionPath(target), { source: PREFERENCES_SOURCE, content: "save-purpose" }),
 		cancelHref: withInternalTracking(readlistPurposeLandingPath(target), { source: PREFERENCES_SOURCE, content: "cancel" }),
 		submitLabel: "Save",
-		heading: WIZARD_HEADING[state],
+		heading: { kind: "task", title: "Edit readlist purpose" },
 		failureMessage: PURPOSE_FAILURE_MESSAGE,
 		error: input.error,
 	});
@@ -103,7 +96,7 @@ export function renderReadlistPurpose(input: {
 		cardHtml: renderReadlistPurposeCard({ purpose, standing: input.standing, offer: input.offer }),
 		wizardPopoverHtml: editable
 			? renderReadlistPurposeWizard({
-				readlist: { slug: input.readlist.slug, purpose },
+				readlist: { slug: input.readlist.slug },
 				values: { purpose },
 				from: input.from,
 			}).popoverHtml

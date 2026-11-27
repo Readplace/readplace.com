@@ -309,7 +309,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const canonical = "https://example.com/canonical";
 		for (const slug of [accepted, rejected, unavailable]) {
 			await store.createReadlistDefinition({ userId, slug, label: slug, createdAt: fixedNow() });
-			await store.setReadlistDefinitionPurpose({ userId, slug, purpose: slug });
+			await store.setSmartReadlistRule({ userId, slug, purpose: slug, effectiveAt: fixedNow() });
 		}
 		const submit = createHandler({
 			saveArticleAsRequested: store.saveArticleAsRequested,

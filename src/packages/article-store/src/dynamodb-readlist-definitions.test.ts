@@ -108,7 +108,7 @@ describe("listReadlistDefinitions", () => {
 			client: createFakeDynamo(
 				[
 					{
-						Items: [definitionItem({ queuePurpose: "Essays on how teams actually ship." })],
+						Items: [definitionItem()],
 						Count: 1,
 					},
 				],
@@ -123,7 +123,6 @@ describe("listReadlistDefinitions", () => {
 			{
 				slug: "work",
 				label: "Work Reading",
-				purpose: "Essays on how teams actually ship.",
 				createdAt: new Date("2026-08-19T10:00:00.000Z"),
 			},
 		]);
@@ -210,6 +209,84 @@ describe("listReadlistDefinitions filing", () => {
 		expect(definition).not.toHaveProperty("filing");
 	});
 
+	it("reads a purpose written before filing modes existed as a smart rule at revision 0, effective from creation, so it keeps its purpose until converted while the matcher never judges it", async () => {
+		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[{ Items: [definitionItem({ queuePurpose: "Essays on how teams actually ship." })] }],
+				() => undefined,
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await listReadlistDefinitions(USER)).toEqual([
+			{
+				slug: "work",
+				label: "Work Reading",
+				createdAt: new Date("2026-08-19T10:00:00.000Z"),
+				filing: {
+					mode: "smart",
+					purpose: "Essays on how teams actually ship.",
+					revision: 0,
+					effectiveAt: new Date("2026-08-19T10:00:00.000Z"),
+				},
+			},
+		]);
+	});
+
+	it("reads a manual row whose purpose never had a rule revision as an unconverted smart rule at revision 0", async () => {
+		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[{ Items: [definitionItem({ filingMode: "manual", queuePurpose: "Essays on how teams actually ship." })] }],
+				() => undefined,
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		const [definition] = await listReadlistDefinitions(USER);
+
+		expect(definition?.filing).toEqual({
+			mode: "smart",
+			purpose: "Essays on how teams actually ship.",
+			revision: 0,
+			effectiveAt: new Date("2026-08-19T10:00:00.000Z"),
+		});
+	});
+
+	it("keeps a manual row that holds a purpose and a rule revision manual, because the reader turned its matching off", async () => {
+		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					{
+						Items: [
+							definitionItem({
+								filingMode: "manual",
+								queuePurpose: "Essays on how teams actually ship.",
+								filingRuleRevision: 2,
+							}),
+						],
+					},
+				],
+				() => undefined,
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		const [definition] = await listReadlistDefinitions(USER);
+
+		expect(definition?.filing).toEqual({ mode: "manual" });
+	});
+
+	it("leaves a row whose purpose is only whitespace without a filing, since a blank purpose is no rule", async () => {
+		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{ Items: [definitionItem({ queuePurpose: "   " })] }], () => undefined),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await listReadlistDefinitions(USER)).toEqual([
+			{ slug: "work", label: "Work Reading", createdAt: new Date("2026-08-19T10:00:00.000Z") },
+		]);
+	});
+
 	it("reads a manual row as manual, ignoring any revision left from an earlier rule", async () => {
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
@@ -224,7 +301,7 @@ describe("listReadlistDefinitions filing", () => {
 		expect(definition?.filing).toEqual({ mode: "manual" });
 	});
 
-	it("reads a smart row's rule revision and effective instant", async () => {
+	it("reads a smart row's purpose, rule revision and effective instant inside its filing", async () => {
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[
@@ -232,6 +309,7 @@ describe("listReadlistDefinitions filing", () => {
 						Items: [
 							definitionItem({
 								filingMode: "smart",
+								queuePurpose: "Essays on how teams actually ship.",
 								filingRuleRevision: 3,
 								filingRuleEffectiveAt: "2026-11-20T08:00:00.000Z",
 							}),
@@ -243,13 +321,19 @@ describe("listReadlistDefinitions filing", () => {
 			userArticlesTableName: TABLE,
 		});
 
-		const [definition] = await listReadlistDefinitions(USER);
-
-		expect(definition?.filing).toEqual({
-			mode: "smart",
-			revision: 3,
-			effectiveAt: new Date("2026-11-20T08:00:00.000Z"),
-		});
+		expect(await listReadlistDefinitions(USER)).toEqual([
+			{
+				slug: "work",
+				label: "Work Reading",
+				createdAt: new Date("2026-08-19T10:00:00.000Z"),
+				filing: {
+					mode: "smart",
+					purpose: "Essays on how teams actually ship.",
+					revision: 3,
+					effectiveAt: new Date("2026-11-20T08:00:00.000Z"),
+				},
+			},
+		]);
 	});
 });
 
@@ -316,7 +400,7 @@ describe("setSmartReadlistRule", () => {
 });
 
 describe("turnOffSmartReadlistMatching", () => {
-	it("returns a smart readlist to manual filing, bumping the revision and keeping the purpose", async () => {
+	it("returns a smart readlist to manual filing, bumping the revision and removing the purpose", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { turnOffSmartReadlistMatching } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo([{}], (c) => commands.push(c)),
@@ -326,10 +410,32 @@ describe("turnOffSmartReadlistMatching", () => {
 		expect(await turnOffSmartReadlistMatching({ userId: USER, slug: WORK })).toEqual({ turnedOff: true });
 		expect(commands[0].input).toMatchObject({
 			Key: { userId: USER, url: "readplace:queue-def/work" },
-			UpdateExpression: "SET #mode = :manual, #revision = #revision + :one REMOVE #effectiveAt",
-			ConditionExpression: "#mode = :smart",
+			ExpressionAttributeNames: {
+				"#mode": "filingMode",
+				"#revision": "filingRuleRevision",
+				"#effectiveAt": "filingRuleEffectiveAt",
+				"#purpose": "queuePurpose",
+			},
+			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":zero": 0, ":one": 1 },
 		});
-		expect(JSON.stringify(commands[0].input)).not.toContain("queuePurpose");
+		expect(String(commands[0].input.UpdateExpression)).toContain("SET #mode = :manual");
+		expect(String(commands[0].input.UpdateExpression)).toContain("REMOVE #effectiveAt, #purpose");
+	});
+
+	it("also turns off an unconverted purpose that has no rule revision yet, starting its revision from 0", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { turnOffSmartReadlistMatching } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await turnOffSmartReadlistMatching({ userId: USER, slug: WORK })).toEqual({ turnedOff: true });
+		expect(String(commands[0].input.ConditionExpression)).toContain(
+			"#mode = :smart OR (attribute_exists(#purpose) AND attribute_not_exists(#revision))",
+		);
+		expect(String(commands[0].input.UpdateExpression)).toContain(
+			"#revision = if_not_exists(#revision, :zero) + :one",
+		);
 	});
 
 	it("answers turnedOff:false for a readlist that is not smart", async () => {
@@ -540,138 +646,6 @@ describe("renameReadlistDefinition", () => {
 		await expect(
 			renameReadlistDefinition({ userId: USER, slug: WORK, label: "Deep Work" }),
 		).rejects.toThrow("throttled");
-	});
-});
-
-describe("setReadlistDefinitionPurpose", () => {
-	it("writes only the purpose, on a row that must already exist", async () => {
-		const commands: { name: string; input: Record<string, unknown> }[] = [];
-		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{ Attributes: definitionItem() }], (c) => commands.push(c)),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(
-			await setReadlistDefinitionPurpose({
-				userId: USER,
-				slug: WORK,
-				purpose: "Essays on how teams actually ship.",
-			}),
-		).toEqual({ updated: true, firstSetup: true });
-		expect(commands[0].name).toBe("UpdateCommand");
-		expect(commands[0].input).toMatchObject({
-			TableName: TABLE,
-			Key: { userId: USER, url: "readplace:queue-def/work" },
-			ExpressionAttributeValues: { ":purpose": "Essays on how teams actually ship.", ":smart": "smart" },
-		});
-		expect(String(commands[0].input.UpdateExpression)).toContain("SET #purpose = :purpose");
-		expect(commands[0].input.ConditionExpression).toBe(
-			"attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
-		);
-		expect(commands[0].input.ExpressionAttributeNames).toMatchObject({ "#mode": "filingMode" });
-	});
-
-	it("distinguishes a first setup from an edit using the previous value", async () => {
-		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{ Attributes: definitionItem({ queuePurpose: "Previously saved" }) }], () => {}),
-			userArticlesTableName: TABLE,
-		});
-		await expect(setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Updated" })).resolves.toEqual({ updated: true, firstSetup: false });
-	});
-
-	it("refuses a readlist that no longer has a definition row, or is a Smart Readlist whose rule this form must not edit", async () => {
-		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw conditionalCheckFailed();
-					},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(
-			await setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Anything" }),
-		).toEqual({ updated: false });
-	});
-
-	it("lets an unexpected storage failure surface", async () => {
-		const { setReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw new Error("throttled");
-					},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		await expect(
-			setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Anything" }),
-		).rejects.toThrow("throttled");
-	});
-});
-
-describe("clearReadlistDefinitionPurpose", () => {
-	it("removes only the purpose, on a row that must already exist", async () => {
-		const commands: { name: string; input: Record<string, unknown> }[] = [];
-		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{}], (c) => commands.push(c)),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(await clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).toEqual({
-			cleared: true,
-		});
-		expect(commands[0].name).toBe("UpdateCommand");
-		expect(commands[0].input).toMatchObject({
-			TableName: TABLE,
-			Key: { userId: USER, url: "readplace:queue-def/work" },
-			UpdateExpression: "REMOVE #purpose",
-			ConditionExpression: "attribute_exists(#url) AND (attribute_not_exists(#mode) OR #mode <> :smart)",
-			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose", "#mode": "filingMode" },
-			ExpressionAttributeValues: { ":smart": "smart" },
-		});
-	});
-
-	it("refuses a readlist that no longer has a definition row, or is a Smart Readlist whose rule must keep its purpose", async () => {
-		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw conditionalCheckFailed();
-					},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(await clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).toEqual({
-			cleared: false,
-		});
-	});
-
-	it("lets an unexpected storage failure surface", async () => {
-		const { clearReadlistDefinitionPurpose } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw new Error("throttled");
-					},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		await expect(clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).rejects.toThrow(
-			"throttled",
-		);
 	});
 });
 

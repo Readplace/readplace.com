@@ -55,12 +55,10 @@ const INLINE_FIELD = `${INLINE} [data-test-field="purpose"]`;
 const INLINE_ERROR = `${INLINE} [data-test-wizard-error]`;
 const INLINE_SAVE = `${INLINE} [data-test-action="readlist-preferences-save-fallback"]`;
 const INLINE_CANCEL = `${INLINE} [data-test-action="readlist-preferences-cancel-fallback"]`;
-const PREFERENCES = "[data-test-readlist-preferences]";
+const SMART_SECTION = "#readlist-smart";
+const SMART_FILING = "[data-test-smart-filing]";
+const SMART_CONVERT = '[data-test-action="smart-convert"]';
 const PREFERENCES_TAB = '[data-test-filter="preferences"]';
-const SETUP_TRIGGER = '[data-test-action="readlist-preferences-setup"]';
-const UNSET_CARD = "[data-test-preferences-empty]";
-const UNSET_ART = `${UNSET_CARD} [data-test-illustration="book-lightbulb"]`;
-const UNSET_TEXT = `${UNSET_CARD} .readlist-empty__text`;
 const PURPOSE_CARD = "[data-test-readlist-purpose]";
 const EDIT_TRIGGER = '[data-test-action="readlist-purpose-edit"]';
 const PENCIL = `${EDIT_TRIGGER} .readlist-purpose__pencil svg`;
@@ -131,7 +129,7 @@ async function openPreferences(page: Page, stamp: string): Promise<{ userId: str
 	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	const slug = await createReadlistFromRail(page, "New Readlist");
 	await clickAndWaitForPageReload(page, page.locator(PREFERENCES_TAB));
-	await page.waitForSelector(PREFERENCES);
+	await page.waitForSelector(SMART_FILING);
 	await page.mouse.move(5, 5);
 	return { userId, slug };
 }
@@ -174,25 +172,6 @@ async function seedPurpose(page: Page, slug: string): Promise<void> {
 	await reopenPreferences(page, { slug });
 }
 
-async function openWizard(page: Page, stamp: string): Promise<void> {
-	await openPreferences(page, stamp);
-	await page.click(SETUP_TRIGGER);
-	await expect(page.locator(PANEL_FIELD)).toBeFocused();
-}
-
-async function savePurpose(page: Page, stamp: string): Promise<void> {
-	await openWizard(page, stamp);
-	await page.locator(PANEL_FIELD).fill(PURPOSE);
-	await clickAndWaitForPageReload(page, page.locator(PANEL_SAVE));
-	await page.waitForSelector(PURPOSE_TEXT);
-	const confirmation = page.getByRole("dialog", { name: "Preferences saved" });
-	await expect(confirmation).toBeVisible();
-	await expect(confirmation).toContainText("300 unique links");
-	await page.keyboard.press("Escape");
-	await expect(confirmation).toBeHidden();
-	await page.mouse.move(5, 5);
-}
-
 async function openSetPreferences(page: Page, stamp: string): Promise<void> {
 	const { slug } = await openPreferences(page, stamp);
 	await seedPurpose(page, slug);
@@ -203,25 +182,16 @@ async function wizardOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function wizardTyped(page: Page): Promise<void> {
-	await wizardOpen(page);
-	const field = page.locator(PANEL_FIELD);
-	await field.fill(PURPOSE);
-	await field.blur();
-	await expect(page.locator("body")).toBeFocused();
-	await expect(page.locator(`${PANEL}:popover-open`)).toHaveCount(1);
-	await page.mouse.move(0, 0);
-}
-
 async function unsetShown(page: Page): Promise<void> {
-	await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "unset");
-	await expect(page.locator(SETUP_TRIGGER)).toBeVisible();
+	await expect(page.locator(SMART_SECTION)).toHaveAttribute("data-test-smart-filing", "manual");
+	await expect(page.locator(`${SMART_SECTION} ${SMART_CONVERT}`)).toBeVisible();
 	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
 }
 
 async function purposeShown(page: Page): Promise<void> {
-	await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
+	await expect(page.locator(SMART_SECTION)).toHaveAttribute("data-test-smart-filing", "smart");
+	await expect(page.locator(PURPOSE_CARD)).toBeVisible();
 	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE_PREVIEW);
 	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
@@ -244,6 +214,8 @@ async function editDialogOpen(page: Page): Promise<void> {
 }
 
 async function refusedInTheDialog(page: Page): Promise<void> {
+	await purposeShown(page);
+	await page.click(EDIT_TRIGGER);
 	await wizardOpen(page);
 	await page.locator(PANEL_FIELD).fill("   ");
 	await page.click(PANEL_SAVE);
@@ -372,23 +344,21 @@ async function refusalSitsBetweenTheFieldAndTheChoiceRow(page: Page): Promise<vo
 	await choiceRowEndsAtTheField(page, { cancel: PANEL_CANCEL, save: PANEL_SAVE, field: PANEL_FIELD });
 }
 
-async function unsetCardComposition(page: Page): Promise<void> {
-	const [panel, art, cta] = [
-		await measuredBox(page, PREFERENCES),
-		await measuredBox(page, UNSET_ART),
-		await measuredBox(page, SETUP_TRIGGER),
+async function smartSectionClosesTheColumn(page: Page): Promise<void> {
+	const [bar, inboxes, gmail, smart] = [
+		await measuredBox(page, TABS),
+		await measuredBox(page, INBOXES),
+		await measuredBox(page, GMAIL_SENDERS),
+		await measuredBox(page, SMART_SECTION),
 	];
-	assert.equal(Math.round(art.width), 80, `the setup art must keep its drawn width, measured ${art.width}px`);
-	assert.equal(Math.round(art.height), 64, `the setup art must keep its drawn height, measured ${art.height}px`);
-	assert.equal(Math.round(cta.height), 48, `the setup action must be 48px tall, measured ${cta.height}px`);
-	assert.ok(
-		near({ actual: art.y - panel.y, expected: 48, within: 1 }),
-		`the art must sit 48px inside the card's top, measured ${art.y - panel.y}px`,
-	);
-	assert.ok(
-		near({ actual: panel.y + panel.height - (cta.y + cta.height), expected: 48, within: 1 }),
-		`the setup action must sit 48px inside the card's bottom, measured ${panel.y + panel.height - (cta.y + cta.height)}px`,
-	);
+	stackedInOrder([
+		["tabs", bar],
+		["inboxes section", inboxes],
+		["Gmail newsletters", gmail],
+		["Smart section", smart],
+	]);
+	assert.equal(smart.x, inboxes.x, "the Smart section must share the inboxes section's column");
+	assert.equal(smart.width, inboxes.width, "the Smart section must span the inboxes section's width");
 }
 
 async function purposeCardInsets(page: Page): Promise<void> {
@@ -436,7 +406,6 @@ async function purposeCardSitsOverTheTabs(page: Page, tabs: string): Promise<voi
 }
 
 async function purposeCardSitsAboveTheTabs(page: Page): Promise<void> {
-	await expect(page.locator(PREFERENCES)).toBeHidden();
 	await purposeCardLeadsTheTabs(page, TABS);
 	const [tabs, inboxes] = [await measuredBox(page, TABS), await measuredBox(page, INBOXES)];
 	assert.ok(
@@ -511,28 +480,9 @@ async function phoneGuideSitsBetweenRailAndTabs(page: Page): Promise<void> {
 	assert.ok(card.y + card.height <= tabs.y, "the Purpose card must lead the tabs on a phone");
 }
 
-async function unsetBodyWrapsOnAPhone(page: Page): Promise<void> {
+async function smartSectionClosesThePhoneColumn(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
-	await unsetCardComposition(page);
-	const text = await measuredBox(page, UNSET_TEXT);
-	assert.ok(
-		near({ actual: text.height / 22, expected: 3, within: 0.1 }),
-		`the setup copy must wrap to three 22px lines on a phone, measured ${text.height}px`,
-	);
-}
-
-async function choicesStackOnAPhone(page: Page): Promise<void> {
-	await neverScrollsSideways(page);
-	const [save, cancel, field] = [
-		await measuredBox(page, PANEL_SAVE),
-		await measuredBox(page, PANEL_CANCEL),
-		await measuredBox(page, PANEL_FIELD),
-	];
-	assert.ok(save.y + save.height <= cancel.y, "Save must stack above Cancel on a phone");
-	for (const [name, choice] of [["Save", save], ["Cancel", cancel]] as const) {
-		assert.ok(near({ actual: choice.x, expected: field.x, within: 1 }), `${name} must start where the field starts`);
-		assert.ok(near({ actual: choice.width, expected: field.width, within: 1 }), `${name} must span the field's width`);
-	}
+	await smartSectionClosesTheColumn(page);
 }
 
 function themed(input: Omit<VisualCheckpoint, "name">, name: string): VisualCheckpoint {
@@ -541,8 +491,8 @@ function themed(input: Omit<VisualCheckpoint, "name">, name: string): VisualChec
 
 const UNSET: Omit<VisualCheckpoint, "name"> = {
 	settled: unsetShown,
-	geometry: unsetCardComposition,
-	target: PREFERENCES,
+	geometry: smartSectionClosesTheColumn,
+	target: SMART_SECTION,
 	capture: "element",
 	pinnedText: [],
 };
@@ -563,14 +513,6 @@ const EDIT_FOCUSED: Omit<VisualCheckpoint, "name"> = {
 	pinnedText: [],
 };
 
-const WIZARD: Omit<VisualCheckpoint, "name"> = {
-	settled: wizardOpen,
-	geometry: questionLeadsTheFieldThenTheChoiceRow,
-	target: PANEL,
-	capture: "element",
-	pinnedText: [],
-};
-
 const EDIT: Omit<VisualCheckpoint, "name"> = {
 	settled: editDialogOpen,
 	geometry: editTitlesTheTaskAboveTheQuestion,
@@ -587,17 +529,11 @@ const ERROR: Omit<VisualCheckpoint, "name"> = {
 	pinnedText: [],
 };
 
-const WIZARD_FILLED_LIGHT: VisualCheckpoint = {
-	...WIZARD,
-	name: "readlist-preferences-wizard-filled-light",
-	settled: wizardTyped,
-};
-
 const ERROR_INLINE_LIGHT: VisualCheckpoint = {
 	name: "readlist-preferences-error-inline-light",
 	settled: refusedInline,
 	geometry: errorRowStaysOneLine,
-	target: PREFERENCES,
+	target: INLINE,
 	capture: "element",
 	pinnedText: [],
 };
@@ -605,7 +541,7 @@ const ERROR_INLINE_LIGHT: VisualCheckpoint = {
 const UNSET_PHONE: VisualCheckpoint = {
 	...UNSET,
 	name: "readlist-preferences-unset-phone",
-	geometry: unsetBodyWrapsOnAPhone,
+	geometry: smartSectionClosesThePhoneColumn,
 };
 
 const SET_PHONE: VisualCheckpoint = {
@@ -622,29 +558,21 @@ const LISTING_PURPOSE: Omit<VisualCheckpoint, "name"> = {
 	pinnedText: [],
 };
 
-const WIZARD_PHONE: VisualCheckpoint = {
-	...WIZARD,
-	name: "readlist-preferences-wizard-phone",
-	geometry: choicesStackOnAPhone,
-};
-
 const PINNED_INBOX_ADDRESSES = [
 	"news-a1b2c3@read.place",
 	"tech-d4e5f6@read.place",
 	"deals-g7h8i9@read.place",
 ];
 
-async function inboxesSectionSitsUnderThePurposePanel(page: Page): Promise<void> {
-	const [purpose, inboxes] = [
-		await measuredBox(page, PREFERENCES),
+async function inboxesSectionSitsUnderTheTabsInTheSmartColumn(page: Page): Promise<void> {
+	const [bar, inboxes, smart] = [
+		await measuredBox(page, TABS),
 		await measuredBox(page, INBOXES),
+		await measuredBox(page, SMART_SECTION),
 	];
-	assert.ok(
-		inboxes.y >= purpose.y + purpose.height,
-		"the inboxes section must stack under the purpose panel, not beside it",
-	);
-	assert.equal(inboxes.x, purpose.x, "the inboxes section must share the purpose panel's column");
-	assert.equal(inboxes.width, purpose.width, "the inboxes section must span the purpose panel's width");
+	assert.ok(inboxes.y >= bar.y + bar.height, "the inboxes section must stack under the tabs, not beside them");
+	assert.equal(inboxes.x, smart.x, "the inboxes section must share the Smart section's column");
+	assert.equal(inboxes.width, smart.width, "the inboxes section must span the Smart section's width");
 }
 
 async function inboxesEmpty(page: Page): Promise<void> {
@@ -654,7 +582,7 @@ async function inboxesEmpty(page: Page): Promise<void> {
 }
 
 async function createInboxCentredUnderTheDescription(page: Page): Promise<void> {
-	await inboxesSectionSitsUnderThePurposePanel(page);
+	await inboxesSectionSitsUnderTheTabsInTheSmartColumn(page);
 	const [inboxes, description, create] = [
 		await measuredBox(page, INBOXES),
 		await measuredBox(page, INBOXES_DESCRIPTION),
@@ -677,7 +605,7 @@ async function inboxesListed(page: Page): Promise<void> {
 }
 
 async function eachInboxLeadsWithItsNameAndEndsWithItsRoute(page: Page): Promise<void> {
-	await inboxesSectionSitsUnderThePurposePanel(page);
+	await inboxesSectionSitsUnderTheTabsInTheSmartColumn(page);
 	let above = await measuredBox(page, INBOXES_DESCRIPTION);
 	for (let position = 1; position <= PINNED_INBOX_ADDRESSES.length; position++) {
 		const row = `${INBOX_ROWS}:nth-child(${position})`;
@@ -721,14 +649,14 @@ async function inboxUnavailableAlertShown(page: Page): Promise<void> {
 }
 
 async function alertLeadsTheColumnAboveTheTabs(page: Page): Promise<void> {
-	const [alert, tabs, purpose] = [
+	const [alert, tabs, smart] = [
 		await measuredBox(page, ALERT),
 		await measuredBox(page, TABS),
-		await measuredBox(page, PREFERENCES),
+		await measuredBox(page, SMART_SECTION),
 	];
 	assert.ok(alert.y + alert.height <= tabs.y, "the alert must sit above the tabs it concerns");
-	assert.equal(alert.x, purpose.x, "the alert must share the main column's left edge");
-	assert.equal(alert.width, purpose.width, "the alert must span the main column");
+	assert.equal(alert.x, smart.x, "the alert must share the main column's left edge");
+	assert.equal(alert.width, smart.width, "the alert must span the main column");
 }
 
 const INBOXES_EMPTY_LIGHT: VisualCheckpoint = {
@@ -872,22 +800,15 @@ test.describe("Readlist preferences panel", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
 	for (const theme of THEMES) {
-		test(`offers to set the readlist up while it has no purpose (${theme})`, async ({ page }, testInfo) => {
+		test(`offers to make the readlist smart while it has no purpose (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			await openPreferences(page, `unset-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(UNSET, `readlist-preferences-unset-${theme}`));
 		});
 
-		test(`asks what the readlist is for, then offers both answers (${theme})`, async ({ page }, testInfo) => {
-			await page.emulateMedia({ colorScheme: theme });
-			await openWizard(page, `wizard-${theme}-${testInfo.workerIndex}-${Date.now()}`);
-			await expect(page.locator(PANEL_FIELD)).toHaveAttribute("placeholder", "This readlist purpose is…");
-			await captureCheckpoint(page, themed(WIZARD, `readlist-preferences-wizard-${theme}`));
-		});
-
 		test(`shows the saved purpose with a pencil to edit it (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
-			await savePurpose(page, `set-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await openSetPreferences(page, `set-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(SET, `readlist-preferences-set-${theme}`));
 		});
 
@@ -899,22 +820,41 @@ test.describe("Readlist preferences panel", () => {
 
 		test(`refuses a blank purpose in the dialog (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
-			await openWizard(page, `error-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await openSetPreferences(page, `error-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(ERROR, `readlist-preferences-error-${theme}`));
 		});
 	}
 
-	test("keeps what the reader typed in the setup dialog (light)", async ({ page }, testInfo) => {
-		await page.emulateMedia({ colorScheme: "light" });
-		await openWizard(page, `wizard-filled-light-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, WIZARD_FILLED_LIGHT);
-	});
-
 	test("lands a refused purpose on the inline form with its reason (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const { slug } = await openPreferences(page, `error-inline-light-${testInfo.workerIndex}-${Date.now()}`);
+		await seedPurpose(page, slug);
 		await reopenPreferences(page, { slug, query: "?preferences_error=invalid-purpose" });
 		await captureCheckpoint(page, ERROR_INLINE_LIGHT);
+	});
+
+	test("keeps the active Smart Readlist's rail name on one line beside its chip", async ({ page }, testInfo) => {
+		await openSetPreferences(page, `rail-label-${testInfo.workerIndex}-${Date.now()}`);
+		const row = page.locator('[data-test-readlist]:has([data-test-readlist-smart-label])');
+		await expect(row).toHaveCount(1);
+		const label = row.locator("[data-test-readlist-label]");
+		await expect(label).toHaveText("New Readlist");
+		const geometry = await row.evaluate((link) => {
+			const name = link.querySelector("[data-test-readlist-label]");
+			const chip = link.querySelector("[data-test-readlist-smart-label]");
+			if (!name || !chip) return undefined;
+			const nameBox = name.getBoundingClientRect();
+			const chipBox = chip.getBoundingClientRect();
+			return {
+				nameHeight: nameBox.height,
+				lineHeight: Number.parseFloat(getComputedStyle(name).lineHeight),
+				overlaps:
+					nameBox.left < chipBox.right && chipBox.left < nameBox.right && nameBox.top < chipBox.bottom && chipBox.top < nameBox.bottom,
+			};
+		});
+		assert.ok(geometry, "the active Smart Readlist row must render its label and its chip");
+		expect(geometry.nameHeight).toBeLessThanOrEqual(geometry.lineHeight + 1);
+		expect(geometry.overlaps).toBe(false);
 	});
 });
 
@@ -933,7 +873,7 @@ test.describe("Readlist preferences page", () => {
 test.describe("Readlist preferences on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE });
 
-	test("offers to set the readlist up on a phone (light)", async ({ page }, testInfo) => {
+	test("offers to make the readlist smart on a phone (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPreferencesByRequest(page, `unset-phone-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, UNSET_PHONE);
@@ -946,13 +886,6 @@ test.describe("Readlist preferences on a phone", () => {
 		const slug = await openPreferencesByRequest(page, `set-phone-${testInfo.workerIndex}-${Date.now()}`);
 		await seedPurpose(page, slug);
 		await captureCheckpoint(page, SET_PHONE);
-	});
-
-	test("stacks the setup dialog's choices on a phone (light)", async ({ page }, testInfo) => {
-		await page.emulateMedia({ colorScheme: "light" });
-		await openPreferencesByRequest(page, `wizard-phone-${testInfo.workerIndex}-${Date.now()}`);
-		await page.click(SETUP_TRIGGER);
-		await captureCheckpoint(page, WIZARD_PHONE);
 	});
 });
 
@@ -991,7 +924,7 @@ test.describe("Readlist purpose on the listing tabs", () => {
 
 		await expect(page.locator(PURPOSE_TEXT)).toHaveText(EDITED_PURPOSE);
 		await expect(page.locator(`${TO_READ_TAB}[aria-current="page"]`)).toHaveCount(1);
-		await expect(page.locator(PREFERENCES)).toHaveCount(0);
+		await expect(page.locator(SMART_FILING)).toHaveCount(0);
 	});
 });
 
@@ -1013,10 +946,11 @@ test.describe("Readlist preferences at the reflow minimum", () => {
 
 	test("never scrolls sideways at 320px, with or without a purpose", async ({ page }, testInfo) => {
 		const slug = await openPreferencesByRequest(page, `reflow-${testInfo.workerIndex}-${Date.now()}`);
-		await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "unset");
+		await expect(page.locator(SMART_SECTION)).toHaveAttribute("data-test-smart-filing", "manual");
 		await neverScrollsSideways(page);
 		await seedPurpose(page, slug);
-		await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
+		await expect(page.locator(SMART_SECTION)).toHaveAttribute("data-test-smart-filing", "smart");
+		await expect(page.locator(PURPOSE_CARD)).toBeVisible();
 		await neverScrollsSideways(page);
 	});
 });

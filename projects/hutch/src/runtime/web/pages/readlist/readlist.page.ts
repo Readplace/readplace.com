@@ -152,10 +152,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistPreferencesRoutes({
 			findHomeReadlist: deps.findHomeReadlist,
 			listReadlistDefinitions: deps.listReadlistDefinitions,
-			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 			setSmartReadlistRule: deps.setSmartReadlistRule,
 			turnOffSmartReadlistMatching: deps.turnOffSmartReadlistMatching,
-			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
 			listInboxAddresses: deps.listInboxAddresses,

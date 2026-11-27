@@ -419,12 +419,15 @@ describe("initFileArticleIntoReadlistCommandHandler on a redrive", () => {
 		expect(JSON.stringify(h.infos)).not.toContain("example.com");
 	});
 
-	it("an email filing queued before the readlist became a Smart Readlist creates no row and logs smart-matching", async () => {
+	it("an email filing into a Smart Readlist files the link", async () => {
 		const h = await harness();
 		await h.saveToAll(URL);
 		await h.store.setSmartReadlistRule({ userId: USER, slug: WORK, purpose: "Code review.", effectiveAt: NOW });
 
-		await expectSkipped(h, await h.run(command(), { requestedAt: anHourBack() }), "smart-matching");
+		await h.run(command(), { requestedAt: anHourBack() });
+
+		expect(await h.readlistsHolding(URL)).toEqual([DEFAULT_READLIST_SLUG, WORK].sort());
+		expect(h.skipped()).toEqual([]);
 	});
 
 	it("a reader filing into a Smart Readlist still files the link", async () => {

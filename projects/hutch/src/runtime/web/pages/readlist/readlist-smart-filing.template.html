@@ -4,30 +4,20 @@
     <h2 class="readlist-smart__title" id="readlist-smart-title">{{t "readlistSmart.rule.title"}}</h2>
     <p class="readlist-smart__lede">{{t "readlistSmart.rule.body"}}</p>
   </header>
+  {{#if paused}}
   <div class="readlist-smart__body">
-    {{#if paused}}
     <div class="readlist-smart__paused" role="status" data-test-smart-paused>
       <h3 class="readlist-smart__heading">{{t "readlistSmart.paused.title"}}</h3>
       <p class="readlist-smart__note">{{t "readlistSmart.paused.body"}}</p>
     </div>
-    {{/if}}
-    <form class="readlist-smart__form" method="post" action="{{track ruleAction source='queue-preferences' content='smart-rule-save'}}" data-test-form="smart-rule">
-      <label class="readlist-smart__label" for="readlist-smart-purpose">{{t "readlistSmart.rule.purposeLabel"}}</label>
-      <textarea class="form-input form-input--multiline" id="readlist-smart-purpose" name="purpose" rows="4" required maxlength="{{maxLength}}"{{#if error}} aria-invalid="true" aria-describedby="readlist-smart-purpose-error"{{/if}} data-test-field="smart-purpose">{{purpose}}</textarea>
-      {{#if error}}
-      <p class="form-field__error" id="readlist-smart-purpose-error" role="alert" data-test-smart-purpose-error>{{error}}</p>
-      {{/if}}
-      <div class="readlist-smart__actions">
-        <button class="btn btn--primary btn--m" type="submit" data-test-action="smart-rule-save">{{t "readlistSmart.rule.submit"}}</button>
-      </div>
-    </form>
   </div>
-  <div class="readlist-smart__body readlist-smart__body--divided">
+  {{/if}}
+  <div class="readlist-smart__body{{#if paused}} readlist-smart__body--divided{{/if}}">
     <h3 class="readlist-smart__heading">{{t "readlistSmart.sources.title"}}</h3>
     <p class="readlist-smart__note">{{t "readlistSmart.sources.body"}}</p>
     <ul class="readlist-smart__sources">
-      <li><a class="link" href="{{track newslettersHref source='queue-preferences' content='smart-source-newsletters'}}" data-test-smart-source="newsletters">{{t "readlistSmart.sources.newsletters"}}</a></li>
-      <li><a class="link" href="{{track gmailHref source='queue-preferences' content='smart-source-gmail'}}" data-test-smart-source="gmail">{{t "readlistSmart.sources.gmail"}}</a></li>
+      <li><a class="readlist-smart__source-link" href="{{track newslettersHref source='queue-preferences' content='smart-source-newsletters'}}" data-test-smart-source="newsletters">{{t "readlistSmart.sources.newsletters"}}</a></li>
+      <li><a class="readlist-smart__source-link" href="{{track gmailHref source='queue-preferences' content='smart-source-gmail'}}" data-test-smart-source="gmail">{{t "readlistSmart.sources.gmail"}}</a></li>
     </ul>
   </div>
   <div class="readlist-smart__body readlist-smart__body--divided">
@@ -42,10 +32,11 @@
     <h2 class="readlist-smart__title" id="readlist-smart-title">{{t "readlistSmart.convert.title"}}</h2>
     <p class="readlist-smart__lede">{{t "readlistSmart.convert.body"}}</p>
   </header>
+  {{#if convertForm}}
   <div class="readlist-smart__body">
     <form class="readlist-smart__form" method="post" action="{{track ruleAction source='queue-preferences' content='smart-convert'}}" data-test-form="smart-convert">
       <label class="readlist-smart__label" for="readlist-smart-purpose">{{t "readlistSmart.convert.purposeLabel"}}</label>
-      <textarea class="form-input form-input--multiline" id="readlist-smart-purpose" name="purpose" rows="4" required maxlength="{{maxLength}}"{{#if error}} aria-invalid="true" aria-describedby="readlist-smart-purpose-error"{{/if}} data-test-field="smart-purpose">{{purpose}}</textarea>
+      <textarea class="form-input form-input--multiline" id="readlist-smart-purpose" name="purpose" rows="4" required maxlength="{{maxLength}}"{{#if error}} aria-invalid="true" aria-describedby="readlist-smart-purpose-error"{{/if}} data-test-field="smart-purpose"></textarea>
       {{#if error}}
       <p class="form-field__error" id="readlist-smart-purpose-error" role="alert" data-test-smart-purpose-error>{{error}}</p>
       {{/if}}
@@ -54,5 +45,13 @@
       </div>
     </form>
   </div>
+  {{/if}}
+  {{#if convertLocks}}
+  <div class="readlist-smart__body">
+    {{#each convertLocks}}
+    {{{this}}}
+    {{/each}}
+  </div>
+  {{/if}}
   {{/if}}
 </section>

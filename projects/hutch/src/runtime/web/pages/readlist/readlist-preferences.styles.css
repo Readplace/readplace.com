@@ -2,42 +2,14 @@
   overflow: visible;
 }
 
-.readlist-preferences__unset {
-  display: none;
-}
-
 .readlist-preferences__fallback {
   padding: 24px;
 }
 
 @supports selector(:popover-open) {
-  .readlist-preferences--unset .readlist-preferences__unset {
-    display: block;
-  }
-
-  .readlist-preferences .readlist-preferences__fallback {
+  .readlist-preferences:not(.readlist-preferences--wizard-open) {
     display: none;
   }
-
-  .readlist-preferences--set:not(.readlist-preferences--wizard-open) {
-    display: none;
-  }
-}
-
-.readlist-preferences--wizard-open .readlist-preferences__unset {
-  display: none;
-}
-
-.readlist-preferences--wizard-open .readlist-preferences__fallback {
-  display: block;
-}
-
-.readlist-preferences--paid-locked.readlist-preferences--unset .readlist-preferences__unset {
-  display: block;
-}
-
-.readlist-preferences--paid-locked.readlist-preferences--set {
-  display: none;
 }
 
 .readlist-inboxes__header {
@@ -378,6 +350,10 @@
   padding: 0;
   list-style: none;
   font-size: 0.875rem;
+}
+
+.readlist-smart__source-link {
+  color: var(--primary-text);
 }
 
 .readlist-smart__actions {

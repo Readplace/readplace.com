@@ -69,14 +69,6 @@ describe("Smart Readlist guide", () => {
 		expect(ten.querySelector(".setup-guide--hidden")).toBeTruthy();
 	});
 
-	it("keeps the persisted purpose in a stale setup URL carrying an old draft", async () => {
-		const { fixture, userId, view } = await setup();
-		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
-		const doc = await view(`${prefs}?setup=1&purpose=old`);
-		expect(doc.querySelector(".readlist-preferences--wizard-open")).toBeNull();
-		expect(doc.querySelector('[data-test-field="purpose"]')?.textContent).toBe("Ideas to explore");
-	});
-
 	it("awards an earned welcome after nine, and confirms a write whose reply was lost", async () => {
 		const { count, write, fixture, view } = await setup();
 		await view("/queue");
@@ -122,10 +114,10 @@ describe("Smart Readlist guide", () => {
 		expect((await view(prefs, cookie, "unrecognised")).querySelector(".setup-guide--visible")?.querySelector(step)).toBeTruthy();
 	});
 
-	it("sends a reader whose readlist only has a purpose to make it a Smart Readlist, without counting it", async () => {
+	it("sends a reader whose purpose was removed to make it a Smart Readlist, without counting it", async () => {
 		const { fixture, userId, view, count } = await setup();
 		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
-		expect((await fixture.articleStore.listReadlistDefinitions(userId)).find((list) => list.slug === slug)?.purpose).toBe("Ideas to explore");
+		expect((await fixture.articleStore.listReadlistDefinitions(userId)).find((list) => list.slug === slug)?.filing).toEqual({ mode: "manual" });
 		const doc = await view("/queue");
 		const row = doc.querySelector(step);
 		expect(row?.textContent).toContain("0/10");
@@ -154,7 +146,6 @@ describe("Smart Readlist guide", () => {
 		await fixture.articleStore.turnOffSmartReadlistMatching({ userId, slug });
 		const empty = (await view(prefs)).querySelector(step);
 		expect(empty?.textContent).toContain("0/10");
-		expect(empty?.querySelector('[name="setup"]')).toBeNull();
 		expect(count).not.toHaveBeenCalled();
 		await fixture.articleStore.setSmartReadlistRule({ userId, slug, purpose: "Restored", effectiveAt: new Date() });
 		expect((await view(prefs)).querySelector(step)?.textContent).toContain("9/10");
