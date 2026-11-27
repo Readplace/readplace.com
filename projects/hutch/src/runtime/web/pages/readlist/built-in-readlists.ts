@@ -16,3 +16,8 @@ export const builtInCaption = (slug: ReadlistSlug) =>
 	slug === HAND_PICKED_SCOPE ? t("handPicked.caption") : slug === DEFAULT_READLIST_SLUG ? t("handPicked.allCaption") : undefined;
 
 export const withHandPicked = (readlists: readonly ReadlistRef[]): readonly ReadlistRef[] => [...readlists, HAND_PICKED];
+
+export const withHandPickedHolding = <Save extends { readlist?: ReadlistSlug }>(
+	saves: readonly Save[],
+	picked: boolean,
+): readonly { readlist?: ReadlistSlug }[] => (picked ? [...saves, { readlist: HAND_PICKED_SCOPE }] : saves);

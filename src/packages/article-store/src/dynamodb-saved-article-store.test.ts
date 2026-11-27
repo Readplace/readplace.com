@@ -3493,6 +3493,26 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		]);
 	});
 
+	it("listUserSavesForUrls marks the All save of a picked URL as picked", async () => {
+		const { client, commands } = createFakeClient({
+			BatchGetCommand: {
+				default: { Responses: { "user-articles": [
+					{ userId: USER, url: RESOURCE_ID, personalPickedAt: "2026-11-20T00:00:00.000Z" },
+					{ userId: WORK_PARTITION, url: RESOURCE_ID },
+				] } },
+			},
+		});
+
+		const saves = await initStore(client).listUserSavesForUrls({
+			userId: USER,
+			urls: [URL],
+			readlists: [DEFAULT_READLIST_SLUG, WORK],
+		});
+
+		expect(saves.get(URL)).toEqual([{ picked: true }, { readlist: WORK }]);
+		expect(commands[0].input.RequestItems?.["user-articles"]?.ProjectionExpression).toContain("personalPickedAt");
+	});
+
 	it("reads committed memberships consistently across batches and unprocessed-key retries", async () => {
 		const urls = Array.from({ length: 51 }, (_, index) => `https://example.com/article-${index}`);
 		const pendingKeys = [

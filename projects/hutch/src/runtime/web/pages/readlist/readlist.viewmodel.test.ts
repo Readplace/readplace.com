@@ -858,17 +858,28 @@ describe("toReadlistViewModel — move", () => {
 		expect(vm.articles[0].move?.destinations).toEqual([work, finance, weekend]);
 	});
 
-	it("leaves Hand Picked out inside a named readlist", () => {
+	it("offers Hand Picked first inside a named readlist for an unpicked article", () => {
 		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), onWork, {
 			now: NOW,
 			readlists,
+			savesByUrl: new Map([[ARTICLE_URL, [{}, { readlist: work.slug }]]]),
+		});
+
+		expect(vm.articles[0].move?.destinations).toEqual([{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }, finance, weekend]);
+	});
+
+	it("leaves Hand Picked out inside a named readlist when the All save is picked", () => {
+		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), onWork, {
+			now: NOW,
+			readlists,
+			savesByUrl: new Map([[ARTICLE_URL, [{ picked: true }, { readlist: work.slug }]]]),
 		});
 
 		expect(vm.articles[0].move?.destinations).toEqual([finance, weekend]);
 	});
 
 	it("leaves Hand Picked out on the Hand Picked page", () => {
-		const vm = toReadlistViewModel(makeResult([makeUnpickedArticle()]), { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE }, {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE }, {
 			now: NOW,
 			readlists,
 		});

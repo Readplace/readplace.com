@@ -1569,7 +1569,7 @@ const DELETE_ARTICLE_DIALOG_PHONE: VisualCheckpoint = {
 const MOVE_ARTICLE_DIALOG: VisualCheckpoint = {
 	name: "readlist-move-article-dialog",
 	settled: moveArticleDialogSettled,
-	geometry: moveArticleDialogGeometry({ rows: 3 }),
+	geometry: moveArticleDialogGeometry({ rows: 4 }),
 	target: OPEN_MOVE_ARTICLE_POPOVER,
 	capture: "element",
 	pinnedText: [],

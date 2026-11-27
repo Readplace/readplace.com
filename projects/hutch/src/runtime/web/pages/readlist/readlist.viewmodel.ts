@@ -1,4 +1,4 @@
-import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
+import { HAND_PICKED, HAND_PICKED_SCOPE, withHandPicked, withHandPickedHolding } from "./built-in-readlists";
 import {
 	ABSENT_ENCLOSURE,
 	type CrawlRemainingEstimate,
@@ -249,7 +249,7 @@ function toStatusActions(
 
 interface ArticleFiling {
 	readlists: readonly ReadlistRef[];
-	saves: readonly { readlist?: ReadlistSlug }[] | undefined;
+	saves: readonly { readlist?: ReadlistSlug; picked?: true }[] | undefined;
 }
 
 function articleMoveOf(input: {
@@ -257,21 +257,22 @@ function articleMoveOf(input: {
 	from: ReadlistSlug;
 	returnQuery: string;
 	filing: ArticleFiling;
-	handPicked: boolean;
+	personallyPicked: boolean;
 }): ArticleMoveViewModel | undefined {
 	const { filing } = input;
+	const saves = filing.saves ?? [];
+	const picked = input.personallyPicked || saves.some((save) => save.picked === true);
 	const custom = filing.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const holders = new Set(
-		readlistsHoldingArticle({ saves: filing.saves ?? [], readlists: filing.readlists }).map(
-			(readlist) => readlist.slug,
-		),
+		readlistsHoldingArticle({
+			saves: withHandPickedHolding(saves, picked),
+			readlists: withHandPicked(filing.readlists),
+		}).map((readlist) => readlist.slug),
 	);
-	const destinations = [
-		...(input.handPicked ? [{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }] : []),
-		...custom
-			.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
-			.map((readlist) => ({ slug: readlist.slug, label: readlist.label, smart: readlist.smart })),
-	];
+	const candidates: readonly ReadlistRef[] = [HAND_PICKED, ...custom];
+	const destinations = candidates
+		.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
+		.map((readlist) => ({ slug: readlist.slug, label: readlist.label, smart: readlist.smart }));
 	const create =
 		custom.length < READLIST_MAX_PER_USER ? { popoverId: moveCreatePopoverId(input.articleId) } : undefined;
 	const popoverId = moveDialogPopoverId(input.articleId);
@@ -294,7 +295,7 @@ interface ArticleMoveInput {
 	from: ReadlistSlug;
 	returnQuery: string;
 	filing: ArticleFiling | undefined;
-	handPicked: boolean;
+	personallyPicked: boolean;
 }
 
 function toArticleMove(input: ArticleMoveInput): ArticleMoveViewModel | undefined {
@@ -336,7 +337,7 @@ export function toReadlistArticleViewModel(params: {
 	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
-	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing, handPicked: filters.readlist === DEFAULT_READLIST_SLUG && article.personalPickedAt === undefined };
+	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing, personallyPicked: article.personalPickedAt !== undefined };
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged, removePick: filters.readlist === HAND_PICKED_SCOPE });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
