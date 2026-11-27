@@ -501,8 +501,8 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			"create-inbox",
 			"custom-emails",
 			"inbox",
+			"make-smart-readlist",
 			"next-read",
-			"set-up-readlist",
 		]);
 	});
 

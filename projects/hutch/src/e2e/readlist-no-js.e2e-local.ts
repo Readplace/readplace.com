@@ -106,7 +106,8 @@ test.describe("The readlist is whole without client JavaScript", () => {
 			const smart = page.locator("#readlist-smart");
 			await smart.locator('[name="purpose"]').fill("Ideas worth reading again");
 			await smart.getByRole("button", { name: "Make this a Smart Readlist" }).press("Enter");
-			await expect(page.locator('[data-test-smart-filing="smart"] [data-test-field="smart-purpose"]')).toHaveValue("Ideas worth reading again");
+			await expect(page.locator('[data-test-smart-filing="smart"]')).toBeVisible();
+			await expect(page.locator("[data-test-readlist-purpose-text]")).toHaveText("Ideas worth reading again");
 
 			await page.goto(`${BASE_URL}/queue?queue=${slug}`);
 			await openStep();
@@ -431,7 +432,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		}
 	});
 
-	test("a purpose is set, then removed by saving it empty, as plain form submits", async ({ page }, testInfo) => {
+	test("a purpose is added with the form, edited from the card, and removed with Remove purpose, as plain form submits", async ({ page }, testInfo) => {
 		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-purpose`);
 		await loginAs(page, email);
 		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
@@ -439,35 +440,38 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		const slug = new URL(created.url()).searchParams.get("queue");
 		assert(slug, "creating a readlist must land the reader on it");
 		await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences`, { waitUntil: "domcontentloaded" });
-		const preferences = page.locator("[data-test-readlist-preferences]");
-		await expect(preferences).toHaveAttribute("data-test-preferences-state", "unset");
+		const smart = page.locator("#readlist-smart");
+		await expect(smart).toHaveAttribute("data-test-smart-filing", "manual");
 
-		await page.locator('[data-test-action="readlist-preferences-setup"]').click();
+		await smart.locator('[name="purpose"]').fill("Essays on how teams ship software.");
+		await Promise.all([
+			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+			smart.locator('[data-test-action="smart-convert"]').click(),
+		]);
+		await expect(smart).toHaveAttribute("data-test-smart-filing", "smart", { timeout: SETTLE_MS });
+		const purposeText = page.locator("[data-test-readlist-purpose-text]");
+		await expect(purposeText).toHaveText("Essays on how teams ship software.");
+
+		await page.locator('[data-test-action="readlist-purpose-edit"]').click();
 		const wizard = page.locator('[data-test-confirm-popover="readlist-preferences"]');
 		await expect(wizard).toBeVisible();
-		await wizard.locator('[data-test-field="purpose"]').fill("Essays on how teams ship software.");
+		const field = wizard.locator('[data-test-field="purpose"]');
+		await expect(field).toHaveValue("Essays on how teams ship software.");
+		await field.fill("Essays on how small teams ship software.");
 		await Promise.all([
 			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
 			wizard.locator('[data-test-action="readlist-preferences-save"]').click(),
 		]);
-		await expect(preferences).toHaveAttribute("data-test-preferences-state", "set", { timeout: SETTLE_MS });
-		await expect(page.locator("[data-test-readlist-purpose-text]")).toHaveText("Essays on how teams ship software.");
-		const confirmation = page.locator("dialog[data-preferences-saved]");
-		await expect(confirmation).toBeVisible();
-		await expect(confirmation).toContainText("Weekend");
-		await confirmation.locator('button[type="submit"]').focus();
-		await page.keyboard.press("Enter");
-		await expect(confirmation).toBeHidden();
+		await expect(purposeText).toHaveText("Essays on how small teams ship software.", { timeout: SETTLE_MS });
+		await expect(smart).toHaveAttribute("data-test-smart-filing", "smart");
 
-		await page.locator("[data-test-readlist-purpose-text]").click();
-		await expect(wizard).toBeVisible();
-		await wizard.locator('[data-test-field="purpose"]').fill("");
 		await Promise.all([
 			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
-			wizard.locator('[data-test-action="readlist-preferences-save"]').click(),
+			smart.locator('[data-test-action="smart-off"]').click(),
 		]);
-		await expect(preferences).toHaveAttribute("data-test-preferences-state", "unset", { timeout: SETTLE_MS });
-		await expect(page.locator('[data-test-confirm-popover="readlist-preferences"] [data-test-field="purpose"]')).toHaveValue("");
+		await expect(smart).toHaveAttribute("data-test-smart-filing", "manual", { timeout: SETTLE_MS });
+		await expect(smart.locator('[name="purpose"]')).toBeVisible();
+		await expect(page.locator("[data-test-readlist-purpose]")).toHaveCount(0);
 	});
 
 	test("the readlist switcher opens, creates a readlist from the dialog as a plain form submit, and switches readlist with no script", async ({ page }, testInfo) => {

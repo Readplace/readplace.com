@@ -88,7 +88,7 @@ export interface ReadlistGmailSendersInput extends ReadlistGmailSectionStateInpu
 	modifyScopeGranted: boolean;
 	userId: UserId;
 	offer: UpgradeOffer | undefined;
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
+	readlist: { slug: ReadlistSlug; label: string };
 	readlists: readonly ReadlistRef[];
 	discoveredSenders: readonly DiscoveredGmailSender[];
 	mappings: readonly GmailMapping[];

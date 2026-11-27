@@ -1,4 +1,4 @@
-import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/infra-components";
+import { PARSE_ERROR_STREAM } from "@packages/infra-components";
 
 /**
  * Single source of truth for log stream names. Every analytics-style log line
@@ -11,7 +11,6 @@ export const STREAMS = {
 	analytics: "analytics",
 	conversions: "conversions",
 	parseErrors: PARSE_ERROR_STREAM,
-	crawlOutcomes: CRAWL_OUTCOME_STREAM,
 	subscriptions: "subscriptions",
 } as const;
 
@@ -76,7 +75,7 @@ export const QUEUE_DIGEST_UNSUBSCRIBE_METHODS = {
 export type QueueDigestUnsubscribeMethod =
 	(typeof QUEUE_DIGEST_UNSUBSCRIBE_METHODS)[keyof typeof QUEUE_DIGEST_UNSUBSCRIBE_METHODS];
 
-export const QUEUE_DIGEST_KINDS = ["regular", "pay", "starter"] as const;
+const QUEUE_DIGEST_KINDS = ["regular", "pay", "starter"] as const;
 
 export type QueueDigestKind = (typeof QUEUE_DIGEST_KINDS)[number];
 

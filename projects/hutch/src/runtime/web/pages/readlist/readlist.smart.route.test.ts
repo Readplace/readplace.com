@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
+import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { JSDOM } from "jsdom";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { seedInto } from "../../test-helpers/readlist-seed";
@@ -14,6 +17,12 @@ const PURPOSE = "Papers and essays on distributed systems.";
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
+}
+
+function purposeSurfaces(doc: Document) {
+	const smart = doc.querySelector("[data-test-smart-filing]");
+	assert(smart, "the preferences tab must render its Smart section");
+	return { filing: smart.getAttribute("data-test-smart-filing"), card: doc.querySelector("[data-test-readlist-purpose]") !== null };
 }
 
 function preferencesPath(slug: string): string {
@@ -65,7 +74,7 @@ describe("creating a Smart Readlist", () => {
 		const slug = await createReadlist(agent, { label: "Systems", smart: "1", purpose: PURPOSE });
 
 		const definition = await definitionOf(harness, slug);
-		expect(definition?.purpose).toBe(PURPOSE);
+		expect(definition?.filing).toMatchObject({ mode: "smart", purpose: PURPOSE });
 		expect(definition?.filing?.mode).toBe("smart");
 	});
 
@@ -141,39 +150,52 @@ describe("Smart Readlist preferences", () => {
 		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_saved=1`);
 		const definition = await definitionOf(harness, slug);
 		expect(definition?.filing?.mode).toBe("smart");
-		expect(definition?.purpose).toBe(PURPOSE);
+		expect(definition?.filing).toMatchObject({ mode: "smart", purpose: PURPOSE });
 	});
 
-	it("shows a smart readlist its instructions, choices, turn-off and source links, and no destination controls", async () => {
-		const { agent } = await setUp();
+	it("shows a Smart Readlist its Purpose card, edit dialog, inboxes, Gmail senders, Sources and Remove purpose, and no instructions box", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, { label: "Systems", smart: "1", purpose: PURPOSE });
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		const section = doc.querySelector('[data-test-smart-filing="smart"]');
-		assert(section, "a smart readlist must render its smart section");
-		expect(section.querySelector('[data-test-form="smart-rule"] textarea')?.textContent).toBe(PURPOSE);
-		expect(section.querySelector('[data-test-form="smart-off"]')).not.toBeNull();
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
+		const wizard = doc.querySelector("#readlist-preferences-wizard");
+		assert(wizard, "a Smart Readlist must carry its purpose edit dialog");
+		expect(wizard.querySelector("textarea")?.textContent).toBe(PURPOSE);
+		const ordered = ["[data-test-filters]", "[data-test-readlist-inboxes]", "[data-test-readlist-gmail-senders]", '[data-test-smart-filing="smart"]'].map((selector) => {
+			const element = doc.querySelector(selector);
+			assert(element, `the Smart Readlist's preferences must render ${selector}`);
+			return element;
+		});
+		expect(ordered.slice(1).map((element, index) => Boolean(ordered[index].compareDocumentPosition(element) & ordered[index].DOCUMENT_POSITION_FOLLOWING))).toEqual([true, true, true]);
+		const section = ordered[3];
+		const header = section.querySelector(".readlist-smart__header");
+		assert(header, "the Smart section must render its header");
+		const afterHeader = header.nextElementSibling;
+		assert(afterHeader, "the Smart section must render a body after its header");
+		expect(afterHeader.classList.contains("readlist-smart__body--divided")).toBe(false);
 		expect(new URL(section.querySelector('[data-test-smart-source="newsletters"]')?.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname).toBe("/inbox");
 		expect(new URL(section.querySelector('[data-test-smart-source="gmail"]')?.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname).toBe("/newsletters/gmail");
-		expect(section.querySelector("[data-test-smart-paused]")).toBeNull();
-		expect(doc.querySelector("[data-test-readlist-inboxes]")).toBeNull();
-		expect(doc.querySelector("[data-test-readlist-gmail-senders]")).toBeNull();
-		expect(doc.querySelector("[data-test-filter-beta]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-readlist-purpose]")).toBeNull();
-		expect(doc.querySelector("[data-test-readlist-preferences]")).toBeNull();
+		expect(Array.from(section.querySelectorAll("form"), (form) => form.getAttribute("data-test-form"))).toEqual(["smart-off"]);
 	});
 
-	it("keeps a smart readlist's purpose when the old purpose form is cleared or edited", async () => {
+	it("edits a Smart Readlist's purpose from the Purpose card's form", async () => {
 		const { harness, agent } = await setUp();
 		const slug = await createReadlist(agent, { label: "Systems", smart: "1", purpose: PURPOSE });
-		const before = await definitionOf(harness, slug);
+		const before = (await definitionOf(harness, slug))?.filing;
+		assert(before?.mode === "smart", "the readlist must start smart");
 
-		await agent.post(preferencesPath(slug)).type("form").send({ purpose: "" });
 		await agent.post(preferencesPath(slug)).type("form").send({ purpose: "Only consensus papers." });
 
-		const after = await definitionOf(harness, slug);
-		expect(after?.purpose).toBe(PURPOSE);
-		expect(after?.filing).toEqual(before?.filing);
+		const after = (await definitionOf(harness, slug))?.filing;
+		assert(after?.mode === "smart", "the readlist must stay smart");
+		expect(after.purpose).toBe("Only consensus papers.");
+		expect(after.revision).toBe(before.revision + 1);
 	});
 
 	it("bumps the revision when the instructions change", async () => {
@@ -187,12 +209,12 @@ describe("Smart Readlist preferences", () => {
 		const after = await definitionOf(harness, slug);
 		assert(after?.filing?.mode === "smart", "the readlist must stay smart");
 		expect(after.filing.revision).toBeGreaterThan(before.revision);
-		expect(after.purpose).toBe("Only consensus papers.");
+		expect(after.filing).toMatchObject({ mode: "smart", purpose: "Only consensus papers." });
 	});
 
 	it("refuses empty instructions and shows the error", async () => {
 		const { agent } = await setUp();
-		const slug = await createReadlist(agent, { label: "Systems", smart: "1", purpose: PURPOSE });
+		const slug = await createReadlist(agent, { label: "Systems" });
 		const response = await agent.post(`${preferencesPath(slug)}/smart`).type("form").send({ purpose: " " });
 
 		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_error=invalid-smart-purpose`);
@@ -207,7 +229,7 @@ describe("Smart Readlist preferences", () => {
 		expect(new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("queue_error")).not.toBeNull();
 	});
 
-	it("turns smart matching off on a free plan and keeps the articles", async () => {
+	it("removes the purpose on a free plan and keeps the articles", async () => {
 		const { harness, agent } = await setUp();
 		const slug = await createReadlist(agent, { label: "Systems", smart: "1", purpose: PURPOSE });
 		await seedInto(harness, { readlist: slug, url: "https://example.com/raft" });
@@ -215,11 +237,40 @@ describe("Smart Readlist preferences", () => {
 
 		const paused = parse((await agent.get(preferencesPath(slug))).text);
 		expect(paused.querySelector("[data-test-smart-paused]")).not.toBeNull();
+		const sources = paused.querySelector('[data-test-smart-source="newsletters"]')?.closest(".readlist-smart__body");
+		assert(sources, "a paused Smart Readlist must still render its Sources");
+		expect(sources.classList.contains("readlist-smart__body--divided")).toBe(true);
 
 		const response = await agent.post(`${preferencesPath(slug)}/smart/off`);
 		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_saved=1`);
 		expect((await definitionOf(harness, slug))?.filing).toEqual({ mode: "manual" });
 		expect((await agent.get(`/queue?queue=${slug}`)).text).toContain("https://example.com/raft");
+		const removed = parse((await agent.get(preferencesPath(slug))).text);
+		expect([purposeSurfaces(paused), purposeSurfaces(removed)]).toEqual([
+			{ filing: "smart", card: true },
+			{ filing: "manual", card: false },
+		]);
+	});
+
+	it("gives a purpose added, removed and added again revision 3 from the second add's time", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let now = new Date("2026-11-20T09:00:00.000Z");
+		fixture.shared.now = () => now;
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, { label: "Systems" });
+
+		await agent.post(`${preferencesPath(slug)}/smart`).type("form").send({ purpose: PURPOSE });
+		await agent.post(`${preferencesPath(slug)}/smart/off`);
+		now = new Date("2026-11-21T09:00:00.000Z");
+		await agent.post(`${preferencesPath(slug)}/smart`).type("form").send({ purpose: "Only consensus papers." });
+
+		expect((await definitionOf(harness, slug))?.filing).toEqual({
+			mode: "smart",
+			purpose: "Only consensus papers.",
+			revision: 3,
+			effectiveAt: now,
+		});
 	});
 
 	it("sends a turn-off for a readlist the reader does not own back to the readlists", async () => {

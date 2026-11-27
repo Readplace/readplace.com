@@ -121,7 +121,7 @@ const MCP_CONNECT_TITLE = "Connect Readplace to your AI assistant";
 const MCP_CONNECT_DESCRIPTION =
 	"Readplace runs an MCP server. Connect ChatGPT, Gemini, Claude, Perplexity, or any MCP client and your assistant can save pages to your readlist and list back what you have saved.";
 
-const MCP_COPY_SCRIPT = `<script src="/client-dist/mcp.client.js" defer></script>`;
+const MCP_COPY_SCRIPT = `<script src="/client-dist/clipboard-copy.client.js" defer></script>`;
 
 export const MCP_GUIDE_ORIGIN_PARAM = "from";
 

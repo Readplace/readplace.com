@@ -4,7 +4,6 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { EmailIssueSaveSkippedEvent, EmailOutputSavedToAllEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
-import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { PutTierSource } from "@packages/tier-source";
@@ -40,7 +39,6 @@ function makeHarness(opts: {
 	filings?: EmailIssueFiling[];
 	readEmailBodyFails?: boolean;
 	recordInboxArticleQueued?: () => Promise<void>;
-	definitions?: ReadlistDefinitionData[];
 }) {
 	const reads: string[] = [];
 	const saves: Omit<Parameters<SaveEmailIssue>[0], "onSavedToAll" | "requestedAt">[] = [];
@@ -69,7 +67,6 @@ function makeHarness(opts: {
 			if (kind === "removed-by-reader") return { kind, contentPending };
 			return { kind, contentPending, filings: opts.filings ?? [] };
 		},
-		listReadlistDefinitions: async () => opts.definitions ?? [],
 		putTierSource: async (params) => {
 			tierSources.push(params);
 			return params.metadata;
@@ -138,26 +135,14 @@ describe("initSaveEmailIssueCommandHandler", () => {
 		assert.deepEqual(harness.onboarding, [READER]);
 	});
 
-	it("saves an issue routed to a Smart Readlist and a manual one into All and the manual one only", async () => {
-		const createdAt = new Date("2026-06-01T00:00:00.000Z");
-		const harness = makeHarness({
-			definitions: [
-				{
-					slug: ReadlistSlugSchema.parse("science"),
-					label: "Science",
-					createdAt,
-					purpose: "Physics.",
-					filing: { mode: "smart", revision: 1, effectiveAt: createdAt },
-				},
-				{ slug: ReadlistSlugSchema.parse("work"), label: "Work", createdAt, filing: { mode: "manual" } },
-			],
-		});
+	it("saves an issue routed to two readlists into All and both", async () => {
+		const harness = makeHarness({});
 
 		await harness.run({ ...COMMAND, readlists: ["science", "work"] });
 
 		assert.deepEqual(
 			harness.saves.map((save) => save.readlists),
-			[["work"]],
+			[["science", "work"]],
 		);
 	});
 

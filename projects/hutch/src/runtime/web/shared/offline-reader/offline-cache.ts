@@ -1,12 +1,31 @@
+import {
+	NEWER_READER_VERSION,
+	OFFLINE_COPY_PATH_ATTRIBUTE,
+	OFFLINE_COPY_READER_SOURCE,
+	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
+	OFFLINE_SAVED_AT_HEADER,
+	READER_SOURCE_MESSAGE_TYPE,
+	READER_VERSION_MESSAGE_TYPE,
+	REVALIDATE_READER_MESSAGE_TYPE,
+} from "@packages/web-shell/offline-reader-protocol";
+
+export {
+	OFFLINE_COPY_PATH_ATTRIBUTE,
+	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
+	OFFLINE_SAVED_AT_HEADER,
+	READER_SOURCE_MESSAGE_TYPE,
+	READER_VERSION_MESSAGE_TYPE,
+	REVALIDATE_READER_MESSAGE_TYPE,
+};
+
 export const OFFLINE_CACHE_PREFIX = "readplace-offline-";
 export const OFFLINE_CACHE_NAME = `${OFFLINE_CACHE_PREFIX}v1`;
 
 export const OFFLINE_READER_SCOPE = "/queue";
 
-export const READER_SOURCE_MESSAGE_TYPE = "readplace:reader-source";
 export const READER_SOURCE = {
 	network: "network",
-	offlineCopy: "offline-copy",
+	offlineCopy: OFFLINE_COPY_READER_SOURCE,
 } as const;
 export type ReaderSource = (typeof READER_SOURCE)[keyof typeof READER_SOURCE];
 
@@ -20,10 +39,9 @@ export type ReaderSourceMessage =
 			version: string | null;
 		};
 
-export const READER_VERSION_MESSAGE_TYPE = "readplace:reader-version";
 export const READER_VERSION = {
 	same: "same",
-	newer: "newer",
+	newer: NEWER_READER_VERSION,
 } as const;
 type ReaderVersion = (typeof READER_VERSION)[keyof typeof READER_VERSION];
 
@@ -33,12 +51,6 @@ export interface ReaderVersionMessage {
 	version: ReaderVersion;
 }
 
-export const REVALIDATE_READER_MESSAGE_TYPE = "readplace:revalidate-reader";
-
-export const OFFLINE_COPY_PATH_ATTRIBUTE = "data-offline-copy-path";
-export const OFFLINE_COPY_SAVED_AT_ATTRIBUTE = "data-offline-copy-saved-at";
-
-export const OFFLINE_SAVED_AT_HEADER = "Readplace-Offline-Saved-At";
 export const OFFLINE_SOURCE_HEADER = "Readplace-Offline-Source";
 export const ARTICLE_VERSION_HEADER = "Readplace-Article-Version";
 export const OFFLINE_COPY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;

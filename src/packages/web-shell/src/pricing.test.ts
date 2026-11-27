@@ -5,6 +5,7 @@ import {
 	PRICING_PANELS,
 	PRICING_PLANS,
 	type PlanOffer,
+	type PricingPlan,
 	STATED_PRICING_PANELS,
 	UPGRADE_CTA_LABEL,
 	offerPrice,
@@ -13,6 +14,10 @@ import {
 } from "./pricing";
 
 const NOV_15_2026 = new Date("2026-11-15T00:00:00.000Z");
+
+function monthlyAmountOf(plan: PricingPlan): number {
+	return Number(plan.monthlyDisplay.slice(1));
+}
 
 const firstYear49ForEveryone: PlanOffer = {
 	id: "first-year-49",
@@ -105,7 +110,6 @@ describe("statedPricingPlans", () => {
 
 		expect(yearly).toEqual({
 			name: "Yearly",
-			monthlyAmount: "4.08",
 			monthlyDisplay: "$4.08",
 			totalAmount: "49",
 			totalDisplay: "$49",
@@ -175,22 +179,22 @@ describe("PRICING_PLANS", () => {
 	});
 
 	it("derives each monthly figure from the amount actually charged, so the two cannot drift", () => {
-		expect(Number(PRICING_PLANS.monthly.monthlyAmount) * 1).toBe(
+		expect(monthlyAmountOf(PRICING_PLANS.monthly) * 1).toBe(
 			Number(PRICING_PLANS.monthly.totalAmount),
 		);
-		expect(Number(PRICING_PLANS.yearly.monthlyAmount) * 12).toBe(
+		expect(monthlyAmountOf(PRICING_PLANS.yearly) * 12).toBe(
 			Number(PRICING_PLANS.yearly.totalAmount),
 		);
-		expect(Number(PRICING_PLANS.triennial.monthlyAmount) * 36).toBe(
+		expect(monthlyAmountOf(PRICING_PLANS.triennial) * 36).toBe(
 			Number(PRICING_PLANS.triennial.totalAmount),
 		);
 	});
 
 	it("gets cheaper per month the longer the commitment, and dearer per charge", () => {
 		const perMonth = [
-			Number(PRICING_PLANS.monthly.monthlyAmount),
-			Number(PRICING_PLANS.yearly.monthlyAmount),
-			Number(PRICING_PLANS.triennial.monthlyAmount),
+			monthlyAmountOf(PRICING_PLANS.monthly),
+			monthlyAmountOf(PRICING_PLANS.yearly),
+			monthlyAmountOf(PRICING_PLANS.triennial),
 		];
 		const perCharge = [
 			Number(PRICING_PLANS.monthly.totalAmount),
@@ -202,11 +206,8 @@ describe("PRICING_PLANS", () => {
 	});
 
 	it("carries symbol-free amounts matching the displayed ones, so a surface that sets the currency itself cannot quote a different price", () => {
-		expect(PRICING_PLANS.yearly.monthlyAmount).toBe("5");
+		expect(PRICING_PLANS.yearly.monthlyDisplay).toBe("$5");
 		expect(PRICING_PLANS.yearly.totalAmount).toBe("60");
-		expect(PRICING_PLANS.yearly.monthlyDisplay).toBe(
-			`$${PRICING_PLANS.yearly.monthlyAmount}`,
-		);
 		expect(PRICING_PLANS.yearly.totalDisplay).toBe(`$${PRICING_PLANS.yearly.totalAmount}`);
 	});
 });

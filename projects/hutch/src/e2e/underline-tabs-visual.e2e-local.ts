@@ -35,7 +35,7 @@ const READ_TAB = '[data-test-filter="read"]';
 const PREFERENCES_TAB = '[data-test-filter="preferences"]';
 const OPEN_READLIST_TAB = `${READLIST_TABS} [aria-current="page"]`;
 const READLIST_BROWSE = ".readlist__browse";
-const PREFERENCES_PANEL = "[data-test-readlist-preferences]";
+const SMART_SECTION = "[data-test-smart-filing]";
 const PAGE_READLIST = "body.page-readlist";
 const LISTING_COUNT = "#readlist-count";
 
@@ -107,7 +107,7 @@ async function gotoCustomReadlistPreferences(page: Page, slug: string): Promise<
 	await page.goto(`${BASE_URL}/queue/queues/${encodeURIComponent(slug)}/preferences`, {
 		waitUntil: "domcontentloaded",
 	});
-	await page.waitForSelector(PREFERENCES_PANEL);
+	await page.waitForSelector(SMART_SECTION);
 	await expect(page.locator(PREFERENCES_TAB)).toHaveAttribute("aria-current", "page");
 }
 

@@ -74,7 +74,7 @@ function latest(watches: FakeWatch[]): FakeWatch {
 }
 
 function copyButtons(document: Document): HTMLButtonElement[] {
-	return Array.from(document.querySelectorAll<HTMLButtonElement>("[data-developers-copy]"));
+	return Array.from(document.querySelectorAll<HTMLButtonElement>("[data-clipboard-copy]"));
 }
 
 describe("initDevelopers copy buttons", () => {
@@ -86,7 +86,7 @@ describe("initDevelopers copy buttons", () => {
 
 		assert.equal(buttons.length, samples.length);
 		assert.deepEqual(
-			buttons.map((button) => button.getAttribute("data-developers-text")),
+			buttons.map((button) => button.getAttribute("data-clipboard-text")),
 			samples.map((sample) => sample.querySelector(".developers__code")?.textContent),
 		);
 		assert.deepEqual(
@@ -112,7 +112,7 @@ describe("initDevelopers copy buttons", () => {
 		first.click();
 		await Promise.resolve();
 
-		assert.deepEqual(written, [first.getAttribute("data-developers-text")]);
+		assert.deepEqual(written, [first.getAttribute("data-clipboard-text")]);
 	});
 
 	it("neither duplicates the buttons nor leaks the previous observer when htmx settles again", () => {

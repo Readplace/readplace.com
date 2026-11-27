@@ -15,7 +15,7 @@ const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 const PANEL = '[data-test-panel="ai"]';
 const DIRECT_INSTALL_CTA = '[data-test-cta="ai-direct-install"]';
 const SERVER_URL_ROW = '[data-test-section="ai-server-url"]';
-const REVEALED_COPY_BUTTON = "[data-install-copy]:not([hidden])";
+const REVEALED_COPY_BUTTON = "[data-clipboard-copy]:not([hidden])";
 const MINIMUM_TOUCH_TARGET_PX = 44;
 
 const DESKTOP = { width: 1280, height: 900 };

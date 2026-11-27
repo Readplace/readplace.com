@@ -15,7 +15,6 @@ interface AccountOnboardingContext {
 		target?: ReadlistSlug;
 		configured: boolean;
 		viewingTarget: boolean;
-		dismissed: boolean;
 	};
 	/** Present only when Gmail is configured and this unlocked account can connect. */
 	gmail?: { connected: boolean; dismissed: boolean };
@@ -58,7 +57,6 @@ export type OnboardingActionKey =
 	| "set-preferences"
 	| "open-smart-readlist"
 	| "open-all"
-	| "smart-readlist-dismiss"
 	| "install"
 	| "save-article"
 	| "view-readlist"

@@ -2,8 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ALL_SURFACES } from "./all-surfaces";
-import { NATIVE_CATALOGS } from "./native/native-catalogs";
 import { WEB_SURFACE_NAMES } from "./web-catalog";
+
+const NATIVE_CATALOGS = {
+	"ios-catalog": {
+		purpose: "Every user-facing string of the iOS app and its share extension, in the one String Catalog both targets bundle",
+	},
+	"android-strings": {
+		purpose: "Every user-facing string of the Android app, as Android string and plural resources",
+	},
+} as const;
 
 function readmeRows(): Map<string, string> {
 	const readme = readFileSync(path.resolve(__dirname, "../README.md"), "utf8");

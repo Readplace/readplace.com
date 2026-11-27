@@ -1369,8 +1369,9 @@ test.describe("Account colour roles hold their WCAG contrast in both themes", ()
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			await page.goto(`${BASE_URL}/account#connected-apps`, { waitUntil: "domcontentloaded" });
+			await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator(section)).toHaveAttribute("data-test-connected-apps-state", "listed");
+			await page.locator('[data-test-action="connected-apps-toggle"]').click({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: section, theme, view: "account/connected-apps" });
 			await page.locator('[data-test-action="disconnect-app-open"]').click({ timeout: SETTLE_MS });
 			await expect(page.locator(`${dialog}:popover-open`)).toBeVisible({ timeout: SETTLE_MS });
@@ -1429,13 +1430,13 @@ test.describe("Readlist preferences colour roles hold their WCAG contrast in bot
 		const slug = new URL(created.url()).searchParams.get("queue");
 		assert(slug, "creating a readlist must land the reader on it");
 		const preferencesUrl = `${BASE_URL}/queue/queues/${slug}/preferences`;
-		const preferences = "[data-test-readlist-preferences]";
+		const smart = "#readlist-smart";
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(preferencesUrl, { waitUntil: "domcontentloaded" });
-			await expect(page.locator(preferences)).toHaveAttribute("data-test-preferences-state", "unset");
-			await auditRoot(page, { root: preferences, theme, view: "preferences/unset" });
+			await expect(page.locator('[data-test-smart-filing="manual"]')).toBeVisible();
+			await auditRoot(page, { root: smart, theme, view: "preferences/unset" });
 		}
 
 		const saved = await page.request.post(preferencesUrl, {
@@ -1445,8 +1446,9 @@ test.describe("Readlist preferences colour roles hold their WCAG contrast in bot
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(preferencesUrl, { waitUntil: "domcontentloaded" });
-			await expect(page.locator(preferences)).toHaveAttribute("data-test-preferences-state", "set");
+			await expect(page.locator('[data-test-smart-filing="smart"]')).toBeVisible();
 			await auditRoot(page, { root: "[data-test-readlist-purpose]", theme, view: "preferences/set" });
+			await auditRoot(page, { root: smart, theme, view: "preferences/smart" });
 		}
 	});
 });

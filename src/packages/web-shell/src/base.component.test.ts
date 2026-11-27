@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { JSDOM, VirtualConsole } from "jsdom";
+import { NEWER_VERSION_BANNER_TEXT, OFFLINE_BANNER_TEXT, initBase } from "./base.component";
 import {
 	NEWER_READER_VERSION,
-	NEWER_VERSION_BANNER_TEXT,
-	OFFLINE_BANNER_TEXT,
 	OFFLINE_COPY_PATH_ATTRIBUTE,
 	OFFLINE_COPY_READER_SOURCE,
 	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
@@ -12,12 +11,11 @@ import {
 	READER_SOURCE_MESSAGE_TYPE,
 	READER_VERSION_MESSAGE_TYPE,
 	REVALIDATE_READER_MESSAGE_TYPE,
-	initBase,
-} from "./base.component";
+} from "./offline-reader-protocol";
 import { DISTRACTION_FREE_BODY_CLASS } from "./base.styles";
 import { NEEDS_UPGRADE_STYLES } from "./shared/needs-upgrade/needs-upgrade.component";
 import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";
-import { GlobalNav, GlobalEmptyNav } from "./nav.component";
+import { GlobalNav } from "./nav.component";
 import { FETCH_CHANGELOG_BANNER_IN_BROWSER, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import { generateCspNonce } from "./csp-nonce.middleware";
@@ -1715,16 +1713,6 @@ describe("initBase config", () => {
 		);
 		expect(nonces).toEqual(nonces.map(() => null));
 		expect(nonces.length).toBeGreaterThan(0);
-	});
-
-	it("GlobalEmptyNav renders nothing so a bare shell can opt out of the site nav", () => {
-		expect(
-			GlobalEmptyNav({
-				variant: "default",
-				isAuthenticated: false,
-				paidFeaturesLocked: false,
-			}),
-		).toBe("");
 	});
 
 	it("links a guest from the footer to the book upload, tracked to the footer", () => {

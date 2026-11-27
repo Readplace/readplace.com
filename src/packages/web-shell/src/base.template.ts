@@ -33,7 +33,6 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	<meta name="twitter:title" content="{{title}}">
 	<meta name="twitter:description" content="{{description}}">
 	{{#if twitterImage}}<meta name="twitter:image" content="{{twitterImage}}">{{/if}}
-	{{#if twitterSite}}<meta name="twitter:site" content="{{twitterSite}}">{{/if}}
 	<meta name="twitter:creator" content="@fagnerbrack">
 
 	<link rel="preconnect" href="https://fonts.googleapis.com">

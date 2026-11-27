@@ -22,6 +22,7 @@ import type {
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
 	ReadlistDefinitionData,
+	ReadlistFiling,
 	RecordSmartMatchRevision,
 } from "@packages/provider-contracts/article-store";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
@@ -39,7 +40,7 @@ export class SmartMatchMetadataPendingError extends Error {
 }
 
 type MatchedReadlist = SmartReadlistsMatchedDetail["readlists"][number];
-type SmartDefinition = ReadlistDefinitionData & { filing: { mode: "smart"; revision: number; effectiveAt: Date } };
+type SmartDefinition = ReadlistDefinitionData & { filing: Extract<ReadlistFiling, { mode: "smart" }> };
 
 function isSmart(definition: ReadlistDefinitionData): definition is SmartDefinition {
 	return definition.filing?.mode === "smart";
@@ -72,8 +73,7 @@ export function initMatchSmartReadlistsHandler(deps: {
 	}): Promise<MatchedReadlist> => {
 		const { userId, storedKey, definition, article, savedAt } = params;
 		const readlist: ReadlistSlug = definition.slug;
-		const purpose = definition.purpose;
-		assert(purpose !== undefined, "a smart readlist always carries a purpose");
+		const purpose = definition.filing.purpose;
 		const purposeVersion = readlistPurposeVersion(purpose);
 		const overrides = await deps.listReadlistFitOverrides({ userId, readlist });
 		const provenance = article.provenance ?? { kind: "web" };
