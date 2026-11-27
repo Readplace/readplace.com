@@ -209,7 +209,7 @@ describe("listReadlistDefinitions filing", () => {
 		expect(definition).not.toHaveProperty("filing");
 	});
 
-	it("reads a purpose written before filing modes existed as a smart rule at revision 0, effective from creation, so it keeps its purpose until converted while the matcher never judges it", async () => {
+	it("reads a row with no filing mode as a regular readlist, ignoring a purpose left on it", async () => {
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[{ Items: [definitionItem({ queuePurpose: "Essays on how teams actually ship." })] }],
@@ -223,17 +223,11 @@ describe("listReadlistDefinitions filing", () => {
 				slug: "work",
 				label: "Work Reading",
 				createdAt: new Date("2026-08-19T10:00:00.000Z"),
-				filing: {
-					mode: "smart",
-					purpose: "Essays on how teams actually ship.",
-					revision: 0,
-					effectiveAt: new Date("2026-08-19T10:00:00.000Z"),
-				},
 			},
 		]);
 	});
 
-	it("reads a manual row whose purpose never had a rule revision as an unconverted smart rule at revision 0", async () => {
+	it("reads a manual row that still holds a purpose as a regular readlist without one", async () => {
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[{ Items: [definitionItem({ filingMode: "manual", queuePurpose: "Essays on how teams actually ship." })] }],
@@ -244,47 +238,7 @@ describe("listReadlistDefinitions filing", () => {
 
 		const [definition] = await listReadlistDefinitions(USER);
 
-		expect(definition?.filing).toEqual({
-			mode: "smart",
-			purpose: "Essays on how teams actually ship.",
-			revision: 0,
-			effectiveAt: new Date("2026-08-19T10:00:00.000Z"),
-		});
-	});
-
-	it("keeps a manual row that holds a purpose and a rule revision manual, because the reader turned its matching off", async () => {
-		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					{
-						Items: [
-							definitionItem({
-								filingMode: "manual",
-								queuePurpose: "Essays on how teams actually ship.",
-								filingRuleRevision: 2,
-							}),
-						],
-					},
-				],
-				() => undefined,
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		const [definition] = await listReadlistDefinitions(USER);
-
 		expect(definition?.filing).toEqual({ mode: "manual" });
-	});
-
-	it("leaves a row whose purpose is only whitespace without a filing, since a blank purpose is no rule", async () => {
-		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{ Items: [definitionItem({ queuePurpose: "   " })] }], () => undefined),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(await listReadlistDefinitions(USER)).toEqual([
-			{ slug: "work", label: "Work Reading", createdAt: new Date("2026-08-19T10:00:00.000Z") },
-		]);
 	});
 
 	it("reads a manual row as manual, ignoring any revision left from an earlier rule", async () => {
@@ -416,26 +370,10 @@ describe("turnOffSmartReadlistMatching", () => {
 				"#effectiveAt": "filingRuleEffectiveAt",
 				"#purpose": "queuePurpose",
 			},
-			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":zero": 0, ":one": 1 },
+			UpdateExpression: "SET #mode = :manual, #revision = #revision + :one REMOVE #effectiveAt, #purpose",
+			ConditionExpression: "#mode = :smart",
+			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":one": 1 },
 		});
-		expect(String(commands[0].input.UpdateExpression)).toContain("SET #mode = :manual");
-		expect(String(commands[0].input.UpdateExpression)).toContain("REMOVE #effectiveAt, #purpose");
-	});
-
-	it("also turns off an unconverted purpose that has no rule revision yet, starting its revision from 0", async () => {
-		const commands: { name: string; input: Record<string, unknown> }[] = [];
-		const { turnOffSmartReadlistMatching } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{}], (c) => commands.push(c)),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(await turnOffSmartReadlistMatching({ userId: USER, slug: WORK })).toEqual({ turnedOff: true });
-		expect(String(commands[0].input.ConditionExpression)).toContain(
-			"#mode = :smart OR (attribute_exists(#purpose) AND attribute_not_exists(#revision))",
-		);
-		expect(String(commands[0].input.UpdateExpression)).toContain(
-			"#revision = if_not_exists(#revision, :zero) + :one",
-		);
 	});
 
 	it("answers turnedOff:false for a readlist that is not smart", async () => {

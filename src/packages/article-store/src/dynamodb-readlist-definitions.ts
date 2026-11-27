@@ -39,26 +39,7 @@ const ReadlistDefinitionRow = z.object({
 
 const UpdatedFilingRuleRevision = z.object({ filingRuleRevision: z.number() });
 
-const UNCONVERTED_PURPOSE_RULE_REVISION = 0;
-
-function unconvertedPurpose(row: z.infer<typeof ReadlistDefinitionRow>): string | undefined {
-	if (row.filingMode === "smart" || row.filingRuleRevision !== undefined) return undefined;
-	if (row.queuePurpose?.trim()) return row.queuePurpose;
-	return undefined;
-}
-
 function toFiling(row: z.infer<typeof ReadlistDefinitionRow>): { filing?: ReadlistFiling } {
-	const purposeAwaitingConversion = unconvertedPurpose(row);
-	if (purposeAwaitingConversion !== undefined) {
-		return {
-			filing: {
-				mode: "smart",
-				purpose: purposeAwaitingConversion,
-				revision: UNCONVERTED_PURPOSE_RULE_REVISION,
-				effectiveAt: new Date(row.createdAt),
-			},
-		};
-	}
 	if (row.filingMode === undefined) return {};
 	if (row.filingMode === "manual") return { filing: { mode: "manual" } };
 	assert(row.filingRuleRevision !== undefined, "a smart readlist row carries its rule revision");
@@ -227,16 +208,15 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
 			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-			UpdateExpression:
-				"SET #mode = :manual, #revision = if_not_exists(#revision, :zero) + :one REMOVE #effectiveAt, #purpose",
-			ConditionExpression: "#mode = :smart OR (attribute_exists(#purpose) AND attribute_not_exists(#revision))",
+			UpdateExpression: "SET #mode = :manual, #revision = #revision + :one REMOVE #effectiveAt, #purpose",
+			ConditionExpression: "#mode = :smart",
 			ExpressionAttributeNames: {
 				"#mode": "filingMode",
 				"#revision": "filingRuleRevision",
 				"#effectiveAt": "filingRuleEffectiveAt",
 				"#purpose": "queuePurpose",
 			},
-			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":zero": 0, ":one": 1 },
+			ExpressionAttributeValues: { ":manual": "manual", ":smart": "smart", ":one": 1 },
 		}));
 		if (outcome.kind === "condition-failed") return { turnedOff: false };
 		return { turnedOff: true };
