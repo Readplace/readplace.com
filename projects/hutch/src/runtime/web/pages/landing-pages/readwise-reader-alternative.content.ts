@@ -7,12 +7,10 @@ import {
 	FREE_PLAN_CLOSE,
 	CREATE_FREE_ACCOUNT,
 	founderLine,
+	SIGNUP_NOTE,
+	bodyLink,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
-
-function track(path: string, content: string): string {
-	return withInternalTracking(path, { source: "lp-readwise-reader-alternative-body", content });
-}
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	lastModified: "2026-11-19",
@@ -64,9 +62,9 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismLede: "It's a narrower product, and the narrow part is the point.",
 	mechanismParagraphs: [
 		`Price. Free, with daily limits on new saves; the paid plan is ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month.`,
-		`Scanned PDFs. Every page is read from its pixels, and a cleanup pass that changes a number is discarded. <a href="${track("/pdf-ocr", "pdf-ocr")}">How the checks work</a>.`,
-		`Leaving. If you stop paying, the account moves to the free plan rather than being locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "free-plan")}">What happens when a subscription ends</a>.`,
-		`AI assistants. ChatGPT, Claude and Gemini can save to and read from a readlist. <a href="${track("/ai-reading-list", "ai-reading-list")}">How the assistant connection works</a>.`,
+		`Scanned PDFs. Every page is read from its pixels, and a cleanup pass that changes a number is discarded. <a href="${bodyLink("readwise-reader-alternative", "/pdf-ocr", "pdf-ocr")}">How the checks work</a>.`,
+		`Leaving. If you stop paying, the account moves to the free plan rather than being locked, and export needs only a sign-in. <a href="${bodyLink("readwise-reader-alternative", "/read-it-later-that-wont-die", "free-plan")}">What happens when a subscription ends</a>.`,
+		`AI assistants. ChatGPT, Claude and Gemini can save to and read from a readlist. <a href="${bodyLink("readwise-reader-alternative", "/ai-reading-list", "ai-reading-list")}">How the assistant connection works</a>.`,
 	],
 	comparisons: [
 		{
@@ -174,7 +172,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 			`Both paid prices buy the same plan: ${PLAN_CHOICES}.`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Compare them on an article you saved",
 	closeSecondaryAction: CREATE_FREE_ACCOUNT,

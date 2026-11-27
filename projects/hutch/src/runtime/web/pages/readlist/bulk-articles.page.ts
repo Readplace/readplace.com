@@ -18,6 +18,7 @@ import { isAccountLocked } from "../../middleware/require-not-locked.middleware"
 
 export interface BulkArticleOperations {
 	store: BulkSelectionStore;
+	readEverywhere: boolean;
 	dispatch(detail: { userId: UserId; id: string; generation: number; intent?: "confirm" | "restore" | "retry" }): Promise<void>;
 }
 
@@ -32,6 +33,7 @@ function availableOperation(job: BulkSelection) {
 }
 
 const statusTemplate = readFileSync(join(__dirname, "bulk-articles.template.html"), "utf-8");
+const staleFormTemplate = readFileSync(join(__dirname, "bulk-articles-stale-form.template.html"), "utf-8");
 const statusStyles = readFileSync(join(__dirname, "bulk-articles.styles.css"), "utf-8");
 
 export function bulkArticleRoutes(deps: ReadlistDependencies, shared: ReadlistShared, ops: BulkArticleOperations): express.Router {
@@ -45,6 +47,12 @@ export function bulkArticleRoutes(deps: ReadlistDependencies, shared: ReadlistSh
 		if (action.startsWith("file/") && isAccountLocked(req)) { res.sendStatus(403); return; }
 		const destination = action.startsWith("file/") && (await deps.listReadlistDefinitions(req.userId)).find(list => list.slug === action.slice(5));
 		const tab = tabQuery(filters.tab);
+		if (action === "read-everywhere" && (!ops.readEverywhere || tab.status !== "unread")) {
+			sendComponent(req, res, Base({ seo: { title: t("manage.title"), description: t("manage.title"), canonicalUrl: "/queue", robots: "noindex, nofollow" },
+				statusCode: 409, styles: statusStyles, content: { html: render(staleFormTemplate, { title: t("manage.title"), message: t("manage.staleForm"), back: t("manage.back"),
+					backHref: withInternalTracking("/queue", { source: "manage-articles", content: "stale-form" }) }) } }, await deps.buildBannerState(req)));
+			return;
+		}
 		const spec = SelectionSpec.safeParse({ source: filters.managedSource ?? "all", sender: filters.sender, extent, page: filters.page,
 			discovery: filters.discovery, status: tab.status, order: filters.order ?? tab.defaultOrder,
 			action: destination ? { kind: "file", destination: destination.slug, label: destination.label, createdAt: destination.createdAt.toISOString() } : { kind: action } });
@@ -67,6 +75,7 @@ export function bulkArticleRoutes(deps: ReadlistDependencies, shared: ReadlistSh
 		if (!job) { res.sendStatus(404); return; }
 		if (job.expiresAt <= Math.floor(deps.now().getTime() / 1000)) { res.sendStatus(410); return; }
 		const operation = availableOperation(job);
+		const unfinished = job.spec.action.kind === "read-everywhere" && job.state === "failed" && job.failedState === "running";
 		const html = render(statusTemplate, {
 			title: t("manage.title"), action: t(`manage.action.${job.spec.action.kind}`), destination: job.spec.action.kind === "file" ? job.spec.action.label : undefined,
 			extent: t(`manage.extent.${job.spec.extent}`), source: job.spec.sender ?? t(`manage.${job.spec.source}`),
@@ -78,7 +87,7 @@ export function bulkArticleRoutes(deps: ReadlistDependencies, shared: ReadlistSh
 			refreshHref: withInternalTracking(href(job), { source: "manage-articles", content: "refresh" }),
 			backHref: withInternalTracking("/queue", { source: "manage-articles", content: "back" }),
 			refresh: t("manage.refresh"), back: t("manage.back"), counts: (["selected", "completed", "skipped", "failed", "restorable", "restoredCount"] as const)
-				.map(name => ({ label: t(`manage.count.${name}`), count: job[name] })),
+				.map(name => ({ label: t(`manage.count.${unfinished && name === "failed" ? "unfinished" : name}`), count: job[name] })),
 		});
 		res.set("Cache-Control", "private, no-store");
 		sendComponent(req, res, Base({ seo: { title: t("manage.title"), description: t("manage.title"), canonicalUrl: href(job), robots: "noindex, nofollow" },

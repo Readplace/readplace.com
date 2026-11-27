@@ -4,13 +4,13 @@ import express from "express";
 import { z } from "zod";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent, withInternalTracking } from "@packages/web-shell";
+import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
 import { buildSaveIntentEvent, deriveSaveSurface, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
 import { setPendingSaveId } from "../../pending-save";
-import { SaveErrorPage } from "./save-error.component";
+import { readerErrorLink, SaveErrorPage } from "./save-error.component";
 
 const SaveUrlSchema = z.url();
 
@@ -35,12 +35,8 @@ export function initSaveRoutes(deps: {
 		const url = parseUrl(typeof req.query.url === "string" ? req.query.url : undefined);
 
 		if (!url) {
-			const redirectUrl = withInternalTracking(req.userId ? "/queue" : "/", {
-				source: "save-error",
-				content: req.userId ? "back-to-queue" : "home",
-			});
-			const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
-			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel, title: "No article URL provided" }), await deps.buildBannerState(req)));
+			const link = readerErrorLink({ signedIn: req.userId !== undefined, source: "save-error" });
+			sendComponent(req, res, Base(SaveErrorPage({ ...link, title: "No article URL provided" }), await deps.buildBannerState(req)));
 			return;
 		}
 

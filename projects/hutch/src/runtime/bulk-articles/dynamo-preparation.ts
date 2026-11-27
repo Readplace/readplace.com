@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineDynamoTable, type DynamoDBDocumentClient } from "@packages/storage-client";
+import { UNKNOWN_ORIGIN_FILTER } from "@packages/article-store";
 import { discoveryCandidateOf, matchesArticleDiscovery, personalReadlistPartition, ReaderArticleHashId, readlistFilterOf, resolveArticleDiscovery } from "@packages/domain/article";
 import type { FindArticleById, ResolveCanonicalIdentity } from "@packages/provider-contracts/article-store";
 import { BULK_CHUNK_SIZE, selectionTarget, type BulkSelection, type SelectionTarget } from "./selection";
@@ -38,6 +39,7 @@ export function initBulkPreparation(deps: {
 		}
 		if (spec.source !== "sender") {
 			const pickedScope = spec.source === "picked" ? personalReadlistPartition(userId, "picked", spec.status) : undefined;
+			const rawUnknownOrigin = spec.source === "unknown" && spec.action.kind === "read-everywhere";
 			const index = pickedScope ? {
 				IndexName: "personalScope-personalOrder-index",
 				KeyConditionExpression: "personalScope = :scope AND personalOrder <= :cutoff",
@@ -45,7 +47,8 @@ export function initBulkPreparation(deps: {
 			} : {
 				IndexName: "userId-savedAt-index",
 				KeyConditionExpression: "userId = :user AND savedAt <= :cutoff",
-				ExpressionAttributeValues: { ":user": userId, ":cutoff": job.createdAt },
+				...(rawUnknownOrigin ? { FilterExpression: UNKNOWN_ORIGIN_FILTER } : {}),
+				ExpressionAttributeValues: { ":user": userId, ":cutoff": job.createdAt, ...(rawUnknownOrigin ? { ":flag": true } : {}) },
 			};
 			const page = await saves.query({ ...index, Limit: BULK_CHUNK_SIZE, ExclusiveStartKey: cursor.key });
 			let last: Record<string, string> | undefined;
@@ -55,7 +58,7 @@ export function initBulkPreparation(deps: {
 					return { targets, next: JSON.stringify({ key: last }) };
 				}
 				if (!row.url || !row.savedAt) throw new Error("save index returned an incomplete key");
-				await collect(ReaderArticleHashId.fromResourceUniqueId(row.url), row.unknownOrigin);
+				await collect(ReaderArticleHashId.fromResourceUniqueId(row.url), rawUnknownOrigin || row.unknownOrigin);
 				if (pickedScope && !row.personalOrder) throw new Error("personal index returned an incomplete key");
 				last = pickedScope && row.personalOrder
 					? { userId, url: row.url, personalScope: pickedScope, personalOrder: row.personalOrder }

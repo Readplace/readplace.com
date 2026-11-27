@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { MAX_IMPORT_FILE_BYTES } from "@packages/domain/import-session";
 import type { MediaKindManifest } from "@packages/media-contracts";
 import { render } from "@packages/web-shell";
+import { importRefusalMessage } from "../../pages/import/import.error";
 import { IMPORT_LIMITS } from "../../pages/import/import.limits";
 import { uploadFormatsOf } from "../../pages/upload/upload-copy";
 import { acceptAttributeOf } from "../../pages/upload/upload.viewmodel";
@@ -18,7 +19,7 @@ const UPLOAD_START_ACTION = "/upload";
 function messagesOf(kinds: readonly MediaKindManifest[]) {
 	return {
 		unsupported: `That file type isn't supported. Choose a list of links (HTML, JSON, CSV, or plain text) or ${uploadFormatsOf(kinds)}.`,
-		importTooLarge: `That file is too large. The limit is ${IMPORT_LIMITS.maxFileSize} — split the export into smaller files and import them one at a time.`,
+		importTooLarge: importRefusalMessage("import_too_large"),
 		failed: "The upload didn't go through. Try again.",
 	};
 }

@@ -57,10 +57,6 @@ export interface McpArticle {
 	readonly readlists: readonly McpReadlist[];
 }
 
-export interface McpArticleOutput extends Omit<McpArticle, "url"> {
-	readonly url: string;
-}
-
 export type CreateReadlistResult =
 	| { readonly status: "created"; readonly readlist: McpReadlist }
 	| { readonly status: "exists"; readonly readlist: McpReadlist }

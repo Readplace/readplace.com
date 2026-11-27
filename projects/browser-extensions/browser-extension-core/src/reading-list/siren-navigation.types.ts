@@ -32,7 +32,6 @@ export type BoundAction = (
 ) => Promise<NavigationResult>;
 
 export type NavigationResult = {
-	homeHref?: string;
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
 	descriptors: Record<string, SirenAction>;

@@ -7,7 +7,9 @@ import type { UserId } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	TransactionCanceledException,
 } from "@packages/storage-client";
+import { z } from "zod";
 import { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions";
 
 /**
@@ -393,24 +395,45 @@ describe("turnOffSmartReadlistMatching", () => {
 	});
 });
 
+const CREATED_AT = new Date("2026-08-19T10:00:00.000Z");
+
+function ownedDefinitions(count: number) {
+	return {
+		Items: Array.from({ length: count }, (_, index) =>
+			definitionItem({ queueSlug: `readlist${index}`, url: `readplace:queue-def/readlist${index}` }),
+		),
+		Count: count,
+	};
+}
+
+function transactionCanceled(): TransactionCanceledException {
+	return new TransactionCanceledException({
+		message: "cancelled",
+		$metadata: {},
+		CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }],
+	});
+}
+
+function transactItems(command: { input: Record<string, unknown> } | undefined) {
+	return z.object({ TransactItems: z.array(z.record(z.string(), z.record(z.string(), z.unknown()))) })
+		.parse(command?.input).TransactItems;
+}
+
 describe("createReadlistDefinition", () => {
-	it("writes the definition row under its prefixed key, guarded against overwriting one", async () => {
+	it("writes the definition row and the reader's first definition revision in one transaction", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{ Items: [], Count: 0 }, {}], (c) => commands.push(c)),
+			client: createFakeDynamo([{}, { Items: [], Count: 0 }, {}], (c) => commands.push(c)),
 			userArticlesTableName: TABLE,
 		});
 
-		const result = await createReadlistDefinition({
-			userId: USER,
-			slug: WORK,
-			label: "Work Reading",
-			createdAt: new Date("2026-08-19T10:00:00.000Z"),
-		});
+		const result = await createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT });
 
 		expect(result).toEqual({ created: true, ownedCount: 1 });
-		const put = commands.find((c) => c.name === "PutCommand");
-		expect(put?.input).toMatchObject({
+		expect(commands.map((c) => c.name)).toEqual(["GetCommand", "QueryCommand", "TransactWriteCommand"]);
+		expect(commands[0]?.input).toMatchObject({ Key: { userId: USER, url: "readplace:queue-revision" }, ConsistentRead: true });
+		const [put, revision] = transactItems(commands[2]);
+		expect(put?.Put).toMatchObject({
 			TableName: TABLE,
 			Item: {
 				userId: USER,
@@ -422,110 +445,108 @@ describe("createReadlistDefinition", () => {
 			},
 			ConditionExpression: "attribute_not_exists(#url)",
 		});
+		expect(revision?.Update).toMatchObject({
+			Key: { userId: USER, url: "readplace:queue-revision" },
+			UpdateExpression: "SET #revision = :next",
+			ConditionExpression: "attribute_not_exists(#revision)",
+			ExpressionAttributeValues: { ":next": 1 },
+		});
+	});
+
+	it("conditions the revision increment on the revision it observed before counting", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{ Item: { definitionRevision: 4 } }, ownedDefinitions(2), {}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.toEqual({ created: true, ownedCount: 3 });
+		expect(transactItems(commands[2])[1]?.Update).toMatchObject({
+			ConditionExpression: "#revision = :observed",
+			ExpressionAttributeValues: { ":observed": 4, ":next": 5 },
+		});
 	});
 
 	it("answers created:false when the slug is already taken rather than replacing the readlist", async () => {
 		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
-				[
-					{ Items: [definitionItem()], Count: 1 },
-					() => {
-						throw conditionalCheckFailed();
-					},
-				],
+				[{}, ownedDefinitions(1), () => { throw transactionCanceled(); }, { Item: definitionItem() }],
 				() => {},
 			),
 			userArticlesTableName: TABLE,
 		});
 
-		expect(
-			await createReadlistDefinition({
-				userId: USER,
-				slug: WORK,
-				label: "Work Reading",
-				createdAt: new Date("2026-08-19T10:00:00.000Z"),
-			}),
-		).toEqual({ created: false, ownedCount: 1 });
+		expect(await createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.toEqual({ created: false, ownedCount: 1 });
 	});
 
-	it("reports the reader's readlist count after a create, so a caller can spot the cap approaching", async () => {
-		const owned = READLIST_MAX_PER_USER - 2;
-		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					{
-						Items: Array.from({ length: owned }, (_, index) =>
-							definitionItem({ queueSlug: `readlist${index}`, url: `readplace:queue-def/readlist${index}` }),
-						),
-						Count: owned,
-					},
-					{},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(
-			await createReadlistDefinition({
-				userId: USER,
-				slug: WORK,
-				label: "Work Reading",
-				createdAt: new Date("2026-08-19T10:00:00.000Z"),
-			}),
-		).toEqual({ created: true, ownedCount: owned + 1 });
-	});
-
-	it("raises the limit error at the per-user cap instead of writing", async () => {
+	it("recounts under a fresh revision when another create wins, and refuses once that create reaches the cap", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[
-					{
-						Items: Array.from({ length: READLIST_MAX_PER_USER }, (_, index) =>
-							definitionItem({ queueSlug: `readlist${index}`, url: `readplace:queue-def/readlist${index}` }),
-						),
-						Count: READLIST_MAX_PER_USER,
-					},
+					{ Item: { definitionRevision: 7 } },
+					ownedDefinitions(READLIST_MAX_PER_USER - 1),
+					() => { throw transactionCanceled(); },
+					{},
+					{ Item: { definitionRevision: 8 } },
+					ownedDefinitions(READLIST_MAX_PER_USER),
 				],
 				(c) => commands.push(c),
 			),
 			userArticlesTableName: TABLE,
 		});
 
-		await expect(
-			createReadlistDefinition({
-				userId: USER,
-				slug: WORK,
-				label: "Work Reading",
-				createdAt: new Date("2026-08-19T10:00:00.000Z"),
-			}),
-		).rejects.toThrow(ReadlistLimitReachedError);
-		expect(commands.some((c) => c.name === "PutCommand")).toBe(false);
+		await expect(createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.rejects.toThrow(ReadlistLimitReachedError);
+		expect(commands.filter((c) => c.name === "TransactWriteCommand")).toHaveLength(1);
 	});
 
-	it("propagates a write failure that is not a lost condition", async () => {
+	it("creates on the retry when the competing write changed only the revision", async () => {
 		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
-				[
-					{ Items: [], Count: 0 },
-					() => {
-						throw new Error("throttled");
-					},
-				],
+				[{}, ownedDefinitions(0), () => { throw transactionCanceled(); }, {}, { Item: { definitionRevision: 1 } }, ownedDefinitions(1), {}],
 				() => {},
 			),
 			userArticlesTableName: TABLE,
 		});
 
-		await expect(
-			createReadlistDefinition({
-				userId: USER,
-				slug: WORK,
-				label: "Work Reading",
-				createdAt: new Date("2026-08-19T10:00:00.000Z"),
-			}),
-		).rejects.toThrow("throttled");
+		expect(await createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.toEqual({ created: true, ownedCount: 2 });
+	});
+
+	it("gives up when the reader's readlists keep changing", async () => {
+		const contended = Array.from({ length: 8 }, () => [{}, ownedDefinitions(0), () => { throw transactionCanceled(); }, {}]).flat();
+		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(contended, () => {}),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.rejects.toThrow("the reader's readlists kept changing during the create");
+	});
+
+	it("raises the limit error at the per-user cap instead of writing", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}, ownedDefinitions(READLIST_MAX_PER_USER)], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.rejects.toThrow(ReadlistLimitReachedError);
+		expect(commands.some((c) => c.name === "TransactWriteCommand")).toBe(false);
+	});
+
+	it("propagates a write failure that is not a lost condition", async () => {
+		const { createReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}, ownedDefinitions(0), () => { throw new Error("throttled"); }], () => {}),
+			userArticlesTableName: TABLE,
+		});
+
+		await expect(createReadlistDefinition({ userId: USER, slug: WORK, label: "Work Reading", createdAt: CREATED_AT }))
+			.rejects.toThrow("throttled");
 	});
 });
 
@@ -664,57 +685,43 @@ describe("unpinReadlistDefinition", () => {
 });
 
 describe("deleteReadlistDefinition", () => {
-	it("drops the row, on a row that must already exist", async () => {
+	it("drops the row and increments the reader's definition revision in one transaction", async () => {
 		const commands: { name: string; input: Record<string, unknown> }[] = [];
 		const { deleteReadlistDefinition } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo([{}], (c) => commands.push(c)),
 			userArticlesTableName: TABLE,
 		});
 
-		expect(await deleteReadlistDefinition({ userId: USER, slug: WORK })).toEqual({
-			deleted: true,
-		});
-		expect(commands[0].name).toBe("DeleteCommand");
-		expect(commands[0].input).toMatchObject({
+		expect(await deleteReadlistDefinition({ userId: USER, slug: WORK })).toEqual({ deleted: true });
+		expect(commands.map((c) => c.name)).toEqual(["TransactWriteCommand"]);
+		const [removal, revision] = transactItems(commands[0]);
+		expect(removal?.Delete).toMatchObject({
 			TableName: TABLE,
 			Key: { userId: USER, url: "readplace:queue-def/work" },
+			ConditionExpression: "attribute_exists(#url)",
 		});
-		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
+		expect(revision?.Update).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-revision" },
+			UpdateExpression: "SET #revision = if_not_exists(#revision, :zero) + :one",
+		});
 	});
 
 	it("reports a readlist that no longer has a definition row", async () => {
 		const { deleteReadlistDefinition } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw conditionalCheckFailed();
-					},
-				],
-				() => {},
-			),
+			client: createFakeDynamo([() => { throw transactionCanceled(); }], () => {}),
 			userArticlesTableName: TABLE,
 		});
 
-		expect(await deleteReadlistDefinition({ userId: USER, slug: WORK })).toEqual({
-			deleted: false,
-		});
+		expect(await deleteReadlistDefinition({ userId: USER, slug: WORK })).toEqual({ deleted: false });
 	});
 
 	it("lets an unexpected storage failure surface", async () => {
 		const { deleteReadlistDefinition } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw new Error("throttled");
-					},
-				],
-				() => {},
-			),
+			client: createFakeDynamo([() => { throw new Error("throttled"); }], () => {}),
 			userArticlesTableName: TABLE,
 		});
 
-		await expect(deleteReadlistDefinition({ userId: USER, slug: WORK })).rejects.toThrow(
-			"throttled",
-		);
+		await expect(deleteReadlistDefinition({ userId: USER, slug: WORK })).rejects.toThrow("throttled");
 	});
 });

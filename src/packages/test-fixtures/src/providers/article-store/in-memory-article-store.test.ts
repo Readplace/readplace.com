@@ -127,6 +127,34 @@ describe("initInMemoryArticleStore", () => {
 			expect(fourth?.()).toBe(false);
 		});
 
+		it("marks every live unread holding of a selected save read once, keeping an earlier read time", async () => {
+			const store = initInMemoryArticleStore();
+			const at = new Date("2026-11-26T10:00:00.000Z");
+			const earlier = new Date("2026-11-20T10:00:00.000Z");
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => true })).toBe(false);
+			const { saved } = await store.saveArticle(makeArticleParams());
+			for (const slug of [WORK, LATER]) {
+				await store.createReadlistDefinition({ userId: USER_A, slug, label: slug, createdAt: earlier });
+				await store.assignSavedArticleToReadlist({ userId: USER_A, readlist: slug, from: DEFAULT_READLIST_SLUG, url: URL, savedAt: earlier });
+			}
+			await store.setReadlistArticleStatus({ id: saved.id, userId: USER_A, readlist: LATER, status: "read" });
+			const later = await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: LATER });
+			const orphan = ReadlistSlugSchema.parse("orphan");
+			await store.createReadlistDefinition({ userId: USER_A, slug: orphan, label: "Orphan", createdAt: earlier });
+			await store.assignSavedArticleToReadlist({ userId: USER_A, readlist: orphan, from: DEFAULT_READLIST_SLUG, url: URL, savedAt: earlier });
+			await store.deleteReadlistDefinition({ userId: USER_A, slug: orphan });
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => false })).toBe(false);
+			expect(store.markReadEverywhereForBulk({ userId: USER_B, url: URL, at, isSelected: () => true })).toBe(false);
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => true })).toBe(true);
+			expect(await store.findArticleById(saved.id, USER_A)).toMatchObject({ status: "read", readAt: at });
+			expect(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK })).toMatchObject({ status: "read", readAt: at });
+			expect(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: LATER }))
+				.toMatchObject({ status: "read", readAt: later?.readAt, statusRevision: later?.statusRevision });
+			expect(await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: orphan })).toMatchObject({ status: "unread" });
+			await store.setPurgedAt({ url: URL, at });
+			expect(store.markReadEverywhereForBulk({ userId: USER_A, url: URL, at, isSelected: () => true })).toBe(false);
+		});
+
 		it("rejects delayed work after a deletion and allows a genuinely later save", async () => {
 			const store = initInMemoryArticleStore();
 			const stale = { ...request, requestedAt: "2001-01-01T00:00:00.000Z" };

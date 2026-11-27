@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
 
 import {
@@ -16,6 +18,8 @@ const FILTERS_TEMPLATE = readFileSync(join(__dirname, "readlist-filters.template
 const DRAWER_TEMPLATE = readFileSync(join(__dirname, "readlist-filters-drawer.template.html"), "utf-8");
 
 const FILTERS_POPOVER_ID = "readlist-filters";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const PARSE_ORIGIN = "https://internal.invalid";
 
@@ -70,6 +74,8 @@ export interface ReadlistDiscoveryDisplayModel {
 	stateClass: string;
 	action: string;
 	searchFields: HiddenField[];
+	searchesAllSources: boolean;
+	shownFrom: string | undefined;
 	query: string | undefined;
 	filterLabel: string;
 	filterStateClass: string;
@@ -80,6 +86,12 @@ export interface ReadlistDiscoveryDisplayModel {
 
 export function tickedFacetCount(discovery: ReadlistDiscovery): number {
 	return discovery.time.length + discovery.saved.length;
+}
+
+export function managedSourceLabel(filters: Pick<ReadlistUrlState, "managedSource" | "sender">): string | undefined {
+	if (filters.managedSource === undefined) return undefined;
+	if (filters.managedSource === "sender") return filters.sender ?? t("manage.sender");
+	return t(`manage.${filters.managedSource}`);
 }
 
 function hiddenFieldsOf(href: string): HiddenField[] {
@@ -95,10 +107,13 @@ export function buildReadlistDiscovery(input: {
 	const searchUrl = buildReadlistUrl({ ...place, discovery: { ...discovery, q: undefined } });
 	const filtersUrl = buildReadlistFiltersUrl({ ...place, discovery: { ...NO_DISCOVERY, q: discovery.q } });
 	const ticked = tickedFacetCount(discovery);
+	const managedSource = managedSourceLabel(input.filters);
 	return {
-		stateClass: input.tabHoldsRows ? ROW_STATE_CLASSES.visible : ROW_STATE_CLASSES.hidden,
+		stateClass: input.tabHoldsRows || managedSource !== undefined ? ROW_STATE_CLASSES.visible : ROW_STATE_CLASSES.hidden,
 		action: READLIST_PATH,
 		searchFields: hiddenFieldsOf(withInternalTracking(searchUrl, { source: "queue-search", content: "search" })),
+		searchesAllSources: managedSource !== undefined,
+		shownFrom: discovery.q === undefined ? undefined : managedSource,
 		query: discovery.q,
 		filterLabel: ticked === 0 ? "Filters" : `Filters (${ticked})`,
 		filterStateClass: ticked === 0 ? FILTER_STATE_CLASSES.idle : FILTER_STATE_CLASSES.active,

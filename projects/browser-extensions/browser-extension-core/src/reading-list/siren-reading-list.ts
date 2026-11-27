@@ -209,8 +209,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	}
 
 	const getItems: GetItems = async () => {
-		const root = await start();
-		const collection = root.homeHref ? await root.followPage(root.homeHref) : root;
+		const collection = await start();
 		trackItems(collection.items);
 		return adoptCollection(collection);
 	};

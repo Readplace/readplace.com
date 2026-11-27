@@ -11,6 +11,7 @@ import { EMAIL_POSTAL_ADDRESS, EMAIL_REPLY_INVITATION } from "./email-copy";
 import { KINDLE_GUIDE_PATH } from "./shared/epub/epub-download-guide";
 import { ACCOUNT_PLANS_URL } from "./pages/account/account.url";
 import { buildOwnerReaderPath } from "./pages/readlist/owner-reader-link";
+import { READLIST_PATH } from "./pages/readlist/readlist.url";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "queue-digest-email.template.html"),
@@ -35,7 +36,6 @@ const UTM_SOURCE: Record<QueueDigestKind, string> = {
 	pay: "queue-digest",
 	starter: "starter-email",
 };
-const READLIST_PATH = "/queue";
 export const QUEUE_DIGEST_UNSUBSCRIBE_PATH = "/email/queue-digest/unsubscribe";
 export const QUEUE_DIGEST_MARK_READ_PATH = "/email/queue-digest/mark-read";
 const TOKEN_QUERY = "t";

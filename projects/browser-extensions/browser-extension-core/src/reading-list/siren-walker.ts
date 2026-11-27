@@ -33,7 +33,7 @@ export interface ExtensionDeps {
 	refreshTokens: RefreshTokens;
 }
 
-const ENTRY_POINT = "/";
+const ENTRY_POINT = "/queue";
 
 export function initExtension(
 	handlers: Map<string, ActionHandler>,
@@ -102,12 +102,9 @@ export function initExtension(
 	): Promise<NavigationResult> {
 		const context = createActionContext(doFetch);
 		assert(resolvedUrl, "Collection self link must be resolved before parsing");
-		const home = body.links.find(link => link.rel.includes("home"));
-		const homeHref = home && resolveHref({ base: deps.serverUrl, href: home.href });
 		const items = body.entities.map((entity) => context.resolveItem(entity));
 		const { actions, descriptors } = bindCollectionActions(body.actions, doFetch);
 		return {
-			homeHref: homeHref && new URL(homeHref).origin === new URL(deps.serverUrl).origin ? homeHref : undefined,
 			items,
 			actions,
 			descriptors,

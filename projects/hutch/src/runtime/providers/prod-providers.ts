@@ -650,6 +650,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		listReceivedSenders: inboxEmailStore.listReceivedSenders,
 		bulkArticles: getEnv("BULK_ARTICLES_ENABLED") === "true" ? {
 			store: initDynamoBulkSelections(client, userArticlesTable),
+			readEverywhere: false,
 			dispatch: (detail: import("zod").z.infer<typeof RunBulkArticlesCommand.detailSchema>) => publishEvent(RunBulkArticlesCommand, detail),
 		} : undefined,
 		listSenderIssues: inboxEmailStore.listEmailsByUserId,

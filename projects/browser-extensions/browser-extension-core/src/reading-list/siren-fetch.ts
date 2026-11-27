@@ -16,7 +16,6 @@ export function createAuthorizedFetch(deps: {
 		const headers: Record<string, string> = {
 			Authorization: `Bearer ${accessToken}`,
 			Accept: SIREN_MEDIA_TYPE,
-			"X-Readplace-Home-Readlist": "1",
 			...init?.headers,
 		};
 		return { response: await deps.fetchFn(url, { ...init, headers }), accessToken };

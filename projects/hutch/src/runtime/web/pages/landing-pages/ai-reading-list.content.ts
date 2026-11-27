@@ -1,6 +1,6 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, founderLine, PLAN_CHOICES, CREATE_FREE_ACCOUNT } from "./landing-pages.copy";
+import { READLIST_SHOT, founderLine, PLAN_CHOICES, CREATE_FREE_ACCOUNT, SIGNUP_NOTE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
@@ -105,7 +105,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
 			"If the subscription lapses, the account moves to the free plan. Your assistant can keep saving links, list your readlist, pull an article's text or summary, and mark things read as you work through them, all within daily limits.",
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Connect it in about a minute",
 	closeSecondaryAction: CREATE_FREE_ACCOUNT,

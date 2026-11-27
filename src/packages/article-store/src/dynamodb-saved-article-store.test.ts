@@ -2159,6 +2159,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 			{ userId: USER, url: "a" },
 			{ userId: USER, url: "b" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
@@ -2181,6 +2182,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			canonicalRemovalKey(USER, RESOURCE_ID),
 			{ userId: USER, url: overrideUrl },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
@@ -2195,6 +2197,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
@@ -2223,6 +2226,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 			{ userId: `${USER}#removed`, url: heldKey },
 			{ userId: USER, url: bulkKey },
@@ -3591,6 +3595,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 			{ userId: WORK_PARTITION, url: "b" },
 			{ userId: USER, url: "readplace:queue-def/work" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});

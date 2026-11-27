@@ -91,15 +91,6 @@ function createRoutingFetch(routes: Record<string, RouteHandler>): {
 	return { fetchFn, calls };
 }
 
-function withEntryPoint(
-	routes: Record<string, RouteHandler>,
-): Record<string, RouteHandler> {
-	const readlistRoute = routes["GET http://localhost:3000/queue"];
-	if (!readlistRoute)
-		throw new Error("withEntryPoint requires a GET /queue route");
-	return { "GET http://localhost:3000/": readlistRoute, ...routes };
-}
-
 function createDeps(
 	fetchFn: ExtensionDeps["fetchFn"],
 	onUnauthorized: ExtensionDeps["onUnauthorized"] = async () => {},
@@ -179,7 +170,7 @@ describe("save-content action", () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -188,7 +179,7 @@ describe("save-content action", () => {
 					capturedBody = init?.body instanceof FormData ? init.body : undefined;
 					return { status: 201, body: articleResponse(savedAt) };
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -217,7 +208,7 @@ describe("save-content action", () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -226,7 +217,7 @@ describe("save-content action", () => {
 					capturedBody = init?.body instanceof FormData ? init.body : undefined;
 					return { status: 201, body: articleResponse(savedAt) };
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -256,7 +247,7 @@ describe("save-content action", () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		const fallbackBodies: (string | undefined)[] = [];
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -284,7 +275,7 @@ describe("save-content action", () => {
 					fallbackBodies.push(typeof init?.body === "string" ? init.body : undefined);
 					return { status: 201, body: articleResponse(savedAt) };
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -307,7 +298,7 @@ describe("save-content action", () => {
 	it("keeps a valid fallback action when the error body carries a malformed sibling, so one bad control cannot discard the whole refusal", async () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -330,7 +321,7 @@ describe("save-content action", () => {
 					}),
 				},
 				"POST http://localhost:3000/queue": { status: 201, body: articleResponse(savedAt) },
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -349,7 +340,7 @@ describe("save-content action", () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		const fallbackBodies: (string | undefined)[] = [];
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -374,7 +365,7 @@ describe("save-content action", () => {
 					fallbackBodies.push(typeof init?.body === "string" ? init.body : undefined);
 					return { status: 201, body: articleResponse(savedAt) };
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -394,7 +385,7 @@ describe("save-content action", () => {
 
 	it("surfaces the server's messages and attempts no fallback save", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -403,7 +394,7 @@ describe("save-content action", () => {
 					status: 403,
 					body: messageRefusalBody(),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -422,13 +413,13 @@ describe("save-content action", () => {
 
 	it("throws when the save-content POST fails without a fallback action", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
 				},
 				"POST http://localhost:3000/queue/save-content": { status: 500 },
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -443,7 +434,7 @@ describe("save-content action", () => {
 
 	it("throws when the Siren error body has no actions field", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -455,7 +446,7 @@ describe("save-content action", () => {
 						properties: { code: "broken", message: "no fallback" },
 					}),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -470,7 +461,7 @@ describe("save-content action", () => {
 
 	it("throws when the Siren error body has an empty actions array", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -483,7 +474,7 @@ describe("save-content action", () => {
 						actions: [],
 					}),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -500,7 +491,7 @@ describe("save-content action", () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		let fallbackHeaders: Record<string, string> | undefined;
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveContentResponse(),
@@ -524,7 +515,7 @@ describe("save-content action", () => {
 					fallbackHeaders = (init?.headers as Record<string, string>) ?? undefined;
 					return { status: 201, body: articleResponse(savedAt) };
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
@@ -590,7 +581,7 @@ describe("save-articles action", () => {
 
 	it("resolves an absolute save-articles href verbatim instead of concatenating it onto the server base, so the server can re-point the action off-host", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
@@ -617,7 +608,7 @@ describe("save-articles action", () => {
 					status: 200,
 					body: bulkResultResponse({ saved: 1, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] }),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -630,7 +621,7 @@ describe("save-articles action", () => {
 
 	it("refuses a bulk-save reply that is not the negotiated Siren media type, so a captive-portal HTML 200 reads as an unsupported type rather than a decode error", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
@@ -640,7 +631,7 @@ describe("save-articles action", () => {
 					body: "<html>captive portal</html>",
 					headers: { "Content-Type": "text/html" },
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -654,7 +645,7 @@ describe("save-articles action", () => {
 	it("builds a multipart body — manifest part plus one content part per captured page — and returns the parsed bulk summary", async () => {
 		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
@@ -672,7 +663,7 @@ describe("save-articles action", () => {
 						}),
 					};
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -707,12 +698,12 @@ describe("save-articles action", () => {
 
 	it("asserts when the manifest field is missing", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -723,12 +714,12 @@ describe("save-articles action", () => {
 
 	it("asserts when a manifest entry declares a mediaType but carries no content", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -741,13 +732,13 @@ describe("save-articles action", () => {
 
 	it("throws when the bulk save POST fails", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
 				},
 				"POST http://localhost:3000/queue/save-articles": { status: 500 },
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -760,7 +751,7 @@ describe("save-articles action", () => {
 
 	it("settles every page of a chunk the daily save limit refused as skipped with the server's message", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
@@ -769,7 +760,7 @@ describe("save-articles action", () => {
 					status: 429,
 					body: JSON.stringify({ class: ["error"], properties: { code: "daily_save_limit", message: "You've reached today's limit for new saves." } }),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -795,13 +786,13 @@ describe("save-articles action", () => {
 
 	it("throws when the bulk save is refused with a 429 that is not the daily save limit", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
 				},
 				"POST http://localhost:3000/queue/save-articles": { status: 429, body: "Too many requests from your network." },
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
@@ -814,13 +805,13 @@ describe("save-articles action", () => {
 
 	it("throws UnauthorizedError and calls onUnauthorized on 401", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionWithSaveArticlesResponse(),
 				},
 				"POST http://localhost:3000/queue/save-articles": { status: 401 },
-			}),
+			},
 		);
 		let onUnauthorizedCallCount = 0;
 		const start = initExtension(

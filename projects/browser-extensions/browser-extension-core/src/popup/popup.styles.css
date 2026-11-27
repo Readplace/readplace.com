@@ -439,9 +439,27 @@ input {
 
 .list-view__search,
 .list-skeleton__search {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   flex: none;
   margin: 20px 20px 0;
+}
+
+.list-view__search-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--foreground);
+}
+
+.list-skeleton__search-label {
+  display: block;
+  height: 20px;
+}
+
+.list-view__search-field {
+  position: relative;
 }
 
 .list-view__search-icon {
@@ -466,11 +484,6 @@ input {
   font-size: var(--text-sm);
   line-height: 20px;
   transition: border-color 150ms ease;
-}
-
-.list-view__filter::placeholder {
-  color: var(--input-placeholder);
-  opacity: 1;
 }
 
 .list-view__filter:focus {
@@ -933,6 +946,15 @@ input {
   flex: 1;
   padding: 24px 0;
   text-align: center;
+}
+
+.list-view__no-matches {
+  margin: 0;
+  text-align: center;
+}
+
+.list-view__no-matches:not(:empty) {
+  padding: 24px 0;
 }
 
 .list-view__empty-art {
