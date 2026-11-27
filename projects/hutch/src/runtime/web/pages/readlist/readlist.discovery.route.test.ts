@@ -1241,7 +1241,7 @@ describe("find-articles (Siren search and filters for the apps)", () => {
 	});
 });
 
-const useManagedApp = useTestServer({ bulkArticles: { store: initInMemoryBulkSelections(), dispatch: async () => {} } });
+const useManagedApp = useTestServer({ bulkArticles: { store: initInMemoryBulkSelections(), dispatch: async () => {}, readEverywhere: false } });
 
 describe("Readlist search scope under Manage articles", () => {
 	const IMPORTED_ATLAS: SeededArticle = { url: "https://maps.example.org/atlas", title: "Atlas of rivers", imported: true };
