@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import assert from "node:assert";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { ADVERTISED_CLIENTS, SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import { mcpOperationsWithEffect } from "@packages/domain/mcp";
 import { NEWSLETTERS_PATH } from "@packages/domain/inbox";
 
 import { MCP_CONNECT_STYLES } from "./mcp-connect.styles";
+import { MCP_SERVER_URL } from "../../shared/assistant-roster";
 import { GEMINI_MCP_ADD_COMMAND } from "../../shared/mcp-connect-commands";
 
 const MCP_CONNECT_TEMPLATE = readFileSync(join(__dirname, "mcp-connect.template.html"), "utf-8");
@@ -84,11 +84,6 @@ const MCP_TOOLS: readonly McpTool[] = [
 	PERPLEXITY_CARD,
 	OTHER_CLIENTS_CARD,
 ];
-
-const claude = SUPPORTED_CLIENTS.find((client) => client.name === "claude");
-assert(claude, "Claude missing from SUPPORTED_CLIENTS");
-assert(claude.install.kind === "mcpConnector", "Claude install must be the MCP connector");
-const MCP_SERVER_URL = claude.install.serverUrl;
 
 const GETTING_STARTED_PROMPT = "Connect my reading list to readplace.com/mcp.";
 

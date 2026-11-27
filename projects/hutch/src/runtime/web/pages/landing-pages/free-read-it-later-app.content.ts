@@ -6,7 +6,7 @@ import {
 	SAVES_STAY_STATEMENT,
 	UPGRADE_STATEMENT,
 } from "../../price-statement";
-import { CREATE_FREE_ACCOUNT, FREE_PLAN_CLOSE, founderLine } from "./landing-pages.copy";
+import { CREATE_FREE_ACCOUNT, FREE_PLAN_CLOSE, founderLine, SIGNUP_NOTE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const FREE_READ_IT_LATER_APP_CONTENT: LandingPageContent = {
@@ -95,7 +95,7 @@ export const FREE_READ_IT_LATER_APP_CONTENT: LandingPageContent = {
 	offer: {
 		title: "Free, with a paid plan when you want more",
 		paragraphs: [`${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`, FREE_PLAN_CLOSE],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Save the next article you mean to read",
 	closeNote: "No card, and every article you save stays readable.",

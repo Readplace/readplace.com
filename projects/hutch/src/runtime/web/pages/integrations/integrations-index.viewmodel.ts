@@ -67,20 +67,15 @@ export interface IntegrationRowViewModel {
 	locks: readonly string[];
 }
 
-export interface IntegrationsAlertViewModel {
-	key: string;
-	message: string;
-}
-
-export interface IntegrationsNoticeViewModel {
+export interface IntegrationsMessageViewModel {
 	key: string;
 	message: string;
 }
 
 export interface IntegrationsIndexViewModel {
 	services: IntegrationRowViewModel[];
-	notices: IntegrationsNoticeViewModel[];
-	alerts: IntegrationsAlertViewModel[];
+	notices: IntegrationsMessageViewModel[];
+	alerts: IntegrationsMessageViewModel[];
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -92,6 +87,26 @@ const STATUS_LABELS: Record<GmailConnectionState, string> = {
 	"awaiting-confirmation": "Step 2 of 2",
 	"ready-to-filter": "Not forwarding yet",
 	filtering: "Connected",
+};
+
+const FINISH_SETUP_ACTION: Omit<IntegrationActionViewModel, "trackSource" | "trackContent"> = {
+	key: "finish-setup",
+	method: "GET",
+	href: GMAIL_PATH,
+	label: "Finish setup",
+	variant: "primary",
+	fields: [],
+	boost: true,
+};
+
+const MANAGE_ACTION: Omit<IntegrationActionViewModel, "trackSource" | "trackContent"> = {
+	key: "manage",
+	method: "GET",
+	href: GMAIL_PATH,
+	label: "Manage",
+	variant: "neutral",
+	fields: [],
+	boost: true,
 };
 
 const GMAIL_ACTIONS: Record<
@@ -109,51 +124,11 @@ const GMAIL_ACTIONS: Record<
 		confirmPopoverId: GMAIL_CONNECT_DISCLAIMER_ID,
 	}],
 	disconnecting: [],
-	"awaiting-confirmation": [{
-		key: "finish-setup",
-		method: "GET",
-		href: GMAIL_PATH,
-		label: "Finish setup",
-		variant: "primary",
-		fields: [],
-		boost: true,
-	}],
-	"confirm-failed": [{
-		key: "finish-setup",
-		method: "GET",
-		href: GMAIL_PATH,
-		label: "Finish setup",
-		variant: "primary",
-		fields: [],
-		boost: true,
-	}],
-	"ready-to-filter": [{
-		key: "manage",
-		method: "GET",
-		href: GMAIL_PATH,
-		label: "Manage",
-		variant: "neutral",
-		fields: [],
-		boost: true,
-	}],
-	filtering: [{
-		key: "manage",
-		method: "GET",
-		href: GMAIL_PATH,
-		label: "Manage",
-		variant: "neutral",
-		fields: [],
-		boost: true,
-	}],
-	"filter-failed": [{
-		key: "manage",
-		method: "GET",
-		href: GMAIL_PATH,
-		label: "Manage",
-		variant: "primary",
-		fields: [],
-		boost: true,
-	}],
+	"awaiting-confirmation": [FINISH_SETUP_ACTION],
+	"confirm-failed": [FINISH_SETUP_ACTION],
+	"ready-to-filter": [MANAGE_ACTION],
+	filtering: [MANAGE_ACTION],
+	"filter-failed": [{ ...MANAGE_ACTION, variant: "primary" }],
 	revoked: [{
 		key: "reconnect",
 		method: "POST",
@@ -186,18 +161,11 @@ export const GMAIL_NOTICES: Record<string, string> = {
 		"Gmail is disconnecting. I'm removing the Readplace filter and Readplace's access to your Google account. I can't remove the forwarding address, so in Gmail open Settings, See all settings, then Forwarding and POP/IMAP, and remove the address that starts with gmail-. If a filter forwarding to that address is still listed under Filters and Blocked Addresses, delete it too. Readplace keeps the newsletters you set up for this Gmail account, so they come back when you connect it again.",
 };
 
-function alertsFor(error: string | undefined): IntegrationsAlertViewModel[] {
-	if (error === undefined) return [];
-	const message = GMAIL_CONNECT_ERRORS[error];
+function messagesFor(table: Record<string, string>, code: string | undefined): IntegrationsMessageViewModel[] {
+	if (code === undefined) return [];
+	const message = table[code];
 	if (message === undefined) return [];
-	return [{ key: error, message }];
-}
-
-function noticesFor(notice: string | undefined): IntegrationsNoticeViewModel[] {
-	if (notice === undefined) return [];
-	const message = GMAIL_NOTICES[notice];
-	if (message === undefined) return [];
-	return [{ key: notice, message }];
+	return [{ key: code, message }];
 }
 
 function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewModel {
@@ -400,8 +368,8 @@ export function toIntegrationsIndexViewModel(input: {
 	error?: string;
 	notice?: string;
 }): IntegrationsIndexViewModel {
-	const alerts = alertsFor(input.error);
-	const notices = noticesFor(input.notice);
+	const alerts = messagesFor(GMAIL_CONNECT_ERRORS, input.error);
+	const notices = messagesFor(GMAIL_NOTICES, input.notice);
 	return {
 		services: [
 			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow({ connection: input.connection, offer: input.offer }),

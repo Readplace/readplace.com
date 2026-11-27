@@ -69,7 +69,7 @@ import type {
 import { extensionSuggestionBannerOob } from "../../shared/article-reader/reader-view-failed-oob";
 import { isPrefetchOrBot, isPrefetchRequest } from "../../shared/prefetch-request";
 import { collectUtmParams } from "../../shared/utm";
-import { SaveErrorPage } from "../save/save-error.component";
+import { readerErrorLink, SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import { ViewCrawlLimitPage } from "./view-crawl-limit.component";
 import { ViewDailySaveLimitPage } from "./view-daily-save-limit.component";
@@ -143,12 +143,8 @@ async function renderError(
 	res: Response,
 	page: { title: string; statusCode?: number },
 ): Promise<void> {
-	const redirectUrl = withInternalTracking(req.userId ? "/queue" : "/", {
-		source: "view-error",
-		content: req.userId ? "back-to-queue" : "home",
-	});
-	const linkLabel = req.userId ? "Go to your readlist" : "Go to homepage";
-	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel, ...page }), await deps.buildBannerState(req)));
+	const link = readerErrorLink({ signedIn: req.userId !== undefined, source: "view-error" });
+	sendComponent(req, res, Base(SaveErrorPage({ ...link, ...page }), await deps.buildBannerState(req)));
 }
 
 async function captureAlreadyOffered(

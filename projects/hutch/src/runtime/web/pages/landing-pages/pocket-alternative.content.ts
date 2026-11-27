@@ -1,6 +1,6 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
-import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, EARLY_USER_QUOTE, FREE_PLAN_CLOSE, CREATE_FREE_ACCOUNT } from "./landing-pages.copy";
+import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { READLIST_SHOT, EARLY_USER_QUOTE, FREE_PLAN_CLOSE, CREATE_FREE_ACCOUNT, SIGNUP_NOTE, CREDIT_CARD_FAQ } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 import { IMPORT_LIMITS } from "../import/import.limits";
 
@@ -91,10 +91,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 			answer:
 				"They are kept. Signing up returns you to the same review with the same links selected, as long as it is within 24 hours of the upload.",
 		},
-		{
-			question: "Do I need a credit card to start?",
-			answer: `No. An account is free, within daily limits on new saves, and no card is asked for. ${FIRST_DAYS_STATEMENT} If you never upgrade, nothing is charged.`,
-		},
+		CREDIT_CARD_FAQ,
 		{
 			question: "What happens to my links if I stop paying?",
 			answer:
@@ -108,7 +105,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of. <a href="${withInternalTracking("/blog/free-read-it-later-apps-2026", { source: "lp-pocket-alternative-body", content: "post-free-read-it-later-apps-2026" })}">The free read-it-later apps</a> are compared on the same thing: who pays the bill when you don't.`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card unless you upgrade.",
+		note: SIGNUP_NOTE,
 	},
 	closeTitle: "Start with the file Pocket gave you",
 	closeSecondaryAction: CREATE_FREE_ACCOUNT,
