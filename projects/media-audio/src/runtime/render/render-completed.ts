@@ -10,6 +10,7 @@ import {
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
+import { listenMinutes } from "@packages/media-contracts";
 import type {
 	RecordTranscriptOutcome,
 	SettleTranscriptCharge,
@@ -87,7 +88,7 @@ export function initRenderTranscriptHandler(deps: {
 					siteName: "Audio",
 					excerpt: transcript.excerpt,
 					wordCount: transcript.wordCount,
-					estimatedReadTime: Math.ceil(request.durationSeconds / 60),
+					estimatedReadTime: listenMinutes(request.durationSeconds),
 					authorUserId: request.userId,
 				},
 				html: transcript.html,

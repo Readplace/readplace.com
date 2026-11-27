@@ -1,5 +1,6 @@
 import type { CrawlStatus, SummaryStatus } from "@packages/article-state-types";
-import { type StuckReason, classifyRow } from "./classify-row";
+
+export type StuckReason = "summary-pending" | "crawl-pending";
 
 type ArticleStateFields = {
 	summaryStatus: SummaryStatus | undefined;
@@ -16,7 +17,13 @@ const REASON_MESSAGES: Record<StuckReason, string> = {
 };
 
 export function checkTerminalState(fields: ArticleStateFields): TerminalCheckResult {
-	const reasons = classifyRow(fields);
+	const reasons: StuckReason[] = [];
+	if (fields.summaryStatus === "pending") {
+		reasons.push("summary-pending");
+	}
+	if (fields.crawlStatus === "pending") {
+		reasons.push("crawl-pending");
+	}
 	if (reasons.length === 0) return { terminal: true };
 	const message = reasons.map((reason) => REASON_MESSAGES[reason]).join("; ");
 	return { terminal: false, message, reasons };

@@ -3,9 +3,7 @@ import {
 	DEEPSEEK_PROMPT_TOKEN_MARGIN,
 	DEEPSEEK_SPECIAL_TOKENS,
 	encodeDeepseekChatPrompt,
-	toDeepseekMessages,
 } from "./deepseek-chat-prompt";
-import { DEEPSEEK_FEATURES } from "./deepseek-feature";
 
 describe("DEEPSEEK_SPECIAL_TOKENS", () => {
 	it("spells each token with the fullwidth bar and the lower one eighth block", () => {
@@ -63,37 +61,6 @@ describe("encodeDeepseekChatPrompt", () => {
 			prompt,
 			'<｜begin▁of▁sentence｜>Sys\n\n## Response Format:\n\nYou MUST strictly adhere to the following schema to reply:\n{"type": "json_object"}<｜User｜>Hi<｜Assistant｜></think>',
 		);
-	});
-
-	it("encodes document blocks flattened the way the adapter sends them", () => {
-		const params = {
-			feature: DEEPSEEK_FEATURES.summary,
-			max_tokens: 100,
-			system: "Pick related reads.",
-			messages: [
-				{
-					role: "user" as const,
-					content: [
-						{
-							type: "document" as const,
-							source: { type: "text" as const, media_type: "text/plain" as const, data: "First" },
-							title: "a",
-							citations: { enabled: false },
-						},
-						{
-							type: "document" as const,
-							source: { type: "text" as const, media_type: "text/plain" as const, data: "Second" },
-							title: "b",
-							citations: { enabled: false },
-						},
-					],
-				},
-			],
-		};
-
-		const prompt = encodeDeepseekChatPrompt({ system: params.system, messages: toDeepseekMessages(params) });
-
-		assert.equal(prompt, "<｜begin▁of▁sentence｜>Pick related reads.<｜User｜>First\nSecond<｜Assistant｜></think>");
 	});
 
 	it.each([

@@ -26,10 +26,7 @@ const EXCLUDED = {
 	excludedVisitorIds: ["293b32c4-898e-485d-8a92-3f2f32f53289"],
 	excludedUserIds: ["f19792f1a14cf1d500de060278ab4bc3"],
 };
-const DASHBOARDS = buildAdminDashboards({
-	analyticsLogGroupName: "/readplace/analytics",
-	authDiagnosticsLogGroupName: "/readplace/auth-diagnostics",
-});
+const DASHBOARDS = buildAdminDashboards();
 
 const serve = useLoopbackServer();
 

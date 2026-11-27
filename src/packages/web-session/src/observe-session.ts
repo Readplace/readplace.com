@@ -2,14 +2,17 @@ import { createHmac, randomUUID } from "node:crypto";
 import type { Logger } from "@packages/logger";
 import type { ObserveSession } from "@packages/provider-contracts/auth";
 
+export function authDiagnosticReference(input: { salt: string; kind: "subject" | "session"; value: string }): string {
+	return createHmac("sha256", input.salt).update(`auth-diagnostics:${input.kind}:`).update(input.value).digest("hex");
+}
+
 export function initObserveSession(deps: {
 	salt: string;
 	now: () => Date;
 	logger: Logger.Typed<Record<string, unknown>>;
 	context: () => Record<string, unknown>;
 }): ObserveSession {
-	const reference = (kind: string, value: string) => createHmac("sha256", deps.salt)
-		.update(`auth-diagnostics:${kind}:`).update(value).digest("hex");
+	const reference = (kind: "subject" | "session", value: string) => authDiagnosticReference({ salt: deps.salt, kind, value });
 	return ({ sessionId, userId, expiresAt, previousExpiresAt, ...event }) => {
 		try {
 			deps.logger.info({

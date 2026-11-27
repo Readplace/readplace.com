@@ -626,9 +626,6 @@ importers:
       '@packages/tier-source':
         specifier: workspace:*
         version: link:../../src/packages/tier-source
-      '@packages/time-left':
-        specifier: workspace:*
-        version: link:../../src/packages/time-left
       '@packages/transcript-quota':
         specifier: workspace:*
         version: link:../../src/packages/transcript-quota
@@ -2589,24 +2586,6 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
-    devDependencies:
-      '@types/jest':
-        specifier: 30.0.0
-        version: 30.0.0
-      c8:
-        specifier: 11.0.0
-        version: 11.0.0
-      concurrently:
-        specifier: 10.0.7
-        version: 10.0.7
-      jest:
-        specifier: 30.5.2
-        version: 30.5.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-
-  src/packages/time-left:
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

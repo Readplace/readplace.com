@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { ADMIN_DASHBOARD_SLUGS, buildAdminDashboards } from "./admin-dashboards";
 import { AUTH_DIAGNOSTICS_LOG_GROUP } from "./auth-diagnostics-widgets";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
-import { ANALYTICS_LOG_GROUP } from "./log-groups";
 
 const IDENTITIES: ExcludedIdentities = {
 	excludedVisitorIds: ["11111111-1111-4111-8111-111111111111"],
@@ -11,10 +10,7 @@ const IDENTITIES: ExcludedIdentities = {
 
 const EXCLUDE = excludeNonAudienceClauses(IDENTITIES).join(" ");
 
-const dashboards = buildAdminDashboards({
-	analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-	authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-});
+const dashboards = buildAdminDashboards();
 
 const titles = (slug: (typeof ADMIN_DASHBOARD_SLUGS)[number]) =>
 	dashboards[slug].widgets(IDENTITIES).map((widget) => widget.title);

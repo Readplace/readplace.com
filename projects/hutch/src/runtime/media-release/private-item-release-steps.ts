@@ -6,7 +6,7 @@ import type {
 	PurgeArticleContent,
 } from "@packages/article-store";
 import type { UserId } from "@packages/domain/user";
-import { PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
+import { PrivateItemUrlSchema, stagedObjectKey, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import type { UnrefAllForUpload } from "@packages/media-object-store";
 import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 import type { SettleStartedCharge } from "@packages/provider-contracts/transcript-quota";
@@ -15,10 +15,6 @@ import { COMMIT_ATTEMPT } from "../web/pages/upload/commit-received-upload";
 export type ReleaseStep = (item: { url: string; userId: UserId }) => Promise<void>;
 
 export type ReleasePrivateItem = (item: { url: string; userId: UserId }) => Promise<"released" | "not-owner">;
-
-export function pendingOriginalKey(url: string): string {
-	return `pending/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/original`;
-}
 
 export function bookImagesPrefix(url: string): string {
 	return `images/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/`;
@@ -39,7 +35,7 @@ export function initPrivateItemReleaseSteps(deps: {
 }): readonly ReleaseStep[] {
 	return [
 		({ url }) => deps.purgeArticleContent(url),
-		({ url }) => deps.deleteMediaObjects([pendingOriginalKey(url)]),
+		({ url }) => deps.deleteMediaObjects([stagedObjectKey(uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url)))]),
 		({ url }) => deps.listMediaKeys(bookImagesPrefix(url)).then(deps.deleteMediaObjects),
 		({ url }) => deps.listMediaKeys(transcriptsPrefix(url)).then(deps.deleteMediaObjects),
 		async ({ url, userId }) => {

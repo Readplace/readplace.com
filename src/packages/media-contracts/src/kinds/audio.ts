@@ -8,7 +8,7 @@ const AUDIO_ONLY_BRANDS: readonly string[] = ["M4A ", "M4B "];
 const M4A_BRANDS: readonly string[] = [...AUDIO_ONLY_BRANDS, "mp42", "isom"];
 const SECONDS_PER_MINUTE = 60;
 
-function listenMinutes(seconds: number): number {
+export function listenMinutes(seconds: number): number {
 	return Math.ceil(seconds / SECONDS_PER_MINUTE);
 }
 

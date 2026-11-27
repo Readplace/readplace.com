@@ -56,10 +56,7 @@ function selectorReturning(text: string, captured: Captured = { prompts: [], sys
 		captured.systems.push(params.system);
 		captured.features.push(params.feature);
 		for (const message of params.messages) {
-			if (typeof message.content === "string") continue;
-			for (const block of message.content) {
-				if (block.source.type === "text") captured.prompts.push(block.source.data);
-			}
+			captured.prompts.push(message.content);
 		}
 		return {
 			content: [{ type: "text", text }],

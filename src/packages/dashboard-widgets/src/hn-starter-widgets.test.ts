@@ -14,7 +14,7 @@ const AUDIENCE_CLAUSES = excludeNonAudienceClauses(IDENTITIES);
 const STARTER_REPORT_REASON =
 	"Reads the starter_report line the digest-scan tick logs every 6 hours: one aggregate per campaign and cohort, carrying neither visitor_id nor user_id, so there is no identity to prune. Internal accounts never enter it in the first place, because enrollment skips every ENGAGEMENT_EXCLUDED_USER_IDS account before assigning an arm.";
 
-const widgets = hnStarterWidgets({ analyticsLogGroupName: ANALYTICS_LOG_GROUP, identities: IDENTITIES });
+const widgets = hnStarterWidgets({ identities: IDENTITIES });
 
 describe("hnStarterWidgets", () => {
 	it("reads only the analytics group", () => {
