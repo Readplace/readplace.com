@@ -14,11 +14,12 @@ import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import { ERRORS_LOG_GROUP, LAMBDA_NAMES, LOG_GROUPS, METRICS, QUEUE_DIGEST_EVENTS } from "./events";
 import { ANALYTICS_EVENTS, SAVE_SURFACES, STREAMS } from "@packages/web-analytics";
-import { buildAnalyticsDashboardBody, type DashboardWidget } from "./analytics-dashboard";
+import { buildAnalyticsDashboardBody } from "./analytics-dashboard";
 import {
 	ANALYTICS_LOG_GROUP,
 	buildAdminDashboards,
 	CONVERSION_EVENTS,
+	type DashboardWidget,
 	type ExcludedIdentities,
 	LIFECYCLE_EMAIL_EVENTS,
 	SUBSCRIPTION_EVENTS,

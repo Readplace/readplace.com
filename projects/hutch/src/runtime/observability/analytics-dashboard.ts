@@ -15,25 +15,17 @@ import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
 import { VIEW_CRAWL_LIMIT_SOURCE } from "../web/pages/view/view-crawl-limit.component";
 import {
 	CONVERSION_EVENTS,
+	type DashboardWidget,
 	type ExcludedIdentities,
 	excludeNonAudienceClauses,
 	LIFECYCLE_EMAIL_EVENTS,
-	type LogWidgetSpec,
+	logWidget,
 	SUBSCRIPTION_EVENTS,
 } from "@packages/dashboard-widgets";
 import { LOG_GROUPS, METRICS, QUEUE_DIGEST_EVENTS } from "./events";
 import { ANALYTICS_EVENTS, PAGE_EXIT_KINDS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS } from "@packages/web-analytics";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
 import { deepseekCostWidget } from "./deepseek-cost-widget";
-
-export interface DashboardWidget {
-	type: string;
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	properties: Record<string, unknown>;
-}
 
 export interface DashboardBody {
 	widgets: DashboardWidget[];
@@ -52,17 +44,6 @@ export interface BuildAnalyticsDashboardDeps extends ExcludedIdentities {
 	 * anyone remembering to register a project — and what keeps the widget under
 	 * the 50-log-group Logs Insights cap the account has already outgrown. */
 	errorsLogGroupName: string;
-}
-
-/**
- * Dashboard log widgets prepend each log group with its own `SOURCE` keyword
- * and join them with `|`. The `logGroups(namePrefix: [...])` function exists
- * only for the start-query CLI/API and the dashboard renderer rejects it with
- * `Invalid NamePrefix: "namePrefix: ["`.
- */
-function sourceClause(logGroupNames: readonly string[]): string {
-	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");
-	return logGroupNames.map((n) => `SOURCE '${n}'`).join(" | ");
 }
 
 /**
@@ -132,24 +113,6 @@ const READER_SAVE_SURFACES = [SAVE_SURFACES.readerView, SAVE_SURFACES.readerView
 function readerSaveSurfaceClause(): string {
 	const list = READER_SAVE_SURFACES.map((surface) => `"${surface}"`).join(", ");
 	return `(surface in [${list}] or not ispresent(surface))`;
-}
-
-export function logWidget(
-	params: LogWidgetSpec & { x: number; y: number; width: number; height: number; region: string },
-): DashboardWidget {
-	return {
-		type: "log",
-		x: params.x,
-		y: params.y,
-		width: params.width,
-		height: params.height,
-		properties: {
-			region: params.region,
-			title: params.title,
-			query: `${sourceClause(params.logGroupNames)} | ${params.query}`,
-			view: params.view,
-		},
-	};
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {

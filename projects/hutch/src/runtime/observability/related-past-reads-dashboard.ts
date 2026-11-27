@@ -1,8 +1,13 @@
 import { NEXT_READ_SNOOZE_MS } from "@packages/domain/article";
 import { NEXT_READ_TRACKING } from "../web/shared/next-read/next-read.tracking";
 import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
-import { type ExcludedIdentities, excludeNonAudienceClauses } from "@packages/dashboard-widgets";
-import { type DashboardBody, type DashboardWidget, logWidget } from "./analytics-dashboard";
+import {
+	type DashboardWidget,
+	type ExcludedIdentities,
+	excludeNonAudienceClauses,
+	logWidget,
+} from "@packages/dashboard-widgets";
+import type { DashboardBody } from "./analytics-dashboard";
 
 export interface BuildRelatedPastReadsDashboardDeps extends ExcludedIdentities {
 	region: string;

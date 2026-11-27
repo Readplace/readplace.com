@@ -12,20 +12,15 @@ import { createBanMiddleware } from "./web/middleware/ban";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
 import { createReadplaceApp } from "./app";
 import { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "@packages/crawl-article";
-import { getEnv, readEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import { HUTCH_HANDLER_ROOT_ENV } from "./lambda.env";
 
 const env = readEnv(HUTCH_HANDLER_ROOT_ENV);
 
-const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
-
 // createReadplaceApp builds initCrawlFetch (article/thumbnail crawls, stale-check
 // refresh), whose last-resort leg spawns curl_chrome131. Fail cold start loudly
-// if its layer is missing rather than leak per-URL ENOENTs. Lambda only — the
-// dev server and E2E harness have no layer.
-if (lambda) {
-	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
-}
+// if its layer is missing rather than leak per-URL ENOENTs.
+assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
 
 const { app, analyticsLogger } = createReadplaceApp();
 
