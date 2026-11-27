@@ -41,6 +41,7 @@ async function grant(harness: Harness, input: { agent: Agent; clientId: string; 
 		code_challenge: pkce.challenge,
 		code_challenge_method: "S256",
 		state: "connectors",
+		disclosure_version: "2026-11-27",
 		action: "approve",
 	});
 	assert.equal(authorize.status, 302, "the reader's approval must redirect with a code");
@@ -177,7 +178,7 @@ describe("GET /newsletters", () => {
 		expect(popover.closest("main")).not.toBeNull();
 		expect(popover.querySelector(".confirm-popover__title")?.textContent).toBe("Gmail integration is experimental");
 		expect(popover.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"Readplace never sends or deletes your email. It adds one filter to forward the senders you choose, replacing any filter that already forwards to a Gmail forwarding address Readplace gave you. To list your senders, it reads only the sender, labels and date of your emails, including new ones while Gmail stays connected. It downloads past emails when you choose Import unread messages. After Readplace finishes saving content from a sender you chose, it labels the original imported-to-readplace and marks it as read if it is still unread. Readplace passes the subject, sender and links of each newsletter it receives from Gmail to an AI provider, to pick out its articles and file them in your readlists. When you save an issue, its text goes to that provider too, to prepare it for reading, summarize it and suggest what to read next.",
+			"Readplace never sends or deletes your email. It adds one filter to forward the senders you choose, replacing any filter that already forwards to a Gmail forwarding address Readplace gave you. To list your senders, it reads only the sender, labels and date of your emails, including new ones while Gmail stays connected. It downloads past emails when you choose Import unread messages. After Readplace finishes saving content from a sender you chose, it labels the original imported-to-readplace and marks it as read if it is still unread. DeepSeek receives newsletter subjects, senders, links and link text to identify articles. It can receive saved issue text for summaries. For eligible Smart Readlists, it receives details such as the issue excerpt and a Readplace link containing your reader and message identifiers. Before you open an issue, Readplace may fetch images and article previews. Hosts receive the requested address, which can identify you. A saved article fetch may retry through a proxy. Resend receives your email address, newsletter names and sender-specific links to deliver suggestions.",
 		);
 		const ok = popover.querySelector("[data-test-action='gmail-connect-ok']");
 		assert(ok, "the disclaimer offers OK");

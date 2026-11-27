@@ -18,6 +18,7 @@ export async function seedChromeGrant(request: APIRequestContext, baseUrl: strin
 			code_challenge: createHash('sha256').update(verifier).digest('base64url'),
 			code_challenge_method: 'S256',
 			state: randomUUID(),
+			disclosure_version: '2026-11-27',
 			action: 'approve',
 		},
 		maxRedirects: 0,

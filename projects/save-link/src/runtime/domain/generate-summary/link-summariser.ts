@@ -98,9 +98,8 @@ export function initLinkSummariser(deps: {
 		if (answer.kind === "malformed") {
 			deps.logger.warn("[summarize] model answer is not the JSON shape asked for", {
 				url: params.url,
-				raw: answer.text,
 				usage: response.usage,
-				error: answer.error,
+				reason: answer.error.message,
 			});
 			return { kind: "unusable-answer" };
 		}
@@ -109,7 +108,6 @@ export function initLinkSummariser(deps: {
 		if (summary === "Summary not available.") {
 			deps.logger.info("[summarize] model returned the refusal sentinel", {
 				url: params.url,
-				raw: answer.text,
 				usage: response.usage,
 			});
 			return { kind: "declined" };

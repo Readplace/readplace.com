@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import {
+	GMAIL_RAW_RETENTION_MS,
 	type GmailConnection,
 	type GmailConnectionStore,
 	type GmailHistoryImportCancelReason,
@@ -186,6 +187,20 @@ export function initGmailHistoryImport(deps: {
 				continue;
 			}
 			const rawEmailS3Key = gmailHistoryImportRawKey({ userId: input.userId, jobId: input.jobId, gmailMessageId });
+			// Reserve before the first S3 attempt, including writes that succeed but time out.
+			// Legacy imports may have overwritten an earlier capture before tracking began.
+			const firstCapturedAt = await imports.reserveRawCapture({
+				...input, gmailMessageId, initialTimestamp: job.tracksRawCapture ? now().getTime() : Date.parse(job.createdAt),
+			});
+			if (firstCapturedAt === undefined) return skipped(observe, "fetched-stale");
+			// Leave a full Lambda lifetime so an in-flight write cannot cross the cleanup boundary.
+			if (now().getTime() >= firstCapturedAt + GMAIL_RAW_RETENTION_MS - 15 * 60_000) {
+				const recorded = await imports.recordFetched({ ...input, gmailMessageId, rawS3Key: rawEmailS3Key, now: now() });
+				if (recorded === "stale") return skipped(observe, "fetched-stale");
+				if (recorded === "recorded") await imports.recordOutcome({ ...input, gmailMessageId, outcome: "failed", now: now() });
+				observe({ kind: "message-processed", index, outcome: "raw-expired" });
+				continue;
+			}
 			await deps.putRaw({ key: rawEmailS3Key, raw: message.value.raw });
 			const recorded = await imports.recordFetched({ ...input, gmailMessageId, rawS3Key: rawEmailS3Key, now: now() });
 			if (recorded === "stale") return skipped(observe, "fetched-stale");

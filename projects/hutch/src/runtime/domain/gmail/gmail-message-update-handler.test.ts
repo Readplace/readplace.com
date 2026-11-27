@@ -95,7 +95,7 @@ describe("initGmailMessageUpdateHandler", () => {
 		assert.deepEqual(await run(h.handler, [markBody]), { batchItemFailures: [] });
 		assert.deepEqual(
 			{ published: h.published, metricLines: h.metricLines, logs: h.logs },
-			{ published: [], metricLines: [], logs: [{ level: "info", message: "[gmail-message-update] sender no longer mapped" }] },
+			{ published: [], metricLines: [], logs: [{ level: "info", message: "[gmail-message-update] update no longer eligible" }] },
 		);
 	});
 
@@ -200,6 +200,14 @@ describe("initGmailMessageUpdateDlqHandler", () => {
 
 		assert.equal((await h.updates.find(key))?.status, "completed");
 		assert.equal((await h.updates.find({ ...key, supplemental: true }))?.status, "failed");
+	});
+
+	it("does not fail the valid pending delivery when an older inbox delivery dead-letters", async () => {
+		const h = dlq();
+		await h.updates.recordPending({ userId: USER, receivedAtMessageId: "another-eligible-inbox-message", origin: ORIGIN, now: NOW });
+		await run(h.handler, [markBody]);
+		assert.equal((await h.updates.find({ userId: USER, origin: ORIGIN }))?.status, "pending");
+		assert.deepEqual(h.published, []);
 	});
 
 	it("never turns a completed update into a failure", async () => {

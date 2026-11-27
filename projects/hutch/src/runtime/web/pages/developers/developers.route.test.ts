@@ -524,7 +524,7 @@ describe("/developers copy", () => {
 			"app-listing":
 				"Connected apps lists your app as AI assistant, connected from the host of your first redirect URI, or from an app on your computer when that URI is on 127.0.0.1 or [::1]. A client_name that matches a supported assistant's name, in any letter case, lists your app as that assistant instead.",
 			"create-session":
-				"create-session, on every collection, answers 204 with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader disconnecting your app, doesn't end a session it made, so clear the cookie from your web view when your app is disconnected. A password change or reset does end it.",
+				"create-session, on every collection, answers 204 with a browser session cookie, for an app that opens Readplace's reader in its own web view. This session can open the Readplace inbox and read imported and forwarded message bodies. The token can read saved newsletter issues and summaries. Disconnecting Gmail preserves these copies and your app grant. Disconnecting through Connected apps can leave an existing browser session signed in. Revoking a self-registered app's token also leaves its session signed in. Clear its cookie from your web view when disconnected. A password change or reset does end it.",
 			"report-age-range":
 				"report-age-range, on every collection, is how Readplace's own apps pass on the age range a device's app store reports for its user. It answers 204, or 403 when that user may not use Readplace. Integrators skip it.",
 			"entry-point": "It answers 200 with the reader's collection, not a redirect:",

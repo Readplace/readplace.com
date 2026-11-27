@@ -3,6 +3,7 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-com
 import { Logger, consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
+	initDynamoDbEmailImportCompletion,
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
 	initDynamoDbGmailMapping,
@@ -25,6 +26,7 @@ const updates = initDynamoDbGmailMessageUpdate({ client, tableName: env.DYNAMODB
 export const handler = initGmailMessageUpdateHandler({
 	markImported: initMarkGmailEmailImported({
 		updates,
+		findCompletion: initDynamoDbEmailImportCompletion({ client, tableName: env.DYNAMODB_INBOX_EMAILS_TABLE }).findCompletion,
 		isSenderMapped: initIsGmailSenderMapped({
 			findMapping: initDynamoDbGmailMapping({ client, tableName: env.DYNAMODB_GMAIL_MAPPINGS_TABLE, now }).findMapping,
 		}),

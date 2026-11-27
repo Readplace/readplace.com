@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { render, renderAlert } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { AUTH_STYLES } from "../auth/auth.styles";
-import { consentCopyFor } from "./consent-copy";
+import { CONSENT_DISCLOSURE_VERSION, consentCopyFor } from "./consent-copy";
 import { OAUTH_AUTHORIZE_STYLES } from "./oauth-authorize.styles";
 import { obsidianHandoffHref, type ObsidianHandoff } from "./obsidian-handoff";
 
@@ -81,6 +81,7 @@ export function OAuthAuthorizePage(params: AuthorizePageParams): PageBody {
 		...params,
 		heading: copy.heading,
 		body: copy.body,
+		disclosureVersion: CONSENT_DISCLOSURE_VERSION,
 		noticeHtml: renderAlert({ key: "consent-notice", content: copy.notice }),
 		accountStateClass: ACCOUNT_STATE_CLASS[params.userEmail === undefined ? "unknown" : "known"],
 	});

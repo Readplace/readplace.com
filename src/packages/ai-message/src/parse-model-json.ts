@@ -2,9 +2,9 @@ import type { z } from "zod";
 import type { CreateAiMessage } from "./create-ai-message.types";
 
 export type ModelJsonAnswer<T> =
-	| { kind: "parsed"; value: T; text: string }
+	| { kind: "parsed"; value: T }
 	| { kind: "no-text" }
-	| { kind: "malformed"; text: string; error: unknown };
+	| { kind: "malformed"; error: Error };
 
 export function parseModelJson<S extends z.ZodTypeAny>(
 	schema: S,
@@ -15,10 +15,10 @@ export function parseModelJson<S extends z.ZodTypeAny>(
 	let json: unknown;
 	try {
 		json = JSON.parse(text);
-	} catch (error) {
-		return { kind: "malformed", text, error };
+	} catch {
+		return { kind: "malformed", error: new SyntaxError("Model response contains invalid JSON") };
 	}
 	const result = schema.safeParse(json);
-	if (!result.success) return { kind: "malformed", text, error: result.error };
-	return { kind: "parsed", value: result.data, text };
+	if (!result.success) return { kind: "malformed", error: new Error("Model response does not match the requested schema") };
+	return { kind: "parsed", value: result.data };
 }

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import OpenAI, { type ClientOptions } from "openai";
 import type { DeepseekChatResponse, DeepseekClient, DeepseekMessage, DeepseekWireRequest } from "./deepseek-chat.types";
 import type { DeepseekFeature } from "./deepseek-feature";
@@ -6,6 +7,8 @@ import { DEEPSEEK_PRICE_TABLE, deepseekCostUsd, deepseekRate } from "./deepseek-
 import { DeepseekUsageSchema } from "./deepseek-usage";
 import type { DeepseekUsageLine, LogDeepseekUsage } from "./deepseek-usage-line.types";
 import { adaptSdkLogger, type DeepseekLogger } from "./sdk-logger";
+
+const InvalidJsonError = z.object({ name: z.literal("SyntaxError") });
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
@@ -55,7 +58,17 @@ export function initDeepseekClient(options: DeepseekClientOptions): DeepseekClie
 				messages: request.messages,
 			};
 			const sentAt = options.now();
-			const response: WireResponse = await sdk.chat.completions.create(body, callOptions());
+			let response: WireResponse;
+			try {
+				response = await sdk.chat.completions.create(body, callOptions());
+			} catch (error) {
+				// SDK status errors can include a copy of the provider response and headers.
+				if (error instanceof OpenAI.APIError && typeof error.status === "number") {
+					throw Object.assign(new Error(`DeepSeek returned HTTP ${error.status}`), { status: error.status });
+				}
+				if (InvalidJsonError.safeParse(error).success) throw new SyntaxError("DeepSeek returned invalid JSON");
+				throw error;
+			}
 			options.logUsage(usageLine({ feature: request.feature, model: request.model, sentAt, response }));
 			return response;
 		},

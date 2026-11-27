@@ -148,7 +148,7 @@ export function initDynamoDbEmailImportCompletion(deps: {
 			}));
 		},
 		findCompletion: async ({ userId, receivedAtMessageId }) => {
-			const row = await table.get({ userId, receivedAtMessageId }, { consistentRead: true });
+			const row = await table.get({ userId, receivedAtMessageId }, { consistentRead: true, projection: CompletionRow.keyof().options });
 			if (row === undefined) return undefined;
 			return {
 				selection: row.outputSelection,

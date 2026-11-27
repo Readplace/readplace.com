@@ -33,12 +33,12 @@ describe("GET /privacy", () => {
 		const response = await request(server).get("/privacy");
 
 		expect(response.text).toContain("Connected AI assistants");
-		expect(response.text).toContain("It cannot delete anything");
+		expect(response.text).toContain("A browser session an app opened can continue");
 		expect(response.text).toContain("Sign an assistant out under");
 		expect(response.text).toContain("on your Account page");
 		expect(response.text).toContain("revokes its Readplace token");
 		expect(response.text).toContain("list your readlists, create a readlist and add a saved article to one");
-		expect(response.text).toContain("Changing or resetting your password, or deleting your Readplace account, revokes every connected assistant at once.");
+		expect(response.text).toContain("Resetting your password or deleting your account revokes all app grants. Changing your password revokes other grants and can preserve the grant associated with your current session.");
 		const doc = new JSDOM(response.text).window.document;
 		expect(Array.from(doc.querySelectorAll('.legal-page__section a[href^="/account"]')).map((link) => link.getAttribute("href"))).toEqual([
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-assistants#connected-apps",
@@ -54,7 +54,7 @@ describe("GET /privacy", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll(".legal-page__list li"), (item) => item.textContent);
 		expect(items.filter((text) => text?.startsWith("Connected app sign-ins:"))).toEqual([
-			"Connected app sign-ins: when you connect an app or an AI assistant, Readplace records the time you approved it, the browser and operating system you approved it from, and the city and country your network address pointed to at that moment. These show under Connected apps on your Account page and are deleted when that sign-in ends.",
+			"Connected app sign-ins: when you connect an app or an AI assistant, Readplace records your choice of Allow access and the version of the permission notice, the time you approved it, the browser and operating system you approved it from, and the city and country your network address pointed to at that moment. Your sign-in time, device and location show under Connected apps on your Account page and are deleted when that sign-in ends.",
 		]);
 	});
 
@@ -125,7 +125,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 20 November 2026");
+		expect(response.text).toContain("Last updated: 27 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {

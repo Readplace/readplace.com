@@ -67,6 +67,7 @@ const JobRow = z.object({
 	counts: GmailHistoryImportCountsSchema,
 	failureReason: dynamoField(GmailHistoryImportFailureReasonSchema),
 	cancelReason: dynamoField(GmailHistoryImportCancelReasonSchema),
+	tracksRawCapture: z.literal(true).optional(),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 	completedAt: dynamoField(z.string()),
@@ -114,6 +115,7 @@ function toJob(row: z.infer<typeof JobRow>): GmailHistoryImportJob {
 		counts: row.counts,
 		failureReason: row.failureReason,
 		cancelReason: row.cancelReason,
+		...(row.tracksRawCapture ? { tracksRawCapture: true } : {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		completedAt: row.completedAt,
@@ -163,6 +165,7 @@ export function initDynamoDbGmailHistoryImport(deps: {
 }): GmailHistoryImportStore {
 	const jobs = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: JobRow });
 	const messages = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: MessageRow });
+	const captures = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: z.object({ firstCapturedAt: z.number().finite() }) });
 	const records = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: RecordKeyRow });
 	const transact = (TransactItems: NonNullable<TransactWriteCommand["input"]["TransactItems"]>) =>
 		deps.client.send(new TransactWriteCommand({ TransactItems }));
@@ -267,6 +270,25 @@ export function initDynamoDbGmailHistoryImport(deps: {
 					},
 				}),
 			)).kind === "written",
+		reserveRawCapture: async ({ userId, jobId, gmailMessageId, generation, initialTimestamp }) => {
+			const key = { userId, recordKey: `RAW#${jobId}#${gmailMessageId}` };
+			// A delayed worker must not recreate a clock while disconnect deletes the partition.
+			const result = await transactIfConditions(() => transact([
+				{ ConditionCheck: {
+					TableName: deps.tableName, Key: jobKey({ userId, jobId }),
+					ConditionExpression: "generation = :generation AND #state = :running",
+					ExpressionAttributeNames: { "#state": "state" },
+					ExpressionAttributeValues: { ":generation": generation, ":running": "running" },
+				} },
+				{ Update: {
+					TableName: deps.tableName, Key: key,
+					UpdateExpression: "SET firstCapturedAt = if_not_exists(firstCapturedAt, :at)",
+					ExpressionAttributeValues: { ":at": initialTimestamp },
+				} },
+			]));
+			if (result.kind !== "written") return undefined;
+			return (await captures.get(key, { consistentRead: true }))?.firstCapturedAt;
+		},
 		recordFetched: async ({ userId, jobId, generation, gmailMessageId, rawS3Key, now }) => {
 			for (;;) {
 				const job = await findJob({ userId, jobId });

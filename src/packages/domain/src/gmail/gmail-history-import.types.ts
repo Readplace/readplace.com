@@ -37,6 +37,8 @@ export interface GmailHistoryImportJob {
 	counts: GmailHistoryImportCounts;
 	failureReason: GmailHistoryImportFailureReason | undefined;
 	cancelReason: GmailHistoryImportCancelReason | undefined;
+	/** Absent on jobs created before capture timestamps were recorded. */
+	tracksRawCapture?: true;
 	createdAt: string;
 	updatedAt: string;
 	completedAt: string | undefined;
@@ -63,6 +65,7 @@ export interface GmailHistoryImportStore {
 	listJobsByUserId: (userId: UserId) => Promise<GmailHistoryImportJob[]>;
 	startJob: (input: GmailHistoryImportJobRef & { generation: string; now: Date }) => Promise<GmailHistoryImportJob | undefined>;
 	claimPage: (input: GmailHistoryImportJobRef & { generation: string; page: number; now: Date }) => Promise<boolean>;
+	reserveRawCapture: (input: GmailHistoryImportJobRef & { gmailMessageId: GmailMessageId; generation: string; initialTimestamp: number }) => Promise<number | undefined>;
 	recordFetched: (input: GmailHistoryImportJobRef & {
 		generation: string;
 		gmailMessageId: GmailMessageId;

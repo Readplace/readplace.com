@@ -77,8 +77,8 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(response.text).toContain("Gemini");
 		expect(response.text).toContain("Perplexity");
 		expect(response.text).toContain("get_article");
-		expect(response.text).toContain("deleting stays in the Readplace app");
-		expect(response.text).toContain("your assistant can mark an article read or unread");
+		expect(response.text).toContain("The MCP tools offer no delete action");
+		expect(response.text).toContain("lets it open a browser session to read your Readplace inbox");
 	});
 
 	it("points the setup note at Connected apps in the account, where the reader signs an assistant out", async () => {

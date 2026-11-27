@@ -3,6 +3,7 @@
         <h1 class="oauth-authorize__title">{{heading}}</h1>
         <div class="oauth-authorize__request">
           <p class="oauth-authorize__text">{{body}}</p>
+          <p class="oauth-authorize__text">This app can read your saved newsletter issues, including their text and summaries. It can open a signed-in browser session and use your Readplace inbox to read imported and forwarded messages. Disconnecting Gmail leaves that access in place. Disconnecting the app revokes its tokens, but a browser session it already opened can stay signed in.</p>
           {{{noticeHtml}}}
         </div>
         <section class="oauth-authorize__account {{accountStateClass}}" aria-labelledby="oauth-authorize-account" data-test-consent-account>
@@ -10,6 +11,7 @@
           <p class="oauth-authorize__signed-in">You're signed in as <strong class="oauth-authorize__email">{{userEmail}}</strong></p>
         </section>
         <form method="POST" action="{{track '/oauth/authorize' source='oauth-authorize' content='approve'}}">
+          <input type="hidden" name="disclosure_version" value="{{disclosureVersion}}">
           <input type="hidden" name="client_id" value="{{clientId}}">
           <input type="hidden" name="redirect_uri" value="{{redirectUri}}">
           <input type="hidden" name="response_type" value="code">

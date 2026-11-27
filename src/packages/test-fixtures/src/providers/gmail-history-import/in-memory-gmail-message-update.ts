@@ -16,8 +16,10 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 		claimPending: async (input) => {
 			const key = keyOf(input);
 			const active = claims.get(key);
-			if (records.get(key)?.status !== "pending" || (active !== undefined && active > input.now.toISOString())) return undefined;
+			const current = records.get(key);
+			if (current?.status !== "pending" || (active !== undefined && active > input.now.toISOString())) return undefined;
 			const claimUntil = new Date(input.now.getTime() + 90_000).toISOString();
+			records.set(key, { ...current, receivedAtMessageId: input.receivedAtMessageId, origin: input.origin });
 			claims.set(key, claimUntil);
 			return claimUntil;
 		},
@@ -46,9 +48,9 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 				alreadyRead,
 			});
 		},
-		markFailed: async ({ userId, origin, supplemental, reason, now }) => {
+		markFailed: async ({ userId, receivedAtMessageId, origin, supplemental, reason, now }) => {
 			const current = records.get(keyOf({ userId, origin, supplemental }));
-			if (current?.status !== "pending") return "unchanged";
+			if (current?.status !== "pending" || current.receivedAtMessageId !== receivedAtMessageId || current.origin.senderEmail !== origin.senderEmail) return "unchanged";
 			records.set(keyOf({ userId, origin, supplemental }), {
 				status: "failed",
 				userId,
@@ -66,8 +68,14 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 				(record) => record.userId === userId && record.status === "pending" && gmailAccountKey(record.origin.accountEmail) === gmailAccountKey(accountEmail),
 			),
 		discardPending: async (input) => {
-			if (records.get(keyOf(input))?.status !== "pending") return "unchanged";
-			records.delete(keyOf(input));
+			const key = keyOf(input);
+			const current = records.get(key);
+			if (current?.status !== "pending") return "unchanged";
+			const claim = claims.get(key);
+			if (input.ifUnclaimed && (current.receivedAtMessageId !== input.ifUnclaimed.receivedAtMessageId ||
+				current.origin.senderEmail !== input.origin.senderEmail || (claim !== undefined && claim > input.ifUnclaimed.now.toISOString()))) return "unchanged";
+			records.delete(key);
+			claims.delete(key);
 			return "discarded";
 		},
 		all: () => [...records.values()],

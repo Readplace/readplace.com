@@ -4,11 +4,12 @@ describe("oauthSignIn", () => {
 	it("records the time, where and what the reader approved from", () => {
 		const signIn = oauthSignIn({
 			at: 1_760_000_000_000,
+			consent: { disclosureVersion: "2026-11-27", action: "approve" },
 			location: { city: "Sydney", country: "AU" },
 			device: { browser: "chrome", os: "macos" },
 		});
 
-		expect(signIn).toEqual({ at: 1_760_000_000_000, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } });
+		expect(signIn).toEqual({ at: 1_760_000_000_000, consent: { disclosureVersion: "2026-11-27", action: "approve" }, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } });
 		expect(OAuthSignInSchema.parse(signIn)).toEqual(signIn);
 	});
 

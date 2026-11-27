@@ -1,4 +1,4 @@
-import type { S3Client } from "@aws-sdk/client-s3";
+import { S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
 import { initS3WriteRawEmail } from "./s3-write-raw-email";
 
 type SendFn = S3Client["send"];
@@ -30,7 +30,16 @@ describe("initS3WriteRawEmail", () => {
 			Key: "gmail-import/user-1/job/abc.eml",
 			Body: raw,
 			ContentType: "message/rfc822",
+			IfNoneMatch: "*",
 		});
+	});
+
+	it("treats an existing capture as a completed conditional write", async () => {
+		const write = initS3WriteRawEmail({
+			client: fakeClient(() => { throw new S3ServiceException({ name: "PreconditionFailed", $fault: "client", $metadata: { httpStatusCode: 412 } }); }),
+			bucketName: "raw-bucket",
+		});
+		await write({ key: "k", raw: Buffer.from("x") });
 	});
 
 	it("propagates a failed write so the caller can retry", async () => {

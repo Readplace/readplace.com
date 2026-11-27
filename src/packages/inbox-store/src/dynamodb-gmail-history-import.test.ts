@@ -263,6 +263,25 @@ describe("initDynamoDbGmailHistoryImport", () => {
 		expect(await harness(() => { throw conditionFailed(); }).store.claimPage({ userId: USER, jobId: JOB_ID, generation: "run-1", page: 2, now: NOW })).toBe(false);
 	});
 
+	it("preserves the capture tracking version when reloading a job", async () => {
+		const { store } = harness(() => ({ Item: jobRow({ tracksRawCapture: true }) }));
+		expect((await store.findJob({ userId: USER, jobId: JOB_ID }))?.tracksRawCapture).toBe(true);
+	});
+
+	it("atomically keeps the original capture timestamp across generations and retries", async () => {
+		const { commands, store } = harness(() => ({ Item: { firstCapturedAt: 1000 } }));
+		const input = { userId: USER, jobId: JOB_ID, generation: "run-1", gmailMessageId: MESSAGE_ID, initialTimestamp: 2000 };
+		expect(await store.reserveRawCapture(input)).toBe(1000);
+		expect(commands[0].input.TransactItems?.[1].Update).toEqual({
+			TableName: TABLE, Key: { userId: USER, recordKey: `RAW#${JOB_ID}#${MESSAGE_ID}` },
+			UpdateExpression: "SET firstCapturedAt = if_not_exists(firstCapturedAt, :at)",
+			ExpressionAttributeValues: { ":at": 2000 },
+		});
+		expect(commands[0].input.TransactItems?.[0].ConditionCheck?.ConditionExpression).toBe("generation = :generation AND #state = :running");
+		expect(await harness(() => { throw transactionConflict(); }).store.reserveRawCapture(input)).toBeUndefined();
+		expect(await harness().store.reserveRawCapture(input)).toBeUndefined();
+	});
+
 	describe("recordFetched", () => {
 		const fetched = { userId: USER, jobId: JOB_ID, generation: "run-1", gmailMessageId: MESSAGE_ID, rawS3Key: "gmail-import/user-1/job/18c2f0a1b2.eml", now: NOW };
 

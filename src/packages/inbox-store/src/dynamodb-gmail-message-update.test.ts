@@ -42,7 +42,7 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		assert.equal(sent[0].input.ConditionExpression, "attribute_not_exists(recordKey)");
 	});
 
-	it("stores a separate pending update for supplemental work under the same account", async () => {
+	it("claims, settles, and discards supplemental work using its own key", async () => {
 		const key = { userId: USER, recordKey: "GMAIL_UPDATE#reader@gmail.com#SUPPLEMENTAL#history#reader@gmail.com#m1" };
 		const row = { ...PENDING_ROW, ...key, supplemental: true };
 		const { updates, sent } = store(({ name }) => name === "GetCommand" ? { Item: row } : {});
@@ -50,8 +50,13 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		const recorded = await updates.recordPending({ ...work, receivedAtMessageId: RAM, now: NOW });
 		assert.equal(recorded.supplemental, true);
 		assert.deepEqual(sent[0].input.Item, row);
+		const claimUntil = await updates.claimPending({ ...work, receivedAtMessageId: RAM, now: NOW });
+		assert(claimUntil);
+		await updates.releaseClaim({ ...work, claimUntil });
+		await updates.markFailed({ ...work, receivedAtMessageId: RAM, reason: "dead-lettered", now: NOW });
+		await updates.discardPending({ ...work, ifUnclaimed: { receivedAtMessageId: RAM, now: NOW } });
 		await updates.markCompleted({ ...work, now: NOW });
-		assert.deepEqual(sent[2].input.Key, key);
+		for (const command of sent.slice(1)) assert.deepEqual(command.input.Key, key);
 	});
 
 	it("returns an already-completed record instead of reopening it", async () => {
@@ -84,16 +89,18 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 
 	it("claims only a pending update without an active lease", async () => {
 		const { updates, sent } = store();
-		const claimUntil = await updates.claimPending({ userId: USER, origin: ORIGIN, now: NOW });
+		const claimUntil = await updates.claimPending({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, now: NOW });
 		assert.equal(claimUntil, "2026-10-27T01:01:30.000Z");
 		assert.deepEqual(sent[0].input.Key, KEY);
+		assert.equal(sent[0].input.UpdateExpression, "SET claimUntil = :until, receivedAtMessageId = :message, #origin = :origin");
+		assert.equal(sent[0].input.ExpressionAttributeValues?.[":message"], RAM);
 		assert.match(String(sent[0].input.ConditionExpression), /#status = :pending.*claimUntil <= :now/);
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":until"], claimUntil);
 	});
 
 	it("does not acquire a lease already held by another delivery", async () => {
 		const { updates } = store(() => { throw conditionFailed(); });
-		assert.equal(await updates.claimPending({ userId: USER, origin: ORIGIN, now: NOW }), undefined);
+		assert.equal(await updates.claimPending({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, now: NOW }), undefined);
 	});
 
 	it("releases only the lease acquired by this delivery", async () => {
@@ -131,7 +138,7 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 
 	it("marks only a pending record failed and reports the transition", async () => {
 		const { updates, sent } = store();
-		assert.equal(await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "failed");
+		assert.equal(await updates.markFailed({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "failed");
 		assert.match(String(sent[0].input.ConditionExpression), /#status = :pending/);
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":pending"], "pending");
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":reason"], "dead-lettered");
@@ -141,7 +148,7 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		const { updates } = store(() => {
 			throw conditionFailed();
 		});
-		assert.equal(await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "unchanged");
+		assert.equal(await updates.markFailed({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "unchanged");
 	});
 
 	it("stores a history origin together with its sender", async () => {
@@ -157,6 +164,13 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		assert.deepEqual(sent[0].input.Key, KEY);
 		assert.equal(sent[0].input.ConditionExpression, "#status = :pending");
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":pending"], "pending");
+	});
+
+	it("discards stale deliveries only for their own inbox row, sender and expired or absent claim", async () => {
+		const { updates, sent } = store();
+		await updates.discardPending({ userId: USER, origin: ORIGIN, ifUnclaimed: { receivedAtMessageId: RAM, now: NOW } });
+		assert.equal(sent[0].input.ConditionExpression, "#status = :pending AND receivedAtMessageId = :message AND #origin.senderEmail = :sender AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)");
+		assert.deepEqual(sent[0].input.ExpressionAttributeValues, { ":pending": "pending", ":message": RAM, ":sender": ORIGIN.senderEmail, ":now": NOW.toISOString() });
 	});
 
 	it("leaves a completed, failed or missing record in place", async () => {

@@ -64,7 +64,7 @@ export function initGmailMessageUpdateHandler(deps: {
 				const outcome = await deps.markImported(envelope);
 				const fact = { userId: envelope.userId, receivedAtMessageId: envelope.receivedAtMessageId, originKind: envelope.origin.kind };
 				if (outcome.kind === "skipped") {
-					logger.info("[gmail-message-update] sender no longer mapped", fact);
+					logger.info("[gmail-message-update] update no longer eligible", fact);
 					continue;
 				}
 				if (outcome.kind === "deferred") {
@@ -113,7 +113,7 @@ export function initGmailMessageUpdateDlqHandler(deps: {
 					deps.logger.error("[gmail-message-update-dlq] permission resume dead-lettered", { userId: envelope.userId });
 					continue;
 				}
-				const marked = await deps.markFailed({ userId: envelope.userId, origin: envelope.origin, ...(envelope.supplemental ? { supplemental: envelope.supplemental } : {}), reason: "dead-lettered", now: deps.now() });
+				const marked = await deps.markFailed({ ...envelope, reason: "dead-lettered", now: deps.now() });
 				if (marked === "unchanged") {
 					deps.logger.info("[gmail-message-update-dlq] update already settled", { userId: envelope.userId, receivedAtMessageId: envelope.receivedAtMessageId });
 					continue;

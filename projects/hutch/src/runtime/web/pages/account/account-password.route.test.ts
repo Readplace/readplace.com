@@ -86,6 +86,7 @@ async function grantRefreshToken(
 		code_challenge: createHash("sha256").update(verifier).digest("base64url"),
 		code_challenge_method: "S256",
 		state: "change-password",
+		disclosure_version: "2026-11-27",
 		action: "approve",
 	});
 	assert.equal(authorize.status, 302, "the reader's approval must redirect with a code");

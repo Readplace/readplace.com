@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import { parseModelJson } from "./parse-model-json";
 
 const AnswerSchema = z.object({ verdict: z.string() });
@@ -12,7 +12,7 @@ describe("parseModelJson", () => {
 	it("parses the text block against the schema", () => {
 		const answer = parseModelJson(AnswerSchema, response([{ type: "text", text: '{"verdict":"keep"}' }]));
 
-		assert.deepEqual(answer, { kind: "parsed", value: { verdict: "keep" }, text: '{"verdict":"keep"}' });
+		assert.deepEqual(answer, { kind: "parsed", value: { verdict: "keep" } });
 	});
 
 	it("reports no text when the response has no text block", () => {
@@ -33,7 +33,7 @@ describe("parseModelJson", () => {
 			response([{ type: "thinking", text: "pondering" }, { type: "text", text: '{"verdict":"drop"}' }]),
 		);
 
-		assert.deepEqual(answer, { kind: "parsed", value: { verdict: "drop" }, text: '{"verdict":"drop"}' });
+		assert.deepEqual(answer, { kind: "parsed", value: { verdict: "drop" } });
 	});
 
 	it("reports text that is not JSON as malformed with the parse error", () => {
@@ -41,7 +41,7 @@ describe("parseModelJson", () => {
 
 		assert.equal(answer.kind, "malformed");
 		assert(answer.kind === "malformed");
-		assert.equal(answer.text, "not json");
+		assert.equal(answer.error.message, "Model response contains invalid JSON");
 		assert(answer.error instanceof SyntaxError);
 	});
 
@@ -49,7 +49,6 @@ describe("parseModelJson", () => {
 		const answer = parseModelJson(AnswerSchema, response([{ type: "text", text: '{"verdict":1}' }]));
 
 		assert(answer.kind === "malformed");
-		assert.equal(answer.text, '{"verdict":1}');
-		assert(answer.error instanceof ZodError);
+		assert.equal(answer.error.message, "Model response does not match the requested schema");
 	});
 });

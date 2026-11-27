@@ -61,7 +61,7 @@ export type GmailMessageUpdate = { supplemental?: true } & (
 	});
 
 export interface GmailMessageUpdateStore {
-	claimPending: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date }) => Promise<string | undefined>;
+	claimPending: (input: { userId: UserId; receivedAtMessageId: string; origin: GmailMessageOrigin; supplemental?: true; now: Date }) => Promise<string | undefined>;
 	releaseClaim: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; claimUntil: string }) => Promise<void>;
 	recordPending: (input: {
 		userId: UserId;
@@ -74,11 +74,12 @@ export interface GmailMessageUpdateStore {
 	markCompleted: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date; alreadyRead?: boolean }) => Promise<void>;
 	markFailed: (input: {
 		userId: UserId;
+		receivedAtMessageId: string;
 		origin: GmailMessageOrigin;
 		supplemental?: true;
 		reason: GmailMessageUpdateFailureReason;
 		now: Date;
 	}) => Promise<"failed" | "unchanged">;
 	listPendingByAccount: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<GmailMessageUpdate[]>;
-	discardPending: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true }) => Promise<"discarded" | "unchanged">;
+	discardPending: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; ifUnclaimed?: { receivedAtMessageId: string; now: Date } }) => Promise<"discarded" | "unchanged">;
 }
