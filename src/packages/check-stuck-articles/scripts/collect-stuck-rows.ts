@@ -29,6 +29,7 @@ const StuckArticleRow = z.object({
 	contentFetchedAt: dynamoField(z.string()),
 	crawlPendingSince: dynamoField(z.string()),
 	summaryPendingSince: dynamoField(z.string()),
+	savedAt: z.string(),
 	ownerUserId: dynamoField(z.string()),
 });
 
@@ -77,20 +78,26 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *      ownership of the row, so the age compare is independent of unrelated
  *      writes (refresh updating contentFetchedAt while a summary regen is in
  *      flight, for example).
+ *   2. Legacy disjunct on contentFetchedAt/savedAt — covers rows saved
+ *      before pendingSince existed.
  */
 export function buildQueryInputs(now: Date) {
 	const crawlMinAge = new Date(now.getTime() - CRAWL_MIN_AGE_MS).toISOString();
 	const privateCrawlMinAge = new Date(now.getTime() - PRIVATE_CRAWL_MIN_AGE_MS).toISOString();
 	const summaryMinAge = new Date(now.getTime() - SUMMARY_MIN_AGE_MS).toISOString();
+	const legacyAgeGate = (axisMinAgeKey: string) =>
+		`(attribute_not_exists(crawlPendingSince) AND attribute_not_exists(summaryPendingSince) AND ` +
+		`(contentFetchedAt < ${axisMinAgeKey}` +
+		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey})))`;
 	const ProjectionExpression =
 		"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
-		"crawlPendingSince, summaryPendingSince, ownerUserId";
+		"crawlPendingSince, summaryPendingSince, savedAt, ownerUserId";
 	const ExpressionAttributeNames = { "#u": "url" };
 	return [
 		{
 			IndexName: SUMMARY_STATUS_INDEX,
 			KeyConditionExpression: "summaryStatus = :pending",
-			FilterExpression: "summaryPendingSince < :summaryMinAge",
+			FilterExpression: `summaryPendingSince < :summaryMinAge OR ${legacyAgeGate(":summaryMinAge")}`,
 			ProjectionExpression,
 			ExpressionAttributeNames,
 			ExpressionAttributeValues: {
@@ -102,8 +109,8 @@ export function buildQueryInputs(now: Date) {
 			IndexName: CRAWL_STATUS_INDEX,
 			KeyConditionExpression: "crawlStatus = :pending",
 			FilterExpression:
-				"(attribute_not_exists(ownerUserId) AND crawlPendingSince < :crawlMinAge) " +
-				"OR (attribute_exists(ownerUserId) AND crawlPendingSince < :privateCrawlMinAge)",
+				`(attribute_not_exists(ownerUserId) AND (crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")})) ` +
+				`OR (attribute_exists(ownerUserId) AND (crawlPendingSince < :privateCrawlMinAge OR ${legacyAgeGate(":privateCrawlMinAge")}))`,
 			ProjectionExpression,
 			ExpressionAttributeNames,
 			ExpressionAttributeValues: {
