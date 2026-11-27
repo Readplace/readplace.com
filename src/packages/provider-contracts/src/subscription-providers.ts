@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { EventInstant } from "@packages/domain/event-envelope";
 import type { UserId } from "@packages/domain/user";
+import type { ReaderReadyEmailSlotClaim } from "./reader-ready-state";
 import type { SubscriptionNextCharge } from "./subscription-billing";
 import type { TrialNudgeKind } from "./trial-scheduler";
 
@@ -75,15 +76,6 @@ export type UpsertActiveSubscription = (input: {
 	plan?: BillingPlan;
 }) => Promise<void>;
 
-export type MarkSubscriptionPendingCancellation = (input: {
-	userId: UserId;
-	cancellationEffectiveAt: string;
-}) => Promise<void>;
-
-export type MarkSubscriptionCancelledByUserId = (input: {
-	userId: UserId;
-}) => Promise<void>;
-
 export type MarkSubscriptionCancelledByEvent = (input: {
 	userId: UserId;
 	subscriptionId: string | undefined;
@@ -117,18 +109,13 @@ export type MarkAutomationSavesHeldEmailSent = (input: {
 	sentAt: string;
 }) => Promise<"claimed" | "already-sent">;
 
-export type PayDigestClaim =
-	| { claimed: false }
-	| { claimed: true; redelivery: false }
-	| { claimed: true; redelivery: true; claimedAt: Date; urls: readonly string[] };
-
 export type ClaimPayDigest = (input: {
 	userId: UserId;
 	trialEndsAt: string;
 	messageId: string;
 	now: Date;
 	urls: readonly string[];
-}) => Promise<PayDigestClaim>;
+}) => Promise<ReaderReadyEmailSlotClaim>;
 
 export type ReleasePayDigest = (input: {
 	userId: UserId;

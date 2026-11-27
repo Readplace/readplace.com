@@ -4,10 +4,8 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { MinutesSchema, shownSummary } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import type {
-	ParseArticle,
-	ParseArticleResult,
-} from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { useTestServer } from "../../../test-app";
 import {

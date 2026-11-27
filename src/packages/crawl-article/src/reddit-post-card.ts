@@ -7,7 +7,7 @@ const REDDIT_POST_URL = /^https?:\/\/(?:www\.|old\.)?reddit\.com\/r\/([A-Za-z0-9
 
 const OembedPostSchema = z.object({ title: z.string().trim().min(1), author_name: z.string().min(1), thumbnail_url: z.string().url().startsWith("https://").optional() });
 
-export type RedditPostCard = { title: string; author: string; subreddit: string; excerpt: string; wordCount: number; postUrl: string; posterUrl: string | undefined; html: string };
+type RedditPostCard = { title: string; author: string; subreddit: string; excerpt: string; wordCount: number; postUrl: string; posterUrl: string | undefined; html: string };
 
 export type FetchRedditPostCard = (params: { url: string }) => Promise<RedditPostCard | undefined>;
 

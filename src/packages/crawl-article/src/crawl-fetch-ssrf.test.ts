@@ -1,5 +1,6 @@
 import { rejectDocumentLandingPage } from "./document-landing-page";
 import assert from "node:assert/strict";
+import dns from "node:dns";
 import http from "node:http";
 import { Agent, buildConnector } from "undici";
 import { initDefaultFetchAia } from "./aia-fetch";
@@ -163,6 +164,7 @@ describe("SSRF guard — HTTP/2 transport", () => {
 	it("rejects a host that resolves to a private IP before connecting", async () => {
 		const fetchH2 = initFetchH2({
 			lookup: createBlockedAddressLookup({ resolve: allHostsResolveTo("169.254.169.254"), isBlocked: blocksPrivate }),
+			assertHostAllowed: () => {},
 		});
 		await expect(fetchH2("https://metadata.attacker.test/")).rejects.toThrow(
 			/blocked address 169\.254\.169\.254/,
@@ -171,6 +173,7 @@ describe("SSRF guard — HTTP/2 transport", () => {
 
 	it("rejects a raw private IP-literal host before connecting (http2.connect skips the lookup for literals)", async () => {
 		const fetchH2 = initFetchH2({
+			lookup: dns.lookup,
 			assertHostAllowed: createLiteralHostGuard({ isBlocked: blocksPrivate }),
 		});
 		await expect(fetchH2("http://169.254.169.254/latest/meta-data/")).rejects.toThrow(

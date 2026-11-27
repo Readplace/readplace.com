@@ -4,8 +4,8 @@ import type { SaveHealthSource } from "./health-sources";
 
 const originalUrl = "https://example.com/article";
 const captureUrl = `https://web.archive.org/web/2008/${originalUrl}`;
-const source: SaveHealthSource = { label: "Wayback", url: captureUrl, expectedDestinationUrl: originalUrl, expectedContent: "article", expectsThumbnail: false, save: { kind: "archive", captureUrl, requireFreshArchive: true } };
-const result: ArchiveHealthReport = { label: source.label, saveAttemptId: "attempt", originalUrl, captureUrl, captureHttpStatus: 200, captureContentHash: "hash", comparisonPromptHash: "prompt-hash", freshArchive: "article-confirmed", outcome: "selected", selected: { id: "candidate", kind: "wrapper", fresh: true, contentHash: "hash" } };
+const source: SaveHealthSource = { label: "Wayback", url: captureUrl, expectedDestinationUrl: originalUrl, expectedContent: "article", save: { kind: "archive", captureUrl } };
+const result: ArchiveHealthReport = { label: source.label, saveAttemptId: "attempt", originalUrl, captureUrl, captureHttpStatus: 200, captureContentHash: "hash", comparisonPromptHash: "prompt-hash", outcome: "selected", selected: { id: "candidate", kind: "wrapper", fresh: true, contentHash: "hash" } };
 
 it("saves sequentially, waits for its own completed comparison and checks direct-save deduplication", async () => {
 	let time = 0;
@@ -64,7 +64,7 @@ it("waits for an eventually visible original card after comparison has completed
 });
 
 const uploadUrl = "https://readplace.com/crawl-canary/upload/run";
-const uploadSource: SaveHealthSource = { label: "Upload", url: uploadUrl, expectedDestinationUrl: uploadUrl, expectedContent: "marker", expectsThumbnail: false, save: { kind: "upload", title: "Upload", html: "<p>marker</p>" } };
+const uploadSource: SaveHealthSource = { label: "Upload", url: uploadUrl, expectedDestinationUrl: uploadUrl, expectedContent: "marker", save: { kind: "upload", title: "Upload", html: "<p>marker</p>" } };
 const uploadReport: UploadHealthReport = { label: "Upload", saveAttemptId: "attempt", originalUrl: uploadUrl, outcome: "selected", selectionRule: "first-capture", selected: { id: "capture", kind: "extension", fresh: true, contentHash: "hash" } };
 
 it("uploads the reader's page and waits for the comparison that names its URL", async () => {

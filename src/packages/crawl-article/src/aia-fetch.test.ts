@@ -147,11 +147,6 @@ describe("withAiaChasing", () => {
 			signal: init.signal,
 		});
 	});
-
-	it("defaults to the real fetchAia implementation when no override is given", () => {
-		const baseFetch: PrimaryFetch = async () => new Response("ok");
-		expect(typeof withAiaChasing(baseFetch)).toBe("function");
-	});
 });
 
 describe("initFetchAia", () => {

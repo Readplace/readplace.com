@@ -2,8 +2,8 @@ import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt, pageHostUrl } from "@packages/domain/article";
-import { type CrawlArticle, type YouTubeEmbed, resolveDocumentUrl } from "@packages/crawl-article";
-import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
+import { type YouTubeEmbed, escapeHtmlText } from "@packages/crawl-article";
+import type { ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
 import type {
 	ActiveCoverageRules,
@@ -13,12 +13,11 @@ import type {
 } from "./coverage-rules/coverage-rule.types";
 
 export function initReadabilityParser(deps: {
-	crawlArticle: CrawlArticle;
 	siteRules: readonly SiteRules[];
 	readabilityAdditions: ReadabilityAdditions;
 	coverageRules: ActiveCoverageRules;
 	logError: (message: string, error?: Error) => void;
-}): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
+}): { parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
 		let hostname: string;
 		try {
@@ -203,28 +202,7 @@ export function initReadabilityParser(deps: {
 		};
 	}
 
-	const parseArticle: ParseArticle = async (url) => {
-		try {
-			new URL(url);
-		} catch {
-			return { ok: false, reason: "Invalid URL" };
-		}
-
-		const result = await deps.crawlArticle({ url, chargeOcrPages: undefined });
-		if (result.status !== "fetched") {
-			return { ok: false, reason: "Could not fetch article" };
-		}
-
-		return parseHtml({
-			url,
-			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: result.finalUrl }),
-			fetchedDocument: result.finalUrl === undefined ? undefined : true,
-			html: result.html,
-			thumbnailUrl: result.thumbnailUrl ?? null,
-		});
-	};
-
-	return { parseArticle, parseHtml };
+	return { parseHtml };
 }
 
 function tryExtractFromSiteRules(params: {
@@ -292,14 +270,6 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const descriptionTag = extracted.excerpt ? `<meta name="description" content="${escapeHtmlText(extracted.excerpt)}">` : "";
 	const siteNameTag = extracted.siteName ? `<meta property="og:site_name" content="${escapeHtmlText(extracted.siteName)}">` : "";
 	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}${siteNameTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
-}
-
-function escapeHtmlText(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
 }
 
 const VIDEO_PLACEHOLDER_LEAD = "Watch this video on ";

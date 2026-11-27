@@ -5,7 +5,7 @@ import type {
 	AssignSavedArticleToReadlist,
 } from "@packages/provider-contracts/article-store";
 
-export interface AddArticleToReadlistDependencies {
+interface AddArticleToReadlistDependencies {
 	allocateSavedAt: AllocateSavedAt;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 }

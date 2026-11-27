@@ -6,6 +6,7 @@ import {
 	createFakeApplyParseResult,
 	createFakePublishLinkSaved,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import type { Client } from "@node-oauth/oauth2-server";
 import { JSDOM } from "jsdom";
@@ -46,13 +47,12 @@ async function buildHarness() {
 		return { status: "fetched" as const, html: articleHtml(title), bodyHash: "a".repeat(64) };
 	};
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle,
 		siteRules: [],
 		readabilityAdditions,
 		logError: createNoopLogError(),
-	});
+	}).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

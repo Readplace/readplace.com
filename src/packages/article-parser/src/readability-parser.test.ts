@@ -44,26 +44,30 @@ const ARTICLE_HTML = `
 </html>`;
 
 function initParser(overrides: {
-	crawlArticle?: Parameters<typeof initReadabilityParser>[0]["crawlArticle"];
 	siteRules?: readonly TestSite[];
 	readabilityAdditions?: Partial<ReadabilityAdditions>;
 	logError?: (message: string, error?: Error) => void;
 } = {}) {
 	return initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle:
-			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
 		siteRules: (overrides.siteRules ?? []).map(toSiteRules),
 		readabilityAdditions: { ...readabilityAdditions, ...overrides.readabilityAdditions },
 		logError: overrides.logError ?? (() => {}),
 	});
 }
 
-describe("initReadabilityParser", () => {
-	it("should extract article title from HTML", async () => {
-		const { parseArticle } = initParser();
+function parseArticleHtml(params: { url: string; html?: string; thumbnailUrl?: string }) {
+	return initParser().parseHtml({
+		url: params.url,
+		documentUrl: params.url,
+		html: params.html ?? ARTICLE_HTML,
+		thumbnailUrl: params.thumbnailUrl ?? null,
+	});
+}
 
-		const result = await parseArticle("https://example.com/article");
+describe("initReadabilityParser", () => {
+	it("should extract article title from HTML", () => {
+		const result = parseArticleHtml({ url: "https://example.com/article" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -71,10 +75,8 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should extract article content as HTML", async () => {
-		const { parseArticle } = initParser();
-
-		const result = await parseArticle("https://example.com/article");
+	it("should extract article content as HTML", () => {
+		const result = parseArticleHtml({ url: "https://example.com/article" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -128,10 +130,8 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should calculate word count from extracted text", async () => {
-		const { parseArticle } = initParser();
-
-		const result = await parseArticle("https://example.com/article");
+	it("should calculate word count from extracted text", () => {
+		const result = parseArticleHtml({ url: "https://example.com/article" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -139,17 +139,8 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should pass through thumbnailUrl from the crawl result as imageUrl", async () => {
-		const { parseArticle } = initParser({
-			crawlArticle: async () => ({
-				status: "fetched" as const,
-				html: ARTICLE_HTML,
-				thumbnailUrl: "https://example.com/image.jpg",
-				bodyHash: "a".repeat(64),
-			}),
-		});
-
-		const result = await parseArticle("https://example.com/article");
+	it("should pass through thumbnailUrl as imageUrl", () => {
+		const result = parseArticleHtml({ url: "https://example.com/article", thumbnailUrl: "https://example.com/image.jpg" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -157,49 +148,8 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should return error for invalid URL", async () => {
-		const { parseArticle } = initParser();
-
-		const result = await parseArticle("not-a-url");
-
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toBe("Invalid URL");
-		}
-	});
-
-	it("should return error when crawl fails", async () => {
-		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "failed" as const, decision: undefined }),
-		});
-
-		const result = await parseArticle("https://example.com/article");
-
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toBe("Could not fetch article");
-		}
-	});
-
-	it("should return error when crawl returns not-modified (unexpected on first fetch)", async () => {
-		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "not-modified" as const }),
-		});
-
-		const result = await parseArticle("https://example.com/article");
-
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toBe("Could not fetch article");
-		}
-	});
-
-	it("should fall back to hostname when readability cannot parse", async () => {
-		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "fetched" as const, html: "<html><body></body></html>", bodyHash: "a".repeat(64) }),
-		});
-
-		const result = await parseArticle("https://example.com/article");
+	it("should fall back to hostname when readability cannot parse", () => {
+		const result = parseArticleHtml({ url: "https://example.com/article", html: "<html><body></body></html>" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -208,7 +158,7 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should use hostname as siteName when og:site_name is absent", async () => {
+	it("should use hostname as siteName when og:site_name is absent", () => {
 		const htmlWithoutSiteName = `
 		<html><head><title>Post</title></head>
 		<body><article>
@@ -216,11 +166,7 @@ describe("initReadabilityParser", () => {
 			<p>Enough content to be parsed by readability as a real article with several words in this paragraph.</p>
 			<p>Another paragraph for good measure with additional text.</p>
 		</article></body></html>`;
-		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "fetched" as const, html: htmlWithoutSiteName, bodyHash: "a".repeat(64) }),
-		});
-
-		const result = await parseArticle("https://blog.example.com/post");
+		const result = parseArticleHtml({ url: "https://blog.example.com/post", html: htmlWithoutSiteName });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -228,18 +174,14 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should use hostname as title when parsed title is empty string", async () => {
+	it("should use hostname as title when parsed title is empty string", () => {
 		const htmlWithEmptyTitle = `
 		<html><head><title></title></head>
 		<body><article>
 			<p>Enough content to be parsed by readability as a real article with several words in this paragraph.</p>
 			<p>Another paragraph for good measure with additional text to satisfy the parser minimum.</p>
 		</article></body></html>`;
-		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "fetched" as const, html: htmlWithEmptyTitle, bodyHash: "a".repeat(64) }),
-		});
-
-		const result = await parseArticle("https://blog.example.com/post");
+		const result = parseArticleHtml({ url: "https://blog.example.com/post", html: htmlWithEmptyTitle });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -247,10 +189,8 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("should return content string from parsed article", async () => {
-		const { parseArticle } = initParser();
-
-		const result = await parseArticle("https://example.com/article");
+	it("should return content string from parsed article", () => {
+		const result = parseArticleHtml({ url: "https://example.com/article" });
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -1549,7 +1489,6 @@ describe("a Quora shared post, through the registered site rules", () => {
 	function parseWith(params: { html: string; siteRules: readonly SiteRules[] }) {
 		const { parseHtml } = initReadabilityParser({
 			coverageRules: { inspect: () => [] },
-			crawlArticle: async () => ({ status: "fetched" as const, html: params.html, bodyHash: "a".repeat(64) }),
 			siteRules: params.siteRules,
 			readabilityAdditions,
 			logError: () => {},

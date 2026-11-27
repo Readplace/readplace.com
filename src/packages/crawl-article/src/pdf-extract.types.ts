@@ -38,7 +38,7 @@ export type PdfExtractStage = "comprehensive-extracting" | "comprehensive-cleani
  * field is required: the compiler forces every producer to name the phase
  * rather than defer a missing value to runtime.
  */
-export type PdfExtractProgress = (params: {
+type PdfExtractProgress = (params: {
 	partIndex: number;
 	partCount: number;
 	stage: PdfExtractStage;

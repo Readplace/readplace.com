@@ -8,14 +8,15 @@ export {
 	CRAWL_PERSONAS,
 	PROXIED_FETCH_TIMEOUTS,
 } from "./crawl-article";
-export { isBlockClassStatus, type Persona } from "./persona-fallback";
+export { isBlockClassStatus } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
-export { measureImageDimensions, type ImageDimensions } from "./measure-image-dimensions";
+export { titleFromPathname } from "./parse-plain-text";
+export { measureImageDimensions } from "./measure-image-dimensions";
 export { describeRejection } from "./describe-rejection";
 export { initFetchYouTubeVideoCard } from "./youtube-video-card";
-export type { FetchYouTubeVideoCard, YouTubeVideoCard } from "./youtube-video-card";
+export type { FetchYouTubeVideoCard } from "./youtube-video-card";
 export { initFetchRedditPostCard, parseRedditPostUrl } from "./reddit-post-card";
-export type { FetchRedditPostCard, RedditPostCard } from "./reddit-post-card";
+export type { FetchRedditPostCard } from "./reddit-post-card";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
@@ -28,7 +29,6 @@ export { isProvenTrackingImageUrl } from "./is-proven-tracking-image-url";
 export type {
 	CrawlArticle,
 	CrawlArticleResult,
-	ComprehensiveCrawlProgress,
 	ThumbnailCascade,
 	ThumbnailImage,
 } from "./crawl-article.types";
@@ -36,20 +36,18 @@ export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
 export type { FetchRetryDecision } from "./fetch-retry-decision";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
-export type { CrawlEgress, CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
-export { isProxyWorthyError, isProxyWorthyResponse } from "./proxied-ladder-fallback";
+export type { CrawlEgress, CrawlFetch } from "./crawl-fetch";
+export { isProxyWorthyError } from "./proxied-ladder-fallback";
 export { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "./curl-fetch";
-export type { CurlImpersonateProbe, CurlImpersonateProbeResult } from "./curl-fetch";
 export { readBodyWithCap, BodyTooLargeError } from "./read-capped-body";
 export type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";
 export { createLiteralHostGuard, createPinnedAddressResolver, defaultResolveAll } from "./blocked-address-lookup";
 export { isAwsWafChallenge } from "./aws-waf-challenge";
 export { hasFastlyChallengeMarkers } from "./fastly-client-challenge";
-export type { ChargeOcrPages, ExtractPdf, OcrPageCharge, ParsedPdfScope, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
+export type { ChargeOcrPages, ExtractPdf, OcrPageCharge, ParsedPdfScope, PdfExtractResult } from "./pdf-extract.types";
 export { isPDF } from "./pdf-detect";
-export type { PdfSignal } from "./pdf-detect";
 export { extractPdfMetadata } from "./extract-pdf-metadata";
-export type { ExtractPdfMetadata, PdfMetadata } from "./extract-pdf-metadata";
+export type { ExtractPdfMetadata } from "./extract-pdf-metadata";
 export { MAX_HTML_BYTES } from "./html-body-limit";
 export { MAX_PDF_BYTES, MAX_PDF_PAGES } from "./pdf-page-limits";
 export { OCR_SCRIPT_PACKS, type OcrScriptPack } from "./ocr-script-packs";
@@ -68,7 +66,6 @@ export { initFetchTrackerHop } from "./fetch-tracker-hop";
 export type { FetchTrackerHop, TrackerHop } from "./fetch-tracker-hop";
 export { fallbackLinkTarget } from "./fallback-link-target";
 export { initResolveThroughUnlocker } from "./resolve-through-unlocker";
-export type { ResolveThroughUnlocker, UnlockerNavigation } from "./resolve-through-unlocker";
 export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";
 export { initHnSearchSiteRules } from "./hn-search-site-rules";
 export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";

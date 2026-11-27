@@ -117,7 +117,7 @@ import type {
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
 import type {
 	ArticleCrawlVersion,
 	BotDefenseEvent,
@@ -247,8 +247,6 @@ import type {
 	MarkSessionAdminMfaVerified,
 	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelledByUserId,
-	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
 	OnUnpaidFirstInvoice,
@@ -341,6 +339,15 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
+
+export type MarkSubscriptionPendingCancellation = (input: {
+	userId: UserId;
+	cancellationEffectiveAt: string;
+}) => Promise<void>;
+
+export type MarkSubscriptionCancelledByUserId = (input: {
+	userId: UserId;
+}) => Promise<void>;
 
 export type HttpErrorMessageMapping = (
 	query: Record<string, unknown>,
@@ -657,6 +664,8 @@ export interface ArticleCrawlBundle {
 	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
 }
+
+export type ParseArticle = (url: string) => Promise<ParseArticleResult>;
 
 export interface ParserBundle {
 	parseArticle: ParseArticle;

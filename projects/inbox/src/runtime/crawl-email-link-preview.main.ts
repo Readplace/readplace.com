@@ -71,7 +71,6 @@ const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
 const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
 const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, logError, logInfo, logThumbnailNotDelivered });
 const { parseHtml } = initReadabilityParser({
-	crawlArticle,
 	siteRules,
 	readabilityAdditions,
 	logError,

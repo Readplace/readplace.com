@@ -38,8 +38,6 @@ export interface UserHighlight {
 
 export type ListHighlightsOfArticle = (url: string) => Promise<readonly UserHighlight[]>;
 
-export type HighlightAnchor = HighlightAnchorUpdate;
-
 export type WriteHighlightAnchorOutcome = { outcome: "written" | "deleted" | "stale" };
 
 export type WriteHighlightAnchor = (params: {
@@ -47,7 +45,7 @@ export type WriteHighlightAnchor = (params: {
 	url: string;
 	highlightId: HighlightId;
 	expectedRevision: number;
-	anchor: HighlightAnchor;
+	anchor: HighlightAnchorUpdate;
 }) => Promise<WriteHighlightAnchorOutcome>;
 
 export type UpdateHighlightNote = (params: {

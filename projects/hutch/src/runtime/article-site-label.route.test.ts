@@ -9,6 +9,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import request from "supertest";
 import { loginAgent, useTestServer } from "./test-app";
@@ -32,7 +33,7 @@ function articleHtml(extraHead = ""): string {
 function buildHarness(html: string) {
 	const crawlArticle = async () => ({ status: "fetched" as const, html, bodyHash: "b".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+	const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: createNoopLogError() }).parseHtml });
 	const applyParseResult = createFakeApplyParseResult({
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,

@@ -1,10 +1,9 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { PutPendingPdf, ReadPendingPdf } from "@packages/provider-contracts/pending-pdf";
+import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 
 export interface InMemoryPendingPdf {
 	putPendingPdf: PutPendingPdf;
 	readPendingPdfSync: (url: string, options: { saveAttemptId: string }) => Buffer | undefined;
-	readPendingPdf: ReadPendingPdf;
 }
 
 export function initInMemoryPendingPdf(): InMemoryPendingPdf {
@@ -18,11 +17,5 @@ export function initInMemoryPendingPdf(): InMemoryPendingPdf {
 
 	const readPendingPdfSync = (url: string, options: { saveAttemptId: string }): Buffer | undefined => store.get(keyFor(url, options));
 
-	const readPendingPdf: ReadPendingPdf = async (url, options) => {
-		const bytes = store.get(keyFor(url, options));
-		if (!bytes) throw new Error(`pending-pdf missing for ${url}`);
-		return bytes;
-	};
-
-	return { putPendingPdf, readPendingPdfSync, readPendingPdf };
+	return { putPendingPdf, readPendingPdfSync };
 }

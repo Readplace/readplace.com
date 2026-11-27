@@ -7,7 +7,7 @@ import type {
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 
-export interface FileArticleIntoReadlistDependencies {
+interface FileArticleIntoReadlistDependencies {
 	allocateSavedAt: AllocateSavedAt;
 	saveReadlistArticle: SaveReadlistArticle;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
