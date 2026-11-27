@@ -9,7 +9,7 @@ import {
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
 import { INBOX_EMAILS_PAGE_SIZE } from "../runtime/web/pages/inbox/inbox-emails.url";
-import { pinCopyableAddresses } from "./inbox-visual.browser";
+import { centreOfElement, pinCopyableAddresses } from "./inbox-visual.browser";
 
 /** A fixed instant, so the list's wall-clock-relative label is the same on every
  * run and the baseline is not a slowly rotting screenshot of "1 hour ago". */
@@ -1026,6 +1026,7 @@ test.describe("Inbox visual checkpoints", () => {
 		await openNewsletterLinksPage(page, "remove");
 		await finishNewsletterLinksJob(page, {});
 		await reloadUntilCount(page, "counted");
+		await page.locator("[data-test-newsletter-links-open-confirm]").click();
 		await page.locator("[data-test-newsletter-links-submit]").click();
 		await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", "working");
 		await finishNewsletterLinksJob(page, { state: "failed" });
@@ -1096,13 +1097,8 @@ test.describe("Newsletter Links Removal confirm popup", () => {
 			await trigger.click();
 			await expect(page.locator(NEWSLETTER_CONFIRM_POPOVER)).toBeVisible();
 			await expect(page.locator("[data-test-newsletter-links-submit]")).toBeFocused();
-			const point = await back.evaluate((link) => {
-				const box = link.getBoundingClientRect();
-				const x = box.left + box.width / 2;
-				const y = box.top + box.height / 2;
-				return { x, y, hitsLink: link.contains(document.elementFromPoint(x, y)) };
-			});
-			expect(point.hitsLink).toBe(false);
+			const point = await back.evaluate(centreOfElement);
+			expect(point.hitsElement).toBe(false);
 			await pointer(point.x, point.y);
 			await expect(page.locator(NEWSLETTER_CONFIRM_POPOVER)).toHaveCount(0);
 			await expect(page).toHaveURL(/\/inbox\/newsletter-links\/remove/);

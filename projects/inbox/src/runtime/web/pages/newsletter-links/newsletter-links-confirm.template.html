@@ -60,7 +60,7 @@
             <legend class="newsletter-links-page__senders-legend">{{t "newsletterLinks.confirm.sendersLegend"}}</legend>
             <div class="newsletter-links-page__sender-list">
               {{#each counted.senders}}
-              <label class="newsletter-links-page__choice newsletter-links-page__sender"><input class="form-choice" type="checkbox" name="sender" value="{{senderEmail}}" data-test-newsletter-links-sender> <span class="newsletter-links-page__sender-email">{{senderEmail}}</span> <span class="newsletter-links-page__sender-count">({{countLabel}})</span></label>
+              <label class="newsletter-links-page__choice newsletter-links-page__sender"><input class="form-choice" type="checkbox" name="sender" value="{{senderEmail}}" data-test-newsletter-links-sender> <span class="newsletter-links-page__sender-email">{{senderMailbox}}<wbr>{{senderDomain}}</span> <span class="newsletter-links-page__sender-count">({{countLabel}})</span></label>
               {{/each}}
             </div>
           </fieldset>

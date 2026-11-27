@@ -6,7 +6,7 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
 import type { PageBody } from "@packages/web-shell";
 import { render, renderAlert, withInternalTracking } from "@packages/web-shell";
-import { type NewsletterLinksConfirmState, senderCountLabel } from "./newsletter-links-confirm.component";
+import { type NewsletterLinksConfirmState, senderCountLabel, senderEmailParts } from "./newsletter-links-confirm.component";
 import { NEWSLETTER_LINKS_STYLES } from "./newsletter-links.styles";
 import {
 	NEWSLETTER_LINKS_COUNT_PATH,
@@ -44,6 +44,7 @@ function countedView(state: Extract<NewsletterLinkCount, { kind: "counted" }>) {
 		restoreAction: total + issues > 0 ? RESTORE_ACTION : undefined,
 		senders: bySender.map((sender) => ({
 			senderEmail: sender.senderEmail,
+			...senderEmailParts(sender.senderEmail),
 			countLabel: senderCountLabel({ links: sender.count, issues: sender.issues }),
 		})),
 		unrestorable:

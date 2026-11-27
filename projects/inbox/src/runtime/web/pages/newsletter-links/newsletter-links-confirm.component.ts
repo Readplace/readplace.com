@@ -70,6 +70,11 @@ export function senderCountLabel(params: { links: number; issues: number }): str
 	return t("newsletterLinks.confirm.senderLinksAndIssues", { links, issues });
 }
 
+export function senderEmailParts(senderEmail: string): { senderMailbox: string; senderDomain: string } {
+	const domainStart = senderEmail.lastIndexOf("@") + 1;
+	return { senderMailbox: senderEmail.slice(0, domainStart), senderDomain: senderEmail.slice(domainStart) };
+}
+
 function mergedSenders(params: {
 	links: readonly { senderEmail: string; count: number }[];
 	issues: readonly { senderEmail: string; count: number }[];
@@ -83,7 +88,11 @@ function mergedSenders(params: {
 	return [...senders]
 		.map(([senderEmail, counts]) => ({ senderEmail, ...counts }))
 		.sort((a, b) => b.links + b.issues - (a.links + a.issues) || a.senderEmail.localeCompare(b.senderEmail))
-		.map((sender) => ({ senderEmail: sender.senderEmail, countLabel: senderCountLabel(sender) }));
+		.map((sender) => ({
+			senderEmail: sender.senderEmail,
+			...senderEmailParts(sender.senderEmail),
+			countLabel: senderCountLabel(sender),
+		}));
 }
 
 function countedView(state: Extract<NewsletterLinkCount, { kind: "counted" }>) {

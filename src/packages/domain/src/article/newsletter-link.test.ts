@@ -179,4 +179,19 @@ describe("summariseNewsletterIssues", () => {
 			skipped: { read: 1, highlighted: 1 },
 		});
 	});
+
+	it("orders senders with the same count by address", () => {
+		const summary = summariseNewsletterIssues({
+			cutoff: CUTOFF,
+			emails: [
+				{ senderEmail: "b@x", receivedAt: "2026-11-20T00:00:00.000Z", issueState: undefined },
+				{ senderEmail: "a@x", receivedAt: "2026-11-21T00:00:00.000Z", issueState: undefined },
+			],
+		});
+
+		assert.deepEqual(summary.bySender, [
+			{ senderEmail: "a@x", count: 1 },
+			{ senderEmail: "b@x", count: 1 },
+		]);
+	});
 });

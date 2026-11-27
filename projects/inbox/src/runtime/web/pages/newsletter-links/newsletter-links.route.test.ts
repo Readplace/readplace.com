@@ -800,6 +800,7 @@ describe("Newsletter links confirm page", () => {
 			"issues@example.com (2 issues)",
 			"small@example.com (1 link, 1 issue)",
 		]);
+		expect(doc.querySelector(".newsletter-links-page__sender-email")?.innerHTML).toBe("big@<wbr>example.com");
 		expect(textsOf(doc, "[data-test-newsletter-links-skipped]")).toEqual(["These stay:"]);
 		expect(textsOf(doc, "[data-test-newsletter-links-skipped-reason]")).toEqual([
 			"1 issue you marked as read",
