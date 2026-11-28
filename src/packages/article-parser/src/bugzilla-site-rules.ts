@@ -40,8 +40,8 @@ export const bugzillaSiteRules = {
 		const scope = scopes[0];
 		const end = scope.querySelector(":scope > #bottom-actions");
 		if (!end || !(lastEvent.compareDocumentPosition(end) & 4)) return undefined;
-		const comments = events.filter(event => /^c[0-9]+$/.test(event.id));
-		if (comments.some((event, ordinal) => event.id !== `c${ordinal}`)) return undefined;
+		const comments = events.filter(event => /^c[0-9]+$/.test(event.id)).map(event => Number(event.id.slice(1)));
+		if (comments.some((number, index) => index > 0 && number <= comments[index - 1])) return undefined;
 
 		const article = document.createElement("article");
 		const title = appendIssueSummary(article, scope, events[0], canonical, id);
@@ -110,10 +110,11 @@ function appendIssueSummary(article: Element, scope: Element, opening: Element, 
 
 	const dates = scope.querySelectorAll("#summary-container .bug-time-label");
 	if (dates.length !== 2) return undefined;
-	for (const [index, label] of ["Opened", "Updated"].entries()) {
+	for (const [index, labels] of [["Opened"], ["Updated", "Closed"]].entries()) {
 		const node = dates[index];
 		const time = timestamp(node.querySelector(":scope > .rel-time"));
-		if (!time || node.firstChild?.textContent?.trim() !== label) return undefined;
+		const label = labels.find(candidate => node.firstChild?.textContent?.trim() === candidate);
+		if (!time || !label) return undefined;
 		paragraph(article, `${label} `, time);
 	}
 

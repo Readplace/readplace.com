@@ -120,6 +120,12 @@ describe("signed-out Mozilla Bugzilla discussion", () => {
 		expect(reader.querySelectorAll("pre")).toHaveLength(2);
 	});
 
+	it("prints a closed bug's closing date under the page's own label", () => {
+		const { reader } = parse({ html: FIXTURE.replace('<span class="bug-time-label">Updated ', '<span class="bug-time-label">Closed ') });
+		expect(Array.from(reader.querySelectorAll("p:has(time)"), (stamp) => stamp.textContent).slice(0, 2)).toEqual([`Opened ${OPENED}`, `Closed ${UPDATED}`]);
+		expect(reader.querySelectorAll("pre")).toHaveLength(2);
+	});
+
 	it("omits an empty tracking placeholder", () => {
 		const { reader } = parse({ html: FIXTURE.replace("Tracking not set", "(  )") });
 		expect(reader.textContent).not.toContain("Tracking:");
@@ -163,6 +169,7 @@ describe("default extraction when the public discussion is unverified", () => {
 		["missing status badge", 'class="bug-status-label"', 'class="unknown-status-label"'],
 		["missing status", 'id="field-value-status-view"', 'id="unknown-status"'],
 		["missing header date", "Opened ", "Posted "],
+		["closing label in the opening date", "Opened ", "Closed "],
 		["missing header date marker", 'class="bug-time-label"', 'class="unknown-time-label"'],
 		["unparseable date", 'title="2020-01-02 03:04 UTC"', 'title="Some time ago"'],
 		["different absolute date", 'title="2020-01-02 03:04 UTC"', 'title="2020-01-02 03:08 UTC"'],
@@ -285,6 +292,19 @@ describe("rich comments and public patch affordances", () => {
 		expect(changed.content).toBe(baseline.content);
 	});
 
+	it("keeps each comment's own number when a withheld comment leaves a gap", () => {
+		const withheld = RICH_EVENT.replaceAll("c2", "c3").replace('data-no="2"', 'data-no="3"').replace("Comment 2", "Comment 3");
+		const { reader } = parse({ html: RICH_FIXTURE.replace(RICH_EVENT, withheld) });
+		expect(Array.from(reader.querySelectorAll("h3"), (element) => element.textContent)).toEqual([
+			"Description · Example Reporter (Reporter)", "Updated · Example Maintainer",
+			"Comment 1 · Example Reporter", "Comment 3 · Example Maintainer", "Updated · Example Reporter",
+		]);
+		expect(Array.from(reader.querySelectorAll<HTMLAnchorElement>('h3 a[href*="#c"]'), (link) => link.href)).toEqual([
+			`${ISSUE}#c0`, `${ISSUE}#c1`, `${ISSUE}#c3`,
+		]);
+		expect(reader.querySelector("pre > code")?.textContent).toBe(RICH_CODE);
+	});
+
 	it.each([
 		["different card kind", PATCH_CARD.replace("attachment patch", "attachment other")],
 		["hidden card", PATCH_CARD.replace("id=\"att-13\"", "id=\"att-13\" hidden")],
@@ -317,7 +337,7 @@ describe("unsupported rich or incomplete templates", () => {
 		["missing final issue chrome", RICH_FIXTURE.replace(END, "")],
 		["final issue chrome before events", RICH_FIXTURE.replace(END, "").replace('<div class="change-set" id="c0">', `${END}<div class="change-set" id="c0">`)],
 		["no timeline", `${FIXTURE.slice(0, FIXTURE.indexOf('<div class="change-set" id="c0">'))}${END}</div></main></body></html>`],
-		["missing interior comment", FIXTURE.replace('id="c1"', 'id="c2"')],
+		["comments out of order", FIXTURE.replace('<div class="change-set" id="c1">', `${RICH_EVENT}<div class="change-set" id="c1">`)],
 		["unsupported comment marker", RICH_FIXTURE.replace("comment-text markdown-body", "comment-text unrecognized")],
 		["top level prose outside Markdown blocks", RICH_FIXTURE.replace(RICH, `Loose source text${RICH}`)],
 		["non-list text inside a list", RICH_FIXTURE.replace("<ul><li>Reproduce", "<ul>Loose list text<li>Reproduce")],
