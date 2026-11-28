@@ -19,7 +19,7 @@ import { viewerOf } from "@packages/viewer-identity";
 import { hashIp } from "@packages/web-analytics";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../../shared/article-body/parse-fragment-root";
 import { z } from "zod";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
@@ -88,11 +88,7 @@ const NEEDS_NEW_SELECTION: Record<HighlightRefusal, boolean> = {
 };
 
 function servedTextOf(html: string): string {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="served-highlight-root">${html}</div></body></html>`,
-	);
-	const root = document.querySelector("div#served-highlight-root");
-	assert(root, "parseHTML must produce the served-highlight wrapper div");
+	const root = parseFragmentRoot(html);
 	return normaliseText(collectTextChunks<Node>(root)).text;
 }
 

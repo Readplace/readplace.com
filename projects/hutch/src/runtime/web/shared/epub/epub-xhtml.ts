@@ -119,6 +119,10 @@ function serializeNode(node: Node): string {
 	return "";
 }
 
+export function paragraphXhtml(text: string): string {
+	return `<p>${escapeXmlText(text)}</p>`;
+}
+
 export function escapeXmlText(value: string): string {
 	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }

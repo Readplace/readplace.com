@@ -10,7 +10,7 @@ import { renderReadlistCreate, renderReadlistCreateForm } from "../readlist-crea
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
-export interface ArticleMoveDestination {
+interface ArticleMoveDestination {
 	slug: ReadlistSlug;
 	label: string;
 	smart?: true;

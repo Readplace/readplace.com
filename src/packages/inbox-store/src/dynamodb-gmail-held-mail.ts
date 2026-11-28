@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import {
 	writeIfCondition,
 	type DynamoDBDocumentClient,
@@ -10,8 +9,6 @@ import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import type { GmailHeldMailEntry, GmailHeldMailStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-
-const SENDER_INDEX = "senderReceivedAt-index";
 
 const GmailHeldMailRow = z.object({
 	userId: UserIdSchema,
@@ -55,18 +52,6 @@ export function initDynamoDbGmailHeldMail(deps: {
 			}));
 			if (outcome.kind === "condition-failed") return "duplicate";
 			return "stored";
-		},
-		listHeldMailBySender: async ({ userId, senderEmail, limit }) => {
-			assert(Number.isInteger(limit), "limit must be an integer");
-			assert(limit >= 1, "limit must be >= 1");
-			const { items } = await table.query({
-				IndexName: SENDER_INDEX,
-				KeyConditionExpression: "userId = :uid AND begins_with(senderReceivedAt, :prefix)",
-				ExpressionAttributeValues: { ":uid": userId, ":prefix": `${senderEmail}#` },
-				ScanIndexForward: false,
-				Limit: limit,
-			});
-			return items.map(toEntry);
 		},
 		listHeldMailByUserId: async (userId) => {
 			const held: GmailHeldMailEntry[] = [];

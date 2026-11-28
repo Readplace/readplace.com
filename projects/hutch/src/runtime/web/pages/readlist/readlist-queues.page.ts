@@ -11,9 +11,6 @@ import {
 	buildReadlistUrl,
 } from "./readlist.url";
 import {
-	readerReadlists,
-} from "./readlist-context";
-import {
 	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
 	parseReadlistPurpose,
@@ -23,6 +20,7 @@ import {
 	decideReadlistPin,
 	decideReadlistRename,
 	readlistAfterDelete,
+	readerReadlists,
 } from "@packages/domain/readlist";
 import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_PIN_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, } from "./readlist.error";
 import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";

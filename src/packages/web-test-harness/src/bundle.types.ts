@@ -348,10 +348,6 @@ export type MarkSubscriptionCancelledByUserId = (input: {
 	userId: UserId;
 }) => Promise<void>;
 
-export type HttpErrorMessageMapping = (
-	query: Record<string, unknown>,
-) => string | undefined;
-
 export interface AuthBundle {
 	hashPassword: (password: string) => Promise<string>;
 	createUser: CreateUser;
@@ -873,7 +869,6 @@ export interface SharedBundle {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
-	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: LogError;
 	now: () => Date;
 }

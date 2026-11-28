@@ -201,7 +201,6 @@ describe("Apple auth routes", () => {
 					validateSaveableUrl: fixture.shared.validateSaveableUrl,
 					appOrigin: fixture.shared.appOrigin,
 					staticBaseUrl: fixture.shared.staticBaseUrl,
-					httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 					logError: (msg) => {
 						errors.push(msg);
 					},

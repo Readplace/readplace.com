@@ -99,29 +99,10 @@ import type {
 	PublishSaveAnonymousLink,
 } from "@packages/provider-contracts/events";
 import type {
-	HttpErrorMessageMapping,
 	RefreshArticleIfStale,
 	TestAppFixture,
 } from "./bundle.types";
 
-
-/** Duplicates the application's wire-format `error_code` → user-facing message
- * map. The fixture cannot import that map from the application package without
- * re-introducing a dependency cycle, so both copies must be kept consistent. */
-const SAVE_ERROR_MESSAGES: Record<string, string> = {
-	save_failed: "Couldn't save this article. Try again.",
-	daily_save_limit: "You've reached today's limit for new saves.",
-	import_too_large:
-		"That file is too large. The limit is 4.5 MB — split the export into smaller files and import them one at a time.",
-	import_no_urls: "We couldn't find any links in that file.",
-	import_session_not_found:
-		"That import session has expired. Please upload the file again.",
-};
-
-const httpErrorMessageMapping: HttpErrorMessageMapping = (query) => {
-	const errorCode = typeof query.error_code === "string" ? query.error_code : undefined;
-	return errorCode ? SAVE_ERROR_MESSAGES[errorCode] : undefined;
-};
 
 /* c8 ignore next -- V8 block-coverage phantom: the const initializer for the first
 	`export const arrowFn` in this module is reported as an uncovered function even
@@ -702,7 +683,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			validateSaveableUrl,
 			appOrigin,
 			staticBaseUrl: "https://static.test",
-			httpErrorMessageMapping,
 			logError: createNoopLogError(),
 			now: () => new Date(),
 		},

@@ -58,7 +58,7 @@ import {
 	REPORT_ARTICLE_SCRIPT,
 	type ReportArticleDialogInput,
 } from "../../shared/report-article/report-article-dialog.component";
-import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
+import { isReaderViewReady } from "../../shared/article-state/is-reader-view-ready";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
@@ -184,22 +184,15 @@ export function renderViewCtaActionOob(action: ViewAction): string {
 	return renderViewCtaAction(action, true);
 }
 
-export function viewEpubHref(articleUrl: string): string {
+export function viewEpubHref(input: { articleUrl: string; utmSource: "view-article" | "view-end-cta" }): string {
 	return withClickSurface(
-		articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }),
-		CLICK_SURFACES.readerPublic,
-	);
-}
-
-export function viewEndCtaEpubHref(articleUrl: string): string {
-	return withClickSurface(
-		articleEpubHref({ articleUrl, utmSource: "view-end-cta", appClient: undefined }),
+		articleEpubHref({ articleUrl: input.articleUrl, utmSource: input.utmSource, appClient: undefined }),
 		CLICK_SURFACES.readerPublic,
 	);
 }
 
 export function renderViewDownloadsOob(params: { articleUrl: string; guide: EpubDownloadGuide | undefined }): string {
-	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide, placements: ["toolbar"] });
+	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref({ articleUrl: params.articleUrl, utmSource: "view-article" }), guide: params.guide, placements: ["toolbar"] });
 }
 
 function viewShareInput(input: {
@@ -225,7 +218,7 @@ export function renderViewShareUpgradeOob(input: {
 	appOrigin: string;
 	state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
 }): string {
-	if (isPrivateItemUrl(input.articleUrl) || !isReaderViewShareable(input.state)) return "";
+	if (isPrivateItemUrl(input.articleUrl) || !isReaderViewReady(input.state)) return "";
 	return renderSharePanelsOob(
 		viewShareInput({
 			shareableViewUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
@@ -277,7 +270,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 				shareableViewUrl,
 				originalUrl: input.destinationUrl,
 				title: input.metadata.title,
-				readerViewShareable: isReaderViewShareable({ content: input.content, crawl: input.crawl }),
+				readerViewShareable: isReaderViewReady({ content: input.content, crawl: input.crawl }),
 			});
 	const actions = WebReader({
 		actionBtns: {
