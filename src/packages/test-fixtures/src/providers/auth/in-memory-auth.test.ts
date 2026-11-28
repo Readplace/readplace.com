@@ -236,7 +236,7 @@ describe("initInMemoryAuth", () => {
 			expect(await auth.findUserByEmail("gone@example.com")).toBeNull();
 			// The row stays reserved until the async scrub removes it, so a re-signup
 			// on the same address is refused rather than resurrecting the account.
-			expect(await auth.countUsers()).toBe(1);
+			expect(await auth.userExistsByEmail("gone@example.com")).toBe(true);
 			const resignup = await auth.createUser({ email: "gone@example.com", password: "password456" });
 			expect(resignup).toEqual({ ok: false, reason: "email-already-exists" });
 		});
@@ -455,26 +455,6 @@ describe("initInMemoryAuth", () => {
 			const result = await auth.verifyCredentials({ email: "TEST@Example.COM", password: "password123" });
 
 			expect(result.ok).toBe(true);
-		});
-	});
-
-	describe("countUsers", () => {
-		it("should return zero when no users exist", async () => {
-			const auth = makeAuth();
-
-			const count = await auth.countUsers();
-
-			expect(count).toBe(0);
-		});
-
-		it("should return the number of registered users", async () => {
-			const auth = makeAuth();
-			await auth.createUser({ email: "a@example.com", password: "password123" });
-			await auth.createUser({ email: "b@example.com", password: "password456" });
-
-			const count = await auth.countUsers();
-
-			expect(count).toBe(2);
 		});
 	});
 

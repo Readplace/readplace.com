@@ -6,31 +6,6 @@ const TEST_USER_ID = UserIdSchema.parse("1234567890abcdef1234567890abcdef");
 const TEST_NOW = () => new Date("2026-05-13T10:00:00.000Z");
 
 describe("buildUserCreatedEvent", () => {
-	it("builds a free signup event with the lowercased-email sha256 prefix", () => {
-		const event = buildUserCreatedEvent(
-			{ now: TEST_NOW },
-			{
-				userId: TEST_USER_ID,
-				email: "Alice@Example.com",
-				method: "email",
-				tier: "free",
-				attribution: undefined,
-				homepageVariant: undefined,
-				oauthClientId: undefined,
-			},
-		);
-
-		expect(event).toEqual({
-			stream: "conversions",
-			event: "user_created",
-			timestamp: "2026-05-13T10:00:00.000Z",
-			user_id: TEST_USER_ID,
-			email_hash: "ff8d9819fc0e12bf",
-			method: "email",
-			tier: "free",
-		});
-	});
-
 	it("builds a trial signup event", () => {
 		const event = buildUserCreatedEvent(
 			{ now: TEST_NOW },
@@ -63,7 +38,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "e@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				visitorId: "550e8400-e29b-41d4-a716-446655440000",
 				homepageVariant: undefined,
@@ -109,7 +84,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "c@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution,
 				homepageVariant: undefined,
 				oauthClientId: undefined,
@@ -133,7 +108,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "Alice@Example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				homepageVariant: undefined,
 				oauthClientId: undefined,
@@ -145,7 +120,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "alice@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				homepageVariant: undefined,
 				oauthClientId: undefined,
@@ -162,7 +137,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "d@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				homepageVariant: undefined,
 				oauthClientId: undefined,
@@ -176,7 +151,7 @@ describe("buildUserCreatedEvent", () => {
 			user_id: TEST_USER_ID,
 			email_hash: "5fe5806a804c99a3",
 			method: "email",
-			tier: "free",
+			tier: "trial",
 		});
 	});
 
@@ -187,7 +162,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "blocked@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				pendingSaveId: "9f1c0c8e-3b2a-4d6e-8c1f-2a7b5d4e6f10",
 				homepageVariant: undefined,
@@ -207,7 +182,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "connector@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				homepageVariant: undefined,
 				oauthClientId: "ios-app",
@@ -224,7 +199,7 @@ describe("buildUserCreatedEvent", () => {
 				userId: TEST_USER_ID,
 				email: "organic@example.com",
 				method: "email",
-				tier: "free",
+				tier: "trial",
 				attribution: undefined,
 				homepageVariant: undefined,
 				oauthClientId: undefined,
@@ -238,7 +213,7 @@ describe("buildUserCreatedEvent", () => {
 			user_id: TEST_USER_ID,
 			email_hash: "908cf3c1dc654595",
 			method: "email",
-			tier: "free",
+			tier: "trial",
 		});
 	});
 });

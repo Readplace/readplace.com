@@ -53,7 +53,6 @@ import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/reader-slot/section-pages";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
-import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
@@ -77,7 +76,6 @@ export type {
 	EmailBundle,
 	EmailVerificationBundle,
 	EventsBundle,
-	FoundingAllocationBundle,
 	FreshnessBundle,
 	GoogleAuthBundle,
 	ImportSessionBundle,
@@ -228,7 +226,6 @@ function flattenFixtureToAppDependencies(
 		destroyUserSessions: fixture.auth.destroyUserSessions,
 		destroyOAuthGrantSessions: fixture.auth.destroyOAuthGrantSessions,
 		markAccountDeleted: fixture.auth.markAccountDeleted,
-		countUsers: fixture.auth.countUsers,
 		countEarlyIntentionalSave: fixture.auth.countEarlyIntentionalSave,
 		markActivationThresholdReached: fixture.auth.markActivationThresholdReached,
 		setKeepOfferDismissed: fixture.auth.setKeepOfferDismissed,
@@ -512,9 +509,6 @@ function flattenFixtureToAppDependencies(
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
 		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
-		foundingAllocation: initFoundingAllocation({
-			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
-		}),
 		fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({
 			fetch: fakeFirefoxPointerFetch(TEST_FIREFOX_XPI_FILENAME),
 		}),

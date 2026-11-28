@@ -15,7 +15,6 @@ import type {
 	FindExportRecipient,
 	MarkExportDelivered,
 	CountEarlyIntentionalSave,
-	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
@@ -117,7 +116,6 @@ export function initInMemoryAuth(opts: {
 	markAccountDeleted: MarkAccountDeleted;
 	findExportRecipient: FindExportRecipient;
 	markExportDelivered: MarkExportDelivered;
-	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
 	markAgeLocked: MarkAgeLocked;
@@ -407,10 +405,6 @@ export function initInMemoryAuth(opts: {
 		user.exportDeliveredRequestedAt = requestedAt;
 	};
 
-	const countUsers: CountUsers = async () => {
-		return users.size;
-	};
-
 	const markEmailVerified: MarkEmailVerified = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
 		const user = users.get(normalizedEmail);
@@ -635,7 +629,6 @@ export function initInMemoryAuth(opts: {
 		clearAgeLock,
 		findExportRecipient,
 		markExportDelivered,
-		countUsers,
 		countEarlyIntentionalSave,
 		markEmailVerified,
 		markSessionEmailVerified,

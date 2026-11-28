@@ -83,8 +83,6 @@ export type MarkAgeLocked = (input: { userId: UserId; at: string }) => Promise<v
 
 export type ClearAgeLock = (userId: UserId) => Promise<"unlocked" | "not-locked">;
 
-export type CountUsers = () => Promise<number>;
-
 export type MarkEmailVerified = (email: string) => Promise<void>;
 
 export type MarkSessionEmailVerified = (sessionId: string) => Promise<void>;
@@ -258,7 +256,7 @@ export interface ConversionEvent {
 	user_id: UserId;
 	email_hash: string;
 	method: "email" | "google" | "apple";
-	tier: "free" | "trial";
+	tier: "trial";
 	utm_source?: string;
 	utm_medium?: string;
 	utm_campaign?: string;

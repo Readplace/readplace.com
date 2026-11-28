@@ -29,18 +29,6 @@ export async function runExtendTrialFlow(page: Page, config: ExtendTrialConfig &
 		})
 		assert.equal(adminCreated.status(), 201, 'seeding the admin user must succeed')
 
-		// Signup only starts a trial once the founding allocation (3 seats in the
-		// e2e fixture) is exhausted — earlier accounts become founding members with
-		// no subscription row, which this page refuses. Two fillers plus the admin
-		// guarantee the target lands past the allocation regardless of how many
-		// users the parallel specs have created by now.
-		for (const filler of ['extend-trial-filler-1@example.com', 'extend-trial-filler-2@example.com']) {
-			const created = await seed.post('/e2e/users', {
-				data: { email: filler, password: 'filler-password-123' },
-			})
-			assert.equal(created.status(), 201, `seeding ${filler} must succeed`)
-		}
-
 		const targetSignup = await seed.post('/signup', {
 			form: {
 				website: '',

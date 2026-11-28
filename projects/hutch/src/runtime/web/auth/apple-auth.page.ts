@@ -4,7 +4,6 @@ import express from "express";
 import { z } from "zod";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type {
-	CountUsers,
 	CreateAppleUser,
 	CreateSession,
 	FindUserByEmail,
@@ -19,36 +18,25 @@ import {
 	startTrial,
 	trialEndsAtFromNow,
 } from "../../domain/trial/start-trial";
-import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
-import { Base } from "../base.component";
-import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { oauthClientIdFrom } from "./oauth-client-id";
 import { defineCookie } from "@packages/web-analytics";
-import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
-import { sessionCookie } from "../session-cookie";
-import { LoginPage } from "./auth.component";
-import { initFetchUserCount } from "./fetch-user-count";
+import type { RecordAudienceEvent } from "@packages/web-analytics";
+import { oauthCallbackResponses } from "./oauth-callback-responses";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
-import { viewerOf } from "@packages/viewer-identity";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
-import { LAST_VIEW_COOKIE_NAME, readLastViewUrl } from "../last-view";
-import { readLastAuthProvider, setLastAuthProvider } from "../last-auth-provider";
-import { resolvePostSignupRedirect } from "./post-signup-redirect";
-import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
-import { verifyState } from "./oauth-state";
-import { signAppleState } from "./apple-state";
+import { signState, verifyState } from "./oauth-state";
 import type { Logger, LogError } from "@packages/logger";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
-import { initClaimSignupAllowance, signupAllowanceSpentMessage } from "./signup-allowance";
+import { initClaimSignupAllowance } from "./signup-allowance";
 
 const CallbackBodySchema = z.object({
 	code: z.string().min(1),
@@ -67,7 +55,6 @@ const StatePayloadSchema = z.object({
 	visitorId: z.string().optional(),
 	homepageVariant: z.string().optional(),
 	pendingSaveId: z.string().optional(),
-	lastViewUrl: z.string().optional(),
 });
 
 const STATE_COOKIE = "hutch_astate";
@@ -88,7 +75,6 @@ interface AppleAuthDependencies {
 	createAppleUser: CreateAppleUser;
 	saveAppleRefreshToken: SaveAppleRefreshToken;
 	findUserByEmail: FindUserByEmail;
-	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	exchangeAppleCode: ExchangeAppleCode;
 	upsertTrialing: UpsertTrialingSubscription;
@@ -97,9 +83,6 @@ interface AppleAuthDependencies {
 	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
-	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
-	salt: string;
-	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
 	signUnsubscribeToken: (userId: UserId) => string;
@@ -110,20 +93,10 @@ interface AppleAuthDependencies {
 
 export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const router = express.Router();
-	const signIn = (res: Response, sessionId: string): void => {
-		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
-		res.set("Clear-Site-Data", '"storage"');
-		setLastAuthProvider({ res, secure: deps.secureCookies }, "apple");
-	};
 	const redirectUri = `${deps.appOrigin}/auth/apple/callback`;
 	const claimSignupAllowance = initClaimSignupAllowance({
 		consumeRateLimit: deps.consumeRateLimit,
 		rule: deps.signupCreatedRule,
-	});
-	const fetchUserCount = initFetchUserCount({
-		countUsers: deps.countUsers,
-		logError: deps.logError,
-		logPrefix: "[Apple Auth]",
 	});
 	const sendWelcomeEmail = initSendWelcomeEmail({
 		sendEmail: deps.sendEmail,
@@ -145,9 +118,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const visitorId = req.visitorId;
 		const homepageVariant = readHomepageVariantSlug(req);
 		const pendingSaveId = readPendingSaveId(req);
-		const lastViewUrl = readLastViewUrl(req);
-		const signedState = signAppleState({
-			payload: {
+		const signedState = signState({
+			payload: JSON.stringify({
 				nonce,
 				returnUrl,
 				createdAt,
@@ -155,8 +127,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				...(visitorId ? { visitorId } : {}),
 				...(homepageVariant ? { homepageVariant } : {}),
 				...(pendingSaveId ? { pendingSaveId } : {}),
-			},
-			lastViewUrl,
+			}),
 			secret: deps.stateSigningSecret,
 		});
 
@@ -190,60 +161,23 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const parsedBody = CallbackBodySchema.safeParse(req.body);
 		const stateCookie = req.cookies?.[STATE_COOKIE];
 
-		const renderError = async ({ message, reason = "provider_rejected" }: { message: string; reason?: "callback_invalid" | "expired" | "provider_rejected" }) => {
-			res.locals.authDiagnosticReason = reason;
-			const userCount = await fetchUserCount();
-			sendComponent(
-				req,
-				res,
-				Base(LoginPage(
-					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
-						lastUsedProvider: readLastAuthProvider(req),
-						errors: [{ message }],
-					},
-					{ statusCode: 400 },
-				), bannerStateFromRequest(req)),
-			);
-		};
-
-		const renderAllowanceSpent = async ({ returnUrl, retryAfterSeconds }: { returnUrl: string | undefined; retryAfterSeconds: number }) => {
-			deps.logger.info("[Signup] allowance spent", { method: "apple" });
-			res.locals.authDiagnosticReason = "signup_allowance_spent";
-			res.set("Retry-After", String(retryAfterSeconds));
-			const userCount = await fetchUserCount();
-			sendComponent(
-				req,
-				res,
-				Base(LoginPage(
-					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
-						lastUsedProvider: readLastAuthProvider(req),
-						returnUrl,
-						errors: [{ message: signupAllowanceSpentMessage({ limit: deps.signupCreatedRule.limit }) }],
-					},
-					{ statusCode: 429 },
-				), bannerStateFromRequest(req)),
-			);
-		};
+		const { renderError, renderAllowanceSpent, signIn } = oauthCallbackResponses({ req, res, provider: "apple", deps });
 
 		if (!parsedBody.success || !stateCookie || parsedBody.data.state !== stateCookie) {
-			await renderError({ message: "Apple sign-in failed. Please try again.", reason: "callback_invalid" });
+			renderError({ message: "Apple sign-in failed. Please try again.", reason: "callback_invalid" });
 			return;
 		}
 		const { code, state: stateParam } = parsedBody.data;
 
 		const payload = verifyState({ signed: stateParam, secret: deps.stateSigningSecret });
 		if (!payload) {
-			await renderError({ message: "Apple sign-in failed. Please try again.", reason: "callback_invalid" });
+			renderError({ message: "Apple sign-in failed. Please try again.", reason: "callback_invalid" });
 			return;
 		}
 
 		const stateData = StatePayloadSchema.parse(JSON.parse(payload));
 		if (Date.now() - stateData.createdAt > STATE_TTL_MS) {
-			await renderError({ message: "Apple sign-in expired. Please try again.", reason: "expired" });
+			renderError({ message: "Apple sign-in expired. Please try again.", reason: "expired" });
 			return;
 		}
 
@@ -252,12 +186,12 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			tokenResult = await deps.exchangeAppleCode(code);
 		} catch (error) {
 			deps.logError("[Apple Auth] Token exchange failed", error instanceof Error ? error : new Error(String(error)));
-			await renderError({ message: "Apple sign-in failed. Please try again." });
+			renderError({ message: "Apple sign-in failed. Please try again." });
 			return;
 		}
 
 		if (!tokenResult.emailVerified) {
-			await renderError({ message: "Your Apple account email is not verified." });
+			renderError({ message: "Your Apple account email is not verified." });
 			return;
 		}
 
@@ -274,7 +208,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				await deps.markEmailVerified(tokenResult.email);
 			}
 			const sessionId = await deps.createSession({ userId: existing.userId, emailVerified: true });
-			signIn(res, sessionId);
+			signIn(sessionId);
 			res.redirect(303, parseReturnUrl({ return: stateData.returnUrl }));
 			return;
 		}
@@ -304,72 +238,12 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		 * the response Set-Cookie still applies to readplace.com — clear it so the
 		 * consumed save cannot re-attach to a later signup. */
 		const clearPendingSave = () => res.clearCookie(PENDING_SAVE_COOKIE_NAME, { path: "/" });
-		/* Same rationale as clearPendingSave: hutch_lastview is same-site Lax so it
-		 * is not sent on this cross-site POST, but the response Set-Cookie still
-		 * applies to readplace.com — clear it so the tunneled URL cannot auto-save
-		 * onto a later signup. */
-		const clearLastView = () => res.clearCookie(LAST_VIEW_COOKIE_NAME, { path: "/" });
 
 		const allowance = await claimSignupAllowance(req);
 		if (!allowance.allowed) {
-			await renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
+			renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
 			return;
 		}
-		const userCount = await fetchUserCount();
-		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createAppleUser({
-				email: tokenResult.email,
-				userId: newUserId,
-				appleRefreshToken: tokenResult.appleRefreshToken,
-				attribution,
-				signupOAuthClientId,
-			});
-			if (!created.ok) {
-				const lookup = await deps.findUserByEmail(tokenResult.email);
-				if (lookup) {
-					await deps.saveAppleRefreshToken({
-						email: tokenResult.email,
-						appleRefreshToken: tokenResult.appleRefreshToken,
-					});
-					if (!lookup.emailVerified) {
-						await deps.markEmailVerified(tokenResult.email);
-					}
-					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-					signIn(res, sessionId);
-					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
-					return;
-				}
-				await renderError({ message: "Account creation failed. Please try again." });
-				return;
-			}
-
-			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-			signIn(res, sessionId);
-			clearPendingSave();
-			clearLastView();
-			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "free" });
-			deps.recordConversionEvent(
-				req,
-				buildUserCreatedEvent(
-					{ now: deps.now },
-					{
-						userId: created.userId,
-						email: tokenResult.email,
-						method: "apple",
-						tier: "free",
-						...conversionContext,
-					},
-				),
-			);
-			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
-			emitFirstArticleAutosaved(
-				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
-			);
-			res.redirect(303, redirect.location);
-			return;
-		}
-
 		const created = await deps.createAppleUser({
 			email: tokenResult.email,
 			userId: newUserId,
@@ -388,11 +262,11 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 					await deps.markEmailVerified(tokenResult.email);
 				}
 				const sessionIdRace = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-				signIn(res, sessionIdRace);
+				signIn(sessionIdRace);
 				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 				return;
 			}
-			await renderError({ message: "Account creation failed. Please try again." });
+			renderError({ message: "Account creation failed. Please try again." });
 			return;
 		}
 
@@ -408,9 +282,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		});
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-		signIn(res, sessionId);
+		signIn(sessionId);
 		clearPendingSave();
-		clearLastView();
 		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
@@ -425,12 +298,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				},
 			),
 		);
-		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
-		emitFirstArticleAutosaved(
-			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: viewerOf(req).ip },
-		);
-		res.redirect(303, redirect.location);
+		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 	});
 
 	return router;
