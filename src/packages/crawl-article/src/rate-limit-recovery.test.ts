@@ -72,7 +72,7 @@ it("keeps an origin-unreachable failure when no transport ever receives a respon
 	expect(harness.requestedUrls).toEqual([URL]);
 });
 
-it("retains the complete 429 when its retry and both proxy attempts fail", async () => {
+it("retains the complete 429 when its retry and all four proxy attempts fail", async () => {
 	const harness = setup({ proxyStatus: 502 });
 	const response = await harness.run();
 	expect(response.status).toBe(429);
@@ -81,7 +81,7 @@ it("retains the complete 429 when its retry and both proxy attempts fail", async
 	expect(response.headers.get("retry-after")).toBe("60");
 	expect(response.headers.get("content-type")).toBe("text/html");
 	expect(await response.text()).toBe("<p>Too many requests</p>");
-	expect(harness.requestedUrls).toEqual([URL, URL, URL, URL]);
+	expect(harness.requestedUrls).toEqual([URL, URL, URL, URL, URL, URL]);
 });
 
 it("keeps the retained response's URL when a failed retry observes a different redirect", async () => {
