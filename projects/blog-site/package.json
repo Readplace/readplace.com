@@ -40,6 +40,7 @@
     "@packages/check-unused-css": "workspace:*",
     "@packages/infra-components": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
+    "@packages/test-phase-runner": "workspace:*",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.277.0",
     "@types/aws-lambda": "8.10.161",

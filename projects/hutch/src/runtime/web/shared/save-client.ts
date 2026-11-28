@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { readplaceNativeClientOf } from "@packages/web-analytics";
 import { type SavingBuiltInOAuthClientId, isSavingBuiltInOAuthClientId } from "@packages/supported-clients";
-import { SAVE_CLIENTS, type SaveClient } from "../../observability/events";
+import { SAVE_CLIENTS, type SaveClient } from "@packages/web-analytics";
 import { isAppShell, isNativeSurface, nativeSurfaceOf } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
 

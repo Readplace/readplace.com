@@ -52,6 +52,7 @@ import {
 import { trialDayOf } from "../domain/trial/trial-day";
 import type { LoadNextCharge } from "../domain/subscription/next-charge";
 import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -83,25 +84,34 @@ export interface SendTrialFeedbackEmailDeps {
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 
-type KindHandler = (
-	input: { userId: UserId; messageId: string; detail: SendTrialFeedbackEmailDetail },
+function dispatchKind(
+	input: { detail: SendTrialFeedbackEmailDetail; messageId: string },
 	deps: SendTrialFeedbackEmailDeps,
-) => Promise<void>;
-
-const KIND_HANDLERS = {
-	feedback: ({ userId }, deps) => processCommand(userId, deps),
-	reminder: ({ userId }, deps) => processReminder(userId, deps),
-	charge_reminder: ({ userId, detail }, deps) => processChargeReminder(userId, detail.chargeAt, deps),
-	payment_failed: ({ userId }, deps) => processPaymentFailed(userId, deps),
-	automation_saves_held: ({ userId, detail }, deps) =>
-		processAutomationSavesHeld(
-			userId,
-			{ receivedAtMessageId: detail.receivedAtMessageId, inboxAddress: detail.inboxAddress },
-			deps,
-		),
-	trial_day3: ({ userId, messageId }, deps) => sendTrialDay3Email({ userId, messageId }, deps),
-	trial_day7: ({ userId, messageId }, deps) => sendTrialDay7Email({ userId, messageId }, deps),
-} satisfies Record<NonNullable<SendTrialFeedbackEmailDetail["kind"]>, KindHandler>;
+): Promise<void> {
+	const { detail, messageId } = input;
+	const { userId } = detail;
+	switch (detail.kind) {
+		case undefined:
+		case "feedback":
+			return processCommand(userId, deps);
+		case "reminder":
+			return processReminder(userId, deps);
+		case "charge_reminder":
+			return processChargeReminder(userId, detail.chargeAt, deps);
+		case "payment_failed":
+			return processPaymentFailed(userId, deps);
+		case "automation_saves_held":
+			return processAutomationSavesHeld(
+				userId,
+				{ receivedAtMessageId: detail.receivedAtMessageId, inboxAddress: detail.inboxAddress },
+				deps,
+			);
+		case "trial_day3":
+			return sendTrialDay3Email({ userId, messageId }, deps);
+		case "trial_day7":
+			return sendTrialDay7Email({ userId, messageId }, deps);
+	}
+}
 
 export function initSendTrialFeedbackEmailHandler(
 	deps: SendTrialFeedbackEmailDeps,
@@ -111,11 +121,7 @@ export function initSendTrialFeedbackEmailHandler(
 		logger: deps.logger,
 		failure: { message: "[send-trial-feedback-email] record failed" },
 		malformed: { policy: "retry" },
-		handle: (detail, record) =>
-			KIND_HANDLERS[detail.kind ?? "feedback"](
-				{ userId: detail.userId, messageId: record.messageId, detail },
-				deps,
-			),
+		handle: (detail, record) => dispatchKind({ detail, messageId: record.messageId }, deps),
 	});
 }
 
@@ -222,12 +228,12 @@ async function processCommand(
 }
 
 function trackedUrl(input: { appOrigin: string; path: string; content: string }): string {
-	const url = new URL(input.path, input.appOrigin);
-	url.searchParams.set("utm_source", "automation-saves-held");
-	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_campaign", "lapsed-inbox-save");
-	url.searchParams.set("utm_content", input.content);
-	return url.toString();
+	return emailTrackedUrl({
+		url: new URL(input.path, input.appOrigin),
+		source: "automation-saves-held",
+		campaign: "lapsed-inbox-save",
+		content: input.content,
+	});
 }
 
 async function processAutomationSavesHeld(
@@ -366,7 +372,7 @@ async function processReminder(
 	const component = TrialReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		savedArticlesCount: total,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=trial-reminder&utm_medium=email&utm_campaign=trial-preexpiry&utm_content=subscribe`,
+		ctaUrl: emailTrackedUrl({ url: new URL("/account", deps.appOrigin), source: "trial-reminder", campaign: "trial-preexpiry", content: "subscribe" }),
 	});
 
 	await sendUnlessKeyReused(
@@ -402,16 +408,9 @@ async function processReminder(
 
 async function processChargeReminder(
 	userId: UserId,
-	chargeAt: string | undefined,
+	chargeAt: string,
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
-	if (!chargeAt) {
-		deps.logger.warn(
-			"[send-trial-feedback-email] charge-reminder: command carries no chargeAt — noop",
-			{ userId },
-		);
-		return;
-	}
 	const row = await deps.findSubscriptionByUserId(userId);
 	if (!row) {
 		deps.logger.info(
@@ -456,7 +455,7 @@ async function processChargeReminder(
 	const component = ChargeReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		chargeAt,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=charge-reminder&utm_medium=email&utm_campaign=trial-precharge&utm_content=manage-subscription`,
+		ctaUrl: emailTrackedUrl({ url: new URL("/account", deps.appOrigin), source: "charge-reminder", campaign: "trial-precharge", content: "manage-subscription" }),
 		plan: row.plan,
 		charge: nextCharge,
 	});
@@ -547,7 +546,7 @@ async function processPaymentFailed(
 
 	const component = PaymentFailedEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
-		ctaUrl: `${deps.appOrigin}/account?utm_source=payment-failed&utm_medium=email&utm_campaign=dunning&utm_content=update-card`,
+		ctaUrl: emailTrackedUrl({ url: new URL("/account", deps.appOrigin), source: "payment-failed", campaign: "dunning", content: "update-card" }),
 	});
 
 	await sendUnlessKeyReused(

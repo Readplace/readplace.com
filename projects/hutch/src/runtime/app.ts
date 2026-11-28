@@ -1,8 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { randomInt } from "node:crypto";
-import type { Express } from "express";
-import type { WebLogger } from "./domain/logger";
 import { parseAdminEmails } from "@packages/admin-gate";
 import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
@@ -16,14 +14,14 @@ import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/r
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
-import type { ConversionEvent } from "./conversions";
+import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { readNewsletterCatalogSeed } from "./domain/newsletter-catalog/newsletter-catalog-seed";
 import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { requireEnv } from "@packages/require-env";
 
 type AssemblyProvidedKeys =
 	| "validateSaveableUrl"
@@ -117,11 +115,4 @@ export function assembleReadplaceApp(input: {
 export function createReadplaceApp() {
 	return assembleReadplaceApp({ appOrigin: requireEnv("APP_ORIGIN"), initProviders: initProdProviders });
 }
-
-export const localServer = (expressApp: Express, logger: WebLogger): void => {
-	const port = getEnv("PORT") || "3000";
-	expressApp.listen(Number.parseInt(port, 10)).on("listening", () => {
-		logger.info(`Local server running on http://localhost:${port}`);
-	});
-};
 /* c8 ignore stop */

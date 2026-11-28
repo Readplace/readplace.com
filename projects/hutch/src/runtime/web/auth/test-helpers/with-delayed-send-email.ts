@@ -1,4 +1,4 @@
-import type { EmailBundle } from "../../../test-app";
+import type { EmailBundle } from "@packages/web-test-harness";
 
 export function withDelayedSendEmail(email: EmailBundle): EmailBundle {
 	return {

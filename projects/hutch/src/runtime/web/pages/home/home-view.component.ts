@@ -5,7 +5,7 @@ import {
 } from "@packages/web-shell";
 import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 
-import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "@packages/web-analytics";
 import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
 import {

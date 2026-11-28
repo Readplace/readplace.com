@@ -18,7 +18,7 @@ import type { UserId } from "@packages/domain/user";
 import { newSaveAttemptId, offersEpubDownload, } from "@packages/domain/article";
 import { hashIp, } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
-import { ANALYTICS_EVENTS, STREAMS, } from "../../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { appClientOf, } from "../../shared/save-client";
 import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
 import { ownedEnclosure, viewerFor } from "@packages/domain/article";

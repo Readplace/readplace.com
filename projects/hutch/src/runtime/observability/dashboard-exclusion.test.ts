@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import {
-	buildAnalyticsDashboardBody,
-	type DashboardBody,
-	type DashboardWidget,
-} from "./analytics-dashboard";
+import { buildAnalyticsDashboardBody, type DashboardBody } from "./analytics-dashboard";
 import { ERRORS_LOG_GROUP, LOG_GROUPS } from "./events";
-import { ANALYTICS_LOG_GROUP, type ExcludedIdentities, excludeNonAudienceClauses } from "@packages/dashboard-widgets";
+import {
+	ANALYTICS_LOG_GROUP,
+	type DashboardWidget,
+	type ExcludedIdentities,
+	excludeNonAudienceClauses,
+} from "@packages/dashboard-widgets";
 import { buildRelatedPastReadsDashboardBody } from "./related-past-reads-dashboard";
 
 const IDENTITIES: ExcludedIdentities = {

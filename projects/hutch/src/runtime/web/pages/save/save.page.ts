@@ -7,7 +7,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
 import { buildSaveIntentEvent, deriveSaveSurface, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
-import { SAVE_OUTCOMES } from "../../../observability/events";
+import { SAVE_OUTCOMES } from "@packages/web-analytics";
 import { saveClientOf } from "../../shared/save-client";
 import { setPendingSaveId } from "../../pending-save";
 import { readerErrorLink, SaveErrorPage } from "./save-error.component";

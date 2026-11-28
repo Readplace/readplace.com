@@ -23,7 +23,7 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import { calculateReadTime, shownSummary } from "@packages/domain/article";
 import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
-import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
+import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "@packages/web-analytics";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";

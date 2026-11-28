@@ -35,7 +35,7 @@ export function initEngagementEvents(deps: {
 	return (input: {
 		userId: UserId;
 		event: "assigned" | "inserted" | "suppressed" | "failure" | "sent";
-		campaignId?: string;
+		campaignId: string;
 		arm?: "treatment" | "comparison";
 		assignedAt?: string;
 		tier?: "trial" | "paid";
@@ -48,7 +48,7 @@ export function initEngagementEvents(deps: {
 			event: ENGAGEMENT_EVENTS[input.event],
 			timestamp: deps.now().toISOString(),
 			user_id: input.userId,
-			campaign_id: input.campaignId ?? STARTER_CAMPAIGN_ID,
+			campaign_id: input.campaignId,
 			arm: input.arm,
 			assigned_at: input.assignedAt,
 			tier: input.tier,

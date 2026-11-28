@@ -5,32 +5,25 @@ import helmet from "helmet";
 import compression from "compression";
 import serverless from "serverless-http";
 import { Logger, consoleLogger } from "@packages/logger";
-import { logger as requestLogger } from "./domain/logger";
 import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { createBanMiddleware } from "./web/middleware/ban";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
-import { createReadplaceApp, localServer } from "./app";
+import { createReadplaceApp } from "./app";
 import { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "@packages/crawl-article";
-import { getEnv, readEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import { HUTCH_HANDLER_ROOT_ENV } from "./lambda.env";
 
 const env = readEnv(HUTCH_HANDLER_ROOT_ENV);
 
-const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
-
 // createReadplaceApp builds initCrawlFetch (article/thumbnail crawls, stale-check
 // refresh), whose last-resort leg spawns curl_chrome131. Fail cold start loudly
-// if its layer is missing rather than leak per-URL ENOENTs. Lambda only — the
-// dev server and E2E harness have no layer.
-if (lambda) {
-	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
-}
+// if its layer is missing rather than leak per-URL ENOENTs.
+assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
 
 const { app, analyticsLogger } = createReadplaceApp();
 
-const log = requestLogger();
 const logger = Logger.from(consoleLogger);
 const salt = env.ANALYTICS_SALT;
 const viewerIdentity = createViewerIdentityMiddleware({ edgeSecret: env.SSR_EDGE_SECRET });
@@ -48,8 +41,7 @@ const application = express()
 	.use(helmet({ contentSecurityPolicy: false }))
 	.use(
 		compression({
-			filter: (req: Request, res: Response) =>
-				lambda ? compression.filter(req, res) : false,
+			filter: (req: Request, res: Response) => compression.filter(req, res),
 		}),
 	)
 	.use(viewerIdentity)
@@ -58,10 +50,4 @@ const application = express()
 	.use(app)
 	.use(logAndRespondOnError({ logger, now: () => new Date() }));
 
-if (!lambda) {
-	localServer(application, log);
-}
-
-export const handler: Handler = lambda
-	? serverless(application, { binary: ["application/epub\\+zip"] })
-	: () => {};
+export const handler: Handler = serverless(application, { binary: ["application/epub\\+zip"] });

@@ -10,3 +10,4 @@ export {
 } from "./excluded-identities";
 export { ANALYTICS_LOG_GROUP } from "./log-groups";
 export type { LogWidgetSpec } from "./log-widget-spec.types";
+export { type DashboardWidget, logWidget } from "./log-widget";

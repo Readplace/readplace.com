@@ -72,7 +72,7 @@ export function initHnSnapshot(deps: {
 	startAnonymousCrawl: StartAnonymousCrawl;
 	now: () => Date;
 	logger: Logger;
-}): { prepareSnapshot: () => Promise<void>; findReadySnapshot: () => Promise<StarterPick[]> } {
+}): { prepareSnapshot: () => Promise<void> } {
 	const readJson = async (path: string) => {
 		const response = await deps.fetch(`https://hacker-news.firebaseio.com/v0/${path}.json`, {
 			signal: AbortSignal.timeout(10_000),
@@ -180,5 +180,5 @@ export function initHnSnapshot(deps: {
 		);
 		await deps.store.update({ day: snapshotDay, snapshot: { ...snapshot, items } });
 	};
-	return { prepareSnapshot, findReadySnapshot: initFindReadySnapshot(deps) };
+	return { prepareSnapshot };
 }

@@ -14,6 +14,7 @@ import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription
 import type { Handler, SQSEvent, SQSBatchResponse } from "aws-lambda";
 import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "./gmail-newsletter-notice-cadence";
 import { selectGmailNewsletterNotices } from "./gmail-newsletter-notice-selection";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const RETRY_WINDOW_MS = 24 * 60 * 60 * 1_000 - 5 * 60 * 1_000;
 const NOTICE_INTERVAL_MS = GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS * 24 * 60 * 60 * 1_000;
@@ -51,11 +52,12 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		} else {
 			url.searchParams.set("add", "1");
 		}
-		url.searchParams.set("utm_source", "gmail-newsletter-notice");
-		url.searchParams.set("utm_medium", "email");
-		url.searchParams.set("utm_campaign", "gmail-newsletter-mapping");
-		url.searchParams.set("utm_content", senderEmail === undefined ? "choose-readlists" : "choose-readlist");
-		return url.toString();
+		return emailTrackedUrl({
+			url,
+			source: "gmail-newsletter-notice",
+			campaign: "gmail-newsletter-mapping",
+			content: senderEmail === undefined ? "choose-readlists" : "choose-readlist",
+		});
 	}
 
 	async function listAllNotices(userId: UserId): Promise<GmailNewsletterNotice[]> {

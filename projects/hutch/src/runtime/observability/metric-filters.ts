@@ -3,7 +3,7 @@ import { MCP_UA_CLIENTS, OAUTH_TOKEN_GRANT_TYPES } from "@packages/web-analytics
 import type { ProofValidation } from "../oauth-refresh/dpop";
 import type { RevocationCause } from "../oauth-refresh/evidence";
 import { CONVERSION_EVENTS } from "@packages/dashboard-widgets";
-import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 
 export const ANALYTICS_METRIC_NAMESPACE = "Readplace/Analytics";
 

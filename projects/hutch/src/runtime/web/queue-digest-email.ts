@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import { EMAIL_CLICK_MEDIUM, type QueueDigestKind } from "@packages/web-analytics";
+import { type QueueDigestKind, emailTrackedUrl } from "@packages/web-analytics";
 import { formatLocalInstant, render } from "@packages/web-shell";
 import type { QueueDigestEmailItem } from "../domain/engagement/digest-email.types";
 import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
@@ -132,13 +132,13 @@ function trackedLink(input: {
 	sendId: string;
 	campaignId: string;
 }): string {
-	const tracked = new URL(input.url);
-	tracked.searchParams.set("utm_source", UTM_SOURCE[input.kind]);
-	tracked.searchParams.set("utm_medium", EMAIL_CLICK_MEDIUM);
-	tracked.searchParams.set("utm_campaign", input.campaignId);
-	tracked.searchParams.set("utm_content", input.content);
-	tracked.searchParams.set("utm_term", input.sendId);
-	return tracked.toString();
+	return emailTrackedUrl({
+		url: input.url,
+		source: UTM_SOURCE[input.kind],
+		campaign: input.campaignId,
+		content: input.content,
+		term: input.sendId,
+	});
 }
 
 function tokenUrl(input: { path: string; token: string; appOrigin: string }): URL {

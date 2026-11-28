@@ -1,5 +1,5 @@
 import type { ReaderArticleHashId } from "@packages/domain/article";
-import { EMAIL_CLICK_MEDIUM } from "@packages/web-analytics";
+import { emailTrackedUrl } from "@packages/web-analytics";
 import { ACCOUNT_PLANS_URL } from "../pages/account/account.url";
 import { buildTrialNudgeReaderPath, type TrialNudgeMarker } from "../pages/readlist/owner-reader-link";
 import { listUnsubscribeHeaders, unsubscribeUrlFor } from "../queue-digest-email";
@@ -26,14 +26,8 @@ export function trialNudgeLinks(input: {
 	appOrigin: string;
 	unsubscribeToken: string;
 }) {
-	const tracked = (url: URL, content: string): string => {
-		const link = new URL(url);
-		link.searchParams.set("utm_source", input.source);
-		link.searchParams.set("utm_medium", EMAIL_CLICK_MEDIUM);
-		link.searchParams.set("utm_campaign", TRIAL_NUDGE_CAMPAIGN);
-		link.searchParams.set("utm_content", content);
-		return link.toString();
-	};
+	const tracked = (url: URL, content: string): string =>
+		emailTrackedUrl({ url, source: input.source, campaign: TRIAL_NUDGE_CAMPAIGN, content });
 	const unsubscribeUrl = unsubscribeUrlFor({
 		token: input.unsubscribeToken,
 		appOrigin: input.appOrigin,

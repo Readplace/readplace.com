@@ -1,7 +1,8 @@
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import type { EffectiveAccess } from "@packages/subscription-access";
-import { QUEUE_DIGEST_EVENTS, STREAMS } from "./events";
+import { QUEUE_DIGEST_EVENTS } from "./events";
+import { STREAMS } from "@packages/web-analytics";
 
 export type QueueDigestSkipReason =
 	| "no-verified-email"

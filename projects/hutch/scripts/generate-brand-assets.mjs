@@ -64,8 +64,6 @@ const BB = { left: 110.07, right: dotCx + dotR, top: 133.57, bottom: 400 };
 
 const DOT_SVG = `<circle cx="${dotCx}" cy="${dotCy}" r="${dotR}" fill="${AMBER}"/>`;
 
-const smallTile = faviconSvg;
-
 function fullBleed() {
   const cx = (BB.left + BB.right) / 2;
   const cy = (BB.top + BB.bottom) / 2;
@@ -87,8 +85,8 @@ function glyphOnly(opts) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${scale.toFixed(4)})">${halo}<path d="${glyphPath}" fill="${NAVY}"/>${dotPart}</g></svg>`;
 }
 
-function render(svg, size, outPath, heightOverride) {
-  const args = ["--width", String(size), "--height", String(heightOverride ?? size), "--output", outPath, "/dev/stdin"];
+function render(svg, size, outPath) {
+  const args = ["--width", String(size), "--height", String(size), "--output", outPath, "/dev/stdin"];
   execFileSync(rsvg, args, { input: svg });
   console.log("wrote", outPath);
 }
@@ -110,8 +108,8 @@ function writeIco(pngPaths, outPath) {
   images.forEach((data, i) => {
     const size = [16, 32, 48][i];
     const entry = Buffer.alloc(16);
-    entry.writeUInt8(size === 256 ? 0 : size, 0);
-    entry.writeUInt8(size === 256 ? 0 : size, 1);
+    entry.writeUInt8(size, 0);
+    entry.writeUInt8(size, 1);
     entry.writeUInt8(0, 2);
     entry.writeUInt8(0, 3);
     entry.writeUInt16LE(1, 4);
@@ -127,8 +125,8 @@ function writeIco(pngPaths, outPath) {
 
 // ---- web favicons -----------------------------------------------------------
 
-render(smallTile, 16, join(staticAssets, "favicon-16x16.png"));
-render(smallTile, 32, join(staticAssets, "favicon-32x32.png"));
+render(faviconSvg, 16, join(staticAssets, "favicon-16x16.png"));
+render(faviconSvg, 32, join(staticAssets, "favicon-32x32.png"));
 render(tileMark, 48, join(staticAssets, "favicon-48x48.png"));
 render(tileMark, 96, join(staticAssets, "favicon-96x96.png"));
 writeIco(

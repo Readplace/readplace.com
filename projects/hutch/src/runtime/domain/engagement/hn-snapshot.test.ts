@@ -8,7 +8,7 @@ import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/arti
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { initS3HnSnapshot } from "../../providers/hn-snapshot/s3-hn-snapshot";
-import { initHnSnapshot } from "./hn-snapshot";
+import { initFindReadySnapshot, initHnSnapshot } from "./hn-snapshot";
 
 const NOW = new Date("2026-10-10T12:00:00.000Z");
 const resolvedAs = (url: string) => ({ status: "resolved" as const, url, originalUrl: url });
@@ -90,6 +90,7 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 	};
 	return {
 		...initHnSnapshot(deps),
+		findReadySnapshot: initFindReadySnapshot(deps),
 		deps,
 		clock,
 		store,

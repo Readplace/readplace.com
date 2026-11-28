@@ -46,6 +46,7 @@ export function initEnrollStarter(deps: {
 	emit: (input: {
 		userId: UserId;
 		event: "assigned" | "inserted" | "failure";
+		campaignId: string;
 		arm: "treatment" | "comparison";
 		assignedAt: string;
 		tier: "trial" | "paid";

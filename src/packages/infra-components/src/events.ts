@@ -1072,23 +1072,20 @@ export const SendTrialFeedbackEmailCommand = defineEvent({
 	name: "send-trial-feedback-email-command",
 	source: "hutch.subscriptions",
 	detailType: "SendTrialFeedbackEmailCommand",
-	detailSchema: z.object({
-		userId: UserIdSchema,
-		kind: z
-			.enum([
-				"feedback",
-				"reminder",
-				"charge_reminder",
-				"payment_failed",
-				"automation_saves_held",
-				"trial_day3",
-				"trial_day7",
-			])
-			.optional(),
-		chargeAt: z.string().optional(),
-		receivedAtMessageId: z.string().optional(),
-		inboxAddress: z.string().optional(),
-	}),
+	detailSchema: z.union([
+		z.object({ userId: UserIdSchema, kind: z.literal("charge_reminder"), chargeAt: z.string() }),
+		z.object({
+			userId: UserIdSchema,
+			kind: z.literal("automation_saves_held"),
+			receivedAtMessageId: z.string().optional(),
+			inboxAddress: z.string().optional(),
+		}),
+		z.object({
+			userId: UserIdSchema,
+			kind: z.enum(["feedback", "reminder", "payment_failed", "trial_day3", "trial_day7"]),
+		}),
+		z.object({ userId: UserIdSchema, kind: z.undefined().optional() }),
+	]),
 });
 export type SendTrialFeedbackEmailDetail = z.infer<
 	typeof SendTrialFeedbackEmailCommand.detailSchema

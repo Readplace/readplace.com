@@ -12,6 +12,7 @@ import {
 	InboxFirstArrivalEmail,
 	INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT,
 } from "../web/auth/inbox-first-arrival-email";
+import { emailTrackedUrl } from "@packages/web-analytics";
 
 const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -29,12 +30,12 @@ export interface SendFirstInboxEmailNoticeDeps {
 }
 
 function trackedUrl(input: { appOrigin: string; path: string }): string {
-	const url = new URL(input.path, input.appOrigin);
-	url.searchParams.set("utm_source", "first-inbox-email");
-	url.searchParams.set("utm_medium", "email");
-	url.searchParams.set("utm_campaign", "inbox-first-arrival");
-	url.searchParams.set("utm_content", "open-inbox");
-	return url.toString();
+	return emailTrackedUrl({
+		url: new URL(input.path, input.appOrigin),
+		source: "first-inbox-email",
+		campaign: "inbox-first-arrival",
+		content: "open-inbox",
+	});
 }
 
 export function initSendFirstInboxEmailNoticeHandler(

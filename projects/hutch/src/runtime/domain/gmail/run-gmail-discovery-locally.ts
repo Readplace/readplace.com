@@ -1,7 +1,7 @@
 import type { GmailDiscoveryStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
-import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE, initRunGmailDiscovery } from "./discover-gmail-senders";
+import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE } from "./discover-gmail-senders";
 
 export function initRunGmailDiscoveryLocally(deps: {
 	discover: DiscoverGmailSenders;
@@ -9,10 +9,13 @@ export function initRunGmailDiscoveryLocally(deps: {
 	waitForNextPage: () => Promise<void>;
 	logger: Logger;
 }): (input: { userId: UserId }) => Promise<void> {
-	const run = initRunGmailDiscovery({ discover: deps.discover, waitForNextPage: deps.waitForNextPage });
 	return async ({ userId }) => {
 		try {
-			await run({ userId });
+			let next = await deps.discover.start(userId);
+			while (next !== undefined) {
+				await deps.waitForNextPage();
+				next = await deps.discover.page(next);
+			}
 		} catch (error) {
 			const current = await deps.discovery.findDiscoveryByUserId(userId);
 			if (current?.state === "running") {

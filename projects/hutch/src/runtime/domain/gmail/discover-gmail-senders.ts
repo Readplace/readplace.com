@@ -139,13 +139,3 @@ export function initDiscoverGmailSenders(deps: {
 		},
 	};
 }
-
-export function initRunGmailDiscovery(deps: { discover: DiscoverGmailSenders; waitForNextPage: () => Promise<void> }): (input: { userId: UserId }) => Promise<void> {
-	return async ({ userId }) => {
-		let next = await deps.discover.start(userId);
-		while (next !== undefined) {
-			await deps.waitForNextPage();
-			next = await deps.discover.page(next);
-		}
-	};
-}

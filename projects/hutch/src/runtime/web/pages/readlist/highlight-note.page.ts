@@ -12,7 +12,7 @@ import { type HighlightNoteSavedEvent, hashIp } from "@packages/web-analytics";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { highlightReaderLocation } from "./highlight-surface";
 import { highlightFormScopeFor } from "./reader-highlight-options";

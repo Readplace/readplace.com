@@ -29,7 +29,7 @@ import type { RecordAudienceEvent } from "@packages/web-analytics";
 import { oauthCallbackResponses } from "./oauth-callback-responses";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
-import type { ConversionEvent } from "../../conversions";
+import type { ConversionEvent } from "@packages/provider-contracts/auth";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";

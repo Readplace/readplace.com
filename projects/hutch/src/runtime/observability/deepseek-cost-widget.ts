@@ -1,4 +1,4 @@
-import type { DashboardWidget } from "./analytics-dashboard";
+import type { DashboardWidget } from "@packages/dashboard-widgets";
 import { DEEPSEEK_COST_METRIC } from "./metric-filters";
 
 const DEEPSEEK_FEATURE_LABELS = {
