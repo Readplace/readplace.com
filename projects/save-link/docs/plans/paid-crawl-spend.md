@@ -4,6 +4,8 @@ Abbreviations: `S` = `projects/save-link/src/runtime`, `SI` = `projects/save-lin
 
 **Self-contained.** This file holds everything needed to run the plan. It needs a checkout of the repository on the owner's computer, with that computer's `hutch-production` credentials (see **Running on the owner's computer**), and the owner, for decision 1's reading of the Bright Data console. It needs no other plan and no other file: no plan has to run before, after or beside it.
 
+**Step 0 ran 2026-11-26** on the owner's computer (account `278728209435`). P1 did not fire. P2 fired as written, but its comparison omitted three metered paths, so it is held for **step 0b**, which attributes the Web Unlocker requests. See **Evidence** and **Step 0b**.
+
 **Replanned 2026-11-26.** Step 0 runs on the owner's computer, in the repository's devbox shell, where the production profile already works. The attempt on 2026-11-22 ran in a cloud container, which had neither the AWS CLI nor production credentials, so it measured nothing. The 2026-11-23 revision corrected P3's trigger, which the logs cannot show as first written; that correction stands.
 
 ## Handoff summary
@@ -22,21 +24,23 @@ Abbreviations: `S` = `projects/save-link/src/runtime`, `SI` = `projects/save-lin
 
 - **What this plan does:** step 0 re-measures paid render volume and asks the owner for the one number nobody has read, the November Bright Data bill. Each of the five gated items is built only when its trigger fires.
 - **Why nothing is built now:** spend is bounded and small. The paid gate is 50 paid crawls an hour in production (`save-link:paidCrawlBudget: 50/3600`, `projects/save-link/Pulumi.prod.yaml:22`), each proxied render is capped at 40 requests, and the 30 days to 2026-11-20 held 203 proxied renders (see **Evidence**). The only dimension with no cap is bytes on the per-GB leg, and that leg made 23 renders.
-- **First action:** step 0.1, the preflight, on the owner's computer. Stop at the first check that fails, and report it. Do not fill in a number that was not measured.
+- **First actions:**
+  1. **The owner sets a spend limit** in the Bright Data console on `readplace_web_unlocker` and `residential1`, and on the account if one is offered, at a value the owner chooses. On 2026-11-27 none of them had a limit. This is the provider-side circuit breaker that design point 5 relies on, and it needs no code.
+  2. **Step 0b** on the owner's computer, with the same shell setup as step 0. Stop at the first check that fails, and report it. Do not fill in a number that was not measured.
 - **Main risk:** building it anyway. The ledger (P2) touches every paid caller and a production budget; a mistake there either lets spend through or denies a reader's first capture. The second risk is enabling any paid retry before P2 is on `main`: that is the only path from this area to unbounded spend, and P5 forbids it.
 
 ## Decisions for the owner
 
 | # | Decision | Recommended default |
 |---|---|---|
-| 1 | Read the November usage in the Bright Data console: GB on the residential zone, requests on the Web Unlocker zone, dollars for each, and whether each zone and the account carry a spend limit | **Open, and only the owner can do it.** The application has no byte counter, so the "cents" claim below is an inference from request counts. A provider-side spend limit is the real circuit breaker: set one if none exists |
+| 1 | Read the November usage in the Bright Data console: GB on the residential zone, requests on the Web Unlocker zone, dollars for each, and whether each zone and the account carry a spend limit | **Answered 2026-11-27** (see **Evidence**): residential 0.492 GB, $3.94; production Web Unlocker about 18,900 requests, about $28; account $33.32 for November 1 to 27. **No spend limit** on either zone or on the account. Setting one is still open, and only the owner can do it |
 | 2 | When the byte cap (P1) is built | When the residential zone passes 1 GB in a calendar month (about $8 at list price) or the per-GB leg passes 100 renders in any 7 days. **Open:** both numbers are policy |
 | 3 | Which leg the byte cap covers | The `residential-per-gb` leg only. The older plan scoped the cap to the residential recovery that `e5bd1d583` reverted; the per-GB leg is what remains billed by bytes. The Web Unlocker legs are billed per request and already capped at 40 |
 | 4 | How many paid attempts one operation may make once the ledger (P2) exists | Three, the render ladder's length today (`residential-per-gb`, then `web-unlocker-fetch`, then `web-unlocker-render`). The older plan said two; cutting a leg needs matched useful-capture evidence first, and the 30-day counts favour keeping the Web Unlocker render (124 rendered of 180) over the per-GB leg (2 rendered of 23). **Open** |
 | 5 | The hourly ceilings P2 adds | 100 paid starts, 4,000 reserved paid requests and 10 paid starts a host, beside the unchanged 50/3600 gate. They are conservative policy choices, not measured demand |
 | 6 | Whether a paid leg is ever retried (P5) | No, until P2 is on `main` and a measured transient failure on a paid leg is worth a second paid attempt. **Decided by the older plan as a deferral; it stands** |
 
-Nothing here blocks step 0. Decision 1 is asked during it.
+Nothing here blocks step 0b.
 
 ## Running on the owner's computer
 
@@ -56,6 +60,49 @@ Step 0 needs CloudWatch Logs Insights in the production account (`ap-southeast-2
 **The Bright Data console** (decision 1) is read by the owner in a browser. Do not create an API token for it: a token that can read billing can do far more than read billing, and nothing here needs that.
 
 ## Evidence
+
+### 2026-11-26 re-measure (step 0)
+
+Step 0 ran on the owner's computer. The owner confirmed that account `278728209435` is production. The log window ended 2026-11-26 22:05:53 UTC. The one-hour preflight returned a row, and all five queries completed. The raw JSON stays on the owner's computer, in `~/readplace-paid-crawl-step0/2026-11-26/`.
+
+`render-attempt-summary`, the 30 days to 2026-11-26 (the 2026-11-20 baseline in brackets):
+
+| Leg | Renders | Rendered | Failed | Blocked | Proxied requests |
+|---|---:|---:|---:|---:|---:|
+| `web-unlocker-render` | 203 (180) | 137 (124) | 63 (53) | 3 (3) | 4,380 (3,891) |
+| `residential-per-gb` | 24 (23) | 2 (2) | 8 (7) | 14 (14) | 117 (106) |
+
+| Fact | Value |
+|---|---|
+| Proxied renders by week (weeks starting 11-01, 11-08, 11-15, 11-22) | 116, 69, 23, 19 |
+| Per-GB renders by week | 3, 17, 3, 1. The largest rolling 7 days was 19, from 11-12 to 11-18 |
+| Largest proxied request count in one render | 41 in the first two weeks, 40 after |
+| `budget exhausted` records | 153, all in the week of 11-01 |
+| Text matches for `429` in both log groups | 1,510. These are text mentions: they do not show any render seeing a 429 from the document's origin |
+
+Bright Data console, read 2026-11-27 UTC. Cost Explorer covered November 1 to 27, with today at $0:
+
+| Scope | Usage | Cost | Limit |
+|---|---:|---:|---|
+| Residential zone `residential1` | 0.492 GB | $3.94 | None |
+| Production Web Unlocker zone `readplace_web_unlocker` | About 18,900 requests | About $28 (the zone list rounds to whole dollars) | None |
+| All Web Unlocker zones | About 19,500 requests (staging about 706) | $29.38 | None on staging either |
+| Account | | $33.32 | No account-wide cap visible; pay-as-you-go with auto-recharge |
+
+Cost Explorer's daily rows already total about 17,520 Unlocker requests by November 10 across the account, or about 16,800 after removing the whole month's staging traffic.
+
+**What the comparison does and does not show.** The production zone billed about 4.3 times the render leg's 4,380 logged requests. That counts every Web Unlocker request against only one leg's. Three other metered paths send Web Unlocker requests, and step 0 counted none of them:
+
+| Paid path | Wiring | Under the 50/3600 gate |
+|---|---|---|
+| The render Lambda's `web-unlocker-fetch` leg | `S/render-crawl-command.main.ts`, `proxiedCrawlArticle`, `egress: proxy-only` | Yes, through the render ladder's permit |
+| The comprehensive Lambda's proxied fallback | `S/comprehensive-crawl-command.main.ts`, `egress: direct-then-proxy` | Yes |
+| Submit-link's challenged-tracker resolution | `S/submit-link.main.ts`, `initResolveThroughUnlocker` over `proxy-only` | **No**: it claims no permit |
+| The deploy credential canary | `src/packages/crawl-article/scripts/health-egress-proxy.ts` | No; one request per run |
+
+`CRAWL_EGRESS_PROXY_URL` reaches exactly those three Lambdas (grep `SI/index.ts` for `crawlEgressProxyEnvironment`). Each of the three logs every proxied attempt as `stream: "crawl-legs", via: "proxy"` (`CA/crawl-fetch.ts`, `proxyLogAttempt`). So the gap can be attributed from logs that already exist; step 0b does that.
+
+### 2026-11-20 baseline
 
 Production, the 30 days to 2026-11-20, `render-attempt-summary` lines in `/aws/lambda/render-crawl-command-handler` (203 lines):
 
@@ -207,7 +254,7 @@ A query that ends `Failed`, `Cancelled` or `Timeout`, or that matched zero recor
 **Limits of what the logs show.**
 - The `render-attempt-summary` line carries request counts and no bytes, so no query measures GB. Only the console does.
 - The resource-host lines (`stream: "render-resource-hosts"`, on in both stacks through `save-link:renderRequestDiagnostics: hosts`) count responses as `response2xx`, `responseOther` and `failed`. They hold no status code, so a 429 inside a render is invisible to them. `status-429-30d` finds only lines whose text holds `429`, such as a fetch or handler error. A zero there does not show that no render saw a 429.
-- The `web-unlocker-fetch` leg and the comprehensive leg log no summary line. Their spend shows only in the console.
+- The `web-unlocker-fetch` leg, the comprehensive leg and submit-link's tracker resolution log no summary line, so these queries miss them. Each does log one `crawl-legs` line per proxied attempt, which step 0b counts.
 
 **0.5 Ask the owner for decision 1** (with the Ask tool in a Claude Code session, or noted by hand), for the same span as `renders-month`: residential GB and dollars, Web Unlocker requests and dollars, and whether each zone and the account carry a spend limit. Record the answer with its date. If the owner cannot read it yet, record that, and record P1's GB test and P2's console test as "not measurable", not as "not fired".
 
@@ -216,7 +263,7 @@ A query that ends `Failed`, `Cancelled` or `Timeout`, or that matched zero recor
 | Item | Fires when | Source |
 |---|---|---|
 | P1 | Residential GB this month > 1, or per-GB renders in any 7 days > 100 | Decision 1; `per-gb-daily-30d` |
-| P2 | `budget exhausted` lines in two consecutive weeks; or console Web Unlocker requests > 2 × the `web-unlocker-render` proxiedRequests in `renders-month`; or P5 is wanted | `exhausted-30d`; decision 1; owner |
+| P2 | `budget exhausted` lines in two consecutive weeks; or console Web Unlocker requests > 2 × step 0b's upper bound; or P5 is wanted | `exhausted-30d`; decision 1; step 0b; owner |
 | P3 | A 429 from the document's own origin during a proxied render | Not measurable from today's logs (see the limits above). Record "not measurable", and propose the measurement as its own change only if the owner asks for it |
 | P4 | P2 enforced in production | `git log` |
 | P5 | P2 enforced, and a measured paid-leg transient failure that recovers on a second attempt | Not measured |
@@ -229,6 +276,72 @@ A query that ends `Failed`, `Cancelled` or `Timeout`, or that matched zero recor
 - the path of `$OUT`.
 
 If no trigger fired, the plan is done for now: say so and stop, and build nothing. The report goes to the owner, and into the issue or commit of any item that does fire. The JSON files in `$OUT` stay on the owner's computer.
+
+**Result, 2026-11-26** (numbers in **Evidence**):
+
+| Item | Result |
+|---|---|
+| P1 | Not fired: 0.492 GB, and at most 19 per-GB renders in any 7 days |
+| P2 | Fired as written, on the console comparison: about 18,900 against a threshold of 8,760. Budget exhaustion fell in one week only. **Held for step 0b**, because the comparison left out three metered paths |
+| P3 | Not measurable: the 1,510 `429` text matches name no origin and no in-render status |
+| P4 | Nothing to review: P2 is not enforced |
+| P5 | Not wanted: P2 is not enforced, and no second-attempt recovery was measured |
+
+### Step 0b: attribute the Web Unlocker requests
+
+P2 exists for one failure: redelivery, persona retries and gateway retries spending again without being counted. Step 0's gap shows that failure only if the paths step 0 left out cannot account for it. Step 0b counts them. It is read-only like step 0, runs on the owner's computer with the same setup, and repeats 0.1's preflight first if this is a new terminal.
+
+**0b.1 Define the helper and the queries.** This block stands alone: it redefines `OUT` and the windows. It adds `/aws/lambda/submit-link-handler` to the two crawl log groups. The three names come from `LOG_GROUPS` in `src/packages/infra-components/src/save-link-lambdas.ts`. The proxy-attempt match is a regex, so it still matches if the logger's envelope escapes the JSON.
+
+```bash
+OUT="$HOME/readplace-paid-crawl-step0/$(date -u +%Y-%m-%d)-0b"; mkdir -p "$OUT"
+insights3() { # name start end query
+  local id
+  id=$(aws logs start-query --profile hutch-production --region ap-southeast-2 \
+    --log-group-names /aws/lambda/render-crawl-command-handler /aws/lambda/comprehensive-crawl-command-handler /aws/lambda/submit-link-handler \
+    --start-time "$2" --end-time "$3" --query-string "$4" --output text --query queryId) || return 1
+  until aws logs get-query-results --profile hutch-production --region ap-southeast-2 --query-id "$id" > "$OUT/$1.json" \
+    && jq -e '.status == "Complete" or .status == "Failed" or .status == "Cancelled" or .status == "Timeout"' "$OUT/$1.json" > /dev/null; do sleep 5; done
+  jq -r '"\(.status) \(.statistics.recordsMatched) records matched"' "$OUT/$1.json"
+  jq -r '.results[] | map("\(.field)=\(.value)") | join("  ")' "$OUT/$1.json"
+}
+NOW=$(node -p 'Math.floor(Date.now() / 1000)')
+MONTH=$(node -p 'const d = new Date(); Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000)')
+Q_PROXY_ATTEMPTS=$(cat <<'EOF'
+filter @message like /crawl-legs/ and @message like /via.{0,6}proxy/ | stats count() as attempts by @log, datefloor(@timestamp, 1d) as day | sort day asc
+EOF
+)
+Q_RENDER_DAILY=$(cat <<'EOF'
+filter @message like "render-attempt-summary" and @message like "web-unlocker-render" | parse @message /continuedProxied"?: ?(?<cp>[0-9]+)/ | stats count() as renders, sum(cp) as proxiedRequests by datefloor(@timestamp, 1d) as day | sort day asc
+EOF
+)
+```
+
+**0b.2 Run them over the month to date.**
+
+```bash
+insights3 proxy-attempts-month "$MONTH" "$NOW" "$Q_PROXY_ATTEMPTS"
+insights3 render-requests-daily "$MONTH" "$NOW" "$Q_RENDER_DAILY"
+```
+
+**Sanity check.** `proxy-attempts-month` must show attempts in the render log group. Most of its 203 Web Unlocker renders follow a `web-unlocker-fetch` attempt, so zero there means the match is broken, not that no attempts were made. Fix the match and run it again, never the conclusion.
+
+**0b.3 Bound what the logs explain.** One `crawl-legs` line is one proxied attempt. An attempt follows its own redirects, so it bills 1 to 6 requests: the first request and up to five redirects. For the month, and again for November 1 to 10:
+
+- lower bound = render `proxiedRequests` + attempts;
+- upper bound = render `proxiedRequests` + 6 × attempts.
+
+Compare each bound with the console: about 18,900 for the month, and about 16,800 by November 10 net of staging. Also record each log group's share of the attempts.
+
+**0b.4 Decide.**
+
+| Result | What follows |
+|---|---|
+| The console's count is more than twice the upper bound, for the month or for November 1 to 10 | P2's failure is shown: requests are billed that no logged attempt accounts for. P2 opens; build it as written |
+| The console's count is within twice the upper bound | The gap is explained by legs step 0 did not count. P2 stays gated, with its trigger's denominator corrected (see P2) |
+| Submit-link holds a large share of the attempts, in either case | Report it to the owner as its own finding: a paid path outside the 50/3600 gate. It is not part of P2, and nothing is built for it without the owner's decision |
+
+**0b.5 Report**, as in 0.7: the bounds, the per-group shares, the decision, and the path of `$OUT`.
 
 ### P1. A per-GB render stops after 5 MiB
 
@@ -244,7 +357,7 @@ If no trigger fired, the plan is done for now: say so and stop, and build nothin
 
 ### P2. One ledger per operation, one single-use permit per paid attempt
 
-- **Trigger:** P5 is wanted; or `budget exhausted` lines return in two consecutive weeks; or the console's Web Unlocker request count for a month is more than twice the application's `continuedProxied` sum for the same month. Baseline: exhausted lines 153, 0, 0 by week.
+- **Trigger:** P5 is wanted; or `budget exhausted` lines return in two consecutive weeks; or the console's Web Unlocker request count for a month is more than twice what the logs explain for the same month. "What the logs explain" is the upper bound from step 0b: render `continuedProxied` plus six times the `crawl-legs` `via: proxy` attempts across the render, comprehensive and submit-link log groups. The first wording compared against `continuedProxied` alone, which left out three metered paths. Baseline: exhausted lines 153, 0, 0, 0 by week; console about 18,900 requests for November 1 to 27, against 4,380 render requests.
 - **Why it would be needed:** today's claim does not cap physical requests (see **Evidence**). Redelivery, persona retries, gateway retries and any future durable retry can each spend again.
 - **Build:**
   - Move or re-export the transaction logic of `S/providers/paid-crawl-budget/dynamodb-paid-crawl-budget.ts` into `@packages/crawl-admission`, keeping every caller compatible: `S/comprehensive-crawl-command.main.ts`, `S/domain/comprehensive-crawl/comprehensive-crawl-handler.ts`, `S/domain/comprehensive-crawl/paid-crawl-budget.types.ts`, `S/domain/crawl-article-state/commit-deferred-crawl.ts`, `S/domain/render-crawl/render-crawl-handler.ts`, `S/render-crawl-command.main.ts`. Keep the 50/3600 gate unchanged.
