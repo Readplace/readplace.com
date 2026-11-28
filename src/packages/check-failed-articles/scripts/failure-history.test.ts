@@ -30,9 +30,8 @@ const listLogs: FailureHistoryLogMatch = {
 	ownerOpenTimes: [],
 	ownerOpensCovered: true,
 };
-const memberships = [{ savedAt: SAVED, viewedAt: undefined }];
 const defaults = {
-	row, cutoff, logs: listLogs, memberships, publicOpenRecorded: false, publicOpensCovered: true, reviewedAccess: new Map(),
+	row, cutoff, logs: listLogs, publicOpenRecorded: false, reviewedAccess: new Map(),
 };
 
 const reviewedRow = { ...row, articleKey: 'site.test/雪?q=%2F&quote="' };
@@ -51,36 +50,31 @@ describe("failed article history groups", () => {
 	it("keeps a proven owner open when a different analytics partition was unavailable", () => {
 		const classified = classify({
 			logs: { ...listLogs, ownerOpenTimes: [opened], ownerOpensCovered: false },
-			memberships: undefined,
-			publicOpensCovered: false,
 		});
 		assert.equal(classified.historyGroup, "reader-opened-before-failure");
 	});
 
-	it("accepts a winning owner reader admission as positive evidence even with no surviving membership", () => {
+	it("accepts a winning owner reader admission as positive evidence", () => {
 		for (const surface of ["reader", "reader-capture-gave-up"] as const) {
 			assert.equal(
-				classify({ logs: { ...listLogs, admissionSurface: surface, ownerOpensCovered: false }, memberships: [] }).historyGroup,
+				classify({ logs: { ...listLogs, admissionSurface: surface, ownerOpensCovered: false } }).historyGroup,
 				"reader-opened-before-failure",
 			);
 		}
 	});
 
-	it("requires a matched list admission and complete negative owner evidence across current memberships", () => {
+	it("groups a matched list admission with no confirmed reader open under the readlist trigger", () => {
 		for (const surface of ["readlist-html", "readlist-siren"] as const) {
 			const classified = classify({ logs: { ...listLogs, admissionSurface: surface } });
-			assert.equal(classified.historyGroup, "readlist-loaded-no-reader-open");
+			assert.equal(classified.historyGroup, "readlist-admission-no-reader-open");
+			assert.deepEqual(toCanaryReportRow(classified).labels, [
+				"crawl-failed", "Readlist started the crawl, no reader open confirmed",
+			]);
 		}
-		const olderSaved = "2026-05-08T00:00:00.000Z";
-		const olderViewed = "2026-05-09T00:00:00.000Z";
-		assert.equal(classify({
-			logs: { ...listLogs, ownerOpenTimes: [Date.parse(olderViewed)] },
-			memberships: [{ savedAt: olderSaved, viewedAt: olderViewed }],
-		}).historyGroup, "readlist-loaded-no-reader-open");
 	});
 
 	it("counts a proven public open even when the underlying admission was a readlist", () => {
-		const publicOnly = classify({ publicOpenRecorded: true, publicOpensCovered: false });
+		const publicOnly = classify({ publicOpenRecorded: true });
 		assert.equal(publicOnly.historyGroup, "reader-opened-before-failure");
 		assert.deepEqual(publicOnly.readerRoutes, ["public"]);
 		assert.deepEqual(toCanaryReportRow(publicOnly).labels, [
@@ -95,7 +89,7 @@ describe("failed article history groups", () => {
 	});
 
 	it("keeps a proven public open even when signed-in evidence is unavailable or came later", () => {
-		const unknownOwner = classify({ publicOpenRecorded: true, logs: undefined, memberships: undefined });
+		const unknownOwner = classify({ publicOpenRecorded: true, logs: undefined });
 		assert.equal(unknownOwner.historyGroup, "reader-opened-before-failure");
 		assert.deepEqual(unknownOwner.readerRoutes, ["public"]);
 		const unboundedLaterOwner = classify({ publicOpenRecorded: true, logs: { ...listLogs, ownerOpenTimes: [laterOpen] } });
@@ -115,26 +109,19 @@ describe("failed article history groups", () => {
 		const classified = classify({
 			logs: { ...listLogs, ownerOpenTimes: [laterOpen] },
 			publicOpenRecorded: publicViews.opened.has(row.articleKey),
-			publicOpensCovered: publicViews.covered.has(row.articleKey),
 		});
-		assert.equal(classified.historyGroup, "readlist-admission-reader-history-incomplete");
+		assert.equal(classified.historyGroup, "readlist-admission-no-reader-open");
 		assert.equal(classified.readerRoutes, undefined);
 	});
 
-	it("keeps the proven readlist admission when the reader history is inconclusive", () => {
-		const incomplete: readonly Partial<HistoryInput>[] = [
+	it("keeps the readlist trigger when the owner history is incomplete or shows no open before admission", () => {
+		const noConfirmedOpen: readonly Partial<HistoryInput>[] = [
 			{ logs: { ...listLogs, ownerOpensCovered: false } },
-			{ publicOpensCovered: false },
 			{ logs: { ...listLogs, ownerOpenTimes: [laterOpen] } },
 			{ logs: { ...listLogs, ownerOpenTimes: [Date.parse(ADMITTED)] } },
-			{ memberships: undefined },
-			{ memberships: [] },
-			{ memberships: [{ savedAt: "2026-05-11T06:00:00.000Z", viewedAt: undefined }] },
-			{ memberships: [...memberships, { savedAt: SAVED, viewedAt: "2026-05-10T06:00:00.000Z" }] },
-			{ memberships: [{ savedAt: SAVED, viewedAt: "unparseable" }] },
 		];
-		for (const evidence of incomplete) {
-			assert.equal(classify(evidence).historyGroup, "readlist-admission-reader-history-incomplete");
+		for (const evidence of noConfirmedOpen) {
+			assert.equal(classify(evidence).historyGroup, "readlist-admission-no-reader-open");
 		}
 	});
 
@@ -155,7 +142,7 @@ describe("reviewed access history", () => {
 	it("uses the exact saved identity and admission strings to recover a reviewed open after logs expire", () => {
 		const reviewedAccess = parseReviewedAccess(JSON.stringify([[reviewedRowDigest, "public-reader-opened-before-failure"]]));
 		const input = {
-			row: reviewedRow, logs: undefined, memberships: undefined, publicOpensCovered: false, reviewedAccess,
+			row: reviewedRow, logs: undefined, reviewedAccess,
 		};
 		const matched = classify(input);
 		assert.equal(matched.historyGroup, "reader-opened-before-failure");
@@ -193,8 +180,8 @@ describe("reviewed access history", () => {
 	it("retains the reviewed readlist trigger and lets stronger live evidence take priority", () => {
 		const reviewedAccess = parseReviewedAccess(JSON.stringify([[reviewedRowDigest, "readlist-admission-reader-history-incomplete"]]));
 		const input = { row: reviewedRow, reviewedAccess };
-		assert.equal(classify({ ...input, logs: undefined, memberships: undefined }).historyGroup, "readlist-admission-reader-history-incomplete");
-		assert.equal(classify(input).historyGroup, "readlist-loaded-no-reader-open");
+		assert.equal(classify({ ...input, logs: undefined }).historyGroup, "readlist-admission-no-reader-open");
+		assert.equal(classify(input).historyGroup, "readlist-admission-no-reader-open");
 		const reader = classify({ ...input, logs: { ...listLogs, ownerOpenTimes: [opened] } });
 		assert.equal(reader.historyGroup, "reader-opened-before-failure");
 		assert.deepEqual(reader.readerRoutes, ["signed-in"]);
@@ -214,7 +201,7 @@ describe("reviewed access history", () => {
 
 	it("uses live evidence when no reviewed access history is configured", () => {
 		for (const configuration of [undefined, "", "[]"]) {
-			assert.equal(classify({ reviewedAccess: parseReviewedAccess(configuration) }).historyGroup, "readlist-loaded-no-reader-open");
+			assert.equal(classify({ reviewedAccess: parseReviewedAccess(configuration) }).historyGroup, "readlist-admission-no-reader-open");
 		}
 	});
 

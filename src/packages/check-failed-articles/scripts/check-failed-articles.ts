@@ -90,9 +90,7 @@ test("Failed articles canary", async () => {
 		row,
 		cutoff,
 		logs: logMatches.get(row.articleKey),
-		memberships: memberships?.get(row.articleKey),
 		publicOpenRecorded: publicViews.opened.has(row.articleKey),
-		publicOpensCovered: publicViews.covered.has(row.articleKey),
 		reviewedAccess,
 	}));
 	assert(first, "A nonempty canary report has a classified first row");

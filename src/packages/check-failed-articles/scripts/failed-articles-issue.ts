@@ -3,8 +3,7 @@ import { type CanaryReportRow, countByName } from "@packages/provider-contracts/
 import type { FailedAxis, FailedRow } from "./collect-failed-rows";
 
 const HISTORY_GROUP_LABELS = {
-	"readlist-loaded-no-reader-open": "Readlist loaded, no reader open recorded",
-	"readlist-admission-reader-history-incomplete": "Readlist triggered processing, reader history incomplete",
+	"readlist-admission-no-reader-open": "Readlist started the crawl, no reader open confirmed",
 	"reader-opened-before-failure": "Reader opened before failure",
 	"authenticated-submission": "Authenticated submission",
 	"scheduled-digest-preparation": "Scheduled digest preparation",
@@ -114,7 +113,7 @@ export function formatFailedArticlesIssue(input: {
 			"",
 		] : []),
 		"The reader-open group counts opens recorded before the latest processing admission, signed-in reader requests that triggered it, and opens independently verified before the terminal failure for that attempt.",
-		"Both readlist groups require a confirmed readlist trigger. The group with no reader open recorded also requires sufficient reader-history evidence.",
+		"The readlist group requires a confirmed readlist trigger.",
 		"An article can count under both confirmed routes. A zero means no open was confirmed in the available records.",
 		"",
 		"Among these reader routes, local HTML capture can start only from the signed-in reader on supported clients. Confirming an upload requires separate evidence.",
