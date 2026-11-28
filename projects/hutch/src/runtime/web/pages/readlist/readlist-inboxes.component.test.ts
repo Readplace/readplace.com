@@ -38,7 +38,6 @@ function inbox(input: {
 
 function renderInboxes(input: {
 	inboxes: readonly InboxAddressEntry[];
-	purpose?: string;
 	label?: string;
 	create?: { submittedName: string | undefined; error: InboxNameError | undefined };
 	standing?: UpgradeStanding;
@@ -50,7 +49,6 @@ function renderInboxes(input: {
 				readlist: {
 					slug: WORK,
 					label: input.label ?? "Work Reading",
-					purpose: input.purpose,
 				},
 				inboxes: input.inboxes,
 				readlists: [
@@ -265,18 +263,6 @@ describe("buildReadlistInboxes", () => {
 			"Send a custom email here and every article each email links to is saved to 'All' and 'Work Reading'.",
 		]);
 		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe("The articles it links to");
-	});
-
-	it("adds that only the articles matching the purpose are saved here once the readlist has one", () => {
-		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
-
-		expect(descriptionLines(doc)).toEqual([
-			"Send a custom email here and every article each email links to is saved to 'All'.",
-			"Only the ones who match your preferences will be saved to 'Work Reading'",
-		]);
-		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe(
-			"The articles it links to that matches this readlist preferences",
-		);
 	});
 
 	it("names the section Readlist inbox emails and anchors it for the save redirect", () => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
-import { purposeStateOf, renderReadlistPurpose, renderReadlistPurposeCard, renderReadlistPurposeWizard } from "./readlist-purpose-card.component";
+import { renderReadlistPurpose, renderReadlistPurposeCard, renderReadlistPurposeWizard } from "./readlist-purpose-card.component";
 
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
 const OFFER: UpgradeOffer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" };
@@ -116,11 +116,5 @@ describe("renderReadlistPurpose", () => {
 		expect(
 			renderReadlistPurpose({ readlist: { slug: WORK, purpose }, standing, offer: OFFER, from: "queue" }).wizardPopoverHtml,
 		).toBe("");
-	});
-});
-
-describe("purposeStateOf", () => {
-	it("calls a readlist without a purpose unset and one with a purpose set", () => {
-		expect([purposeStateOf({}), purposeStateOf({ purpose: "Shipping essays." })]).toEqual(["unset", "set"]);
 	});
 });

@@ -16,7 +16,6 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
 import { type UpgradeOffer, type UpgradeStanding, renderedLockFor } from "../../shared/upgrade-offer/upgrade-offer";
-import { type PurposeState, purposeStateOf } from "./readlist-purpose-card.component";
 import { readlistPreferencesInboxesCreatePath, readlistPreferencesInboxesPath } from "./readlist.url";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
@@ -46,21 +45,6 @@ type InboxRouting = "here" | "elsewhere";
 const ROUTING_TRACKING: Record<InboxRouting, string> = {
 	here: "unroute-inbox",
 	elsewhere: "route-inbox",
-};
-
-const DESCRIPTION_LINES: Record<PurposeState, (label: string) => readonly string[]> = {
-	unset: (label) => [
-		`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}' and '${label}'.`,
-	],
-	set: (label) => [
-		`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}'.`,
-		`Only the ones who match your preferences will be saved to '${label}'`,
-	],
-};
-
-const DELIVERY_LABELS: Record<PurposeState, string> = {
-	unset: "The articles it links to",
-	set: "The articles it links to that matches this readlist preferences",
 };
 
 export interface ReadlistInboxRow {
@@ -114,7 +98,7 @@ const LOCKING: Record<UpgradeStanding, (offer: UpgradeOffer | undefined) => Inbo
 };
 
 export function buildReadlistInboxes(input: {
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
+	readlist: { slug: ReadlistSlug; label: string };
 	inboxes: readonly InboxAddressEntry[];
 	readlists: readonly ReadlistRef[];
 	create: { submittedName: string | undefined; error: InboxNameError | undefined };
@@ -150,13 +134,14 @@ export function buildReadlistInboxes(input: {
 			};
 		});
 	const state: InboxesState = rows.length === 0 ? "empty" : "listed";
-	const purposeState = purposeStateOf(input.readlist);
 	return {
 		sectionId: READLIST_INBOXES_SECTION_ID,
 		sectionClass: SECTION_CLASS[state],
 		state,
-		descriptionLines: DESCRIPTION_LINES[purposeState](input.readlist.label),
-		deliveryLabel: DELIVERY_LABELS[purposeState],
+		descriptionLines: [
+			`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}' and '${input.readlist.label}'.`,
+		],
+		deliveryLabel: "The articles it links to",
 		rows,
 		createAction: withInternalTracking(readlistPreferencesInboxesCreatePath(input.readlist.slug), {
 			source: INBOXES_SOURCE,

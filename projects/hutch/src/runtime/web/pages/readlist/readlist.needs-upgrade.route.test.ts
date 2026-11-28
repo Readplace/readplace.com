@@ -138,7 +138,7 @@ describe("a free-plan reader's queue page", () => {
 		expect(smart.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
 	});
 
-	it("shows a free-plan Smart Readlist its locked inboxes and its read-only Purpose card", async () => {
+	it("shows a free-plan Smart Readlist its read-only Purpose card and paused Smart section, and no inboxes", async () => {
 		const { agent, harness, userId } = await setUpReader(new Date(Date.now() - ONE_DAY_MS));
 		await harness.articleStore.setSmartReadlistRule({
 			userId,
@@ -149,9 +149,8 @@ describe("a free-plan reader's queue page", () => {
 
 		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences`)).text);
 
-		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
-		assert(inboxes, "a Smart Readlist must render its inboxes section");
-		expect(Array.from(inboxes.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => lock.getAttribute("data-test-needs-upgrade"))).toEqual(["create-inbox"]);
+		expect(doc.querySelectorAll("[data-test-readlist-inboxes]")).toHaveLength(0);
+		expect(doc.querySelectorAll('[data-test-smart-filing="smart"] [data-test-smart-paused]')).toHaveLength(1);
 		const card = doc.querySelector("section[data-test-readlist-purpose]");
 		assert(card, "a free-plan Smart Readlist must show its purpose read-only");
 		expect(card.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Essays on how teams actually ship.");

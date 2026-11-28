@@ -167,14 +167,15 @@ export function initReadlistPreferencesRoutes(deps: {
 		const purpose = readlistPurposeOf(definition);
 		const readlists = readerReadlists(definitions);
 		const accessPromise = deps.getEffectiveAccess(userId);
+		const smart = definition.filing?.mode === "smart";
 		const { loadGmailSenders } = deps;
 		const [access, onboarding, inboxes, nonEmptyReadlists, choices, gmailSenders] = await Promise.all([
 			accessPromise,
 			accessPromise.then((resolved) => deps.resolveOnboarding(req, userId, resolved, definitions, definition.slug)),
-			deps.listInboxAddresses(userId),
+			smart ? undefined : deps.listInboxAddresses(userId),
 			deps.findNonEmptyReadlists({ userId, readlists }),
 			deps.listReadlistFitOverrides({ userId, readlist: definition.slug }),
-			loadGmailSenders === undefined
+			smart || loadGmailSenders === undefined
 				? undefined
 				: accessPromise.then((resolved) =>
 					loadGmailSenders({

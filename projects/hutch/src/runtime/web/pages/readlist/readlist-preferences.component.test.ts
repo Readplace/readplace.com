@@ -33,7 +33,7 @@ function page(overrides: {
 	purpose?: string;
 	wizardOpen?: boolean;
 	purposeError?: string;
-	inboxes?: readonly InboxAddressEntry[];
+	inboxes?: readonly InboxAddressEntry[] | undefined;
 	choices?: readonly ReadlistFitOverride[];
 	alert?: AlertContent;
 	canCreate?: boolean;
@@ -61,7 +61,7 @@ function page(overrides: {
 		purposeError: overrides.purposeError,
 		filing: overrides.filing ?? "legacy",
 		smartError: undefined,
-		inboxes: overrides.inboxes ?? [],
+		inboxes: "inboxes" in overrides ? overrides.inboxes : [],
 		choices: overrides.choices ?? [],
 		alert: overrides.alert,
 		saved: false,
@@ -375,32 +375,45 @@ describe("ReadlistPreferencesPage", () => {
 	});
 
 	it.each([
-		["an unset purpose", undefined],
-		["a set purpose", "Shipping essays."],
-	])("shows no lock on %s when the reader can write, even with an offer", (_case, purpose) => {
-		const doc = documentOf(page({ purpose, offer: OFFER }).content.html);
-		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
-		assert(inboxes, "the inboxes section renders in every state");
+		["a regular readlist", undefined, "legacy"],
+		["a Smart Readlist", "Shipping essays.", "smart"],
+	] as const)("shows no lock on %s when the reader can write, even with an offer", (_case, purpose, filing) => {
+		const doc = documentOf(
+			page({ purpose, filing, inboxes: filing === "smart" ? undefined : [], offer: OFFER }).content.html,
+		);
 
 		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
 	});
 
 	it.each([
-		["unset", undefined, ["filters", "inboxes"]],
-		["set", "Shipping essays.", ["filters", "preferences", "inboxes"]],
-	])("stacks the readlist's inboxes under its tabs and wizard host while the purpose is %s", (_state, purpose, order) => {
-		const browse = documentOf(page({ purpose }).content.html).querySelector(".readlist__browse");
+		["a regular readlist", undefined, "legacy", [], ["filters", "inboxes", "smart"]],
+		["a Smart Readlist", "Shipping essays.", "smart", undefined, ["filters", "preferences", "smart"]],
+	] as const)("stacks the sections of %s under its tabs", (_case, purpose, filing, inboxes, order) => {
+		const browse = documentOf(page({ purpose, filing, inboxes }).content.html).querySelector(".readlist__browse");
 		assert(browse, "the preferences page must render its browse column");
 		const sections = Array.from(browse.children, (child) =>
-			["filters", "preferences", "inboxes"].find((name) =>
-				child.hasAttribute(name === "filters" ? "data-test-filters" : `data-test-readlist-${name}`),
-			),
+			[
+				["filters", "data-test-filters"],
+				["preferences", "data-test-readlist-preferences"],
+				["inboxes", "data-test-readlist-inboxes"],
+				["smart", "data-test-smart-filing"],
+			].find(([, attribute]) => child.hasAttribute(attribute))?.[0],
 		).filter((name) => name !== undefined);
 
 		expect(sections).toEqual(order);
 	});
 
-	it("shows a Smart Readlist its Purpose card, wizard, inboxes and Gmail senders", () => {
+	it("shows a Smart Readlist its Purpose card and wizard, and no inboxes or Gmail senders", () => {
+		const doc = documentOf(
+			page({ purpose: "Shipping essays.", filing: "smart", inboxes: undefined, gmailSenders: undefined }).content.html,
+		);
+
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
+		expect(doc.querySelector("#readlist-preferences-wizard")).toBeTruthy();
+		expect(doc.querySelectorAll("[data-test-readlist-inboxes], [data-test-readlist-gmail-senders]")).toHaveLength(0);
+	});
+
+	it("shows a regular readlist its Gmail senders", () => {
 		const gmailSenders: ReadlistGmailSendersViewModel = {
 			sectionClass: "",
 			state: "connect",
@@ -412,11 +425,8 @@ describe("ReadlistPreferencesPage", () => {
 			picker: undefined,
 			pageUrl: "/gmail",
 		};
-		const doc = documentOf(page({ purpose: "Shipping essays.", filing: "smart", gmailSenders }).content.html);
+		const doc = documentOf(page({ gmailSenders }).content.html);
 
-		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
-		expect(doc.querySelector("#readlist-preferences-wizard")).toBeTruthy();
-		expect(doc.querySelector("[data-test-readlist-inboxes]")).toBeTruthy();
 		expect(doc.querySelector("[data-test-readlist-gmail-senders]")).toBeTruthy();
 	});
 
@@ -440,7 +450,7 @@ describe("ReadlistPreferencesPage", () => {
 		).toBe("Saves to All and Later");
 	});
 
-	it("stacks the readlist's remembered choices under its inboxes", () => {
+	it("stacks the readlist's remembered choices under its Smart matching section", () => {
 		const dovetail: ReadlistFitOverride = {
 			id: ReadlistFitOverrideIdSchema.parse("0009007199254740-1760000000000-message-0001"),
 			url: "https://finewoodworking.com/dovetail",
@@ -451,11 +461,13 @@ describe("ReadlistPreferencesPage", () => {
 			ordinal: EmailLinkOrdinalSchema.parse("0001"),
 			createdAt: new Date("2026-10-12T09:00:00.000Z"),
 		};
-		const doc = documentOf(page({ purpose: "Woodworking", choices: [dovetail] }).content.html);
-		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
-		assert(inboxes, "the inboxes section renders in every state");
+		const doc = documentOf(
+			page({ purpose: "Woodworking", filing: "smart", inboxes: undefined, choices: [dovetail] }).content.html,
+		);
+		const smart = doc.querySelector("[data-test-smart-filing]");
+		assert(smart, "the Smart matching section renders in every state");
 
-		expect(inboxes.nextElementSibling?.hasAttribute("data-test-readlist-choices")).toBe(true);
+		expect(smart.nextElementSibling?.hasAttribute("data-test-readlist-choices")).toBe(true);
 	});
 
 	it("raises a refused inbox routing as the page's alert, ahead of any other", () => {
