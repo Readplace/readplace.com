@@ -34,6 +34,26 @@ function ojsViewer(downloadHref: string): string {
 	return viewerHtml({ downloadHref, generator: "Open Journal Systems 3.3.0.21" });
 }
 
+const OJS2_VIEWER = "https://journals.example.org/index.php/sample/article/view/112194/44047";
+const OJS2_DOWNLOAD = "https://journals.example.org/index.php/sample/article/download/112194/44047";
+
+function ojs2Viewer(params: { pkpAsset?: string; downloadLink?: string }): string {
+	return `<!DOCTYPE html>
+<html lang="en-US">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title>View of A sample study</title>
+	${params.pkpAsset ?? ""}
+</head>
+<body>
+	<div id="pdfDownloadLinkContainer">
+		${params.downloadLink ?? ""}
+	</div>
+	<div id="inlinePdf"><object data="${OJS2_DOWNLOAD}" type="application/pdf"></object></div>
+</body>
+</html>`;
+}
+
 function siteFor(html: string) {
 	const crawlFetch: CrawlFetch = async () => new Response(html, { status: 200 });
 	return initOjsGalleySiteRules({ crawlFetch, logError: () => {} });
@@ -68,6 +88,32 @@ describe("OJS galley site rules", () => {
 			kind: "redirect",
 			url: new URL(download, viewer).href,
 		});
+	});
+
+	it.each([
+		'<script type="text/javascript" src="https://journals.example.org/lib/pkp/js/lib/jquery/jquery.min.js"></script>',
+		'<link rel="stylesheet" href="https://journals.example.org/lib/pkp/styles/pkp.css" type="text/css" />',
+	])("follows an OJS 2.4 PDF viewer's download link when the page loads a PKP asset: %s", async (pkpAsset) => {
+		const html = ojs2Viewer({ pkpAsset, downloadLink: `<a class="action pdf" id="pdfDownloadLink" target="_parent" href="${OJS2_DOWNLOAD}">Download this PDF file</a>` });
+		expect(await siteFor(html).onCrawl({ url: OJS2_VIEWER })).toEqual({ kind: "redirect", url: OJS2_DOWNLOAD });
+	});
+
+	it("declines an OJS 2.4 download link on a page without a PKP asset", async () => {
+		const html = ojs2Viewer({ downloadLink: `<a id="pdfDownloadLink" href="${OJS2_DOWNLOAD}">Download this PDF file</a>` });
+		expect(await siteFor(html).onCrawl({ url: OJS2_VIEWER })).toEqual({ kind: "skip" });
+	});
+
+	it("declines an OJS 2.4 page whose PKP asset has no download link", async () => {
+		const html = ojs2Viewer({ pkpAsset: '<script src="/lib/pkp/js/pkp.js"></script>', downloadLink: '<a id="pdfDownloadLink">Download this PDF file</a>' });
+		expect(await siteFor(html).onCrawl({ url: OJS2_VIEWER })).toEqual({ kind: "skip" });
+	});
+
+	it("declines a cross-origin OJS 2.4 download link", async () => {
+		const html = ojs2Viewer({
+			pkpAsset: '<script src="/lib/pkp/js/pkp.js"></script>',
+			downloadLink: '<a id="pdfDownloadLink" href="https://cdn.example.net/index.php/sample/article/download/112194/44047">Download this PDF file</a>',
+		});
+		expect(await siteFor(html).onCrawl({ url: OJS2_VIEWER })).toEqual({ kind: "skip" });
 	});
 
 	it("declines a non-OJS page that happens to carry a download link", async () => {

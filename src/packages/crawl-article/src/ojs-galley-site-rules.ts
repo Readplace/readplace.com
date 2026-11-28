@@ -17,12 +17,23 @@ function galleyViewer(url: string): GalleyViewer | undefined {
 	return { viewer, prefix, articleId, galleyId };
 }
 
-function pdfGalleyTarget(params: GalleyViewer & { html: string }): string | undefined {
-	const { document } = parseHTML(params.html);
+type ViewerDocument = ReturnType<typeof parseHTML>["document"];
+
+function ojs3DownloadHref(document: ViewerDocument): string | null | undefined {
 	const generator = document.querySelector('meta[name="generator"]')?.getAttribute("content");
 	if (!generator?.startsWith("Open Journal Systems")) return undefined;
 	if (document.querySelector("#pdfCanvasContainer") === null) return undefined;
-	const href = document.querySelector("a.download")?.getAttribute("href");
+	return document.querySelector("a.download")?.getAttribute("href");
+}
+
+function ojs2DownloadHref(document: ViewerDocument): string | null | undefined {
+	if (document.querySelector('script[src*="/lib/pkp/"], link[href*="/lib/pkp/"]') === null) return undefined;
+	return document.querySelector("a#pdfDownloadLink[href]")?.getAttribute("href");
+}
+
+function pdfGalleyTarget(params: GalleyViewer & { html: string }): string | undefined {
+	const { document } = parseHTML(params.html);
+	const href = ojs3DownloadHref(document) ?? ojs2DownloadHref(document);
 	if (typeof href !== "string" || !URL.canParse(href, params.viewer.href)) return undefined;
 	const target = new URL(href, params.viewer);
 	if (target.origin !== params.viewer.origin || target.search !== "" || target.hash !== "") return undefined;
