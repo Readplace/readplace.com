@@ -30,10 +30,10 @@ export const defensePhotoSiteRules = {
 		const download = unique(scope, "ul.meta > li.download > a[href]");
 		const downloadLabel = unique(scope, "ul.meta > li.download > strong");
 		const tag = unique(scope, "ul.meta > li.tags");
-		const subject = tag && unique(tag, "a[href]");
+		const subjects = tag ? [...tag.querySelectorAll("a[href]")] : [];
 		const tagLabel = tag && unique(tag, "strong");
 		const credit = unique(scope, "ul.meta > li:not([class])");
-		if (!heading || !caption || !picture || !download || !downloadLabel || !tagLabel || !subject || !credit) return undefined;
+		if (!heading || !caption || !picture || !download || !downloadLabel || !tagLabel || !subjects.length || !subjects.every(visible) || !credit) return undefined;
 
 		const title = text(heading);
 		const captionText = text(caption);
@@ -52,9 +52,11 @@ export const defensePhotoSiteRules = {
 			!medium.bounded || full.bounded || medium.family !== full.family ||
 			linked?.href !== full.href || social?.href !== medium.href) return undefined;
 
-		const subjectHref = subject.getAttribute("href");
-		const subjectUrl = subjectHref && URL.parse(subjectHref, documentUrl);
-		if (!subjectUrl || !PUBLISHER_ORIGINS.has(subjectUrl.origin) || subjectUrl.username || subjectUrl.password) return undefined;
+		const topics = subjects.flatMap((subject) => {
+			const url = publisherUrl(subject.getAttribute("href"), documentUrl);
+			return url ? [{ url, label: text(subject) }] : [];
+		});
+		if (topics.length !== subjects.length) return undefined;
 		const article = document.createElement("article");
 		const figure = document.createElement("figure");
 		const image = document.createElement("img");
@@ -64,7 +66,10 @@ export const defensePhotoSiteRules = {
 		append(figure, "figcaption", captionText);
 		article.append(figure);
 		labelledParagraph(article, text(downloadLabel), anchor(document, full.href, text(download)));
-		labelledParagraph(article, text(tagLabel), anchor(document, subjectUrl.href, text(subject)));
+		labelledParagraph(article, text(tagLabel), ...topics.flatMap(({ url, label }, index) => {
+			const link = anchor(document, url.href, label);
+			return index ? [", ", link] : [link];
+		}));
 		labelledParagraph(article, sourceCredit.label, sourceCredit.value);
 		labelledParagraph(article, assetReference.label, assetReference.value);
 		return { title, siteName, bodyHtml: article.innerHTML };
@@ -75,6 +80,11 @@ function photoId(value: string): string | undefined {
 	const url = URL.parse(value);
 	if (!url || !PUBLISHER_ORIGINS.has(url.origin) || url.username || url.password) return undefined;
 	return PHOTO_PATH.exec(url.pathname)?.[1];
+}
+
+function publisherUrl(href: string | null, base: string): URL | undefined {
+	const url = href ? URL.parse(href, base) : null;
+	return url && PUBLISHER_ORIGINS.has(url.origin) && !url.username && !url.password ? url : undefined;
 }
 
 function asset(element: Element | null | undefined, attribute: string, base: string) {
@@ -89,7 +99,11 @@ function asset(element: Element | null | undefined, attribute: string, base: str
 
 function unique(scope: ParentNode, selector: string): Element | undefined {
 	const [element, duplicate] = scope.querySelectorAll(selector);
-	return !duplicate && element && !element.closest(HIDDEN) && !element.querySelector(HIDDEN) ? element : undefined;
+	return !duplicate && element && visible(element) ? element : undefined;
+}
+
+function visible(element: Element): boolean {
+	return !element.closest(HIDDEN) && !element.querySelector(HIDDEN);
 }
 
 function text(element: Element): string {
@@ -107,10 +121,10 @@ function creditedField(field: Element): { label: string; value: string } | undef
 	return content.startsWith(label) && value ? { label, value } : undefined;
 }
 
-function labelledParagraph(article: Element, label: string, content: string | Element): void {
+function labelledParagraph(article: Element, label: string, ...contents: Array<string | Element>): void {
 	const strong = article.ownerDocument.createElement("strong");
 	strong.textContent = label;
-	append(article, "p", strong, " ", content);
+	append(article, "p", strong, " ", ...contents);
 }
 
 function anchor(document: Document, href: string, contents: string | Element): HTMLAnchorElement {
