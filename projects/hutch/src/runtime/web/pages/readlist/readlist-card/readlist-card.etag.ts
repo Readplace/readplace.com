@@ -6,7 +6,7 @@ import { computeArticleContentVersion } from "../../../shared/article-content-ve
 import type { ReaderProvenance } from "../../../shared/article-body/article-header/provenance-label";
 import { readlistCardVia } from "./readlist-card-via";
 
-export interface ReadlistCardEtagInput {
+interface ReadlistCardEtagInput {
 	article: SavedArticle;
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;

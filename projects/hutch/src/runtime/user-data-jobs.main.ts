@@ -61,7 +61,7 @@ import { initRestoreSavedLinks } from "./saved-links-job/restore-saved-links";
 import { initSavedLinksJobHandler } from "./saved-links-job/saved-links-job-handler";
 import { initPurgeRemovedNewsletterIssuesHandler } from "./saved-links-job/purge-removed-newsletter-issues-handler";
 import { initScheduleRemovedIssuesPurge } from "./saved-links-job/schedule-removed-issues-purge";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects } from "@packages/inbox-store";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbGmailHeldMail, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
@@ -183,7 +183,7 @@ const inboxAddress = initDynamoDbInboxAddress({
 	now,
 });
 
-const deleteRawEmailObjects = initS3DeleteObjects({
+const { deleteContentObjects: deleteRawEmailObjects } = initS3DeleteContentObjects({
 	client: s3Client,
 	bucketName: env.RAW_EMAIL_BUCKET_NAME,
 });
@@ -193,7 +193,7 @@ const deleteRawEmailObjectsByPrefix = initS3DeleteObjectsByPrefix({
 	bucketName: env.RAW_EMAIL_BUCKET_NAME,
 });
 
-const deleteEmailContentObjects = initS3DeleteObjects({
+const { deleteContentObjects: deleteEmailContentObjects } = initS3DeleteContentObjects({
 	client: s3Client,
 	bucketName: env.CONTENT_BUCKET_NAME,
 });

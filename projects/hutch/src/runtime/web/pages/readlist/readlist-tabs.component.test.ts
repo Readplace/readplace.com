@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
+import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { READLIST_TABS } from "./readlist.tabs";
 import { buildReadlistTabs, renderReadlistTabs } from "./readlist-tabs.component";
 
@@ -156,6 +157,13 @@ describe("buildReadlistTabs", () => {
 
 	it("hides the preferences tab on the built-in readlist", () => {
 		expect(tabKeys(renderTabs({ activeTab: "queue" }))).toEqual([
+			"unread",
+			"read",
+		]);
+	});
+
+	it("hides the preferences tab on Hand Picked, which holds only the links a reader adds by hand", () => {
+		expect(tabKeys(renderTabs({ activeTab: "queue", readlist: HAND_PICKED_SCOPE }))).toEqual([
 			"unread",
 			"read",
 		]);

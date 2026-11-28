@@ -168,13 +168,10 @@ const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName"
 // keeps only the access its own workers still need — the forwarding-address page
 // and the account-deletion sweep — and names those tables by ARN derived from
 // account + region, so neither stack waits on the other to deploy.
-const inboxAwsRegion = new pulumi.Config("aws").require("region");
-const inboxAwsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
-function inboxTableArn(tableName: string): pulumi.Output<string> {
-	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
-}
-function mediaTableArn(tableName: string): pulumi.Output<string> {
-	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
+const awsRegion = new pulumi.Config("aws").require("region");
+const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+function dynamoTableArn(tableName: string): pulumi.Output<string> {
+	return pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsAccountId}:table/${tableName}`;
 }
 
 const tableNames = {
@@ -248,6 +245,32 @@ const storage = new HutchStorage("hutch", {
 	deletionProtection,
 	tableNames,
 });
+
+function gmailConnectionUpdateAccess(lambdaName: string): DynamoDBAccess {
+	return new DynamoDBAccess(`hutch-${lambdaName}-connection-update`, {
+		tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
+		actions: ["dynamodb:UpdateItem"],
+	});
+}
+
+type GmailAccountEnvironment = {
+	DYNAMODB_GMAIL_CONNECTIONS_TABLE: pulumi.Output<string>;
+	DYNAMODB_GMAIL_CREDENTIALS_TABLE: pulumi.Output<string>;
+	GMAIL_INTEGRATION_CLIENT_ID: string;
+	GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.Output<string>;
+};
+type GmailAccountEnvironmentWithMappings = GmailAccountEnvironment & { DYNAMODB_GMAIL_MAPPINGS_TABLE: pulumi.Output<string> };
+function gmailAccountEnvironment(args: { mappings: true }): GmailAccountEnvironmentWithMappings;
+function gmailAccountEnvironment(args: { mappings: false }): GmailAccountEnvironment;
+function gmailAccountEnvironment({ mappings }: { mappings: boolean }): GmailAccountEnvironment | GmailAccountEnvironmentWithMappings {
+	const account: GmailAccountEnvironment = {
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+	};
+	return mappings ? { ...account, DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name } : account;
+}
 
 const newsletterCatalogBucket = new S3ReadWrite("newsletter-catalog-bucket", {
 	bucketName: newsletterCatalogBucketName,
@@ -356,7 +379,7 @@ const dynamodb = new DynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.pendingViewHighlightsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
+		{ arn: dynamoTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
@@ -364,7 +387,7 @@ const dynamodb = new DynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false },
 	],
@@ -395,9 +418,9 @@ const webUserArticleConditions = new DynamoDBAccess("hutch-web-user-article-cond
 
 const webIssueLinksRead = new DynamoDBAccess("hutch-web-issue-links-read", {
 	tables: [
-		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxEmails), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query"],
 });
@@ -407,7 +430,7 @@ const webCanaryReportsRead = new DynamoDBAccess("hutch-web-canary-reports-read",
 	actions: ["dynamodb:Query"],
 });
 const webMediaTranscriptQuota = new DynamoDBAccess("hutch-web-media-transcript-quota", {
-	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	tables: [{ arn: dynamoTableArn(mediaTableName), includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
@@ -832,8 +855,8 @@ const userDataJobsDynamodb = new DynamoDBAccess("user-data-jobs-dynamodb", {
 		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailHeldMail), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailHeldMail), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.sessionsTable.arn, includeIndexes: true },
@@ -845,10 +868,10 @@ const userDataJobsDynamodb = new DynamoDBAccess("user-data-jobs-dynamodb", {
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
+		{ arn: dynamoTableArn(tableNames.inboxEmails), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
 		{ arn: storage.verificationTokensTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
@@ -893,6 +916,10 @@ const userDataJobsS3Policy = {
 	}),
 };
 
+const mediaReleaseDeletableObjectArns = ["pending", "images", "objects", "transcripts"].map(
+	(prefix) => `arn:aws:s3:::${mediaBucketName}/${prefix}/*`,
+);
+
 const userDataJobsMediaPendingDeletePolicy = {
 	name: "user-data-jobs-media-pending-delete",
 	policy: JSON.stringify({
@@ -901,12 +928,7 @@ const userDataJobsMediaPendingDeletePolicy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [
-					`arn:aws:s3:::${mediaBucketName}/pending/*`,
-					`arn:aws:s3:::${mediaBucketName}/images/*`,
-					`arn:aws:s3:::${mediaBucketName}/objects/*`,
-					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
-				],
+				Resource: mediaReleaseDeletableObjectArns,
 			},
 			{
 				Effect: "Allow",
@@ -927,7 +949,7 @@ const mediaHoldingsActions = [
 ];
 
 const userDataJobsMediaHoldingsDynamodb = new DynamoDBAccess("user-data-jobs-media-holdings-dynamodb", {
-	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	tables: [{ arn: dynamoTableArn(mediaTableName), includeIndexes: false }],
 	actions: mediaHoldingsActions,
 });
 
@@ -952,7 +974,7 @@ const userDataJobsUserArticlesDynamodb = new DynamoDBAccess("user-data-jobs-user
 });
 
 const userDataJobsEmailIdentitiesDynamodb = new DynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
-	tables: [{ arn: inboxTableArn(tableNames.emailIdentities), includeIndexes: true }],
+	tables: [{ arn: dynamoTableArn(tableNames.emailIdentities), includeIndexes: true }],
 	actions: ["dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:DeleteItem"],
 });
 
@@ -978,11 +1000,8 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 	environment: {
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_GMAIL_HELD_MAIL_TABLE: tableNames.gmailHeldMail,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -1016,8 +1035,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [
 		...userDataJobsDynamodb.policies,
@@ -1548,7 +1566,7 @@ const mediaReleaseDynamodb = new DynamoDBAccess("media-release-dynamodb", {
 });
 
 const mediaReleaseMediaHoldingsDynamodb = new DynamoDBAccess("media-release-media-holdings-dynamodb", {
-	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	tables: [{ arn: dynamoTableArn(mediaTableName), includeIndexes: false }],
 	actions: mediaHoldingsActions,
 });
 
@@ -1565,13 +1583,7 @@ const mediaReleaseS3Policy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [
-					`arn:aws:s3:::${contentBucketName}/*`,
-					`arn:aws:s3:::${mediaBucketName}/pending/*`,
-					`arn:aws:s3:::${mediaBucketName}/images/*`,
-					`arn:aws:s3:::${mediaBucketName}/objects/*`,
-					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
-				],
+				Resource: [`arn:aws:s3:::${contentBucketName}/*`, ...mediaReleaseDeletableObjectArns],
 			},
 			{
 				Effect: "Allow",
@@ -1854,9 +1866,9 @@ const rewriteGmailFilterDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filte
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.gmailSenders), includeIndexes: false },
+		{ arn: dynamoTableArn(tableNames.gmailSenders), includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
-		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
+		{ arn: dynamoTableArn(tableNames.inboxAddresses), includeIndexes: true },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -1891,15 +1903,11 @@ const rewriteGmailFilterLambda = new Lambda("rewrite-gmail-filter", {
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [...rewriteGmailFilterDynamodb.policies, ...rewriteGmailFilterGmailHistoryDynamodb.policies, ...rewriteGmailFilterGmailMonitoringDynamodb.policies],
 });
@@ -1975,10 +1983,7 @@ const gmailNewsletterAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-ac
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
-const gmailNewsletterConnectionUpdate = new DynamoDBAccess("hutch-gmail-newsletter-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
+const gmailNewsletterConnectionUpdate = gmailConnectionUpdateAccess("gmail-newsletter");
 const gmailNewsletterNoticeAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-notice-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
@@ -2041,13 +2046,9 @@ const gmailNewsletterMonitorLambda = new Lambda("gmail-newsletter-monitor", {
 		GMAIL_NEWSLETTER_NOTICE_QUEUE_URL: gmailNewsletterNoticeQueue.queueUrl,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [
 		...gmailNewsletterMonitoringAccess.policies,
@@ -2108,10 +2109,7 @@ const gmailDiscoveryAccountRead = new DynamoDBAccess("hutch-gmail-discovery-acco
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailDiscoveryConnectionUpdate = new DynamoDBAccess("hutch-gmail-discovery-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
+const gmailDiscoveryConnectionUpdate = gmailConnectionUpdateAccess("gmail-discovery");
 const gmailDiscoveryQueue = new Sqs("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
 const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 	entryPoint: "./src/runtime/gmail-discovery.main.ts",
@@ -2124,10 +2122,7 @@ const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_DISCOVERY_QUEUE_URL: gmailDiscoveryQueue.queueUrl,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: false }),
 	},
 	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryAccountRead.policies, ...gmailDiscoveryConnectionUpdate.policies, ...gmailDiscoveryQueue.policies],
 	recursiveLoop: "Allow",
@@ -2199,10 +2194,7 @@ const gmailHistoryImportAccountRead = new DynamoDBAccess("hutch-gmail-history-im
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailHistoryImportConnectionUpdate = new DynamoDBAccess("hutch-gmail-history-import-connection-update", {
-	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
+const gmailHistoryImportConnectionUpdate = gmailConnectionUpdateAccess("gmail-history-import");
 const gmailHistoryImportRawWrite = {
 	name: "gmail-history-import-raw-write",
 	policy: JSON.stringify({
@@ -2226,12 +2218,8 @@ const gmailHistoryImportLambda = new Lambda("gmail-history-import", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_HISTORY_IMPORT_QUEUE_URL: gmailHistoryImportQueue.queueUrl,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [
 		...gmailHistoryImportAccess.policies,
@@ -2316,11 +2304,7 @@ const gmailMessageUpdatesLambda = new Lambda("gmail-message-updates", {
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
-		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
-		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
-		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
-		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		...gmailAccountEnvironment({ mappings: true }),
 	},
 	policies: [...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies],
 });
@@ -2396,8 +2380,6 @@ new aws.cloudwatch.MetricAlarm("gmail-email-update-failed-alarm", {
 // The widget builder lives outside the Pulumi runtime so the dashboard JSON is
 // constructable and assertable in tests that guard against coverage gaps and
 // unknown references drifting from the analytics event constants.
-
-const region = aws.config.requireRegion();
 
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
@@ -2498,8 +2480,6 @@ if (readlistCapWarnThreshold !== undefined) {
 // destination (preamble stripped so Logs Insights can query the fields). Only the
 // analytics streams match the filter; operational streams (parse-errors,
 // crawl-outcomes) stay behind at 30-day retention.
-
-const accountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 
 // Never expires (no retentionInDays): this is the durable analytics store.
 // retainOnDelete guards the irreplaceable history against an accidental destroy.
@@ -2718,8 +2698,8 @@ new aws.lambda.Permission("forward-analytics-invoke-any-log-group", {
 	action: "lambda:InvokeFunction",
 	function: forwardAnalyticsLambda.functionName,
 	principal: "logs.amazonaws.com",
-	sourceAccount: accountId,
-	sourceArn: pulumi.interpolate`arn:aws:logs:${region}:${accountId}:log-group:*`,
+	sourceAccount: awsAccountId,
+	sourceArn: pulumi.interpolate`arn:aws:logs:${awsRegion}:${awsAccountId}:log-group:*`,
 });
 
 // The per-group subscription filters that used to live here are gone: every
@@ -2736,7 +2716,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
 	dashboardBody: pulumi.all([lambda.logGroupName, analyticsLogGroup.name, errorsLogGroup.name]).apply(([hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName]) =>
 		JSON.stringify(buildAnalyticsDashboardBody({
-			region,
+			region: awsRegion,
 			hutchLogGroupName,
 			analyticsLogGroupName,
 			errorsLogGroupName,
@@ -2760,7 +2740,7 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 	dashboardName: "readplace-related-past-reads",
 	dashboardBody: analyticsLogGroup.name.apply((analyticsLogGroupName) =>
 		JSON.stringify(buildRelatedPastReadsDashboardBody({
-			region,
+			region: awsRegion,
 			analyticsLogGroupName,
 			excludedVisitorIds,
 			excludedUserIds,

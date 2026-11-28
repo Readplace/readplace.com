@@ -6,13 +6,10 @@ export class DomainRedirect {
 		name: string,
 		args: {
 			redirectDomains: string[];
-			redirectSubdomains?: Array<{ host: string; zoneName: string }>;
+			redirectSubdomains: Array<{ host: string; zoneName: string }>;
 			targetDomain: string;
 		},
 	) {
-		const redirectSubdomains = args.redirectSubdomains ?? [];
-		if (args.redirectDomains.length === 0 && redirectSubdomains.length === 0) return;
-
 		const usEast1 = new aws.Provider(`${name}-us-east-1`, {
 			region: "us-east-1",
 		});
@@ -104,7 +101,7 @@ export class DomainRedirect {
 			createRedirect({ domain, zoneId });
 		}
 
-		for (const { host, zoneName } of redirectSubdomains) {
+		for (const { host, zoneName } of args.redirectSubdomains) {
 			const zoneId = aws.route53.getZone({ name: zoneName }).then((z) => z.zoneId);
 			createRedirect({ domain: host, zoneId });
 		}

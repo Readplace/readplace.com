@@ -14,11 +14,6 @@ export interface GmailHeldMailEntry {
 
 export interface GmailHeldMailStore {
 	holdMail: (entry: GmailHeldMailEntry) => Promise<"stored" | "duplicate">;
-	listHeldMailBySender: (input: {
-		userId: UserId;
-		senderEmail: ForwardableSender;
-		limit: number;
-	}) => Promise<GmailHeldMailEntry[]>;
 	listHeldMailByUserId: (userId: UserId) => Promise<GmailHeldMailEntry[]>;
 	deleteAllHeldMailByUserId: (userId: UserId) => Promise<void>;
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 
 export interface OutlineEntry {
 	anchorId: string;
@@ -52,11 +52,7 @@ function onlyWhitespaceTextPrecedes(input: { root: Node; target: Node }): boolea
 }
 
 export function buildArticleOutline(input: { html: string; title: string | undefined }): readonly OutlineEntry[] {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="reader-outline-root">${input.html}</div></body></html>`,
-	);
-	const root = document.querySelector("div#reader-outline-root");
-	assert(root, "parseHTML must produce the reader-outline wrapper div");
+	const root = parseFragmentRoot(input.html);
 	const title = input.title === undefined ? undefined : comparable(input.title);
 	const entries: OutlineEntry[] = [];
 	let parent: { children: OutlineEntry[] } | undefined;

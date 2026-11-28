@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import {
 	ARTICLE_HIGHLIGHT_ID_PREFIX,
 	type Highlight,
@@ -12,7 +11,7 @@ import {
 	normaliseText,
 	type TextRange,
 } from "@packages/domain/article/highlight";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 import { wrapHighlightMarks } from "../highlights/wrap-highlight-marks";
 import { servedContentHash } from "./served-content-hash";
 
@@ -38,11 +37,7 @@ export function markHighlights(input: {
 	html: string;
 	highlights: ReaderHighlights;
 }): MarkedHighlights {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="reader-highlights-root">${input.html}</div></body></html>`,
-	);
-	const root = document.querySelector("div#reader-highlights-root");
-	assert(root, "parseHTML must produce the reader-highlights wrapper div");
+	const root = parseFragmentRoot(input.html);
 	for (const mark of Array.from(root.querySelectorAll("mark"))) {
 		mark.removeAttribute("class");
 		mark.removeAttribute("id");
@@ -61,7 +56,7 @@ export function markHighlights(input: {
 		}),
 	}));
 	const noteEnds = wrapHighlightMarks({
-		document,
+		document: root.ownerDocument,
 		root,
 		chunks,
 		spans: normalised.spans,

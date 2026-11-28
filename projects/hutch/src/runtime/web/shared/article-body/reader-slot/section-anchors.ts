@@ -1,6 +1,5 @@
-import assert from "node:assert";
 import { ARTICLE_SECTION_ID_PREFIX } from "@packages/domain/article";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 
 const SLUG_MAX_CODE_POINTS = 60;
 
@@ -31,11 +30,7 @@ function readHeadingText(node: Node): string {
 }
 
 export function anchorArticleSections(html: string): string {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="reader-section-anchors-root">${html}</div></body></html>`,
-	);
-	const root = document.querySelector("div#reader-section-anchors-root");
-	assert(root, "parseHTML must produce the reader-section-anchors wrapper div");
+	const root = parseFragmentRoot(html);
 	const headings: Element[] = Array.from(root.querySelectorAll("h2, h3"));
 	const used = new Set<string>();
 	for (const heading of headings) {

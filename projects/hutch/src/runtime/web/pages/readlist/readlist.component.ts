@@ -346,7 +346,6 @@ function emptyState(input: {
 	tabHoldsRows: boolean;
 	discovery: ReadlistDiscovery | undefined;
 	isDefaultReadlist: boolean;
-	unreadUrl: string;
 	clearDiscoveryUrl: string;
 	preferencesUrl: string;
 	client: DeviceClient;
@@ -376,11 +375,7 @@ function emptyState(input: {
 	}
 	return input.tab === "queue"
 		? { ...CAUGHT_UP, ...PLAIN_COPY, actions: [] }
-		: {
-				...NOTHING_READ,
-				...PLAIN_COPY,
-				actions: [navigateAction({ key: "view-unread", href: input.unreadUrl, label: "View Unread Articles" })],
-			};
+		: { ...NOTHING_READ, ...PLAIN_COPY, actions: [] };
 }
 
 export function readlistPanels(rail: ReadlistRailViewModel): {
@@ -505,10 +500,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		tabHoldsRows: options.tabHoldsRows,
 		discovery: filters.discovery,
 		isDefaultReadlist,
-		unreadUrl: withInternalTracking(
-			buildReadlistUrl({ readlist: filters.readlist, tab: "queue" }),
-			{ source: "queue-empty", content: "view-unread" },
-		),
 		clearDiscoveryUrl: withInternalTracking(
 			buildReadlistFiltersUrl(
 				{ readlist: filters.readlist, tab: filters.tab, order: filters.order },

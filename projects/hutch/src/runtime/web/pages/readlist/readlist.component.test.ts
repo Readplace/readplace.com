@@ -522,7 +522,7 @@ describe("ReadlistPage", () => {
 		expect(emptyActionKeys(doc)).toEqual(["install"]);
 	});
 
-	it("shows No finished articles yet with View Unread Articles on Hand Picked's Done tab when Hand Picked holds unread articles", () => {
+	it("shows No finished articles yet with no action on Hand Picked's Done tab when Hand Picked holds unread articles", () => {
 		const doc = pageDoc(
 			{ filters: { ...DEFAULT_FILTERS, readlist: HAND_PICKED_SCOPE, tab: "done" } },
 			{ readlistHoldsArticles: true, libraryHoldsArticles: true },
@@ -532,16 +532,7 @@ describe("ReadlistPage", () => {
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
 			"Once you finish an article and mark it as read, you'll find it here.",
 		);
-		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
-		const action = doc.querySelector('[data-test-empty-action="view-unread"]');
-		assert(action, "the View Unread Articles CTA must be offered");
-		const submission = emptyActionSubmission(action);
-		expect([
-			submission.method,
-			submission.url.pathname,
-			submission.url.searchParams.get("scope"),
-			submission.url.searchParams.get("utm_content"),
-		]).toEqual(["GET", "/queue", "hand-picked", "view-unread"]);
+		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
 	it("tells a reader with an empty custom readlist to add an article from All, and offers its preferences as Beta", () => {
@@ -582,7 +573,7 @@ describe("ReadlistPage", () => {
 	it("marks no other empty-state action as Beta", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, tab: "done" } }, { readlistHoldsArticles: true });
 
-		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
+		expect(emptyActionKeys(doc)).toEqual([]);
 		expect(doc.querySelector("[data-test-empty-action-beta]")).toBeNull();
 	});
 
@@ -593,19 +584,11 @@ describe("ReadlistPage", () => {
 		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
-	it("points a reader at their unread articles when nothing is read yet", () => {
+	it("offers no action to a reader with nothing read yet", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, tab: "done" } }, { readlistHoldsArticles: true });
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe("No finished articles yet");
-		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
-		const action = doc.querySelector('[data-test-empty-action="view-unread"]');
-		assert(action, "the View Unread Articles CTA must be offered");
-		const submission = emptyActionSubmission(action);
-		expect([submission.method, submission.url.pathname, submission.url.searchParams.get("utm_content")]).toEqual([
-			"GET",
-			"/queue",
-			"view-unread",
-		]);
+		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
 	it("offers no action to a caught-up reader of a custom readlist", () => {

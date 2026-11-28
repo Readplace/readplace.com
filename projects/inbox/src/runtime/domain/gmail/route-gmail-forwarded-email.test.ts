@@ -125,11 +125,9 @@ describe("initRouteGmailForwardedEmail", () => {
 
 		assert.equal(await run(), undefined);
 
-		const held = await heldMail.listHeldMailBySender({
-			userId: USER,
-			senderEmail: TLDR,
-			limit: 5,
-		});
+		const held = (await heldMail.listHeldMailByUserId(USER)).filter(
+			(entry) => entry.senderEmail === TLDR,
+		);
 		assert.deepEqual(held, [
 			{
 				userId: USER,
@@ -161,11 +159,9 @@ describe("initRouteGmailForwardedEmail", () => {
 
 		assert.deepEqual(delivered, { destinationAddresses: [GATEWAY], deliveryMode: "links" });
 		assert.deepEqual(
-			await heldMail.listHeldMailBySender({
-				userId: USER,
-				senderEmail: TLDR,
-				limit: 5,
-			}),
+			(await heldMail.listHeldMailByUserId(USER)).filter(
+				(entry) => entry.senderEmail === TLDR,
+			),
 			[],
 		);
 	});

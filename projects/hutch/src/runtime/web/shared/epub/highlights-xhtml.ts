@@ -2,18 +2,14 @@ import assert from "node:assert";
 import type { HighlightId } from "@packages/domain/article";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReader } from "@packages/translations/hutch-reader";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../article-body/parse-fragment-root";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
-import { escapeXmlAttribute, escapeXmlText } from "./epub-xhtml";
+import { escapeXmlAttribute, escapeXmlText, paragraphXhtml } from "./epub-xhtml";
 
 const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 const NOTE_REFERENCE_ID_PREFIX = "noteref-highlight-";
 const NOTE_ID_PREFIX = "endnote-highlight-";
-
-function paragraph(text: string): string {
-	return `<p>${escapeXmlText(text)}</p>`;
-}
 
 function numberedNote(input: { state: ReaderHighlightState; note: string; number: number }): string {
 	const id = input.state.highlight.highlightId;
@@ -28,11 +24,11 @@ function entryXhtml(entry: { state: ReaderHighlightState; number?: number }): st
 		: shown.state === "orphaned"
 			? ` ${t("articleBody.highlightExport.notFound")}`
 			: "";
-	const quoted = blocks.map((block, index) => paragraph(index === blocks.length - 1 ? block + suffix : block)).join("");
+	const quoted = blocks.map((block, index) => paragraphXhtml(index === blocks.length - 1 ? block + suffix : block)).join("");
 	if (highlight.note === undefined) return `<blockquote>${quoted}</blockquote>`;
 	const note =
 		entry.number === undefined
-			? paragraph(highlight.note)
+			? paragraphXhtml(highlight.note)
 			: numberedNote({ state: entry.state, note: highlight.note, number: entry.number });
 	return `<blockquote>${quoted}</blockquote>${note}`;
 }
@@ -67,9 +63,7 @@ export function noteReferencedChapterXhtml(input: {
 	bodyHtml: string;
 	highlightsHtml: string;
 } {
-	const { document } = parseHTML(`<!DOCTYPE html><html><body><div id="epub-chapter-root">${input.html}</div></body></html>`);
-	const root = document.querySelector("div#epub-chapter-root");
-	assert(root, "parseHTML must produce the chapter wrapper div");
+	const root = parseFragmentRoot(input.html);
 	const numbers = new Map<string, number>();
 	for (const { highlight } of inOrder(input.states)) {
 		if (input.noteEnds.has(highlight.highlightId)) numbers.set(highlight.highlightId, numbers.size + 1);
@@ -86,13 +80,13 @@ export function noteReferencedChapterXhtml(input: {
 		const highlightId = String(mark.getAttribute("data-highlight-id"));
 		const number = numbers.get(highlightId);
 		if (number === undefined || lastSegments.get(highlightId) !== mark) continue;
-		const link = document.createElement("a");
+		const link = root.ownerDocument.createElement("a");
 		link.setAttribute("epub:type", "noteref");
 		link.setAttribute("role", "doc-noteref");
 		link.setAttribute("id", `${NOTE_REFERENCE_ID_PREFIX}${highlightId}`);
 		link.setAttribute("href", `#${NOTE_ID_PREFIX}${highlightId}`);
 		link.textContent = String(number);
-		const reference = document.createElement("sup");
+		const reference = root.ownerDocument.createElement("sup");
 		reference.appendChild(link);
 		let before: Node = outermostLinkHolding({ element: mark, root });
 		while (before.nextSibling !== null && references.has(before.nextSibling)) before = before.nextSibling;

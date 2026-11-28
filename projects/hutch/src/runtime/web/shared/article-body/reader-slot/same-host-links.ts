@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 
 /**
  * Rewrite in-article links that point back at our own host so they navigate
@@ -19,11 +19,7 @@ export function keepSameHostLinksInSamePage(input: {
 	html: string;
 	appHost: string;
 }): string {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="reader-same-host-root">${input.html}</div></body></html>`,
-	);
-	const root = document.querySelector("div#reader-same-host-root");
-	assert(root, "parseHTML must produce the reader-same-host wrapper div");
+	const root = parseFragmentRoot(input.html);
 	for (const anchor of Array.from(root.querySelectorAll("a[href]"))) {
 		const href = anchor.getAttribute("href");
 		assert(href !== null, "the a[href] selector guarantees an href attribute");

@@ -16,6 +16,7 @@ import {
 	ReadlistSlugSchema,
 	decideReadlistPurpose,
 	pinnedReadlistSlugs,
+	readerReadlists,
 	type ReadlistPurposeRejection,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
@@ -46,7 +47,7 @@ import {
 	INBOX_UNAVAILABLE_ALERT,
 } from "./readlist-alerts";
 import type { ReadlistOnboarding } from "./readlist.component";
-import { readerReadlists, readlistPurposeOf } from "./readlist-context";
+import { readlistPurposeOf } from "./readlist-context";
 import type { LoadReadlistGmailSenders } from "./readlist-gmail-senders.page";
 import type { FindNonEmptyReadlists } from "./readlist-holdings";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";

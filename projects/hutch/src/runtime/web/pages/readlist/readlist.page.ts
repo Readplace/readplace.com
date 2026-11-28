@@ -186,7 +186,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				logError: deps.logError,
 				findGeneratedSummaries: deps.findGeneratedSummaries,
 				findUserById: deps.findUserById,
-				httpErrorMessageMapping: deps.httpErrorMessageMapping,
 				findGmailConnectionByUserId: deps.findGmailConnectionByUserId,
 				getEffectiveAccess: deps.getEffectiveAccess,
 				recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,

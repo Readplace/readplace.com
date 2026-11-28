@@ -4,7 +4,7 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 
-export interface DeleteConfirmViewModel {
+interface DeleteConfirmViewModel {
 	articleId: string;
 	popoverId: string;
 	fallbackId: string;

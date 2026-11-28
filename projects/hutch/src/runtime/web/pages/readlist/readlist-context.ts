@@ -16,8 +16,6 @@ import type { HomeReadlistPreference } from "@packages/provider-contracts/auth";
 import { homeEntryReadlistOf, homeReadlistOf, homeReadlistTargets } from "./readlist-home";
 import { type ReadlistUrlState, parseReadlistUrl } from "./readlist.url";
 
-export { readerReadlists };
-
 export interface ReadlistContext {
 	definitions: Awaited<ReturnType<ListReadlistDefinitions>>;
 	state: ReadlistUrlState;

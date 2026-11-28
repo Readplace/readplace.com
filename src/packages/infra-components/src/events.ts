@@ -157,7 +157,6 @@ const ResolveOnViewSurfaceSchema = z.enum([
 	"reader-capture-gave-up",
 	"queue-digest",
 ]);
-export type ResolveOnViewSurface = z.infer<typeof ResolveOnViewSurfaceSchema>;
 
 export const ResolveArticleOnViewCommand = defineEvent({
 	name: "resolve-article-on-view-command",
