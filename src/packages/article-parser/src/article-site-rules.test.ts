@@ -15,7 +15,6 @@ import { quoraSiteRules } from "./quora-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
 import { xkcdSiteRules } from "./xkcd-site-rules";
-import { youtubeSiteRules } from "./youtube-site-rules";
 
 function recordingCrawlFetch(requested: string[]): CrawlFetch {
 	return async (url) => {
@@ -34,6 +33,9 @@ describe("initArticleSiteRules", () => {
 			logError: () => {},
 		});
 
+		const youtubeSlot = siteRules[10];
+		expect(youtubeSlot.matches({ url: "https://www.youtube.com/watch?v=J3PGI4yqta4", hostname: "www.youtube.com" })).toBe(true);
+		expect(youtubeSlot.matches({ url: "https://example.com/watch?v=J3PGI4yqta4", hostname: "example.com" })).toBe(false);
 		expect(siteRules).toEqual([
 			xkcdSiteRules,
 			lavcaSiteRules,
@@ -45,7 +47,7 @@ describe("initArticleSiteRules", () => {
 			quoraSiteRules,
 			substackSiteRules,
 			granolaSiteRules,
-			youtubeSiteRules,
+			youtubeSlot,
 			githubPullRequestSiteRules,
 			danaMcNeilSiteRules,
 			bugzillaSiteRules,
