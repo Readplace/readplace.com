@@ -80,7 +80,18 @@
   font-weight: 600;
 }
 
-.highlight-popover__share-target {
+.highlight-popover__share-row {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+}
+
+.menu__item.highlight-popover__share-target {
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
   text-decoration: none;
 }
 

@@ -11,9 +11,11 @@
       <button class="menu__item highlight-popover__share" type="button" data-highlight-share data-share-text="{{share.text}}"{{#if share.title}} data-share-title="{{share.title}}"{{/if}}{{#if share.url}} data-share-url="{{share.url}}"{{/if}} data-share-linked="{{share.linked}}" data-share-fragment="{{share.fragment}}" data-test-action="highlight-panel-share">{{icon "share"}}{{t "articleBody.highlightPopover.share"}}</button>
       <div class="highlight-popover__share-targets" role="group" aria-labelledby="manage-highlight-{{highlightId}}-share" data-highlight-share-targets data-test-highlight-share-targets>
         <p class="highlight-popover__share-heading" id="manage-highlight-{{highlightId}}-share">{{t "articleBody.highlightPopover.shareTargets"}}</p>
-        {{#each share.targets}}
-        <a class="menu__item highlight-popover__share-target" href="{{href}}"{{#if opensNewTab}} target="_blank" rel="noopener noreferrer"{{/if}} data-highlight-share-target="{{key}}" data-test-highlight-share-target="{{key}}"><span class="share-dialog__circle highlight-popover__share-circle {{circleClass}}">{{{logoSvg}}}</span>{{label}}</a>
-        {{/each}}
+        <div class="highlight-popover__share-row">
+          {{#each share.targets}}
+          <a class="menu__item highlight-popover__share-target" href="{{href}}" title="{{label}}"{{#if opensNewTab}} target="_blank" rel="noopener noreferrer"{{/if}} data-highlight-share-target="{{key}}" data-test-highlight-share-target="{{key}}"><span class="share-dialog__circle highlight-popover__share-circle {{circleClass}}">{{{logoSvg}}}</span><span class="sr-only">{{label}}</span></a>
+          {{/each}}
+        </div>
       </div>
       {{/if}}
       {{{noteDeleteTriggerHtml}}}

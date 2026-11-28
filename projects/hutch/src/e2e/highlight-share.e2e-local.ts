@@ -30,7 +30,7 @@ const SeededArticle = z.object({ articleId: z.string() });
 test.describe("Share highlight", () => {
 	test.use({ viewport: { width: 1280, height: 900 } });
 
-	test("a shared link opens the article's public page at the highlighted passage", async ({ page, browser }, testInfo) => {
+	test("a shared link opens the article's public page at the highlighted passage", async ({ page, playwright, headless }, testInfo) => {
 		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
 		const email = `highlight-share-${stamp}@example.com`;
 		await page.addInitScript(withoutWebShare);
@@ -74,7 +74,8 @@ test.describe("Share highlight", () => {
 		expect(text.startsWith(`“${PASSAGE}”\nSharing A Highlight `)).toBe(true);
 		expect(shared.hash.startsWith("#:~:text=")).toBe(true);
 
-		const recipient = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+		const browserThatFollowsTextFragments = await playwright.chromium.launch({ channel: "chromium", headless });
+		const recipient = await browserThatFollowsTextFragments.newContext({ viewport: { width: 1280, height: 900 } });
 		const opened = await recipient.newPage();
 		await opened.goto(`${BASE_URL}${shared.pathname}${shared.search}`, { waitUntil: "load" });
 		expect(await opened.evaluate(passageInViewport, { root: CONTENT, exact: PASSAGE })).toBe(false);
@@ -82,6 +83,6 @@ test.describe("Share highlight", () => {
 		await expect
 			.poll(() => opened.evaluate(passageInViewport, { root: CONTENT, exact: PASSAGE }), { timeout: SETTLE_MS })
 			.toBe(true);
-		await recipient.close();
+		await browserThatFollowsTextFragments.close();
 	});
 });

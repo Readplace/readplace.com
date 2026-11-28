@@ -191,9 +191,21 @@ test.describe("Highlighting a passage on a phone", () => {
 		expect(box.x).toBeGreaterThanOrEqual(16);
 		expect(box.x + box.width).toBeLessThanOrEqual(viewportWidth - 16);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-		const rowHeights = await panel.locator(".menu__item").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
-		expect(rowHeights.length).toBeGreaterThan(0);
-		for (const height of rowHeights) expect(height).toBeGreaterThanOrEqual(44);
+		const rows = await panel.locator(".menu__item").evaluateAll((items) =>
+			items.map((item) => ({
+				rendered: item.checkVisibility(),
+				width: item.getBoundingClientRect().width,
+				height: item.getBoundingClientRect().height,
+				shareAlternative: item.matches("[data-highlight-share], [data-highlight-share-target]"),
+			})),
+		);
+		const renderedRows = rows.filter((row) => row.rendered);
+		expect(renderedRows.length).toBeGreaterThan(0);
+		for (const row of rows.filter((candidate) => !candidate.rendered)) expect(row.shareAlternative).toBe(true);
+		for (const row of renderedRows) {
+			expect(row.height).toBeGreaterThanOrEqual(44);
+			expect(row.width).toBeGreaterThanOrEqual(44);
+		}
 	});
 
 	test("a tap on a noted highlight shows its note and actions in place, and a tap elsewhere only dismisses them", async ({

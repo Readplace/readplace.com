@@ -362,3 +362,46 @@ describe("highlightSharePayload in a panel", () => {
 		assert.equal(shareAttributesOf(panel)["data-share-url"], taggedView("native-share"));
 	});
 });
+
+function shareRowLabelsOf(panel: Element): { title: string | null; hidden: string | null | undefined }[] {
+	const rows = panel.querySelectorAll(".highlight-popover__share-row");
+	assert.equal(rows.length, 1);
+	const row = rows[0];
+	assert(row);
+	assert.equal(
+		row.querySelectorAll("[data-highlight-share-target]").length,
+		panel.querySelectorAll("[data-highlight-share-target]").length,
+	);
+	return Array.from(row.querySelectorAll("[data-highlight-share-target]"), (target) => ({
+		title: target.getAttribute("title"),
+		hidden: target.querySelector(".sr-only")?.textContent,
+	}));
+}
+
+describe("the compact share row", () => {
+	it("sets the five targets in one row, each named by its title and a hidden label", () => {
+		const panel = sharePanel(payloadFor({ sharing: { kind: "view", url: VIEW_URL }, fragment: undefined }));
+
+		assert.deepEqual(
+			shareRowLabelsOf(panel),
+			["WhatsApp", "Facebook", "X", "Email", "Reddit"].map((label) => ({ title: label, hidden: label })),
+		);
+	});
+
+	it("sets a quote-only share's three targets in one row, each named by its title and a hidden label", () => {
+		const panel = sharePanel(payloadFor({ sharing: { kind: "quote-only", reason: "email-issue" }, fragment: undefined }));
+
+		assert.deepEqual(
+			shareRowLabelsOf(panel),
+			["WhatsApp", "X", "Email"].map((label) => ({ title: label, hidden: label })),
+		);
+	});
+
+	it("keeps the share heading naming the row's group", () => {
+		const panel = sharePanel(payloadFor({ sharing: { kind: "view", url: VIEW_URL }, fragment: undefined }));
+		const group = panel.querySelector('[role="group"][data-highlight-share-targets]');
+
+		assert.equal(group?.getAttribute("aria-labelledby"), `manage-highlight-${HIGHLIGHT_ID}-share`);
+		assert.equal(group?.querySelector(`#manage-highlight-${HIGHLIGHT_ID}-share`)?.textContent, "Share highlight");
+	});
+});
