@@ -11,9 +11,11 @@ const sourceImage = "https://imgs.xkcd.com/comics/field_notes.png";
 const density = "https://imgs.xkcd.com/comics/field_notes_2x.png";
 const hover = "The second label is current only during low tide.";
 
-function source(parts: { density?: boolean; license?: boolean } = {}): string {
-	const figure = '<div id="comic"><img src="' + sourceImage + '" alt="Field Notes" title="' + hover + '"' +
-		(parts.density === false ? "" : ' srcset="//imgs.xkcd.com/comics/field_notes_2x.png 2x"') + '></div>';
+function source(parts: { density?: boolean; license?: boolean; panelLink?: string } = {}): string {
+	const panel = '<img src="' + sourceImage + '" alt="Field Notes" title="' + hover + '"' +
+		(parts.density === false ? "" : ' srcset="//imgs.xkcd.com/comics/field_notes_2x.png 2x"') + '>';
+	const linked = parts.panelLink === undefined ? panel : `<a${parts.panelLink}>${panel}</a>`;
+	const figure = `<div id="comic">${linked}</div>`;
 	const license = '<div id="bottom"><div id="licenseText"><p>Published with <a href="https://creativecommons.org/licenses/by-nc/2.5/">a reuse license</a>.</p>' +
 		'<p>Read the <a href="/license.html" rel="license">terms</a>.</p></div></div>';
 	return '<html><head><meta property="og:url" content="' + url + '"><meta property="og:site_name" content="Notes &amp; Comics"><meta property="og:image" content="' + sourceImage + '"></head>' +
@@ -58,6 +60,22 @@ describe("numbered xkcd comic", () => {
 		expect([...document.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([permalink, sourceImage]);
 	});
 
+	it.each([
+		["an absolute", ' href="https://xkcd.com/19990/large/"'],
+		["a page-relative", ' href="/19990/large/"'],
+	])("keeps the panel inside %s link that wraps it", (_case, panelLink) => {
+		const result = xkcdSiteRules.extract({ html: source({ panelLink }) }, { savedUrl: url, documentUrl: url });
+
+		assert(result);
+		const document = parseHTML(result.bodyHtml).document;
+		const images = [...document.querySelectorAll("img")];
+		expect(images.map((image) => [image.getAttribute("src"), image.parentElement?.tagName, image.parentElement?.getAttribute("href")]))
+			.toEqual([[sourceImage, "A", "https://xkcd.com/19990/large/"]]);
+		expect([...document.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
+			"https://xkcd.com/19990/large/", permalink, sourceImage, "https://creativecommons.org/licenses/by-nc/2.5/", "/license.html",
+		]);
+	});
+
 	it("recognizes the same work when the social card declares its 2× image", () => {
 		const markup = source().replace(sourceImage, density);
 		const result = xkcdSiteRules.extract({ html: markup }, { savedUrl: url, documentUrl: url });
@@ -72,6 +90,9 @@ describe("numbered xkcd comic", () => {
 		["another comic", source(), "https://xkcd.com/19991/"],
 		["hidden panel", source().replace('id="comic"', 'id="comic" hidden'), url],
 		["ambiguous panel", source().replace('</div><br>Permanent', `<img src="${sourceImage}"></div><br>Permanent`), url],
+		["ambiguous linked panel", source({ panelLink: ' href="https://xkcd.com/19990/large/"' }).replace('</a></div><br>Permanent', `</a><img src="${sourceImage}"></div><br>Permanent`), url],
+		["script panel link", source({ panelLink: ' href="javascript:alert(1)"' }), url],
+		["panel link without a destination", source({ panelLink: "" }), url],
 		["missing canonical", source().replace('property="og:url"', 'property="og:description"'), url],
 		["unrelated high-density asset", source().replace("field_notes_2x.png", "other_2x.png"), url],
 		["unrelated publisher social image", source().replace(sourceImage, "https://imgs.xkcd.com/comics/calendar.png"), url],

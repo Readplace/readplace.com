@@ -21,7 +21,10 @@ export const xkcdSiteRules = {
 		if (!canonical || comicId(canonical) !== id || !scope || !siteName?.trim()) return undefined;
 
 		const heading = uniqueVisible(scope, ":scope > #ctitle");
-		const image = uniqueVisible(scope, ":scope > #comic > img[src]");
+		const image = uniqueVisible(scope, ":scope > #comic > img[src], :scope > #comic > a > img[src]");
+		const wrapper = image?.parentElement?.matches("a") ? image.parentElement : undefined;
+		const panelLink = wrapper ? webUrl(wrapper.getAttribute("href"), documentUrl) : undefined;
+		if (wrapper && !panelLink) return undefined;
 		const title = heading?.textContent?.trim();
 		const alt = image?.getAttribute("alt");
 		const hover = image?.getAttribute("title");
@@ -56,7 +59,14 @@ export const xkcdSiteRules = {
 		shown.alt = alt;
 		shown.title = hover;
 		if (density) shown.setAttribute("srcset", `${density.href} 2x`);
-		append(figure, "p", shown);
+		if (panelLink) {
+			const anchor = document.createElement("a");
+			anchor.href = panelLink.href;
+			anchor.append(shown);
+			append(figure, "p", anchor);
+		} else {
+			append(figure, "p", shown);
+		}
 		append(figure, "figcaption", hover);
 		article.append(figure);
 		append(article, "p", `${workLabel} `, link(document, workHref, workText));
@@ -83,6 +93,11 @@ function imageUrl(value: string | null | undefined, base: string): URL | undefin
 	if (!url || url.origin !== IMAGE_ORIGIN || url.username || url.password || url.search || url.hash ||
 		!/^\/comics\/[^/]+\.(?:gif|png|jpe?g|webp)$/i.test(url.pathname)) return undefined;
 	return url;
+}
+
+function webUrl(value: string | null, base: string): URL | undefined {
+	const url = value ? URL.parse(value, base) : null;
+	return url?.protocol === "http:" || url?.protocol === "https:" ? url : undefined;
 }
 
 function uniqueVisible(scope: ParentNode, selector: string): Element | undefined {
