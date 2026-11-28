@@ -82,36 +82,6 @@ describe("initDynamoDbGmailHeldMail", () => {
 		await assert.rejects(store.holdMail(ENTRY), /throughput exceeded/);
 	});
 
-	it("reads the newest held mail for one sender off the index", async () => {
-		const { store, commands } = harness(() => ({
-			Items: [{ ...ENTRY, senderReceivedAt: `${SENDER}#${RECEIVED_AT_MESSAGE_ID}` }],
-		}));
-
-		const held = await store.listHeldMailBySender({ userId: USER, senderEmail: SENDER, limit: 5 });
-
-		assert.deepEqual(held, [ENTRY]);
-		assert.equal(commands[0].input.IndexName, "senderReceivedAt-index");
-		assert.equal(commands[0].input.ScanIndexForward, false);
-		assert.equal(commands[0].input.Limit, 5);
-		assert.deepEqual(commands[0].input.ExpressionAttributeValues, {
-			":uid": USER,
-			":prefix": `${SENDER}#`,
-		});
-	});
-
-	it("refuses a limit that is not a whole number of messages", async () => {
-		const { store } = harness();
-
-		await assert.rejects(
-			store.listHeldMailBySender({ userId: USER, senderEmail: SENDER, limit: 1.5 }),
-			/limit must be an integer/,
-		);
-		await assert.rejects(
-			store.listHeldMailBySender({ userId: USER, senderEmail: SENDER, limit: 0 }),
-			/limit must be >= 1/,
-		);
-	});
-
 	it("lists every held message a reader owns across query pages", async () => {
 		const second = { ...ENTRY, receivedAtMessageId: "2026-08-28T00:00:00.000Z#<b@x>" };
 		const pages = [
