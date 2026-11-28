@@ -9,7 +9,7 @@ import {
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
 import { INBOX_EMAILS_PAGE_SIZE } from "../runtime/web/pages/inbox/inbox-emails.url";
-import { pinCopyableAddresses } from "./inbox-visual.browser";
+import { centreOfElement, pinCopyableAddresses } from "./inbox-visual.browser";
 
 /** A fixed instant, so the list's wall-clock-relative label is the same on every
  * run and the baseline is not a slowly rotting screenshot of "1 hour ago". */
@@ -487,6 +487,7 @@ function emailsPager(theme: "light" | "dark"): VisualCheckpoint {
 const NEWSLETTER_SENDER = "news@example.com";
 const NEWSLETTER_LINE = "#newsletter-links-line";
 const NEWSLETTER_COUNT = "#newsletter-links-count";
+const NEWSLETTER_CONFIRM_POPOVER = "#newsletter-links-confirm:popover-open";
 
 const DESKTOP_VIEWPORT = { name: "desktop", viewport: { width: 1280, height: 900 } } as const;
 const LAYOUTS = [DESKTOP_VIEWPORT, { name: "mobile", viewport: { width: 390, height: 844 } }] as const;
@@ -523,8 +524,7 @@ interface NewsletterLinksJobFinish {
 	counts?: Record<string, number>;
 	issues?: number;
 	held?: { bySender: SenderCount[]; unrestorable: string[] };
-	skipped?: { read: number; opened: number; highlighted: number; changed: number; unreadable: number };
-	savedBeforeMarker?: number;
+	skipped?: { read: number; highlighted: number; changed: number; unreadable: number };
 	extraSenders?: SenderCount[];
 }
 
@@ -946,8 +946,7 @@ test.describe("Inbox visual checkpoints", () => {
 		await finishNewsletterLinksJob(page, {
 			selected: 15,
 			issues: 4,
-			skipped: { read: 2, opened: 1, highlighted: 1, changed: 1, unreadable: 1 },
-			savedBeforeMarker: 2,
+			skipped: { read: 2, highlighted: 1, changed: 1, unreadable: 1 },
 			extraSenders: [{ senderEmail: "digest@another-newsletter.example", count: 12 }],
 		});
 		await reloadUntilCount(page, "counted");
@@ -960,8 +959,7 @@ test.describe("Inbox visual checkpoints", () => {
 						`remove-counted-${layout.name}-${theme}`,
 						async (settling) => {
 							await countState("counted")(settling);
-							await expect(settling.locator("[data-test-newsletter-links-skipped-reason]")).toHaveCount(5);
-							await expect(settling.locator("[data-test-newsletter-links-before-marker]")).toHaveCount(1);
+							await expect(settling.locator("[data-test-newsletter-links-skipped-reason]")).toHaveCount(4);
 							await expect(settling.locator("[data-test-newsletter-links-sender]")).toHaveCount(2);
 						},
 						pageFitsTheViewport,
@@ -971,13 +969,26 @@ test.describe("Inbox visual checkpoints", () => {
 		}
 
 		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await page.locator("[data-test-newsletter-links-open-confirm]").click();
+		await expect(page.locator(NEWSLETTER_CONFIRM_POPOVER)).toBeVisible();
+		await expect(page.locator("[data-test-newsletter-links-submit]")).toBeFocused();
+		await captureCheckpoint(page, {
+			name: "inbox-newsletter-links-remove-confirm",
+			settled: async (settling) => {
+				await expect(settling.locator(NEWSLETTER_CONFIRM_POPOVER)).toBeVisible();
+			},
+			geometry: pageFitsTheViewport,
+			target: "main",
+			capture: "page-from-top",
+			pinnedText: [],
+		});
 		await page.locator("[data-test-newsletter-links-submit]").click();
 		await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", "working");
 		await page.route("**/inbox", (route) => route.abort());
 		await captureCheckpoint(page, newsletterLinksLine("working", "working"));
 		await page.unroute("**/inbox");
 
-		await finishNewsletterLinksJob(page, { counts: { held: 3, read: 2, opened: 1, unreadable: 1 } });
+		await finishNewsletterLinksJob(page, { counts: { held: 3, read: 2, unreadable: 1 } });
 		await reloadUntilLine(page, "result");
 		await captureCheckpoint(page, newsletterLinksLine("result", "result"));
 	});
@@ -1015,6 +1026,7 @@ test.describe("Inbox visual checkpoints", () => {
 		await openNewsletterLinksPage(page, "remove");
 		await finishNewsletterLinksJob(page, {});
 		await reloadUntilCount(page, "counted");
+		await page.locator("[data-test-newsletter-links-open-confirm]").click();
 		await page.locator("[data-test-newsletter-links-submit]").click();
 		await expect(page.locator(NEWSLETTER_LINE)).toHaveAttribute("data-newsletter-links-state", "working");
 		await finishNewsletterLinksJob(page, { state: "failed" });
@@ -1066,5 +1078,35 @@ test.describe("Inbox visual checkpoints", () => {
 		}
 		await page.setViewportSize({ width: 320, height: 844 });
 		await pageFitsTheViewport(page);
+	});
+});
+
+test.describe("Newsletter Links Removal confirm popup", () => {
+	test.use({ timezoneId: "UTC", hasTouch: true });
+
+	test("a click or tap over the page behind the popup only dismisses it, and Cancel closes it", async ({ page }) => {
+		await seedNewsletterLinks(page, { newsletterLink: true, held: [] });
+		await useLayout(page, DESKTOP_VIEWPORT, "light");
+		await openNewsletterLinksPage(page, "remove");
+		await finishNewsletterLinksJob(page, { selected: 3 });
+		await reloadUntilCount(page, "counted");
+		const back = page.locator("[data-test-newsletter-links-back]");
+		const trigger = page.locator("[data-test-newsletter-links-open-confirm]");
+
+		for (const pointer of [page.mouse.click.bind(page.mouse), page.touchscreen.tap.bind(page.touchscreen)]) {
+			await trigger.click();
+			await expect(page.locator(NEWSLETTER_CONFIRM_POPOVER)).toBeVisible();
+			await expect(page.locator("[data-test-newsletter-links-submit]")).toBeFocused();
+			const point = await back.evaluate(centreOfElement);
+			expect(point.hitsElement).toBe(false);
+			await pointer(point.x, point.y);
+			await expect(page.locator(NEWSLETTER_CONFIRM_POPOVER)).toHaveCount(0);
+			await expect(page).toHaveURL(/\/inbox\/newsletter-links\/remove/);
+		}
+
+		await trigger.click();
+		await page.locator('[data-test-action="newsletter-links-confirm-cancel"]').click();
+		await expect(page.locator(NEWSLETTER_CONFIRM_POPOVER)).toHaveCount(0);
+		await expect(page.locator(NEWSLETTER_COUNT)).toHaveAttribute("data-newsletter-links-count", "counted");
 	});
 });

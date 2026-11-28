@@ -526,7 +526,6 @@ export interface ArticleStoreBundle {
 	seedUncertainSave: (params: { userId: UserId; url: string }) => void;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
-	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
 	findUnrestorableArticles: FindUnrestorableArticles;

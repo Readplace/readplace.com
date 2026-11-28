@@ -21,22 +21,30 @@ import { savedLinksJobKey } from "./user-readlist-partition";
 
 const CountedItem = z.object({
 	cutoff: z.string(),
-	issues: z.number().int().nonnegative(),
+	issues: z.object({
+		selected: z.number().int().nonnegative(),
+		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
+		skipped: z.strictObject({ read: z.number().int().nonnegative(), highlighted: z.number().int().nonnegative() }),
+	}),
 	summary: z.object({
 		selected: z.number().int().nonnegative(),
 		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
-		skipped: z.object({
+		skipped: z.strictObject({
 			read: z.number().int().nonnegative(),
-			opened: z.number().int().nonnegative(),
 			highlighted: z.number().int().nonnegative(),
 			changed: z.number().int().nonnegative(),
 			unreadable: z.number().int().nonnegative(),
 		}),
-		savedBeforeMarker: z.number().int().nonnegative(),
 		earliestEmailSave: dynamoField(z.string()),
 	}),
 	held: z.object({
-		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
+		bySender: z.array(
+			z.object({
+				senderEmail: z.string(),
+				count: z.number().int().nonnegative(),
+				issues: z.number().int().nonnegative(),
+			}),
+		),
 		unrestorable: z.array(z.string()),
 	}),
 });
@@ -68,10 +76,11 @@ const SavedLinksJobItem = z.object({
 	requestedAt: z.string(),
 	counts: SavedLinksJobCountsSchema,
 	finishedAt: dynamoField(z.string()),
-	counted: dynamoField(CountedItem),
+	counted: dynamoField(z.unknown()),
 });
 
 function toSavedLinksJob(item: z.infer<typeof SavedLinksJobItem>): SavedLinksJob {
+	const counted = CountedItem.safeParse(item.counted);
 	return {
 		jobId: item.jobId,
 		action: item.action,
@@ -79,7 +88,7 @@ function toSavedLinksJob(item: z.infer<typeof SavedLinksJobItem>): SavedLinksJob
 		requestedAt: new Date(item.requestedAt),
 		counts: item.counts,
 		...(item.finishedAt === undefined ? {} : { finishedAt: new Date(item.finishedAt) }),
-		...(item.counted === undefined ? {} : { counted: toCounted(item.counted) }),
+		...(counted.success ? { counted: toCounted(counted.data) } : {}),
 	};
 }
 

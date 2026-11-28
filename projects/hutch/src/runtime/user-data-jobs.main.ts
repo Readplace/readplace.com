@@ -19,7 +19,7 @@ import { initBulkPreparation } from "./bulk-articles/dynamo-preparation";
 import { initBulkWorker } from "./bulk-articles/job-worker";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
-import { BulkArticlesProgressedEvent, RunBulkArticlesCommand, AgeLockDeletionDueCommand, DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
+import { BulkArticlesProgressedEvent, RunBulkArticlesCommand, AgeLockDeletionDueCommand, DeleteAccountCommand, ExportUserDataCommand, PurgeRemovedNewsletterIssuesCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
 import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
@@ -59,6 +59,8 @@ import { initRemoveSavedLinks } from "./saved-links-job/remove-saved-links";
 import { initCountSavedLinks } from "./saved-links-job/count-saved-links";
 import { initRestoreSavedLinks } from "./saved-links-job/restore-saved-links";
 import { initSavedLinksJobHandler } from "./saved-links-job/saved-links-job-handler";
+import { initPurgeRemovedNewsletterIssuesHandler } from "./saved-links-job/purge-removed-newsletter-issues-handler";
+import { initScheduleRemovedIssuesPurge } from "./saved-links-job/schedule-removed-issues-purge";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbGmailHeldMail, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
@@ -454,6 +456,24 @@ export const handler = initHandleByDetailType({
 				now,
 			}),
 		],
+		[PurgeRemovedNewsletterIssuesCommand.detailType]: [
+			initPurgeRemovedNewsletterIssuesHandler({
+				forEachRemovableEmailPage: inboxEmail.forEachRemovableEmailPage,
+				clearEmailRemoval: inboxEmail.clearEmailRemoval,
+				deleteEmail: inboxEmail.deleteEmail,
+				findKeysInAll: removedLinks.findKeysInAll,
+				deleteRawEmailObjects,
+				deleteEmailContentObjects,
+				deleteEmailImageObjects,
+				deleteLinksByEmails: inboxEmailLink.deleteAllLinksByUserId,
+				deleteIdentitiesByEmails: emailIdentities.deleteByEmails,
+				purgeArticleContent,
+				tombstoneArticle,
+				publishEvent,
+				logger,
+				now,
+			}),
+		],
 		[RunSavedLinksJobCommand.detailType]: [
 			initSavedLinksJobHandler({
 				findSavedLinksJob: savedLinksJob.findSavedLinksJob,
@@ -463,11 +483,18 @@ export const handler = initHandleByDetailType({
 					remove: initRemoveSavedLinks({
 						forEachRemovalCandidatePage: removedLinks.forEachRemovalCandidatePage,
 						forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
-						listKeysOpenedInReadlists: removedLinks.listKeysOpenedInReadlists,
+						listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
 						listAllUserHighlights: highlights.listAllUserHighlights,
 						moveNewsletterLinkToHold: removedLinks.moveNewsletterLinkToHold,
 						findOriginalUrls: removedLinks.findOriginalUrls,
-						listUserSavesForUrls: articleStore.listUserSavesForUrls,
+						forEachRemovableEmailPage: inboxEmail.forEachRemovableEmailPage,
+						markEmailRemoved: inboxEmail.markEmailRemoved,
+						scheduleRemovedIssuesPurge: initScheduleRemovedIssuesPurge({
+							client: schedulerClient,
+							group: env.TRIAL_SCHEDULER_GROUP_NAME,
+							roleArn: env.TRIAL_SCHEDULER_ROLE_ARN,
+							eventBusArn: env.EVENT_BUS_ARN,
+						}),
 						publishEvent,
 						now,
 					}),
@@ -476,12 +503,15 @@ export const handler = initHandleByDetailType({
 						forEachRemovalCandidatePage: removedLinks.forEachRemovalCandidatePage,
 						restoreHeldLink: removedLinks.restoreHeldLink,
 						findOriginalUrls: removedLinks.findOriginalUrls,
+						forEachRemovableEmailPage: inboxEmail.forEachRemovableEmailPage,
+						clearEmailRemoval: inboxEmail.clearEmailRemoval,
 						publishEvent,
 						now,
 					}),
 					count: initCountSavedLinks({
 						summariseNewsletterLinks: removedLinks.summariseNewsletterLinks,
-						countNewsletterIssues: removedLinks.countNewsletterIssues,
+						findNewsletterIssueStates: removedLinks.findNewsletterIssueStates,
+						forEachRemovableEmailPage: inboxEmail.forEachRemovableEmailPage,
 						forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
 						findUnrestorableArticles: removedLinks.findUnrestorableArticles,
 						findKeysInAll: removedLinks.findKeysInAll,

@@ -83,6 +83,8 @@ export {
 	type SavedLinksJobCompletedDetail,
 	SavedLinksJobFailedEvent,
 	type SavedLinksJobFailedDetail,
+	PurgeRemovedNewsletterIssuesCommand,
+	RemovedNewsletterIssuesPurgedEvent,
 	UserDataExportedEvent,
 	type UserDataExportedDetail,
 	UserDataExportSkippedEvent,

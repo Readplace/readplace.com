@@ -66,4 +66,5 @@ export interface EmailIdentityStore {
 	claim: (input: Omit<EmailIdentityClaim, "claimedAt"> & { now: Date }) => Promise<ClaimEmailIdentityResult>;
 	takeOver: (input: { previous: EmailIdentityClaim; attempt: IngestionAttempt; now: Date }) => Promise<boolean>;
 	deleteAllByUserId: (userId: UserId) => Promise<void>;
+	deleteByEmails: (input: { userId: UserId; receivedAtMessageIds: readonly string[] }) => Promise<void>;
 }

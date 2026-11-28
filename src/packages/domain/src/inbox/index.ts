@@ -15,6 +15,7 @@ export {
 	emailIssueArticleUrl,
 	emailIssueKeyPrefix,
 	emailIssueReceivedAt,
+	emailIssueStoredKey,
 	parseEmailIssueArticleUrl,
 } from "./email-issue-url";
 export { deriveEmailIssueMetadata } from "./email-issue-metadata";
@@ -67,6 +68,7 @@ export type {
 	InboxEmailStore,
 	InboxEmailsCursor,
 	ListInboxEmailsResult,
+	RemovableInboxEmail,
 } from "./inbox-email.types";
 export {
 	NormalizedMessageIdSchema,

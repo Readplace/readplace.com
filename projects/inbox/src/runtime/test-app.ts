@@ -90,7 +90,6 @@ export function createInboxTestApp(
 	const savedLinksJobCommands: RunSavedLinksJobDetail[] = [];
 	const { hasNewsletterLink } = initInMemoryRemovedLinks({
 		readNewsletterLinkRows: fixture.articleStore.readNewsletterLinkRows,
-		readOpenedInReadlists: fixture.articleStore.readOpenedInReadlists,
 		listAllUserHighlights: fixture.highlights.listAllUserHighlights,
 	});
 	const app = createInboxApp(

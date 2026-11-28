@@ -6,6 +6,8 @@ import type { UserId } from "@packages/domain/user";
 export function initInMemoryInboxEmail(): InboxEmailStore {
 	const countedThrough = new Map<string, number>();
 	const rows = new Map<string, InboxEmailEntry>();
+	const removals = new Map<string, { removedAt: Date; jobId: string }>();
+	const shown = (row: InboxEmailEntry) => !removals.has(keyOf(row.userId, row.receivedAtMessageId));
 	const keyOf = (userId: UserId, receivedAtMessageId: string) =>
 		`${userId}#${receivedAtMessageId}`;
 
@@ -17,7 +19,7 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 			return "stored";
 		},
 		listReceivedSenders: async (userId) => [...new Set([...rows.values()]
-			.filter((row) => row.userId === userId && row.status === "received" && row.senderEmail !== "")
+			.filter((row) => row.userId === userId && row.status === "received" && row.senderEmail !== "" && shown(row))
 			.map((row) => row.senderEmail))].sort(),
 		listEmailsByUserId: async ({ userId, cursor, pageSize, sender }) => {
 			assert(Number.isInteger(pageSize), "pageSize must be an integer");
@@ -27,7 +29,7 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 				"cursor must name a boundary row",
 			);
 			const newestFirst = [...rows.values()]
-				.filter((row) => row.userId === userId && (sender === undefined || (row.status === "received" && row.senderEmail === sender)))
+				.filter((row) => row.userId === userId && shown(row) && (sender === undefined || (row.status === "received" && row.senderEmail === sender)))
 				.sort((a, b) =>
 					a.receivedAtMessageId < b.receivedAtMessageId ? 1 : -1,
 				);
@@ -57,8 +59,36 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 				hasOlder: true,
 			};
 		},
-		getEmail: async ({ userId, receivedAtMessageId }) =>
-			rows.get(keyOf(userId, receivedAtMessageId)),
+		getEmail: async ({ userId, receivedAtMessageId }) => {
+			const row = rows.get(keyOf(userId, receivedAtMessageId));
+			const removal = removals.get(keyOf(userId, receivedAtMessageId));
+			return row === undefined || removal === undefined ? row : { ...row, removedAt: removal.removedAt.toISOString() };
+		},
+		forEachRemovableEmailPage: async ({ userId, onPage }) => {
+			await onPage(
+				[...rows.values()]
+					.filter((row) => row.userId === userId)
+					.map((row) => ({
+						receivedAtMessageId: row.receivedAtMessageId,
+						senderEmail: row.senderEmail,
+						receivedAt: row.receivedAt,
+						rawEmailS3Key: row.rawEmailS3Key,
+						bodyS3Key: row.bodyS3Key,
+						removal: removals.get(keyOf(userId, row.receivedAtMessageId)),
+					})),
+			);
+		},
+		markEmailRemoved: async ({ userId, receivedAtMessageId, jobId, at }) => {
+			const key = keyOf(userId, receivedAtMessageId);
+			if (rows.has(key) && !removals.has(key)) removals.set(key, { removedAt: at, jobId });
+		},
+		clearEmailRemoval: async ({ userId, receivedAtMessageId }) => {
+			removals.delete(keyOf(userId, receivedAtMessageId));
+		},
+		deleteEmail: async ({ userId, receivedAtMessageId }) => {
+			rows.delete(keyOf(userId, receivedAtMessageId));
+			removals.delete(keyOf(userId, receivedAtMessageId));
+		},
 		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts, window }) => {
 			const key = keyOf(userId, receivedAtMessageId);
 			const row = rows.get(key);
@@ -106,6 +136,7 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 			for (const [key, row] of rows) {
 				if (row.userId !== userId) continue;
 				rows.delete(key);
+				removals.delete(key);
 			}
 		},
 		findReceivedByMessageId: async ({ userId, messageId }) =>

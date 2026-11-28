@@ -40,13 +40,13 @@
       </div>
       {{/if}}
       <div class="newsletter-links-page__details" data-test-newsletter-links-details>
-        <p data-test-newsletter-links-issues>{{counted.issues}}</p>
-        {{#if counted.beforeMarker}}
-        <p data-test-newsletter-links-before-marker>{{counted.beforeMarker}}</p>
-        {{/if}}
         {{#if counted.removeAction}}
-        <p data-test-newsletter-links-restore-window>{{t "newsletterLinks.confirm.restoreWindow"}}</p>
-        <p>{{t "newsletterLinks.confirm.otherReadlists"}}</p>
+        <p data-test-newsletter-links-every-readlist>{{t "newsletterLinks.confirm.everyReadlist"}}</p>
+        <p data-test-newsletter-links-kept>{{t "newsletterLinks.confirm.keptStay"}}</p>
+        {{/if}}
+        <p data-test-newsletter-links-issues>{{counted.issues}}</p>
+        {{#if counted.removeAction}}
+        <p data-test-newsletter-links-restore-window>{{t "newsletterLinks.confirm.restoreWindow"}} {{t "newsletterLinks.confirm.restoreReadlists"}}</p>
         {{/if}}
       </div>
       {{#if counted.removeAction}}
@@ -60,14 +60,16 @@
             <legend class="newsletter-links-page__senders-legend">{{t "newsletterLinks.confirm.sendersLegend"}}</legend>
             <div class="newsletter-links-page__sender-list">
               {{#each counted.senders}}
-              <label class="newsletter-links-page__choice newsletter-links-page__sender"><input class="form-choice" type="checkbox" name="sender" value="{{senderEmail}}" data-test-newsletter-links-sender> <span class="newsletter-links-page__sender-email">{{senderEmail}}</span> <span class="newsletter-links-page__sender-count">({{countLabel}})</span></label>
+              <label class="newsletter-links-page__choice newsletter-links-page__sender"><input class="form-choice" type="checkbox" name="sender" value="{{senderEmail}}" data-test-newsletter-links-sender> <span class="newsletter-links-page__sender-email">{{senderMailbox}}<wbr>{{senderDomain}}</span> <span class="newsletter-links-page__sender-count">({{countLabel}})</span></label>
               {{/each}}
             </div>
           </fieldset>
         </fieldset>
         <div class="newsletter-links-page__actions">
-          <button class="btn btn--primary" type="submit" data-test-newsletter-links-submit>{{t "newsletterLinks.confirm.submit"}}</button>
+          <button class="btn btn--destructive newsletter-links-page__confirm-trigger" type="button" popovertarget="{{counted.popoverId}}" aria-haspopup="dialog" data-test-newsletter-links-open-confirm>{{t "newsletterLinks.confirm.submit"}}</button>
+          <button class="btn btn--destructive newsletter-links-page__submit-fallback" type="submit" data-test-newsletter-links-submit-fallback>{{t "newsletterLinks.confirm.submit"}}</button>
         </div>
+        {{{counted.popoverHtml}}}
       </form>
       {{/if}}
       {{/if}}

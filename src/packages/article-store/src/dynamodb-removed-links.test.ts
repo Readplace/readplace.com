@@ -79,20 +79,19 @@ describe("hasNewsletterLink", () => {
 		]);
 
 		assert.equal(await removedLinks.hasNewsletterLink({ userId: READER }), true);
-		assert.equal(sent.length, 2);
 		assert.equal(sent[0].TableName, TABLE);
 		assert.equal(sent[0].KeyConditionExpression, "userId = :userId");
 		assert.equal(sent[0].FilterExpression, undefined);
 		assert.equal(sent[0].Limit, 300);
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #personalPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
-		assert.deepEqual(sent[1].ExclusiveStartKey, { userId: READER, url: "a.com/1" });
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #restoredAt");
+		assert.equal(sent.length, 1);
 	});
 
 	it("is false when no row is a newsletter link", async () => {
 		const { removedLinks, sent } = createFakeTable([
 			emailLink("a.com/1", { provenance: { kind: "web" } }),
 			emailLink(ISSUE_KEY),
-			emailLink("a.com/3", { handPickedAt: "2026-11-19T00:00:00.000Z" }),
+			emailLink("readplace:queue-def/work"),
 		]);
 
 		assert.equal(await removedLinks.hasNewsletterLink({ userId: READER }), false);
@@ -101,7 +100,7 @@ describe("hasNewsletterLink", () => {
 });
 
 describe("summariseNewsletterLinks", () => {
-	it("walks the partition once, leaves out issues and store rows, and skips highlighted, opened, restored and unreadable links", async () => {
+	it("walks the partition once, leaves out issues and store rows, and skips highlighted, restored and unreadable links", async () => {
 		const { removedLinks, sent } = createFakeTable([
 			emailLink("a.com/1"),
 			emailLink("a.com/2", { viewedAt: "2026-11-21T00:00:00.000Z" }),
@@ -121,40 +120,48 @@ describe("summariseNewsletterLinks", () => {
 		const summary = await removedLinks.summariseNewsletterLinks({ userId: READER, cutoff: CUTOFF });
 
 		assert.deepEqual(summary, {
-			selected: 1,
-			bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }],
-			skipped: { read: 0, opened: 3, highlighted: 1, changed: 1, unreadable: 1 },
+			selected: 4,
+			bySender: [{ senderEmail: "dan@tldr.tech", count: 4 }],
+			skipped: { read: 0, highlighted: 1, changed: 1, unreadable: 1 },
 			earliestEmailSave: new Date("2026-11-20T00:00:00.000Z"),
-			savedBeforeMarker: 0,
 		});
-		assert.equal(sent.length, 6);
-		assert.deepEqual(Object(sent[5].ExpressionAttributeValues), { ":userId": `${READER}#queue/work` });
-		assert.equal(sent[5].ProjectionExpression, "#url, #viewedAt");
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #personalPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt, #highlightOf");
+		assert.equal(sent.length, 5);
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #restoredAt, #highlightOf");
 		assert.equal(sent[0].FilterExpression, undefined);
 	});
 });
 
-describe("countNewsletterIssues", () => {
-	it("counts the reader's issue keys across pages without reading their items", async () => {
-		const otherIssue = ArticleResourceUniqueId.parse(
+describe("findNewsletterIssueStates", () => {
+	it("reads the reader's highlights and issue rows by prefix and classifies each issue", async () => {
+		const readIssue = ArticleResourceUniqueId.parse(
 			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-25T09:00:00.000Z#<n@x>" }),
 		).value;
-		const thirdIssue = ArticleResourceUniqueId.parse(
+		const highlightedIssue = ArticleResourceUniqueId.parse(
 			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-26T09:00:00.000Z#<o@x>" }),
+		).value;
+		const unreadableIssue = ArticleResourceUniqueId.parse(
+			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-27T09:00:00.000Z#<p@x>" }),
 		).value;
 		const { removedLinks, sent } = createFakeTable([
 			emailLink(ISSUE_KEY),
-			emailLink(otherIssue),
-			emailLink(thirdIssue),
+			emailLink(readIssue, { status: "read" }),
+			emailLink(highlightedIssue),
+			emailLink(unreadableIssue, { savedAt: 7 }),
 			emailLink("a.com/1"),
+			{ userId: READER, url: "readplace:highlight/h1", highlightOf: highlightedIssue },
 		]);
 
-		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 3);
-		assert.equal(sent.length, 2);
-		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :issueKeyPrefix)");
-		assert.equal(sent[0].Select, "COUNT");
-		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":issueKeyPrefix": "inbox/reader-1/" });
+		const states = await removedLinks.findNewsletterIssueStates({ userId: READER, cutoff: CUTOFF });
+
+		assert.deepEqual(Object.fromEntries(states), {
+			[ISSUE_KEY]: { kind: "selected" },
+			[readIssue]: { kind: "skipped", reason: "read" },
+			[highlightedIssue]: { kind: "skipped", reason: "highlighted" },
+			[unreadableIssue]: { kind: "skipped", reason: "unreadable" },
+		});
+		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "readplace:highlight/" });
+		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :keyPrefix)");
+		assert.deepEqual(sent.at(-1)?.ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "inbox/reader-1/" });
 	});
 });
 
@@ -178,28 +185,8 @@ describe("forEachRemovalCandidatePage", () => {
 		});
 
 		assert.deepEqual(pages, [["a.com/1", "unreadable"], ["a.com/3"], []]);
-		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #personalPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #restoredAt");
 		assert.equal(sent[0].FilterExpression, undefined);
-	});
-});
-
-describe("listKeysOpenedInReadlists", () => {
-	it("reads the reader's readlists, then the links opened in each", async () => {
-		const { removedLinks, sent } = createFakeTable([
-			emailLink("a.com/1"),
-			{ userId: READER, url: "readplace:queue-def/home", queueSlug: "home", createdAt: "2026-11-01T00:00:00.000Z" },
-			{ userId: READER, url: "readplace:queue-def/work", queueSlug: "work", createdAt: "2026-11-02T00:00:00.000Z" },
-			{ userId: `${READER}#queue/work`, url: "a.com/5", viewedAt: "2026-11-21T00:00:00.000Z" },
-			{ userId: `${READER}#queue/work`, url: "a.com/1" },
-			{ userId: `${READER}#queue/home`, url: "a.com/6", viewedAt: "2026-11-21T00:00:00.000Z" },
-		]);
-
-		const opened = await removedLinks.listKeysOpenedInReadlists({ userId: READER });
-
-		assert.deepEqual([...opened].sort(), ["a.com/5", "a.com/6"]);
-		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :prefix)");
-		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":prefix": "readplace:queue-def/" });
-		assert.equal(sent[0].ConsistentRead, true);
 	});
 });
 

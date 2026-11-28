@@ -28,5 +28,10 @@ export function initInMemoryEmailIdentity(): EmailIdentityStore {
 				if (claim.userId === userId) claims.delete(key);
 			}
 		},
+		deleteByEmails: async ({ userId, receivedAtMessageIds }) => {
+			for (const [key, claim] of claims) {
+				if (claim.userId === userId && receivedAtMessageIds.includes(claim.receivedAtMessageId)) claims.delete(key);
+			}
+		},
 	};
 }

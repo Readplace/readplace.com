@@ -13,6 +13,7 @@ import {
 	InboxEmailStatusSchema,
 	type InboxEmailStore,
 	MessageIdSchema,
+	type RemovableInboxEmail,
 	emailImageS3KeyPrefix,
 	EmailDeliveryModeSchema,
 } from "@packages/domain/inbox";
@@ -38,13 +39,28 @@ const InboxEmailRow = z.object({
 			truncated: z.boolean(),
 		}),
 	),
+	removedAt: dynamoField(z.string()),
+	removedByJobId: dynamoField(z.string()),
 });
+
+const NOT_REMOVED = "attribute_not_exists(removedAt)";
 
 const MessageIdIndexRow = z.object({
 	receivedAtMessageId: z.string(),
 	senderEmail: z.string(),
 	status: InboxEmailStatusSchema,
 });
+
+function toEntry(row: z.infer<typeof InboxEmailRow>): InboxEmailEntry {
+	const { removedAt, removedByJobId: _removedByJobId, ...entry } = row;
+	return removedAt === undefined ? entry : { ...entry, removedAt };
+}
+
+function removalOf(row: z.infer<typeof InboxEmailRow>): RemovableInboxEmail["removal"] {
+	if (row.removedAt === undefined) return undefined;
+	assert(row.removedByJobId, "a removed email names the job that removed it");
+	return { removedAt: new Date(row.removedAt), jobId: row.removedByJobId };
+}
 
 export function initDynamoDbInboxEmail(deps: {
 	client: DynamoDBDocumentClient;
@@ -71,7 +87,7 @@ export function initDynamoDbInboxEmail(deps: {
 			// The document client is not configured to drop undefined values, so a
 			// rejected/unparsed row (no rendered body) must omit the attribute
 			// entirely rather than write `bodyS3Key: undefined`.
-			const { bodyS3Key, linkCounts, ...rest } = email;
+			const { bodyS3Key, linkCounts, removedAt: _removedAt, ...rest } = email;
 			const Item = {
 				...rest,
 				...(bodyS3Key === undefined ? {} : { bodyS3Key }),
@@ -88,7 +104,7 @@ export function initDynamoDbInboxEmail(deps: {
 			const senders = new Set<string>();
 			await forEachQueryPage(receivedSenders, {
 				KeyConditionExpression: "userId = :uid",
-				FilterExpression: "#status = :received",
+				FilterExpression: `#status = :received AND ${NOT_REMOVED}`,
 				ProjectionExpression: "senderEmail",
 				ExpressionAttributeNames: { "#status": "status" },
 				ExpressionAttributeValues: { ":uid": userId, ":received": "received" },
@@ -117,8 +133,8 @@ export function initDynamoDbInboxEmail(deps: {
 			do {
 				const { items, lastEvaluatedKey } = await table.query({
 					KeyConditionExpression: "userId = :uid",
-					...(sender === undefined ? { ExpressionAttributeValues: { ":uid": userId } } : {
-						FilterExpression: "senderEmail = :sender AND #status = :received",
+					...(sender === undefined ? { FilterExpression: NOT_REMOVED, ExpressionAttributeValues: { ":uid": userId } } : {
+						FilterExpression: `senderEmail = :sender AND #status = :received AND ${NOT_REMOVED}`,
 						ExpressionAttributeNames: { "#status": "status" },
 						ExpressionAttributeValues: { ":uid": userId, ":sender": sender, ":received": "received" },
 					}),
@@ -126,7 +142,7 @@ export function initDynamoDbInboxEmail(deps: {
 					Limit: sender === undefined ? probeLimit - collected.length : 100,
 					ExclusiveStartKey: exclusiveStartKey,
 				});
-				collected.push(...items);
+				collected.push(...items.map(toEntry));
 				exclusiveStartKey = lastEvaluatedKey;
 			} while (collected.length < probeLimit && exclusiveStartKey);
 
@@ -137,8 +153,46 @@ export function initDynamoDbInboxEmail(deps: {
 			}
 			return { emails: emails.reverse(), hasNewer: hasMore, hasOlder: true };
 		},
-		getEmail: async ({ userId, receivedAtMessageId }) =>
-			table.get({ userId, receivedAtMessageId }, { consistentRead: true }),
+		getEmail: async ({ userId, receivedAtMessageId }) => {
+			const row = await table.get({ userId, receivedAtMessageId }, { consistentRead: true });
+			return row === undefined ? undefined : toEntry(row);
+		},
+		forEachRemovableEmailPage: async ({ userId, onPage }) => {
+			await forEachQueryPage(
+				table,
+				{ KeyConditionExpression: "userId = :uid", ExpressionAttributeValues: { ":uid": userId } },
+				async (rows) => {
+					await onPage(
+						rows.map((row) => ({
+							receivedAtMessageId: row.receivedAtMessageId,
+							senderEmail: row.senderEmail,
+							receivedAt: row.receivedAt,
+							rawEmailS3Key: row.rawEmailS3Key,
+							bodyS3Key: row.bodyS3Key,
+							removal: removalOf(row),
+						})),
+					);
+				},
+			);
+		},
+		markEmailRemoved: async ({ userId, receivedAtMessageId, jobId, at }) => {
+			await writeIfCondition(() => table.update({
+				Key: { userId, receivedAtMessageId },
+				ConditionExpression: `attribute_exists(receivedAtMessageId) AND ${NOT_REMOVED}`,
+				UpdateExpression: "SET removedAt = :at, removedByJobId = :jobId",
+				ExpressionAttributeValues: { ":at": at.toISOString(), ":jobId": jobId },
+			}));
+		},
+		clearEmailRemoval: async ({ userId, receivedAtMessageId }) => {
+			await writeIfCondition(() => table.update({
+				Key: { userId, receivedAtMessageId },
+				ConditionExpression: "attribute_exists(receivedAtMessageId)",
+				UpdateExpression: "REMOVE removedAt, removedByJobId",
+			}));
+		},
+		deleteEmail: async ({ userId, receivedAtMessageId }) => {
+			await table.delete({ Key: { userId, receivedAtMessageId } });
+		},
 		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts, window }) => {
 			if (window) {
 				const first = window.start === 0;

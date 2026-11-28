@@ -233,7 +233,7 @@ describe("initDynamoDbInboxEmail", () => {
 		expect(await store.listReceivedSenders(USER)).toEqual(["a@example.com", "z@example.com"]);
 		expect(commands[1].input).toMatchObject({
 			KeyConditionExpression: "userId = :uid",
-			FilterExpression: "#status = :received",
+			FilterExpression: "#status = :received AND attribute_not_exists(removedAt)",
 			ExpressionAttributeValues: { ":uid": USER, ":received": "received" },
 			ProjectionExpression: "senderEmail",
 			ExclusiveStartKey: key,
@@ -252,7 +252,7 @@ describe("initDynamoDbInboxEmail", () => {
 		expect(result.hasOlder).toBe(false);
 		expect(commands[1].input).toMatchObject({
 			KeyConditionExpression: "userId = :uid",
-			FilterExpression: "senderEmail = :sender AND #status = :received",
+			FilterExpression: "senderEmail = :sender AND #status = :received AND attribute_not_exists(removedAt)",
 			ExpressionAttributeValues: { ":uid": USER, ":sender": "news@example.com", ":received": "received" },
 			ExclusiveStartKey: key,
 		});
@@ -549,6 +549,87 @@ describe("initDynamoDbInboxEmail", () => {
 			expect(
 				await store.getEmail({ userId: USER, receivedAtMessageId: "missing" }),
 			).toBeUndefined();
+		});
+	});
+
+	describe("removed newsletter emails", () => {
+		const RECEIVED_AT_MESSAGE_ID = "2026-06-23T00:00:00.000Z#<m-1@example.com>";
+
+		it("leaves a removed email out of the unfiltered listing", async () => {
+			const { client, commands } = createPaginatedClient([{ rows: [emailRow()] }]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			await store.listEmailsByUserId({ userId: USER, cursor: undefined, pageSize: 1 });
+
+			expect(commands[0].input.FilterExpression).toBe("attribute_not_exists(removedAt)");
+		});
+
+		it("shows the removal time on a removed email read by its key", async () => {
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient(() => ({ Item: emailRow({ removedAt: "2026-12-01T00:00:00.000Z", removedByJobId: "job-1" }) })) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const entry = await store.getEmail({ userId: USER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID });
+
+			expect(entry?.removedAt).toBe("2026-12-01T00:00:00.000Z");
+			expect(entry && "removedByJobId" in entry).toBe(false);
+		});
+
+		it("pages every email with its pointers and removal", async () => {
+			const key = { userId: USER, receivedAtMessageId: "boundary" };
+			const { client, commands } = createPaginatedClient([
+				{ rows: [emailRow()], lastEvaluatedKey: key },
+				{ rows: [emailRow({ receivedAtMessageId: "b", bodyS3Key: undefined, removedAt: "2026-12-01T00:00:00.000Z", removedByJobId: "job-1" })] },
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+			const pages: unknown[] = [];
+
+			await store.forEachRemovableEmailPage({ userId: USER, onPage: async (emails) => void pages.push(emails) });
+
+			expect(pages).toEqual([
+				[{ receivedAtMessageId: RECEIVED_AT_MESSAGE_ID, senderEmail: "news@example.com", receivedAt: "2026-06-23T00:00:00.000Z", rawEmailS3Key: emailRow().rawEmailS3Key, bodyS3Key: emailRow().bodyS3Key, removal: undefined }],
+				[{ receivedAtMessageId: "b", senderEmail: "news@example.com", receivedAt: "2026-06-23T00:00:00.000Z", rawEmailS3Key: emailRow().rawEmailS3Key, bodyS3Key: undefined, removal: { removedAt: new Date("2026-12-01T00:00:00.000Z"), jobId: "job-1" } }],
+			]);
+			expect(commands[1].input.ExclusiveStartKey).toEqual(key);
+		});
+
+		it("marks, clears and deletes one email by its key", async () => {
+			const { client, commands } = createPaginatedClient([{ rows: [] }]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+			const emailKey = { userId: USER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID };
+
+			await store.markEmailRemoved({ ...emailKey, jobId: "job-1", at: new Date("2026-12-01T00:00:00.000Z") });
+			await store.clearEmailRemoval(emailKey);
+			await store.deleteEmail(emailKey);
+
+			expect(commands.map((command) => [command.name, command.input.Key])).toEqual([
+				["UpdateCommand", emailKey],
+				["UpdateCommand", emailKey],
+				["DeleteCommand", emailKey],
+			]);
+			expect(commands[0].input).toMatchObject({
+				ConditionExpression: "attribute_exists(receivedAtMessageId) AND attribute_not_exists(removedAt)",
+				UpdateExpression: "SET removedAt = :at, removedByJobId = :jobId",
+				ExpressionAttributeValues: { ":at": "2026-12-01T00:00:00.000Z", ":jobId": "job-1" },
+			});
+			expect(commands[1].input).toMatchObject({
+				ConditionExpression: "attribute_exists(receivedAtMessageId)",
+				UpdateExpression: "REMOVE removedAt, removedByJobId",
+			});
+		});
+
+		it("does not mark an email again or clear one that is gone", async () => {
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient(() => {
+					throw new ConditionalCheckFailedException({ message: "condition", $metadata: {} });
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+			const emailKey = { userId: USER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID };
+
+			await store.markEmailRemoved({ ...emailKey, jobId: "job-1", at: new Date() });
+			await store.clearEmailRemoval(emailKey);
 		});
 	});
 

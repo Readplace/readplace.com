@@ -17,7 +17,9 @@ import type {
 	ItemMedia,
 	NewsletterLinkCandidate,
 	NewsletterLinkSummary,
+	NewsletterRowKind,
 	CountedNewsletterLinks,
+	RemovalClassification,
 	RemovalSenders,
 	RestoreOutcome,
 	SavedLinksJob,
@@ -620,7 +622,10 @@ export type HasNewsletterLink = (params: { userId: UserId }) => Promise<boolean>
 
 export type SummariseNewsletterLinks = (params: { userId: UserId; cutoff: Date }) => Promise<NewsletterLinkSummary>;
 
-export type CountNewsletterIssues = (params: { userId: UserId }) => Promise<number>;
+export type FindNewsletterIssueStates = (params: {
+	userId: UserId;
+	cutoff: Date;
+}) => Promise<ReadonlyMap<string, RemovalClassification>>;
 
 export type MoveNewsletterLinkToHold = (params: {
 	userId: UserId;
@@ -628,6 +633,8 @@ export type MoveNewsletterLinkToHold = (params: {
 	storedKey: string;
 	cutoff: Date;
 	senders: RemovalSenders;
+	readlists: readonly ReadlistSlug[];
+	kind: NewsletterRowKind;
 	now: Date;
 }) => Promise<HoldOutcome>;
 
@@ -643,8 +650,6 @@ export type ForEachRemovalCandidatePage = (params: {
 	userId: UserId;
 	onPage: (candidates: NewsletterLinkCandidate[]) => Promise<void>;
 }) => Promise<void>;
-
-export type ListKeysOpenedInReadlists = (params: { userId: UserId }) => Promise<ReadonlySet<string>>;
 
 export type FindOriginalUrls = (params: { storedKeys: readonly string[] }) => Promise<Map<string, string>>;
 

@@ -69,6 +69,11 @@ function identityTable(options: { interrupt?: (command: SentCommand) => void; qu
 				assert(key);
 				items.delete(key);
 				return {};
+			case "BatchGetCommand": {
+				const request = Object.values(Object(sent.input).RequestItems)[0];
+				const keys: { identityKey: string }[] = Object(request).Keys;
+				return { Responses: { [TABLE]: keys.flatMap((k) => items.get(k.identityKey) ?? []) } };
+			}
 			case "QueryCommand": {
 				const pages = options.queryPages ?? [];
 				const page = pages[queries] ?? [];
@@ -175,5 +180,26 @@ describe("initDynamoDbEmailIdentity", () => {
 			{ identityKey: "MSG#user-1#a@example.com#1" },
 			{ identityKey: "MSG#user-1#b@example.com#2" },
 		]);
+	});
+
+	it("deletes only the identities of the emails it is given", async () => {
+		const other = EmailIdentityKeySchema.parse("MSG#user-1#news@example.com#m-2@example.com");
+		const { commands, store } = identityTable({ queryPages: [[{ identityKey: KEY, userId: USER }, { identityKey: other, userId: USER }]] });
+		await store.claim({ key: KEY, userId: USER, receivedAtMessageId: "r1", attempt: FORWARDED, now: NOW });
+		await store.claim({ key: other, userId: USER, receivedAtMessageId: "r2", attempt: FORWARDED, now: NOW });
+
+		await store.deleteByEmails({ userId: USER, receivedAtMessageIds: ["r1"] });
+
+		expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+		expect(commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key)).toEqual([{ identityKey: KEY }]);
+		expect(await store.find(other)).toBeDefined();
+	});
+
+	it("reads nothing when no email is given", async () => {
+		const { commands, store } = identityTable();
+
+		await store.deleteByEmails({ userId: USER, receivedAtMessageIds: [] });
+
+		expect(commands).toEqual([]);
 	});
 });

@@ -1,29 +1,27 @@
 import {
 	type NewsletterLinkRow,
+	classifyForRemoval,
+	isNewsletterIssueKey,
 	isNewsletterLink,
 	summariseNewsletterLinkRows,
 } from "@packages/domain/article";
-import { emailIssueKeyPrefix } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
-	CountNewsletterIssues,
+	FindNewsletterIssueStates,
 	ForEachRemovalCandidatePage,
 	HasNewsletterLink,
-	ListKeysOpenedInReadlists,
 	SummariseNewsletterLinks,
 } from "@packages/provider-contracts/article-store";
 import type { ListAllUserHighlights } from "@packages/provider-contracts/highlights";
 
 export function initInMemoryRemovedLinks(deps: {
 	readNewsletterLinkRows: (userId: UserId) => readonly NewsletterLinkRow[];
-	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	listAllUserHighlights: ListAllUserHighlights;
 }): {
 	hasNewsletterLink: HasNewsletterLink;
 	summariseNewsletterLinks: SummariseNewsletterLinks;
-	countNewsletterIssues: CountNewsletterIssues;
+	findNewsletterIssueStates: FindNewsletterIssueStates;
 	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
-	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
 } {
 	const hasNewsletterLink: HasNewsletterLink = async ({ userId }) =>
 		deps.readNewsletterLinkRows(userId).some((row) => isNewsletterLink({ row, userId }));
@@ -34,30 +32,34 @@ export function initInMemoryRemovedLinks(deps: {
 			candidates: deps.readNewsletterLinkRows(userId).map((row) => ({ kind: "row", row })),
 			userId,
 			highlighted: new Set(highlights.map((highlight) => highlight.highlightOf)),
-			openedInReadlists: deps.readOpenedInReadlists(userId),
 			cutoff,
 		});
 	};
 
-	const countNewsletterIssues: CountNewsletterIssues = async ({ userId }) =>
-		deps.readNewsletterLinkRows(userId).filter((row) => row.storedKey.startsWith(emailIssueKeyPrefix(userId))).length;
+	const findNewsletterIssueStates: FindNewsletterIssueStates = async ({ userId, cutoff }) => {
+		const highlights = await deps.listAllUserHighlights(userId);
+		const highlighted = new Set(highlights.map((highlight) => highlight.highlightOf));
+		return new Map(
+			deps
+				.readNewsletterLinkRows(userId)
+				.filter((row) => isNewsletterIssueKey({ storedKey: row.storedKey, userId }))
+				.map((row) => [row.storedKey, classifyForRemoval({ row, userId, highlighted, cutoff, kind: "issue" })]),
+		);
+	};
 
 	const forEachRemovalCandidatePage: ForEachRemovalCandidatePage = async ({ userId, onPage }) => {
 		await onPage(
 			deps
 				.readNewsletterLinkRows(userId)
-				.filter((row) => !row.storedKey.startsWith(emailIssueKeyPrefix(userId)))
+				.filter((row) => !isNewsletterIssueKey({ storedKey: row.storedKey, userId }))
 				.map((row) => ({ kind: "row", row })),
 		);
 	};
 
-	const listKeysOpenedInReadlists: ListKeysOpenedInReadlists = async ({ userId }) => deps.readOpenedInReadlists(userId);
-
 	return {
 		hasNewsletterLink,
 		summariseNewsletterLinks,
-		countNewsletterIssues,
+		findNewsletterIssueStates,
 		forEachRemovalCandidatePage,
-		listKeysOpenedInReadlists,
 	};
 }

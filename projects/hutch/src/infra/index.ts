@@ -17,6 +17,7 @@ import {
 	AgeLockDeletionDueCommand,
 	RunBulkArticlesCommand, BulkArticlesProgressedEvent,
 	RunSavedLinksJobCommand,
+	PurgeRemovedNewsletterIssuesCommand,
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
 	GMAIL_EMAIL_UPDATE_FAILED_EVENT,
@@ -530,6 +531,13 @@ const heldUploadScheduleReadPolicy = {
 			Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}/held-upload-*` }],
 	})),
 };
+const removedIssuesScheduleReadPolicy = {
+	name: "user-data-jobs-read-removed-issues-schedules",
+	policy: trialSchedulerGroup.arn.apply(groupArn => JSON.stringify({
+		Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "scheduler:GetSchedule",
+			Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}/removed-issues-*` }],
+	})),
+};
 
 const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	priorLogGroupLogicalName: "hutch-log-analytics",
@@ -967,7 +975,7 @@ const userDataJobsUserArticlesDynamodb = new DynamoDBAccess("user-data-jobs-user
 
 const userDataJobsEmailIdentitiesDynamodb = new DynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
 	tables: [{ arn: dynamoTableArn(tableNames.emailIdentities), includeIndexes: true }],
-	actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
+	actions: ["dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:DeleteItem"],
 });
 
 const userDataJobsQueue = new Sqs("user-data-jobs", {
@@ -1043,6 +1051,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		...userExportBucket.writePolicies("user-data-jobs-bucket-write"),
 		userDataJobsSchedulerManagePolicy,
 		heldUploadScheduleReadPolicy,
+		removedIssuesScheduleReadPolicy,
 	],
 });
 
@@ -1056,7 +1065,7 @@ const userDataJobsWithSQS = new SqsBackedLambda("user-data-jobs", {
 });
 
 eventBus.subscribeAll(
-	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, RunBulkArticlesCommand, BulkArticlesProgressedEvent, AgeLockDeletionDueCommand],
+	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand, PurgeRemovedNewsletterIssuesCommand, RunBulkArticlesCommand, BulkArticlesProgressedEvent, AgeLockDeletionDueCommand],
 	userDataJobsWithSQS,
 	{ name: "user-data-jobs" },
 );

@@ -433,7 +433,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			seedUncertainSave: articleStoreMemory.seedUncertainSave,
 			readHandPickedAt: articleStoreMemory.readHandPickedAt,
 			readNewsletterLinkRows: articleStoreMemory.readNewsletterLinkRows,
-			readOpenedInReadlists: articleStoreMemory.readOpenedInReadlists,
 			moveNewsletterLinkToHold: articleStoreMemory.moveNewsletterLinkToHold,
 			findOriginalUrls: articleStoreMemory.findOriginalUrls,
 			findUnrestorableArticles: articleStoreMemory.findUnrestorableArticles,

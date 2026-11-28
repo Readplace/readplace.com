@@ -14,6 +14,8 @@ import type {
 	RestoreHeldLink,
 } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore, initInMemoryRemovedLinks } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { emailIssueArticleUrl, emailIssueStoredKey, InboxAddressSchema, MessageIdSchema } from "@packages/domain/inbox";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initCountSavedLinks } from "./count-saved-links";
@@ -94,10 +96,11 @@ function setup(overrides: {
 	pages?: number;
 } = {}) {
 	const store = initInMemoryArticleStore();
+	const inbox = initInMemoryInboxEmail();
+	const scheduledPurges: { userId: string; jobId: string; runStartedAt: Date }[] = [];
 	const listAllUserHighlights = async () => (overrides.highlighted ?? []).map(highlightOf);
 	const removedLinks = initInMemoryRemovedLinks({
 		readNewsletterLinkRows: store.readNewsletterLinkRows,
-		readOpenedInReadlists: store.readOpenedInReadlists,
 		listAllUserHighlights,
 	});
 	const published: { detailType: string; detail: unknown }[] = [];
@@ -118,11 +121,13 @@ function setup(overrides: {
 					for (let page = 0; page < pages; page++) await removedLinks.forEachRemovalCandidatePage(params);
 				},
 				forEachHeldLinkPage: store.forEachHeldLinkPage,
-				listKeysOpenedInReadlists: removedLinks.listKeysOpenedInReadlists,
+				listReadlistDefinitions: store.listReadlistDefinitions,
 				listAllUserHighlights,
 				moveNewsletterLinkToHold: (overrides.moveNewsletterLinkToHold ?? ((move) => move))(store.moveNewsletterLinkToHold),
 				findOriginalUrls: store.findOriginalUrls,
-				listUserSavesForUrls: store.listUserSavesForUrls,
+				forEachRemovableEmailPage: inbox.forEachRemovableEmailPage,
+				markEmailRemoved: inbox.markEmailRemoved,
+				scheduleRemovedIssuesPurge: async (params) => void scheduledPurges.push(params),
 				publishEvent,
 				now,
 			}),
@@ -135,12 +140,15 @@ function setup(overrides: {
 					}),
 				restoreHeldLink: (overrides.restoreHeldLink ?? ((restore) => restore))(store.restoreHeldLink),
 				findOriginalUrls: store.findOriginalUrls,
+				forEachRemovableEmailPage: inbox.forEachRemovableEmailPage,
+				clearEmailRemoval: inbox.clearEmailRemoval,
 				publishEvent,
 				now,
 			}),
 			count: initCountSavedLinks({
 				summariseNewsletterLinks: removedLinks.summariseNewsletterLinks,
-				countNewsletterIssues: removedLinks.countNewsletterIssues,
+				findNewsletterIssueStates: removedLinks.findNewsletterIssueStates,
+				forEachRemovableEmailPage: inbox.forEachRemovableEmailPage,
 				forEachHeldLinkPage: store.forEachHeldLinkPage,
 				findUnrestorableArticles: store.findUnrestorableArticles,
 				findKeysInAll: store.findKeysInAll,
@@ -161,15 +169,41 @@ function setup(overrides: {
 	};
 	const claim = (action: "remove" | "restore" | "count") =>
 		store.requestSavedLinksJob({ userId: READER, jobId: JOB, action, requestedAt: NOW });
-	return { store, published, run, claim };
+	const receive = async (params: { id: string; senderEmail?: string; receivedAt?: string; issue?: "unread" | "read" }) => {
+		const receivedAt = params.receivedAt ?? SAVED_AT.toISOString();
+		const receivedAtMessageId = `${receivedAt}#<${params.id}@x>`;
+		const senderEmail = params.senderEmail ?? "dan@tldr.tech";
+		await inbox.putEmail({
+			userId: READER,
+			receivedAtMessageId,
+			messageId: MessageIdSchema.parse(`<${params.id}@x>`),
+			recipientAddress: InboxAddressSchema.parse("in-3f9a2c@read.place"),
+			senderEmail,
+			subject: "Issue",
+			status: "received",
+			receivedAt,
+			rawEmailS3Key: `inbound/${params.id}`,
+			bodyS3Key: undefined,
+			linkCounts: undefined,
+		});
+		if (params.issue !== undefined) {
+			const { saved } = await store.saveArticle(
+				emailSave({ url: emailIssueArticleUrl({ userId: READER, receivedAtMessageId }), senderEmail }),
+			);
+			if (params.issue === "read") await store.updateArticleStatus(saved.id, READER, "read");
+		}
+		return { userId: READER, receivedAtMessageId };
+	};
+	return { store, inbox, published, run, claim, receive, scheduledPurges };
 }
 
 const dequeued = (published: { detailType: string; detail: unknown }[]) =>
 	published.filter((event) => event.detailType === "LinkDequeued").map((event) => event.detail);
 
 describe("saved-links job: remove", () => {
-	it("holds the chosen links, counts every skip kind, and publishes a dequeue only where no copy remains", async () => {
+	it("holds the chosen links with their readlist copies, counts every skip kind, and dequeues each held link", async () => {
 		const { store, published, run, claim } = setup({ highlighted: ["a.com/highlighted"] });
+		await store.createReadlistDefinition({ userId: READER, slug: WORK, label: "Work", createdAt: SAVED_AT });
 		await store.saveArticle(emailSave({ url: "https://a.com/held" }));
 		await store.saveArticle(emailSave({ url: "https://a.com/in-readlist" }));
 		await store.saveReadlistArticle({ ...emailSave({ url: "https://a.com/in-readlist" }), readlist: WORK });
@@ -186,8 +220,19 @@ describe("saved-links job: remove", () => {
 
 		assert.equal(await run({ detail: removeDetail() }), 0);
 
-		const counts = { held: 2, read: 1, opened: 2, highlighted: 1, changed: 1 };
-		assert.deepEqual(dequeued(published), [{ url: "https://a.com/held", userId: READER }]);
+		const counts = { held: 4, read: 1, highlighted: 1, changed: 1 };
+		assert.deepEqual(dequeued(published), [
+			{ url: "https://a.com/held", userId: READER },
+			{ url: "https://a.com/in-readlist", userId: READER },
+			{ url: "https://a.com/opened", userId: READER },
+			{ url: "https://a.com/opened-in-readlist", userId: READER },
+		]);
+		const inWork = await store.listUserSavesForUrls({
+			userId: READER,
+			urls: ["https://a.com/in-readlist", "https://a.com/opened-in-readlist"],
+			readlists: [WORK],
+		});
+		assert.deepEqual([...inWork.values()], [[], []]);
 		assert.deepEqual(published.at(-1), {
 			detailType: "SavedLinksJobCompleted",
 			detail: { userId: READER, jobId: JOB, action: "remove", counts, completedAt: NOW.toISOString() },
@@ -195,6 +240,79 @@ describe("saved-links job: remove", () => {
 		const job = await store.findSavedLinksJob({ userId: READER });
 		assert.equal(job?.state, "completed");
 		assert.deepEqual(job?.counts, counts);
+	});
+
+	it("removes each chosen issue from All and hides its email, leaving read, highlighted, later and unchosen ones", async () => {
+		const { store, inbox, published, run, claim, receive, scheduledPurges } = setup({
+			highlighted: [emailIssueStoredKey({ userId: READER, receivedAtMessageId: `${SAVED_AT.toISOString()}#<highlighted@x>` })],
+		});
+		const held = await receive({ id: "held", issue: "unread" });
+		const noIssue = await receive({ id: "no-issue" });
+		const read = await receive({ id: "read", issue: "read" });
+		const highlighted = await receive({ id: "highlighted", issue: "unread" });
+		const later = await receive({ id: "later", issue: "unread", receivedAt: "2026-12-01T12:00:00.000Z" });
+		const unchosen = await receive({ id: "unchosen", issue: "unread", senderEmail: "x@y.com" });
+		await claim("remove");
+
+		await run({
+			detail: removeDetail({
+				job: { action: "remove", cutoff: CUTOFF.toISOString(), senders: { kind: "chosen", senderEmails: ["dan@tldr.tech"] } },
+			}),
+		});
+
+		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counts, { "held-issue": 1, read: 1, highlighted: 1 });
+		assert.equal((await inbox.getEmail(held))?.removedAt, NOW.toISOString());
+		assert.equal((await inbox.getEmail(noIssue))?.removedAt, NOW.toISOString());
+		for (const kept of [read, highlighted, later, unchosen]) assert.equal((await inbox.getEmail(kept))?.removedAt, undefined);
+		assert.deepEqual(await store.findKeysInAll({ userId: READER, storedKeys: [emailIssueStoredKey(held)] }), new Set());
+		assert.deepEqual(dequeued(published), [{ url: emailIssueArticleUrl(held), userId: READER }]);
+		assert.deepEqual(scheduledPurges, [{ userId: READER, jobId: JOB, runStartedAt: NOW }]);
+	});
+
+	it("schedules no purge when no email is chosen", async () => {
+		const { run, claim, receive, scheduledPurges } = setup();
+		await receive({ id: "later", receivedAt: "2026-12-01T12:00:00.000Z" });
+		await claim("remove");
+
+		await run({ detail: removeDetail() });
+
+		assert.deepEqual(scheduledPurges, []);
+	});
+
+	it("hides again, without counting, an email whose issue an earlier receive of the job held", async () => {
+		const { store, inbox, run, claim, receive } = setup();
+		const email = await receive({ id: "earlier", issue: "unread" });
+		await store.moveNewsletterLinkToHold({
+			userId: READER,
+			jobId: JOB,
+			storedKey: emailIssueStoredKey(email),
+			cutoff: CUTOFF,
+			senders: { kind: "all" },
+			readlists: [],
+			kind: "issue",
+			now: NOW,
+		});
+		await claim("remove");
+		await store.recordSavedLinksJobProgress({ userId: READER, jobId: JOB, counts: { held: 0, "held-issue": 4 } });
+
+		await run({ detail: removeDetail() });
+
+		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counts, { held: 0, "held-issue": 1 });
+		assert.equal((await inbox.getEmail(email))?.removedAt, NOW.toISOString());
+	});
+
+	it("stops before the issues when the job moves on during the links", async () => {
+		const { store, inbox, run, claim, receive } = setup({
+			recordSavedLinksJobProgress: (record) => async (params) =>
+				params.counts.held === undefined ? record(params) : { outcome: "stale" },
+		});
+		await store.saveArticle(emailSave({ url: "https://a.com/held" }));
+		const email = await receive({ id: "kept", issue: "unread" });
+		await claim("remove");
+
+		await run({ detail: removeDetail() });
+
+		assert.equal((await inbox.getEmail(email))?.removedAt, undefined);
 	});
 
 	it("moves in chunks of ten and counts a move a changed row cancelled", async () => {
@@ -236,6 +354,8 @@ describe("saved-links job: remove", () => {
 				storedKey: params.url.replace("https://", ""),
 				cutoff: CUTOFF,
 				senders: { kind: "all" },
+				readlists: [],
+				kind: "link",
 				now: NOW,
 			});
 		};
@@ -251,7 +371,7 @@ describe("saved-links job: remove", () => {
 			{ url: "https://a.com/earlier", userId: READER },
 			{ url: "https://a.com/next", userId: READER },
 		]);
-		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counts, { held: 2 });
+		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counts, { held: 2, "held-issue": 0 });
 	});
 
 	it("runs a failed job again when it is redriven", async () => {
@@ -433,6 +553,61 @@ describe("saved-links job: restore", () => {
 		});
 	});
 
+	it("puts a removed link back in All and in the readlist it was filed in", async () => {
+		const { store, run, claim } = setup();
+		await store.createReadlistDefinition({ userId: READER, slug: WORK, label: "Work", createdAt: SAVED_AT });
+		await store.saveArticle(emailSave({ url: "https://a.com/filed" }));
+		await store.saveReadlistArticle({ ...emailSave({ url: "https://a.com/filed" }), readlist: WORK });
+		await claim("remove");
+		await run({ detail: removeDetail() });
+		await claim("restore");
+
+		await run({ detail: restoreDetail() });
+
+		const saves = await store.listUserSavesForUrls({ userId: READER, urls: ["https://a.com/filed"] });
+		assert.deepEqual(saves.get("https://a.com/filed"), [{}, { readlist: WORK }]);
+	});
+
+	it("brings back each removed issue of a chosen sender still inside its 30 days", async () => {
+		const { store, inbox, run, claim, receive } = setup();
+		const back = await receive({ id: "back", issue: "unread" });
+		const noIssue = await receive({ id: "no-issue" });
+		const unchosen = await receive({ id: "unchosen", issue: "unread", senderEmail: "x@y.com" });
+		const expired = await receive({ id: "expired" });
+		const afterRequest = await receive({ id: "after-request" });
+		await claim("remove");
+		await run({ detail: removeDetail() });
+		await inbox.clearEmailRemoval(expired);
+		await inbox.markEmailRemoved({ ...expired, jobId: "old", at: new Date("2026-10-01T00:00:00.000Z") });
+		await inbox.clearEmailRemoval(afterRequest);
+		await inbox.markEmailRemoved({ ...afterRequest, jobId: "later", at: new Date("2026-12-03T00:00:00.000Z") });
+		await claim("restore");
+
+		await run({ detail: restoreDetail({ kind: "chosen", senderEmails: ["dan@tldr.tech"] }) });
+
+		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counts, { "restored-issue": 2 });
+		assert.equal((await inbox.getEmail(back))?.removedAt, undefined);
+		assert.equal((await inbox.getEmail(noIssue))?.removedAt, undefined);
+		for (const kept of [unchosen, expired, afterRequest]) assert.notEqual((await inbox.getEmail(kept))?.removedAt, undefined);
+		assert.deepEqual(await store.findKeysInAll({ userId: READER, storedKeys: [emailIssueStoredKey(back)] }), new Set([emailIssueStoredKey(back)]));
+	});
+
+	it("stops clearing issues when the job moves on", async () => {
+		const { store, inbox, run, claim, receive } = setup({
+			recordSavedLinksJobProgress: (record) => async (params) =>
+				params.counts["restored-issue"] === undefined ? record(params) : { outcome: "stale" },
+		});
+		const email = await receive({ id: "back" });
+		await claim("remove");
+		await run({ detail: removeDetail() });
+		await claim("restore");
+
+		await run({ detail: restoreDetail() });
+
+		assert.equal((await inbox.getEmail(email))?.removedAt, undefined);
+		assert.equal((await store.findSavedLinksJob({ userId: READER }))?.state, "running");
+	});
+
 	it("does not count a held link that went away before it was written back", async () => {
 		const { store, run, claim } = setup({ restoreHeldLink: () => async () => ({ outcome: "gone" }) });
 		await hold(store, { url: "https://a.com/back" });
@@ -498,6 +673,8 @@ async function hold(store: ReturnType<typeof setup>["store"], params: { url: str
 		storedKey,
 		cutoff: CUTOFF,
 		senders: { kind: "all" },
+		readlists: [],
+		kind: "link",
 		now: params.at ?? SAVED_AT,
 	});
 	assert.deepEqual(outcome, { outcome: "held" });
@@ -523,7 +700,7 @@ describe("saved-links job: count", () => {
 		assert.equal(job?.counted?.cutoff.toISOString(), CUTOFF.toISOString());
 		assert.equal(job?.counted?.summary.selected, 2);
 		assert.equal(job?.counted?.summary.skipped.changed, 1);
-		assert.equal(job?.counted?.issues, 0);
+		assert.deepEqual(job?.counted?.issues, { selected: 0, bySender: [], skipped: { read: 0, highlighted: 0 } });
 		assert.equal(dequeued(published).length, 0);
 		assert.deepEqual(
 			published.map((event) => event.detailType),
@@ -544,8 +721,8 @@ describe("saved-links job: count", () => {
 
 		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counted?.held, {
 			bySender: [
-				{ senderEmail: "news@example.com", count: 2 },
-				{ senderEmail: "dan@tldr.tech", count: 1 },
+				{ senderEmail: "news@example.com", count: 2, issues: 0 },
+				{ senderEmail: "dan@tldr.tech", count: 1, issues: 0 },
 			],
 			unrestorable: ["a.com/purged"],
 		});
@@ -561,9 +738,38 @@ describe("saved-links job: count", () => {
 		assert.equal(await run({ detail: countDetail() }), 0);
 
 		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counted?.held, {
-			bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }],
+			bySender: [{ senderEmail: "dan@tldr.tech", count: 1, issues: 0 }],
 			unrestorable: [],
 		});
+	});
+
+	it("writes the issues a removal would take by newsletter and the read ones apart, and the held issues by newsletter", async () => {
+		const { store, run, claim, receive } = setup();
+		await receive({ id: "one", issue: "unread" });
+		await receive({ id: "no-issue" });
+		await receive({ id: "read", issue: "read" });
+		const removed = await receive({ id: "removed", issue: "unread" });
+		await store.moveNewsletterLinkToHold({
+			userId: READER,
+			jobId: SavedLinksJobIdSchema.parse("2026-11-30T00:00:00.000Z#old"),
+			storedKey: emailIssueStoredKey(removed),
+			cutoff: CUTOFF,
+			senders: { kind: "all" },
+			readlists: [],
+			kind: "issue",
+			now: SAVED_AT,
+		});
+		await claim("count");
+
+		assert.equal(await run({ detail: countDetail() }), 0);
+
+		const counted = (await store.findSavedLinksJob({ userId: READER }))?.counted;
+		assert.deepEqual(counted?.issues, {
+			selected: 3,
+			bySender: [{ senderEmail: "dan@tldr.tech", count: 3 }],
+			skipped: { read: 1, highlighted: 0 },
+		});
+		assert.deepEqual(counted?.held.bySender, [{ senderEmail: "dan@tldr.tech", count: 0, issues: 1 }]);
 	});
 
 	it("stops without finishing when another job replaced the count while it ran", async () => {

@@ -8,6 +8,7 @@ import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
 	ReadlistLimitReachedError,
+	type ReadlistSlug,
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -3182,7 +3183,7 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 	const JOB = SavedLinksJobIdSchema.parse("2026-12-02T00:00:00.000Z-job");
 	const KEY = ArticleResourceUniqueId.parse(URL).value;
 	const email = { kind: "email", senderEmail: "news@example.com" } as const;
-	const hold = { userId: USER_A, jobId: JOB, storedKey: KEY, cutoff: CUTOFF, senders: { kind: "all" } as const, now: NOW };
+	const hold = { userId: USER_A, jobId: JOB, storedKey: KEY, cutoff: CUTOFF, senders: { kind: "all" } as const, readlists: [], kind: "link" as const, now: NOW };
 
 	async function storeWithEmailLink() {
 		const store = initInMemoryArticleStore();
@@ -3226,6 +3227,29 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "already-in-all" });
 		await store.setPurgedAt({ url: URL, at: NOW });
 		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "unrestorable" });
+	});
+
+	it("holds the link's readlist copies and restores each to a readlist that still exists", async () => {
+		const store = await storeWithEmailLink();
+		const kept = ReadlistSlugSchema.parse("kept");
+		const deleted = ReadlistSlugSchema.parse("deleted");
+		for (const readlist of [kept, deleted]) {
+			await store.createReadlistDefinition({ userId: USER_A, slug: readlist, label: readlist, createdAt: SAVED });
+			await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: SAVED, provenance: email }), readlist });
+		}
+		const inReadlist = async (readlist: ReadlistSlug) =>
+			(await store.listUserSavesForUrls({ userId: USER_A, urls: [URL], readlists: [readlist] })).get(URL)?.length;
+
+		expect(await store.moveNewsletterLinkToHold({ ...hold, readlists: [kept, deleted] })).toEqual({ outcome: "held" });
+		expect(await inReadlist(kept)).toBe(0);
+		expect(await inReadlist(deleted)).toBe(0);
+
+		await store.deleteReadlistDefinition({ userId: USER_A, slug: deleted });
+		const link = await store.findHeldLink({ userId: USER_A, storedKey: KEY, now: NOW });
+		assert(link);
+		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "restored" });
+		expect(await inReadlist(kept)).toBe(1);
+		expect(await inReadlist(deleted)).toBe(0);
 	});
 
 	it("lets a failed saved-links job be finished again as completed", async () => {
@@ -3295,13 +3319,12 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 		const count = SavedLinksJobIdSchema.parse("job-count");
 		const counted = {
 			cutoff: NOW,
-			issues: 1,
+			issues: { selected: 1, bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }], skipped: { read: 0, highlighted: 0 } },
 			summary: {
 				selected: 2,
 				bySender: [{ senderEmail: "dan@tldr.tech", count: 2 }],
-				skipped: { read: 0, opened: 0, highlighted: 0, changed: 0, unreadable: 0 },
+				skipped: { read: 0, highlighted: 0, changed: 0, unreadable: 0 },
 				earliestEmailSave: undefined,
-				savedBeforeMarker: 0,
 			},
 			held: { bySender: [], unrestorable: [] },
 		};
@@ -3528,6 +3551,8 @@ describe("initInMemoryArticleStore smart readlists", () => {
 			storedKey: KEY,
 			cutoff: new Date("2026-12-01T00:00:00.000Z"),
 			senders: { kind: "all" },
+			readlists: [],
+			kind: "link",
 			now: new Date("2026-12-02T00:00:00.000Z"),
 		});
 		await store.saveArticle(makeArticleParams());

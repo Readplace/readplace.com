@@ -66,14 +66,20 @@ export {
 	type SaveProvenance,
 } from "./save-provenance";
 export { personalDecisionKey, personalReadlistPartition, personalReadlistOrder, type PersonalPickRequest, type PersonalReadlist } from "./personal-readlist";
-export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
 export {
 	REMOVAL_SKIP_REASONS,
+	classifyForRemoval,
+	ISSUE_SKIP_REASONS,
+	isNewsletterIssueKey,
 	isNewsletterLink,
+	summariseNewsletterIssues,
+	type NewsletterIssueSummary,
+	type NewsletterRowKind,
 	summariseNewsletterLinkRows,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
 	type NewsletterLinkSummary,
+	type RemovalClassification,
 	type RemovalSkipReason,
 } from "./newsletter-link";
 export {
@@ -82,6 +88,7 @@ export {
 	SavedLinksJobCountsSchema,
 	SavedLinksJobIdSchema,
 	SavedLinksJobStateSchema,
+	SKIPPED_COUNT_CODES,
 	addSavedLinksJobCount,
 	decideHold,
 	heldLinkExpiresAt,

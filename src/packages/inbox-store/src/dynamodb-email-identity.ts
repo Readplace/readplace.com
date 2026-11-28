@@ -2,6 +2,7 @@ import assert from "node:assert";
 import {
 	writeIfCondition,
 	type DynamoDBDocumentClient,
+	batchGetFromTable,
 	defineDynamoTable,
 	forEachQueryPage,
 } from "@packages/storage-client";
@@ -26,6 +27,11 @@ const EmailIdentityRow = z.object({
 
 const EmailIdentityKeyRow = z.object({
 	identityKey: EmailIdentityKeySchema,
+});
+
+const EmailIdentityEmailRow = z.object({
+	identityKey: EmailIdentityKeySchema,
+	receivedAtMessageId: z.string(),
 });
 
 function toClaim(row: z.infer<typeof EmailIdentityRow>): EmailIdentityClaim {
@@ -97,6 +103,31 @@ export function initDynamoDbEmailIdentity(deps: {
 				},
 				async (rows) => {
 					await Promise.all(rows.map((row) => keys.delete({ Key: { identityKey: row.identityKey } })));
+				},
+			);
+		},
+		deleteByEmails: async ({ userId, receivedAtMessageIds }) => {
+			if (receivedAtMessageIds.length === 0) return;
+			await forEachQueryPage(
+				keys,
+				{
+					IndexName: "userId-index",
+					KeyConditionExpression: "userId = :uid",
+					ExpressionAttributeValues: { ":uid": userId },
+				},
+				async (rows) => {
+					const claims = await batchGetFromTable({
+						client: deps.client,
+						tableName: deps.tableName,
+						schema: EmailIdentityEmailRow,
+						keys: rows.map((row) => ({ identityKey: row.identityKey })),
+						projection: ["identityKey", "receivedAtMessageId"],
+					});
+					await Promise.all(
+						claims
+							.filter((claim) => receivedAtMessageIds.includes(claim.receivedAtMessageId))
+							.map((claim) => keys.delete({ Key: { identityKey: claim.identityKey } })),
+					);
 				},
 			);
 		},

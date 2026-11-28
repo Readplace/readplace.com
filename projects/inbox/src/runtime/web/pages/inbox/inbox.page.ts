@@ -384,6 +384,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			);
 	};
 
+	const getShownEmail: InboxEmailStore["getEmail"] = async (key) => {
+		const entry = await deps.inboxEmailStore.getEmail(key);
+		return entry?.removedAt === undefined ? entry : undefined;
+	};
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -407,7 +412,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			cursor === undefined
 				? Promise.all([
 						deps.findSavedLinksJob({ userId }),
-						(sender !== undefined || result.emails.length > 0) ? deps.hasNewsletterLink({ userId }) : false,
+						result.emails.length > 0 || (sender !== undefined && deps.hasNewsletterLink({ userId })),
 						deps.hasHeldLinks({ userId, now: deps.now() }),
 					]).then(([job, hasNewsletterLink, hasHeldLinks]) =>
 						newsletterLinksLineOf({ job, hasNewsletterLink, hasHeldLinks }),
@@ -429,7 +434,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.get("/:id", async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const receivedAtMessageId = req.params.id;
-		const entry = await deps.inboxEmailStore.getEmail({
+		const entry = await getShownEmail({
 			userId: req.userId,
 			receivedAtMessageId,
 		});
@@ -491,7 +496,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
 			const receivedAtMessageId = req.params.id;
-			const entry = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+			const entry = await getShownEmail({ userId, receivedAtMessageId });
 			if (entry === undefined) {
 				res.status(404).type("html").send("");
 				return;
@@ -534,7 +539,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const receivedAtMessageId = req.params.id;
-		const entry = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+		const entry = await getShownEmail({ userId, receivedAtMessageId });
 		if (entry === undefined) {
 			res.status(404).type("html").send("");
 			return;
@@ -718,7 +723,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Submits the stored URL, never the resolved one — the save pipeline owns
 			// redirects. Stripping runs after the saveable gate above and only shortens,
 			// so the validated URL cannot grow back past its length cap.
-			const email = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+			const email = await getShownEmail({ userId, receivedAtMessageId });
 			assert(email, "the email a saved link belongs to must still exist");
 			await deps.publishSubmitLink({
 				userId,
@@ -829,7 +834,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			) {
 				return notFound();
 			}
-			const email = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+			const email = await getShownEmail({ userId, receivedAtMessageId });
 			if (email === undefined) return notFound();
 			const parsedBody = LinkFitChoiceSchema.safeParse(req.body);
 			if (!parsedBody.success) return notFound();

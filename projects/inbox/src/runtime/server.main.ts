@@ -250,7 +250,6 @@ async function main(): Promise<void> {
 			edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 		hasNewsletterLink: initInMemoryRemovedLinks({
 				readNewsletterLinkRows: fixture.articleStore.readNewsletterLinkRows,
-				readOpenedInReadlists: fixture.articleStore.readOpenedInReadlists,
 				listAllUserHighlights: async () => [],
 			}).hasNewsletterLink,
 			hasHeldLinks: fixture.articleStore.hasHeldLinks,

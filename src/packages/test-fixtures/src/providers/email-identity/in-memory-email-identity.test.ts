@@ -106,4 +106,18 @@ describe("initInMemoryEmailIdentity", () => {
 		assert.equal(await identities.find(KEY), undefined);
 		assert.equal((await identities.find(othersKey))?.userId, OTHER);
 	});
+
+	it("deletes the owner's claims for the emails it is given", async () => {
+		const identities = initInMemoryEmailIdentity();
+		const othersKey = messageIdentityKey({ userId: OTHER, sender: SENDER, messageId: NormalizedMessageIdSchema.parse("m-1@tldr.tech") });
+		await identities.claim({ key: KEY, userId: OWNER, receivedAtMessageId: FORWARDED_ROW, attempt: FORWARDED, now: FIRST_AT });
+		await identities.claim({ key: othersKey, userId: OTHER, receivedAtMessageId: FORWARDED_ROW, attempt: FORWARDED, now: FIRST_AT });
+
+		await identities.deleteByEmails({ userId: OWNER, receivedAtMessageIds: ["other-row"] });
+		assert.equal((await identities.find(KEY))?.userId, OWNER);
+
+		await identities.deleteByEmails({ userId: OWNER, receivedAtMessageIds: [FORWARDED_ROW] });
+		assert.equal(await identities.find(KEY), undefined);
+		assert.equal((await identities.find(othersKey))?.userId, OTHER);
+	});
 });
