@@ -16,8 +16,7 @@ import { isHardCrawlFailure, TransportLadderFailure } from "./transport-ladder-f
  * A proxied answer is returned whatever its status (a residential 404 means the
  * page is genuinely gone — better information than the datacenter block), with
  * one exception: a gateway status is the proxy failing rather than answering
- * about the document, so it is retried once and otherwise never leaves this
- * wrapper.
+ * about the document, so it never leaves this wrapper.
  */
 /* The direct pass is never shortened below this: it is the free path and it
  * answers the overwhelming majority of URLs. */
@@ -30,6 +29,7 @@ const PROXY_ATTEMPT_FLOOR_MILLISECONDS = 12_000;
  * the caller is entitled to receive. */
 const PROXY_GATEWAY_STATUSES = new Set([502, 503, 504]);
 const PROXY_ATTEMPTS = 2;
+const PROXY_FALLBACK_ATTEMPTS = 4;
 
 type DirectOutcome = { response: Response } | { thrown: unknown };
 
@@ -77,7 +77,8 @@ export function withProxiedLadderFallback(deps: {
 			directOutcome = { thrown: error };
 		}
 		const proxyTargetUrl = frozenProxyTarget({ entryUrl: url, directOutcome, lastDirectHopTarget });
-		for (let attempt = 0; attempt < PROXY_ATTEMPTS; attempt++) {
+		let lastNetworkFailure: TransportLadderFailure | undefined;
+		for (let attempt = 0; attempt < PROXY_FALLBACK_ATTEMPTS; attempt++) {
 			budget.deadline.signal.throwIfAborted();
 			if (budget.remainingMs() < PROXY_ATTEMPT_FLOOR_MILLISECONDS) break;
 			const proxyBudget = createCrawlBudget({
@@ -90,10 +91,17 @@ export function withProxiedLadderFallback(deps: {
 				response = await proxyFetch(proxyTargetUrl, { headers, onRedirect, budget: proxyBudget });
 			} catch (error) {
 				budget.deadline.signal.throwIfAborted();
-				if (isHardCrawlFailure(error) || (error instanceof TransportLadderFailure && error.retryDisposition === "unclassified")) throw error;
+				if (isHardCrawlFailure(error)) throw error;
+				if (isNetworkFailure(error)) {
+					lastNetworkFailure = error;
+					continue;
+				}
+				if (error instanceof TransportLadderFailure && error.retryDisposition === "unclassified") throw error;
+				lastNetworkFailure = undefined;
 				if (!isTimeout(error)) break;
 				continue;
 			}
+			lastNetworkFailure = undefined;
 			budget.deadline.signal.throwIfAborted();
 			if (!PROXY_GATEWAY_STATUSES.has(response.status)) return response;
 			/* Drain the body of the answer being discarded, for the same reason the
@@ -102,6 +110,7 @@ export function withProxiedLadderFallback(deps: {
 			await response.text();
 		}
 		budget.deadline.signal.throwIfAborted();
+		if (lastNetworkFailure !== undefined) throw lastNetworkFailure;
 		return surface(directOutcome);
 	};
 }
@@ -162,6 +171,15 @@ function surface(directOutcome: DirectOutcome): Response {
 
 export function isProxyWorthyResponse(response: Response): boolean {
 	return isBlockClassResponse(response) || response.status === 429;
+}
+
+function isNetworkFailure(error: unknown): error is TransportLadderFailure {
+	return (
+		error instanceof TransportLadderFailure &&
+		error.retryDisposition === "unclassified" &&
+		error.cause instanceof TypeError &&
+		error.cause.message === "fetch failed"
+	);
 }
 
 function isTimeout(error: unknown): boolean {

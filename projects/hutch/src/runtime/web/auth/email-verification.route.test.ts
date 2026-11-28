@@ -255,23 +255,14 @@ describe("Email verification", () => {
 	});
 
 	describe("lifecycle_email_sent for the welcome email", () => {
-		const FOUNDING_MEMBER_LIMIT = 3;
-
 		function tokenOf(html: string): string {
 			const tokenMatch = html.match(/token&#x3D;([a-f0-9]+)/);
 			assert(tokenMatch, "Expected token in verification email");
 			return tokenMatch[1];
 		}
 
-		async function exhaustFoundingAllocation(harness: ReturnType<typeof useApp>): Promise<void> {
-			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
-		}
-
 		it("records one send at verification for a reader with a trialing row", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await exhaustFoundingAllocation(harness);
 			await signup(harness.server, "trial@example.com");
 			const lookup = await harness.auth.findUserByEmail("trial@example.com");
 			assert(lookup, "signup must persist the user");
@@ -291,19 +282,8 @@ describe("Email verification", () => {
 			]);
 		});
 
-		it("records nothing for a verify with no subscription row", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await signup(harness.server, "free@example.com");
-
-			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
-
-			expect(harness.email.getSentEmails()[1].subject).toBe("Welcome to Readplace");
-			expect(harness.funnelEvents.events).toEqual([]);
-		});
-
 		it("records nothing for a verify whose subscription row is no longer trialing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await exhaustFoundingAllocation(harness);
 			await signup(harness.server, "cancelled@example.com");
 			const lookup = await harness.auth.findUserByEmail("cancelled@example.com");
 			assert(lookup, "signup must persist the user");
@@ -337,7 +317,6 @@ describe("Email verification", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const client = await registerAssistant(fixture, "ChatGPT");
-			await exhaustFoundingAllocation(harness);
 			await signupFromClient(harness.server, { email: "chatgpt@example.com", clientId: client.id });
 			const lookup = await harness.auth.findUserByEmail("chatgpt@example.com");
 			assert(lookup, "signup must persist the user");
@@ -362,7 +341,6 @@ describe("Email verification", () => {
 
 		it("sends the default welcome with no unsubscribe headers to a plain trial signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await exhaustFoundingAllocation(harness);
 			await signup(harness.server, "plain@example.com");
 
 			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
@@ -373,18 +351,6 @@ describe("Email verification", () => {
 			expect(new URL(installLink.href).search).toBe("?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install");
 			expect(welcome.html).toContain("Thanks for joining");
 			expect(welcome.headers).toBeUndefined();
-		});
-
-		it("sends the default welcome and records nothing for a signup from a ChatGPT client with no trial", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp(fixture);
-			const client = await registerAssistant(fixture, "ChatGPT");
-			await signupFromClient(harness.server, { email: "free-chatgpt@example.com", clientId: client.id });
-
-			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
-
-			expect(harness.email.getSentEmails()[1].html).toContain("Thanks for joining");
-			expect(harness.funnelEvents.events).toEqual([]);
 		});
 
 		it("logs a failed user read, sends the default welcome and still verifies", async () => {
@@ -402,7 +368,6 @@ describe("Email verification", () => {
 				},
 			});
 			const client = await registerAssistant(fixture, "ChatGPT");
-			await exhaustFoundingAllocation(harness);
 			await signupFromClient(harness.server, { email: "read-fail@example.com", clientId: client.id });
 
 			const response = await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
@@ -430,7 +395,6 @@ describe("Email verification", () => {
 					logError: (message) => { loggedErrors.push(message); },
 				},
 			});
-			await exhaustFoundingAllocation(harness);
 			await signup(harness.server, "trial-fail@example.com");
 
 			const response = await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);

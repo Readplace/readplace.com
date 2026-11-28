@@ -1,5 +1,4 @@
 export type {
-	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,

@@ -220,7 +220,7 @@ describe("withProxiedLadderFallback", () => {
 				response.headers.set("x-amzn-waf-action", "challenge");
 				return response;
 			},
-			proxy: [async () => gateway(502), async () => gateway(502)],
+			proxy: [async () => gateway(502), async () => gateway(502), async () => gateway(502), async () => gateway(502)],
 		});
 
 		const response = await harness.fetchIt();
@@ -229,7 +229,7 @@ describe("withProxiedLadderFallback", () => {
 		expect(response.url).toBe(DEST_URL);
 		expect(response.headers.get("x-amzn-waf-action")).toBe("challenge");
 		expect(await response.text()).toBe("stamped-body");
-		expect(harness.proxyBudgets).toHaveLength(2);
+		expect(harness.proxyBudgets).toHaveLength(4);
 	});
 
 	it("returns an ordinary HTTP 202 without a proxied pass", async () => {
@@ -349,10 +349,18 @@ describe("withProxiedLadderFallback", () => {
 		expect(harness.proxyBudgets).toHaveLength(2);
 	});
 
-	it("surfaces the direct block when both proxied attempts stall", async () => {
+	it("surfaces the direct block when all four proxied attempts stall", async () => {
 		const harness = makeHarness({
 			direct: async () => new Response("denied", { status: 403 }),
 			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 10_000;
+					throw timeout();
+				},
+				async (_controller, clock) => {
+					clock.nowMs += 10_000;
+					throw timeout();
+				},
 				async (_controller, clock) => {
 					clock.nowMs += 10_000;
 					throw timeout();
@@ -366,7 +374,7 @@ describe("withProxiedLadderFallback", () => {
 		const response = await harness.fetchIt();
 		expect(response.status).toBe(403);
 		expect(await response.text()).toBe("denied");
-		expect(harness.proxyBudgets).toHaveLength(2);
+		expect(harness.proxyBudgets).toHaveLength(4);
 	});
 
 	it("propagates the outer deadline instead of returning a retained block response", async () => {
@@ -449,17 +457,17 @@ describe("withProxiedLadderFallback", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("surfaces the direct block when both proxied attempts answer a gateway status", async () => {
+	it("surfaces the direct block when all four proxied attempts answer a gateway status", async () => {
 		const first = gateway(502);
 		const second = gateway(502);
 		const harness = makeHarness({
 			direct: async () => new Response("denied", { status: 403 }),
-			proxy: [async () => first, async () => second],
+			proxy: [async () => first, async () => gateway(503), async () => gateway(504), async () => second],
 		});
 		const response = await harness.fetchIt();
 		expect(response.status).toBe(403);
 		expect(await response.text()).toBe("denied");
-		expect(harness.proxyBudgets).toHaveLength(2);
+		expect(harness.proxyBudgets).toHaveLength(4);
 		expect(first.bodyUsed).toBe(true);
 		expect(second.bodyUsed).toBe(true);
 	});
@@ -479,15 +487,15 @@ describe("withProxiedLadderFallback", () => {
 		expect(harness.proxyBudgets).toHaveLength(2);
 	});
 
-	it("rethrows the direct deadline when both proxied attempts answer a gateway status", async () => {
+	it("rethrows the direct deadline when all four proxied attempts answer a gateway status", async () => {
 		const harness = makeHarness({
 			direct: async () => {
 				throw timeout();
 			},
-			proxy: [async () => gateway(502), async () => gateway(502)],
+			proxy: [async () => gateway(502), async () => gateway(502), async () => gateway(502), async () => gateway(502)],
 		});
 		await expect(harness.fetchIt()).rejects.toThrow("leg produced no response within 200ms");
-		expect(harness.proxyBudgets).toHaveLength(2);
+		expect(harness.proxyBudgets).toHaveLength(4);
 	});
 
 	it("surfaces the direct block rather than retrying when the first attempt spent the budget", async () => {
@@ -658,19 +666,19 @@ describe("withProxiedLadderFallback", () => {
 		expect(harness.proxyUrls).toEqual([DEST_URL]);
 	});
 
-	it("surfaces the challenge readable, at the url that served it, when both proxied attempts answer a gateway status", async () => {
+	it("surfaces the challenge readable, at the url that served it, when all four proxied attempts answer a gateway status", async () => {
 		const harness = makeHarness({
 			direct: async (_controller, _clock, onRedirect) => {
 				onRedirect?.({ fromUrl: ENTRY_URL, toUrl: DEST_URL });
 				return clientChallengeServedAt(DEST_URL);
 			},
-			proxy: [async () => gateway(502), async () => gateway(502)],
+			proxy: [async () => gateway(502), async () => gateway(502), async () => gateway(502), async () => gateway(502)],
 		});
 		const response = await harness.fetchIt();
 		expect(response.status).toBe(200);
 		expect(response.url).toBe(DEST_URL);
 		expect(await response.text()).toBe(CLIENT_CHALLENGE_HTML);
-		expect(harness.proxyBudgets).toHaveLength(2);
+		expect(harness.proxyBudgets).toHaveLength(4);
 	});
 
 	it("returns a direct HTML article as the same answer, body intact, without a proxied pass", async () => {
@@ -698,6 +706,117 @@ describe("withProxiedLadderFallback", () => {
 		await expect(harness.fetchIt()).rejects.toThrow("terminated");
 		expect(harness.proxyBudgets).toHaveLength(0);
 	});
+	function networkFailure(): TransportLadderFailure {
+		return new TransportLadderFailure({ escalatedStatuses: [], error: new TypeError("fetch failed"), previousErrors: [], retryDisposition: "unclassified" });
+	}
+
+	it("keeps retrying past two gateway answers from the unlocker until it answers", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 11_300;
+					return gateway(502);
+				},
+				async (_controller, clock) => {
+					clock.nowMs += 20_200;
+					return gateway(502);
+				},
+				async () => new Response("%PDF-1.5", { status: 200 }),
+			],
+		});
+		const response = await harness.fetchIt({ totalMs: 145_000 });
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("%PDF-1.5");
+		expect(harness.proxyBudgets).toHaveLength(3);
+	});
+
+	it("retries a proxied attempt that fails with undici's network failure", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 57_100;
+					throw networkFailure();
+				},
+				async () => new Response("%PDF-1.5", { status: 200 }),
+			],
+		});
+		const response = await harness.fetchIt({ totalMs: 145_000 });
+		expect(response.status).toBe(200);
+		expect(harness.proxyBudgets).toHaveLength(2);
+	});
+
+	it("rethrows the network failure when every proxied attempt fails with it", async () => {
+		const last = networkFailure();
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async () => { throw networkFailure(); },
+				async () => { throw networkFailure(); },
+				async () => { throw networkFailure(); },
+				async () => { throw last; },
+			],
+		});
+		await expect(harness.fetchIt({ totalMs: 145_000 })).rejects.toBe(last);
+		expect(harness.proxyBudgets).toHaveLength(4);
+	});
+
+	it("rethrows the network failure without a retry when it spent the budget", async () => {
+		const failure = networkFailure();
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async (_controller, clock) => {
+					clock.nowMs += 135_000;
+					throw failure;
+				},
+			],
+		});
+		await expect(harness.fetchIt({ totalMs: 145_000 })).rejects.toBe(failure);
+		expect(harness.proxyBudgets).toHaveLength(1);
+	});
+
+	it("surfaces the direct block when gateway answers follow a network failure up to the attempt cap", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async () => { throw networkFailure(); },
+				async () => gateway(502),
+				async () => gateway(503),
+				async () => gateway(504),
+			],
+		});
+		const response = await harness.fetchIt({ totalMs: 145_000 });
+		expect(response.status).toBe(403);
+		expect(harness.proxyBudgets).toHaveLength(4);
+	});
+
+	it("surfaces the direct block when a timeout follows a network failure on the last attempt", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [
+				async () => { throw networkFailure(); },
+				async () => { throw networkFailure(); },
+				async () => { throw networkFailure(); },
+				async () => { throw timeout(); },
+			],
+		});
+		const response = await harness.fetchIt({ totalMs: 145_000 });
+		expect(response.status).toBe(403);
+		expect(harness.proxyBudgets).toHaveLength(4);
+	});
+
+	it("propagates an unclassified TypeError that is not undici's network failure", async () => {
+		const error = new TransportLadderFailure({ escalatedStatuses: [], error: new TypeError("Cannot read properties of undefined"), previousErrors: [], retryDisposition: "unclassified" });
+		const harness = makeHarness({
+			direct: async () => new Response("denied", { status: 403 }),
+			proxy: [async () => { throw error; }],
+		});
+		await expect(harness.fetchIt()).rejects.toBe(error);
+		expect(harness.proxyBudgets).toHaveLength(1);
+	});
+
 });
 
 describe("withProxyOnlyLadder", () => {

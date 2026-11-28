@@ -107,7 +107,6 @@ export {
 	type ViewOpenedEvent,
 	type EpubImagesOverBudgetEvent,
 	type ViewSaveIntentEvent,
-	type FirstArticleAutosavedEvent,
 } from "./analytics-event.types";
 export {
 	initRecordAudienceEvent,

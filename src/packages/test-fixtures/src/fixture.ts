@@ -696,9 +696,5 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		stripePublishableKey: "pk_test_default",
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
 		conversions: { logger: conversionLogger, events: conversionEvents },
-		/** Small enough that founding-allocation seed loops finish in
-		* milliseconds while still leaving room for "one above the limit" tests
-		* to seed N+1 distinct emails. Production uses a much larger limit. */
-		foundingAllocation: { foundingMemberLimit: 3 },
 	};
 }

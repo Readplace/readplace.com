@@ -19,7 +19,7 @@ export function buildUserCreatedEvent(
 		userId: UserId;
 		email: string;
 		method: "email" | "google" | "apple";
-		tier: "free" | "trial";
+		tier: "trial";
 		attribution: ClickAttribution | undefined;
 		homepageVariant: string | undefined;
 		visitorId?: string;

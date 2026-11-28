@@ -94,7 +94,6 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			stripePublishableKey: fixture.stripePublishableKey,
 			botDefense: fixture.botDefense,
 			conversions: fixture.conversions,
-			foundingAllocation: fixture.foundingAllocation,
 			mediaUpload: fixture.mediaUpload,
 			highlights: fixture.highlights,
 		});
