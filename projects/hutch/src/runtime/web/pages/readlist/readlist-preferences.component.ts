@@ -62,7 +62,7 @@ export interface ReadlistPreferencesViewModel {
 	purposeError?: string;
 	filing: ReadlistFilingMode;
 	smartError: string | undefined;
-	inboxes: readonly InboxAddressEntry[];
+	inboxes: readonly InboxAddressEntry[] | undefined;
 	inboxCreate: { submittedName: string | undefined; error: InboxNameError | undefined };
 	inboxCreated: AliasName | undefined;
 	choices: ReadlistFitChoices;
@@ -136,16 +136,19 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			offer: vm.rail.offer,
 			error: vm.smartError,
 		}),
-		inboxesHtml: renderReadlistInboxes(
-			buildReadlistInboxes({
-				readlist: vm.readlist,
-				inboxes: vm.inboxes,
-				readlists: vm.rail.readlists,
-				create: vm.inboxCreate,
-				standing,
-				offer: vm.rail.offer,
-			}),
-		),
+		inboxesHtml:
+			vm.inboxes === undefined
+				? ""
+				: renderReadlistInboxes(
+					buildReadlistInboxes({
+						readlist: { slug: vm.readlist.slug, label: vm.readlist.label },
+						inboxes: vm.inboxes,
+						readlists: vm.rail.readlists,
+						create: vm.inboxCreate,
+						standing,
+						offer: vm.rail.offer,
+					}),
+				),
 		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
 		choicesHtml: renderReadlistFitChoices({
 			readlist: vm.readlist,

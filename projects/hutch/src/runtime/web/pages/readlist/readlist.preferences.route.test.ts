@@ -108,10 +108,6 @@ function refusedWizardForm(response: { text: string }) {
 	};
 }
 
-function inboxesDescription(doc: Document): string[] {
-	return Array.from(doc.querySelectorAll("[data-test-inboxes-description]"), (line) => line.textContent);
-}
-
 const PURPOSE_CARD = "[data-test-readlist-purpose]";
 const WIZARD_POPOVER = "#readlist-preferences-wizard";
 const WIZARD_PANEL = "[data-test-readlist-preferences]";
@@ -1168,6 +1164,83 @@ describe("POST /queue/queues/:slug/preferences/overrides/:id/delete", () => {
 });
 
 describe("GET /queue/queues/:slug/preferences inboxes", () => {
+	it("shows a Smart Readlist only its Smart matching and remembered choices under the tabs, even with Gmail wired and an address routed to it", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({ ...fixture, gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
+		await recordChoice(harness, { readlist: slug, minute: 1 });
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		const browse = doc.querySelector(".readlist__main .readlist__browse");
+		assert(browse, "the preferences page must render its browse column");
+		const BROWSE_PARTS = [
+			"[data-test-readlist-purpose]",
+			"[data-test-filters]",
+			"[data-test-readlist-preferences]",
+			'[data-test-smart-filing="smart"]',
+			"[data-test-readlist-choices]",
+		];
+		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
+			BROWSE_PARTS,
+		);
+	});
+
+	it("reads neither the reader's inboxes nor their Gmail senders for a Smart Readlist", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const loads: string[] = [];
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const { inboxAddressStore } = fixture.inboxAddress;
+		const harness = useApp({
+			...fixture,
+			inboxAddress: {
+				...fixture.inboxAddress,
+				inboxAddressStore: {
+					...inboxAddressStore,
+					listAddressesByUserId: (userId) => {
+						loads.push("inboxes");
+						return inboxAddressStore.listAddressesByUserId(userId);
+					},
+				},
+			},
+			gmailIntegration: {
+				...gmail.bundle,
+				gmailDiscoveryStore: {
+					...gmail.bundle.gmailDiscoveryStore,
+					listSendersByUserId: (userId) => {
+						loads.push("gmail-senders");
+						return gmail.bundle.gmailDiscoveryStore.listSendersByUserId(userId);
+					},
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const regular = await createReadlist(agent, "New Readlist");
+		const smart = await createReadlist(agent, "New Readlist 2");
+		await savePurpose(agent, smart, PURPOSE);
+
+		loads.length = 0;
+		await agent.get(preferencesPath(smart));
+		const smartLoads = [...loads];
+		loads.length = 0;
+		await agent.get(preferencesPath(regular));
+
+		expect({ smart: smartLoads, regular: [...loads].sort() }).toEqual({
+			smart: [],
+			regular: ["gmail-senders", "inboxes"],
+		});
+	});
+
 	it("lists the reader's inboxes under the purpose panel, saying where each one goes", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -1216,23 +1289,6 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 
 		expect(inboxesSection(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
 		expect(createForm(doc)).toEqual({ value: "new-readlist", error: undefined });
-	});
-
-	it("tells the reader only the links that fit are kept once the readlist has a purpose", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await savePurpose(agent, slug, PURPOSE);
-
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-
-		expect(inboxesDescription(doc)).toEqual([
-			"Send a custom email here and every article each email links to is saved to 'All'.",
-			"Only the ones who match your preferences will be saved to 'New Readlist'",
-		]);
-		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe(
-			"The articles it links to that matches this readlist preferences",
-		);
 	});
 
 	it("keeps the purpose wizard closed while an inbox refusal shows", async () => {

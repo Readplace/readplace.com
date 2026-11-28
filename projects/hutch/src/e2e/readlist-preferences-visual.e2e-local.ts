@@ -148,7 +148,7 @@ async function reopenPreferences(page: Page, input: { slug: string; query?: stri
 		`${BASE_URL}/queue/queues/${input.slug}/preferences${input.query ?? ""}`,
 		{ waitUntil: "domcontentloaded" },
 	);
-	await page.waitForSelector(INBOXES);
+	await page.waitForSelector(SMART_FILING);
 	await page.mouse.move(5, 5);
 }
 
@@ -407,10 +407,10 @@ async function purposeCardSitsOverTheTabs(page: Page, tabs: string): Promise<voi
 
 async function purposeCardSitsAboveTheTabs(page: Page): Promise<void> {
 	await purposeCardLeadsTheTabs(page, TABS);
-	const [tabs, inboxes] = [await measuredBox(page, TABS), await measuredBox(page, INBOXES)];
+	const [tabs, smart] = [await measuredBox(page, TABS), await measuredBox(page, SMART_SECTION)];
 	assert.ok(
-		near({ actual: inboxes.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
-		`the inboxes must sit 32px under the tabs, measured ${inboxes.y - (tabs.y + tabs.height)}px`,
+		near({ actual: smart.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
+		`the Smart section must sit 32px under the tabs, measured ${smart.y - (tabs.y + tabs.height)}px`,
 	);
 }
 
@@ -965,10 +965,14 @@ async function choicesListed(page: Page): Promise<void> {
 }
 
 async function eachChoiceEndsWithItsRemove(page: Page): Promise<void> {
-	const [inboxes, choices] = [await measuredBox(page, INBOXES), await measuredBox(page, CHOICES)];
-	assert.ok(choices.y >= inboxes.y + inboxes.height, "Your choices must stack under the inboxes section");
-	assert.equal(choices.x, inboxes.x, "Your choices must share the inboxes section's column");
-	assert.equal(choices.width, inboxes.width, "Your choices must span the inboxes section's width");
+	const [smart, choices] = [await measuredBox(page, SMART_SECTION), await measuredBox(page, CHOICES)];
+	assert.ok(
+		near({ actual: choices.y - (smart.y + smart.height), expected: 32, within: 1 }),
+		`Your choices must sit 32px under the Smart section, measured ${choices.y - (smart.y + smart.height)}px`,
+	);
+	assert.equal(choices.x, smart.x, "Your choices must share the Smart section's column");
+	assert.equal(choices.width, smart.width, "Your choices must span the Smart section's width");
+	await expect(page.locator(`${CHOICES} ~ *`)).toHaveCount(0);
 	for (let position = 1; position <= SEEDED_CHOICES.length; position++) {
 		const row = `${CHOICE_ROWS}:nth-child(${position})`;
 		const [box, remove] = [await measuredBox(page, row), await measuredBox(page, `${row} ${CHOICE_REMOVE}`)];

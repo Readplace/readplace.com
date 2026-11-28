@@ -22,12 +22,6 @@ const PREFERENCES_SOURCE = "queue-preferences";
 
 const PURPOSE_FAILURE_MESSAGE = "Couldn't save the purpose.";
 
-export type PurposeState = "unset" | "set";
-
-export function purposeStateOf(readlist: { purpose?: string }): PurposeState {
-	return readlist.purpose === undefined ? "unset" : "set";
-}
-
 export function renderReadlistPurposeWizard(input: {
 	readlist: { slug: ReadlistSlug };
 	values: Partial<ReadlistPreferencesWizardViewModel>;

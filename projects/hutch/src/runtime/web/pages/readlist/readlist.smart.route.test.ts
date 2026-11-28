@@ -153,7 +153,7 @@ describe("Smart Readlist preferences", () => {
 		expect(definition?.filing).toMatchObject({ mode: "smart", purpose: PURPOSE });
 	});
 
-	it("shows a Smart Readlist its Purpose card, edit dialog, inboxes, Gmail senders, Sources and Remove purpose, and no instructions box", async () => {
+	it("shows a Smart Readlist its Purpose card, edit dialog, Sources and Remove purpose under its tabs, and no inboxes, Gmail senders or instructions box", async () => {
 		const gmail = initInMemoryGmailIntegration({
 			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
 			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
@@ -167,13 +167,14 @@ describe("Smart Readlist preferences", () => {
 		const wizard = doc.querySelector("#readlist-preferences-wizard");
 		assert(wizard, "a Smart Readlist must carry its purpose edit dialog");
 		expect(wizard.querySelector("textarea")?.textContent).toBe(PURPOSE);
-		const ordered = ["[data-test-filters]", "[data-test-readlist-inboxes]", "[data-test-readlist-gmail-senders]", '[data-test-smart-filing="smart"]'].map((selector) => {
+		const ordered = ["[data-test-filters]", '[data-test-smart-filing="smart"]'].map((selector) => {
 			const element = doc.querySelector(selector);
 			assert(element, `the Smart Readlist's preferences must render ${selector}`);
 			return element;
 		});
-		expect(ordered.slice(1).map((element, index) => Boolean(ordered[index].compareDocumentPosition(element) & ordered[index].DOCUMENT_POSITION_FOLLOWING))).toEqual([true, true, true]);
-		const section = ordered[3];
+		expect(ordered.slice(1).map((element, index) => Boolean(ordered[index].compareDocumentPosition(element) & ordered[index].DOCUMENT_POSITION_FOLLOWING))).toEqual([true]);
+		expect(doc.querySelectorAll("[data-test-readlist-inboxes], [data-test-readlist-gmail-senders]")).toHaveLength(0);
+		const section = ordered[1];
 		const header = section.querySelector(".readlist-smart__header");
 		assert(header, "the Smart section must render its header");
 		const afterHeader = header.nextElementSibling;
