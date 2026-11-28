@@ -68,7 +68,7 @@ const defaultExecCurl: ExecCurl = (args, callback) => {
 };
 /* c8 ignore stop */
 
-export type CurlImpersonateProbeResult = { available: true } | { available: false; reason: string };
+type CurlImpersonateProbeResult = { available: true } | { available: false; reason: string };
 export type CurlImpersonateProbe = () => CurlImpersonateProbeResult;
 
 /**

@@ -8,8 +8,8 @@ const CAPTURE = `https://web.archive.org/web/2008/${ORIGINAL}`;
 const ARTICLE = "<p>The original article survived.</p>";
 const source: ArchiveSaveHealthSource = {
 	label: "Wayback", url: CAPTURE, expectedDestinationUrl: ORIGINAL,
-	expectedContent: "The original article survived.", expectsThumbnail: false,
-	save: { kind: "archive", captureUrl: CAPTURE, requireFreshArchive: true },
+	expectedContent: "The original article survived.",
+	save: { kind: "archive", captureUrl: CAPTURE },
 };
 
 function candidate(input: { id?: string; kind?: "live" | "wrapper" | "extension"; fresh?: boolean; readable?: boolean; html?: string; sourceUrl?: string; originalUrl?: string } = {}) {
@@ -42,7 +42,7 @@ it("requires a completion for the accepted save instead of matching an earlier s
 it("verifies the current wrapper artifact against the bytes supplied to the judge", async () => {
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
 	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [message()] })).toMatchObject({
-		freshArchive: "article-confirmed", outcome: "selected", selected: { kind: "wrapper", fresh: true },
+		outcome: "selected", selected: { kind: "wrapper", fresh: true },
 	});
 	const stale = initArchiveHealthEvidence({ readEvaluation: async () => "old unrelated content" });
 	await expect(stale.verify({ source, saveAttemptId: ATTEMPT, messages: [message()] })).rejects.toThrow("body hash");
@@ -52,7 +52,7 @@ it("passes fresh Wayback evidence when its readable article loses to a more comp
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
 	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [message({
 		candidates: [candidate(), candidate({ id: "live", kind: "live", sourceUrl: ORIGINAL })], selectedCandidateId: "live",
-	})] })).toMatchObject({ freshArchive: "article-confirmed", selected: { kind: "live" } });
+	})] })).toMatchObject({ selected: { kind: "live" } });
 });
 
 it("accepts a hash-verified legacy candidate without an immutable location while still requiring the current wrapper artifact", async () => {
@@ -60,7 +60,7 @@ it("accepts a hash-verified legacy candidate without an immutable location while
 	const completion = message({ candidates: [candidate(), candidate({ id: "legacy", kind: "extension", fresh: false, sourceUrl: ORIGINAL })] });
 	const legacyWithoutLocation = completion.replace(/,"evaluationLocation":"immutable\/evaluation.html"(?=,"httpStatus":200\}\],)/, "");
 	expect(legacyWithoutLocation).not.toBe(completion);
-	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [legacyWithoutLocation] })).toMatchObject({ freshArchive: "article-confirmed" });
+	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [legacyWithoutLocation] })).toMatchObject({ outcome: "selected" });
 	const wrapperWithoutLocation = message().replace(',"evaluationLocation":"immutable/evaluation.html"', "");
 	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [wrapperWithoutLocation] })).rejects.toThrow("current wrapper must provide");
 });
@@ -81,27 +81,7 @@ it("fails a redelivered current wrapper that is retained despite its latest unre
 	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages })).rejects.toThrow("fresh Wayback response is not a readable article");
 });
 
-it("reports archive.today CAPTCHA fallback truthfully, including an extension retained on a tie", async () => {
-	const captcha = "<p>Verify you are human</p>";
-	const archiveSource: ArchiveSaveHealthSource = { ...source, label: "archive.today", save: { kind: "archive", captureUrl: CAPTURE, requireFreshArchive: false } };
-	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => captcha });
-	const result = await evidence.verify({ source: archiveSource, saveAttemptId: ATTEMPT, messages: [message({
-		candidates: [candidate({ html: captcha, readable: false }), candidate({ id: "extension", kind: "extension", fresh: false, sourceUrl: ORIGINAL })],
-		selectedCandidateId: "extension", outcome: "retained",
-	})] });
-	expect(result).toMatchObject({ freshArchive: "article-not-confirmed", outcome: "retained", selected: { kind: "extension", fresh: false } });
-});
 
-it("does not call a long readable-looking challenge page a successful fresh archive copy", async () => {
-	const challenge = "<article>Please verify your browser before continuing. These are all the challenge instructions.</article>";
-	const archiveSource: ArchiveSaveHealthSource = { ...source, save: { kind: "archive", captureUrl: CAPTURE, requireFreshArchive: false } };
-	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => challenge });
-	const result = await evidence.verify({ source: archiveSource, saveAttemptId: ATTEMPT, messages: [message({
-		candidates: [candidate({ html: challenge, readable: true }), candidate({ id: "live", kind: "live", sourceUrl: ORIGINAL })],
-		selectedCandidateId: "live",
-	})] });
-	expect(result).toMatchObject({ freshArchive: "article-not-confirmed", selected: { kind: "live", fresh: true } });
-});
 
 it("waits for the live side to settle before accepting a wrapper-only intermediate comparison", async () => {
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
@@ -110,7 +90,7 @@ it("waits for the live side to settle before accepting a wrapper-only intermedia
 	const deferredLive = message().replace('"liveAttempt":{"outcome":"no-body"}', '"liveAttempt":{"outcome":"deferred"}');
 	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [deferredLive] })).toBeUndefined();
 	const completed = message({ candidates: [candidate(), candidate({ id: "live", kind: "live", sourceUrl: ORIGINAL })] }).replace(',"liveAttempt":{"outcome":"no-body"}', "");
-	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [wrapperOnly, completed] })).toMatchObject({ freshArchive: "article-confirmed" });
+	expect(await evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [wrapperOnly, completed] })).toMatchObject({ outcome: "selected" });
 });
 
 it("does not accept a missing current wrapper candidate when the reader already has an archive copy", async () => {
@@ -119,7 +99,7 @@ it("does not accept a missing current wrapper candidate when the reader already 
 });
 
 it("makes calendar health depend on the latest capture requested by this save", async () => {
-	const calendarSource: ArchiveSaveHealthSource = { ...source, save: { kind: "archive", captureUrl: `https://web.archive.org/web/${ORIGINAL}`, requireFreshArchive: true } };
+	const calendarSource: ArchiveSaveHealthSource = { ...source, save: { kind: "archive", captureUrl: `https://web.archive.org/web/${ORIGINAL}` } };
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
 	await expect(evidence.verify({ source: calendarSource, saveAttemptId: ATTEMPT, messages: [message()] })).rejects.toThrow("latest capture");
 });
@@ -131,9 +111,8 @@ it("fails when the fresh archive candidate lacks the expected article even if cl
 });
 
 it("never counts the no-readable verdict as a successful fallback", async () => {
-	const archiveSource: ArchiveSaveHealthSource = { ...source, save: { kind: "archive", captureUrl: CAPTURE, requireFreshArchive: false } };
 	const evidence = initArchiveHealthEvidence({ readEvaluation: async () => ARTICLE });
-	await expect(evidence.verify({ source: archiveSource, saveAttemptId: ATTEMPT, messages: [message({ outcome: "no-readable" })] })).rejects.toThrow("no readable article");
+	await expect(evidence.verify({ source, saveAttemptId: ATTEMPT, messages: [message({ outcome: "no-readable" })] })).rejects.toThrow("no readable article");
 });
 
 it("does not pass fallback health when the provider rejected the request or did not yield a valid comparison", async () => {
@@ -155,7 +134,7 @@ it("rejects candidates from a different original and selected IDs absent from th
 const UPLOAD_URL = "https://readplace.com/crawl-canary/upload/run";
 const UPLOADED = "<html><body><p>Crawl canary upload run kept the reader's own capture.</p></body></html>";
 const uploadSource: UploadHealthSource = {
-	label: "Upload", url: UPLOAD_URL, expectedDestinationUrl: UPLOAD_URL, expectedContent: "kept", expectsThumbnail: false,
+	label: "Upload", url: UPLOAD_URL, expectedDestinationUrl: UPLOAD_URL, expectedContent: "kept",
 	save: { kind: "upload", title: "Upload", html: UPLOADED },
 };
 

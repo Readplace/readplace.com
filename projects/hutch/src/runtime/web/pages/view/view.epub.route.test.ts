@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { DOMParser } from "linkedom";
 import request from "supertest";
 import { strFromU8, unzipSync } from "fflate";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseArticle } from "@packages/web-test-harness";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { calculateReadTime, type Minutes } from "@packages/domain/article";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";

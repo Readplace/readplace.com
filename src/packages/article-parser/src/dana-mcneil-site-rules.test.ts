@@ -44,7 +44,6 @@ const siteRules = initArticleSiteRules({ crawlFetch: unexpectedIo, logError: une
 function parsePage(params: { html: string; url: string; defaultParser?: boolean }) {
 	const { parseHtml } = initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle: unexpectedIo,
 		logError: unexpectedIo,
 		readabilityAdditions,
 		siteRules: params.defaultParser ? [] : siteRules,

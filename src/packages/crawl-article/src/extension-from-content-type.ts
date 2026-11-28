@@ -1,15 +1,10 @@
+import { IMAGE_FORMATS } from "./image-formats";
+
 export function extensionFromContentType(params: { contentType: string; url: string }): string {
 	const { contentType, url } = params;
-	const mimeMap: Record<string, string> = {
-		"image/png": ".png",
-		"image/jpeg": ".jpg",
-		"image/gif": ".gif",
-		"image/webp": ".webp",
-		"image/svg+xml": ".svg",
-		"image/avif": ".avif",
-	};
 	const mimeBase = contentType.split(";")[0].trim().toLowerCase();
-	if (mimeMap[mimeBase]) return mimeMap[mimeBase];
+	const formatExtension = IMAGE_FORMATS.find((format) => format.contentType === mimeBase)?.extensions[0];
+	if (formatExtension) return formatExtension;
 	try {
 		const pathname = new URL(url).pathname;
 		const match = pathname.match(/\.([a-z0-9]{2,5})$/i);

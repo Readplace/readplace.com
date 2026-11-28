@@ -49,7 +49,6 @@ export type ArchiveHealthReport = {
 	captureHttpStatus: number | undefined;
 	captureContentHash: string;
 	comparisonPromptHash: string;
-	freshArchive: "article-confirmed" | "article-not-confirmed";
 	outcome: "selected" | "retained";
 	selected: { id: string; kind: "live" | "wrapper" | "extension"; fresh: boolean; contentHash: string };
 };
@@ -96,10 +95,8 @@ export function initArchiveHealthEvidence(deps: {
 		assert.equal(createHash("sha256").update(evaluation).digest("hex"), wrapper.contentHash, "current wrapper artifact must match the body hash considered by the judge");
 		const expected = typeof input.source.expectedContent === "string" ? [input.source.expectedContent] : input.source.expectedContent;
 		const containsArticle = expected.every((text) => evaluation.includes(text));
-		if (input.source.save.requireFreshArchive) {
-			assert(wrapper.readable, "fresh Wayback response is not a readable article; retained content cannot make archive health pass");
-			assert(containsArticle, "fresh Wayback artifact is missing expected article content");
-		}
+		assert(wrapper.readable, "fresh Wayback response is not a readable article; retained content cannot make archive health pass");
+		assert(containsArticle, "fresh Wayback artifact is missing expected article content");
 		assert(completion.outcome !== "no-readable", "judge found no readable article for this canary source");
 		const selected = completion.candidates.find((candidate) => candidate.id === completion.selectedCandidateId);
 		assert(selected?.readable, "completed save must name the readable candidate actually selected or retained");
@@ -111,7 +108,6 @@ export function initArchiveHealthEvidence(deps: {
 			captureHttpStatus: wrapper.httpStatus,
 			captureContentHash: wrapper.contentHash,
 			comparisonPromptHash: audit.promptHash,
-			freshArchive: wrapper.readable && containsArticle ? "article-confirmed" : "article-not-confirmed",
 			outcome: completion.outcome,
 			selected: { id: selected.id, kind: selected.kind, fresh: selected.fresh, contentHash: selected.contentHash },
 		};

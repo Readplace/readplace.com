@@ -73,6 +73,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createFakeSummaryProvider,
+	initCrawlThenParse,
 } from '@packages/test-fixtures'
 import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
@@ -146,13 +147,13 @@ const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().w
 const crawlWithoutSaver = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const chargeSaverOcrPages: ChargeOcrPages = async () => ({ allowed: true })
 const crawlArticle: CrawlArticle = (params) => crawlWithoutSaver({ ...params, chargeOcrPages: chargeSaverOcrPages })
-const { parseArticle, parseHtml } = initReadabilityParser({
-	crawlArticle,
+const { parseHtml } = initReadabilityParser({
 	siteRules,
 	readabilityAdditions,
 	logError,
 	coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 })
+const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml })
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
 	parseHtml,

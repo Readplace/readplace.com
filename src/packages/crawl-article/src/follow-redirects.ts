@@ -1,6 +1,6 @@
 export const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
+export const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
 
 export type OnRedirect = (hop: { fromUrl: string; toUrl: string }) => void;

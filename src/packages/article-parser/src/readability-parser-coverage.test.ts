@@ -35,7 +35,6 @@ function initParser(deps: {
 	logError?: (message: string, error?: Error) => void;
 }) {
 	return initReadabilityParser({
-		crawlArticle: async () => ({ status: "fetched", html: ARTICLE_HTML, bodyHash: "a".repeat(64) }),
 		siteRules: (deps.siteRules ?? []).map((site) => ({
 			matches: () => false,
 			onCrawl: skipCrawl,

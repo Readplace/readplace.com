@@ -41,7 +41,6 @@ describe("initFetchYouTubeVideoCard", () => {
 
 		expect(await fetchVideoCard({ url: WATCH_URL })).toEqual({
 			title: "T",
-			author: "A",
 			excerpt: "Video by A on YouTube.",
 			watchUrl: WATCH_URL,
 			posterUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",

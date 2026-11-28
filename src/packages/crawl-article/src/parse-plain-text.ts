@@ -15,6 +15,10 @@ function deriveTitleFromTextUrl(url: string): string {
 	} catch {
 		return "";
 	}
+	return titleFromPathname(pathname);
+}
+
+export function titleFromPathname(pathname: string): string {
 	const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
 	return lastSegment.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
 }

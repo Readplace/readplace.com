@@ -18,7 +18,6 @@ const { siteRules } = initArticleSiteRules({
 function parserWith(rules: typeof siteRules) {
 	return initReadabilityParser({
 		coverageRules: { inspect: () => [] },
-		crawlArticle: async () => ({ status: "fetched" as const, html: "", bodyHash: "a".repeat(64) }),
 		siteRules: rules,
 		readabilityAdditions,
 		logError: () => {},

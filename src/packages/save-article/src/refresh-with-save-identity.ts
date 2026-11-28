@@ -1,7 +1,7 @@
 import type { RefreshArticleIfStale, RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { ResolveSaveIdentity } from "./resolve-save-identity";
 
-export interface RefreshWithSaveIdentityDependencies {
+interface RefreshWithSaveIdentityDependencies {
 	resolveSaveIdentity: ResolveSaveIdentity;
 	refreshArticleIfStale: RefreshArticleIfStale;
 }

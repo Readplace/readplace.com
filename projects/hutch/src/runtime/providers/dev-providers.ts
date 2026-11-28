@@ -414,7 +414,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
-		crawlArticle,
 		siteRules,
 		readabilityAdditions,
 		logError,		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),

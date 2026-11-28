@@ -41,7 +41,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		logInfo: () => {},
 	});
 	const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
-	const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
+	const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: () => {} });
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml,
 		downloadMedia: async () => [],

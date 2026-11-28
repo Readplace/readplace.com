@@ -10,6 +10,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
@@ -152,13 +153,12 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			summary: "TLDR.",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { parseArticle } = initReadabilityParser({
+		const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 			coverageRules: { inspect: () => [] },
-			crawlArticle,
 			siteRules: [],
 			readabilityAdditions,
 			logError: createNoopLogError(),
-		});
+		}).parseHtml });
 		const applyParseResult = createFakeApplyParseResult({
 			articleStore: fixture.articleStore,
 			articleCrawl: fixture.articleCrawl,
@@ -202,13 +202,12 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			reason: "model timeout",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { parseArticle } = initReadabilityParser({
+		const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({
 			coverageRules: { inspect: () => [] },
-			crawlArticle,
 			siteRules: [],
 			readabilityAdditions,
 			logError: createNoopLogError(),
-		});
+		}).parseHtml });
 		const applyParseResult = createFakeApplyParseResult({
 			articleStore: fixture.articleStore,
 			articleCrawl: fixture.articleCrawl,

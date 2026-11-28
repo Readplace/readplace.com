@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { CandidateIdSchema } from "@packages/article-state-types";
-import { type HighlightId, HighlightIdSchema } from "@packages/domain/article";
+import { type HighlightAnchorUpdate, type HighlightId, HighlightIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HighlightAnchor } from "@packages/provider-contracts/highlights";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDynamoDbHighlightAnchors } from "./dynamodb-highlight-anchors";
 import { HIGHLIGHT_KEY_PREFIX } from "./user-readlist-partition";
@@ -116,7 +115,7 @@ function createFakeTable() {
 	};
 }
 
-const MOVED: HighlightAnchor = {
+const MOVED: HighlightAnchorUpdate = {
 	start: 40,
 	end: 49,
 	anchorState: "moved",

@@ -1,11 +1,11 @@
 import { parseHTML } from "linkedom";
+import { ALLOWED_PROTOCOLS } from "./follow-redirects";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { classifyMediaType } from "./media-type";
 import { publisherPublicRefreshTarget } from "./publisher-public-refresh";
 
 const REFRESH_DECLARATION = /^\s*[\d.]+(?:\s*[;,]\s*|\s+)url\s*=\s*(.+)$/is;
 const LEADING_QUOTE = /^['"]/;
-export const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 
 export function isTextlessOnceHidden(document: ReturnType<typeof parseHTML>["document"]): boolean {
 	for (const hidden of document.querySelectorAll("title, script")) {
@@ -19,12 +19,18 @@ function attributeValue(element: { attributes: Iterable<{ name: string; value: s
 	return attribute === undefined ? "" : attribute.value;
 }
 
+export function htmlDocumentOf(page: { response: Response; buffer: Buffer }): ReturnType<typeof parseHTML>["document"] | undefined {
+	const { response, buffer } = page;
+	if (buffer.byteLength > MAX_HTML_BYTES.bytes) return undefined;
+	if (classifyMediaType({ contentType: response.headers.get("content-type") ?? "", buffer }) !== "html") return undefined;
+	return parseHTML(new TextDecoder().decode(buffer)).document;
+}
+
 export function metaRefreshTarget(page: { response: Response; buffer: Buffer; documentUrl: string }): string | undefined {
 	const { response, buffer, documentUrl } = page;
 	if (!response.ok) return undefined;
-	if (buffer.byteLength > MAX_HTML_BYTES.bytes) return undefined;
-	if (classifyMediaType({ contentType: response.headers.get("content-type") ?? "", buffer }) !== "html") return undefined;
-	const { document } = parseHTML(new TextDecoder().decode(buffer));
+	const document = htmlDocumentOf({ response, buffer });
+	if (document === undefined) return undefined;
 	const refreshes = [...document.querySelectorAll("meta")].filter((meta) => attributeValue(meta, "http-equiv").toLowerCase() === "refresh");
 	const [refresh] = refreshes;
 	if (refresh === undefined) return undefined;

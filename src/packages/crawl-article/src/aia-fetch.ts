@@ -96,7 +96,7 @@ export type PrimaryFetch = (
 
 export function withAiaChasing(
 	baseFetch: PrimaryFetch,
-	fetchAiaImpl: (url: string, init?: AiaFetchInit) => Promise<Response> = defaultFetchAia,
+	fetchAiaImpl: (url: string, init?: AiaFetchInit) => Promise<Response>,
 ): PrimaryFetch {
 	return async (url, init) => {
 		try {
@@ -250,8 +250,6 @@ export function initDefaultFetchAia(deps: { lookup?: SocketLookup; assertHostAll
 		assertHostAllowed: deps.assertHostAllowed,
 	});
 }
-
-const defaultFetchAia = initDefaultFetchAia({});
 
 function toFetchHeaders(incoming: http.IncomingHttpHeaders): Headers {
 	const out = new Headers();

@@ -25,18 +25,18 @@ class H2StreamEndedWithoutResponse extends Error {
 }
 
 /**
- * The optional `lookup` is threaded into every `http2.connect` — the initial
+ * The `lookup` is threaded into every `http2.connect` — the initial
  * request and each redirect hop open a fresh connection — so the SSRF guard
  * rejects any host that resolves to a private/loopback/link-local address.
  * `assertHostAllowed` closes the IP-literal gap `lookup` cannot: http2.connect
  * skips a custom `lookup` for a literal host, so each hop's host is checked here
  * before the connection opens.
  */
-export function initFetchH2(deps: { lookup?: SocketLookup; assertHostAllowed?: AssertHostAllowed } = {}): FetchH2 {
-	const connectOptions = deps.lookup ? { lookup: deps.lookup } : {};
+export function initFetchH2(deps: { lookup: SocketLookup; assertHostAllowed: AssertHostAllowed }): FetchH2 {
+	const connectOptions = { lookup: deps.lookup };
 	const h2SingleHop: FetchH2 = async (url, init) => {
 		const parsed = new URL(url);
-		deps.assertHostAllowed?.(parsed.hostname);
+		deps.assertHostAllowed(parsed.hostname);
 		const client = http2.connect(parsed.origin, connectOptions);
 		try {
 			const result = await h2Request(client, parsed, { headers: init?.headers, signal: init?.signal });
@@ -50,8 +50,6 @@ export function initFetchH2(deps: { lookup?: SocketLookup; assertHostAllowed?: A
 	};
 	return redirectable(h2SingleHop, "fetchH2");
 }
-
-export const fetchH2: FetchH2 = initFetchH2();
 
 function h2Request(
 	client: http2.ClientHttp2Session,

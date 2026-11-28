@@ -12,6 +12,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 	createFakeSummaryProvider,
 	createNoopLogError,
+	initCrawlThenParse,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -51,7 +52,7 @@ describe("Readlist routes", () => {
 				summary: "Ready summary.",
 			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { parseArticle } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+			const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml: initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: createNoopLogError() }).parseHtml });
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
 				articleCrawl: fixture.articleCrawl,
