@@ -19,7 +19,6 @@ export {
 	type SubmitLinkDetail,
 	ResolveArticleOnViewCommand,
 	type ResolveArticleOnViewDetail,
-	type ResolveOnViewSurface,
 	FileArticleIntoReadlistCommand,
 	type FileArticleIntoReadlistDetail,
 	ArticleFiledIntoReadlistEvent,
