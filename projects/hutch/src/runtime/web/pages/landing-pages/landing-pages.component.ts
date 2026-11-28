@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, trackedGetForm } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { landingPageLastModified } from "./landing-pages.copy";
@@ -18,21 +18,13 @@ const TEMPLATE = readFileSync(join(__dirname, "landing-pages.template.html"), "u
 
 const ORIGIN = "https://readplace.com";
 
-/** Discarded — only pathname and search are read back off the parsed href. */
-const PARSE_ORIGIN = "https://internal.invalid";
-
 type ActionStyle = "btn--on-dark" | "btn--on-dark-ghost" | "btn--primary" | "btn--secondary";
-
-interface HiddenParam {
-	readonly name: string;
-	readonly value: string;
-}
 
 interface RenderedAction {
 	readonly key: string;
 	readonly label: string;
 	readonly action: string;
-	readonly hiddenParams: readonly HiddenParam[];
+	readonly hiddenParams: readonly { name: string; value: string }[];
 	readonly cssClass: ActionStyle;
 	readonly formClass: "lp-action" | "lp-action lp-action--field";
 	readonly input?: LandingPageActionInput;
@@ -55,10 +47,7 @@ function renderAction(
 	source: string,
 	cssClass: ActionStyle,
 ): RenderedAction {
-	const tracked = new URL(
-		withInternalTracking(action.href, { source, content: action.key }),
-		PARSE_ORIGIN,
-	);
+	const form = trackedGetForm(action.href, { source, content: action.key });
 
 	return {
 		key: action.key,
@@ -66,8 +55,8 @@ function renderAction(
 		cssClass,
 		input: action.input,
 		formClass: action.input ? "lp-action lp-action--field" : "lp-action",
-		action: tracked.pathname,
-		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
+		action: form.action,
+		hiddenParams: form.fields,
 	};
 }
 

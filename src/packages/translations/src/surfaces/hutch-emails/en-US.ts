@@ -9,6 +9,8 @@ export const enUS = {
 		cta: "This is my account and I am 13 or over",
 	},
 	trialReminderEmail: {
+		title: "Your Readplace trial ends soon",
+		cta: "Keep using Readplace",
 		trialEnds:
 			"Your trial of Readplace ends in {days} days. I don't ask for a card up front, so nothing gets charged.",
 		freePlan: {
@@ -23,16 +25,42 @@ export const enUS = {
 		withoutCard: "Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.",
 	},
 	paymentFailedEmail: {
+		title: "Your Readplace payment didn't go through",
+		cta: "Update your card",
 		retriesFail:
 			"If every retry fails, the subscription cancels and your account moves to the free plan. If something looks wrong on my end, just reply and I'll sort it out personally.",
 	},
+	trialFeedbackEmail: {
+		title: "Hii Fayner here! So you tried Readplace.. what was missing?",
+	},
+	inboxFirstArrivalEmail: {
+		title: "Your first email landed in your Readplace Inbox",
+	},
 	automationSavesHeldEmail: {
+		title: "Links sent to your Readplace Inbox are waiting",
 		openingAfter:
 			" just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 		reassurancePrefix:
 			"Don't worry, you didn't lose anything. The email and its links stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once ",
 		reassuranceLink: "you upgrade",
 		ctaLabel: "See the links waiting",
+		optOut: {
+			before: "If you'd rather not continue, ",
+			link: "disable your custom emails",
+			after: " and nothing more will be forwarded and you will stop receiving these emails.",
+		},
+	},
+	welcomeEmail: {
+		title: "Welcome to Readplace",
+	},
+	passwordResetEmail: {
+		title: "Reset your password — Readplace",
+	},
+	verificationEmail: {
+		title: "Verify your email — Readplace",
+	},
+	userDataExportEmail: {
+		title: "Your Readplace export is ready",
 	},
 	chargeReminder: {
 		subject: "your Readplace membership starts on {chargeDate}",

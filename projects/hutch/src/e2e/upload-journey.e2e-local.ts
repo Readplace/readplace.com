@@ -173,7 +173,7 @@ async function seededOwner(
 	return articleId;
 }
 
-function featuresOf(href: string | null): URL {
+function urlOf(href: string | null): URL {
 	return new URL(z.string().parse(href), BASE_URL);
 }
 
@@ -261,11 +261,11 @@ test("a seeded private recording hides the EPUB download and answers its EPUB re
 	await expect(page.locator("body.page-reader")).toHaveCount(1);
 });
 
-test("a metered upload rejected at review offers to upload again with transcripts kept", async ({
+test("an upload rejected at review offers to upload again", async ({
 	page,
 }) => {
 	const uploadId = await uploadFile(page, {
-		startPath: "/upload?features=transcripts",
+		startPath: "/upload",
 		file: EPUB_FILE,
 	});
 	await recordInspection(page, {
@@ -278,27 +278,25 @@ test("a metered upload rejected at review offers to upload again with transcript
 	});
 	await checkAgain(page);
 
-	const again = featuresOf(
+	const again = urlOf(
 		await page.locator("[data-test-upload-again]").getAttribute("href"),
 	);
 	assert.equal(again.pathname, "/upload");
-	assert.equal(again.searchParams.get("features"), "transcripts");
 });
 
-test("a metered upload of an unsupported file is refused and keeps transcripts on the start form", async ({
+test("an upload of an unsupported file is refused and keeps the start form", async ({
 	page,
 }) => {
 	await uploadFile(page, {
-		startPath: "/upload?features=transcripts",
+		startPath: "/upload",
 		file: TEXT_FILE,
 	});
 
 	await expect(
 		page.locator('[data-test-upload-error="upload_unsupported_type"]'),
 	).toHaveCount(1);
-	const start = featuresOf(
+	const start = urlOf(
 		await page.locator("[data-test-upload-start]").getAttribute("action"),
 	);
 	assert.equal(start.pathname, "/upload");
-	assert.equal(start.searchParams.get("features"), "transcripts");
 });

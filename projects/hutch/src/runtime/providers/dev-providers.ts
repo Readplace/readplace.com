@@ -39,7 +39,6 @@ import {
 	initInMemoryEngagementStarter,
 	initInMemoryOnboardingSignals,
 } from "@packages/test-fixtures/providers/onboarding-signals";
-import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
 import type { ExtractPdf } from "@packages/crawl-article";
@@ -153,7 +152,7 @@ import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
 import { initInMemoryHostedCheckout } from "@packages/test-fixtures/providers/hosted-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
-import { Logger, consoleLogger } from "@packages/logger";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import {
 	WRAPPER_RESOLVE_BUDGETS,
 	neverResolveChallengedTracker,
@@ -191,7 +190,7 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 
 export function initDevProviders(input: { appOrigin: string; putImageObject: PutImageObject }) {
 	const logger = Logger.from(consoleLogger);
-	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
+	const logError = (message: string, error?: Error) => logger.error(formatErrorLogLine({ message, error, now: () => new Date() }));
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, egress: { kind: "direct" } });
@@ -622,17 +621,12 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		createHighlight: highlights.createHighlight,
 		deleteHighlight: highlights.deleteHighlight,
 		updateHighlightNote: highlights.updateHighlightNote,
-		readArticleImage: initReadArticleImageByIdentity({
-			shared: articleStore.readArticleImage,
-			private: articleStore.readArticleImage,
-		}),
 		readArticleContent: initReadArticleContent({
 			storageProviderQueryOrder: [articleStore.readContent],
 			findItemOwner: articleStore.findItemOwner,
 			logError,
 		}),
 		importSessionStore,
-		savePrivateItem: articleStore.savePrivateItem,
 		...initInMemoryPendingViewHighlights({ now: () => new Date() }),
 		...initInMemoryMediaUploadSessions(),
 		...mediaPending,
@@ -741,18 +735,13 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(crawlStore.findArticleCrawlStatus),
-		findArticleFreshness: articleStore.findArticleFreshness,
-		findArticleCrawlVersions: articleStore.findArticleCrawlVersions,
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
 		refreshArticleIfStaleStored,
 		resolveCanonicalIdentity,
-		findIdentityRow: articleStore.findIdentityRow,
 		resolveFirstVisitIdentity: resolveSaveIdentity,
 		resolveWrapperTarget,
-		pinContentSource: articleStore.pinContentSource,
-		findContentSourceUrl: articleStore.findContentSourceUrl,
 		recordEngagementActivity: engagementStarter.recordEngagementActivity,
 		getOnboardingSignals: onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,

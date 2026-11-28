@@ -1,3 +1,4 @@
+import { READPLACE_SENDER, REPLY_TO } from "../email-senders";
 import type {
 	Handler,
 	SQSBatchResponse,
@@ -53,8 +54,6 @@ import { trialDayOf } from "../domain/trial/trial-day";
 import type { LoadNextCharge } from "../domain/subscription/next-charge";
 import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
 
-const EMAIL_FROM = "Readplace <readplace@readplace.com>";
-const EMAIL_REPLY_TO = "fayner@readplace.com";
 const EMAIL_BCC = "readplace+trial_feedback@readplace.com";
 const REMINDER_EMAIL_BCC = "readplace+trial_reminder@readplace.com";
 const CHARGE_REMINDER_EMAIL_BCC = "readplace+charge_reminder@readplace.com";
@@ -192,10 +191,10 @@ async function processCommand(
 
 	await sendUnlessKeyReused(
 		{
-			from: EMAIL_FROM,
+			from: READPLACE_SENDER,
 			to: email,
 			bcc: EMAIL_BCC,
-			replyTo: EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: TRIAL_FEEDBACK_EMAIL_SUBJECT,
 			html: component.to("text/html"),
 			text: component.to("text/plain"),
@@ -291,10 +290,10 @@ async function processAutomationSavesHeld(
 	});
 
 	await deps.sendEmail({
-		from: EMAIL_FROM,
+		from: READPLACE_SENDER,
 		to: email,
 		bcc: AUTOMATION_SAVES_HELD_EMAIL_BCC,
-		replyTo: EMAIL_REPLY_TO,
+		replyTo: REPLY_TO,
 		subject: AUTOMATION_SAVES_HELD_EMAIL_SUBJECT,
 		html: component.to("text/html"),
 		text: component.to("text/plain"),
@@ -371,10 +370,10 @@ async function processReminder(
 
 	await sendUnlessKeyReused(
 		{
-			from: EMAIL_FROM,
+			from: READPLACE_SENDER,
 			to: email,
 			bcc: REMINDER_EMAIL_BCC,
-			replyTo: EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: TRIAL_REMINDER_EMAIL_SUBJECT,
 			html: component.to("text/html"),
 			text: component.to("text/plain"),
@@ -463,10 +462,10 @@ async function processChargeReminder(
 
 	await sendUnlessKeyReused(
 		{
-			from: EMAIL_FROM,
+			from: READPLACE_SENDER,
 			to: email,
 			bcc: CHARGE_REMINDER_EMAIL_BCC,
-			replyTo: EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: component.subject,
 			html: component.to("text/html"),
 			text: component.to("text/plain"),
@@ -552,10 +551,10 @@ async function processPaymentFailed(
 
 	await sendUnlessKeyReused(
 		{
-			from: EMAIL_FROM,
+			from: READPLACE_SENDER,
 			to: email,
 			bcc: PAYMENT_FAILED_EMAIL_BCC,
-			replyTo: EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: PAYMENT_FAILED_EMAIL_SUBJECT,
 			html: component.to("text/html"),
 			text: component.to("text/plain"),

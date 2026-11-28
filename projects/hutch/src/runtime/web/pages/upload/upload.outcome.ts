@@ -8,11 +8,10 @@ type UploadOutcomePayloads = {
 	staged: {
 		uploadId: UploadId;
 		post: { url: string; fields: Readonly<Record<string, string>> };
-		uploadCeilingBytes: number;
 	};
 	committed: { uploadId: UploadId };
 	continue: { uploadId: UploadId };
-	failed: { uploadId: UploadId };
+	failed: Record<never, never>;
 	"staged-for-review": { uploadId: UploadId };
 	"book-quota": { retryAt: Date };
 } & { [C in UploadErrorCode | Exclude<UploadRefusalReason, "book-quota">]: Record<never, never> };
@@ -31,7 +30,6 @@ export type UploadWriteContext = {
 	req: Request;
 	bannerState: Awaited<ReturnType<BuildBannerState>>;
 	kinds: readonly MediaKindManifest[];
-	metered: boolean;
 	transcriptAllowanceSeconds: number;
 };
 

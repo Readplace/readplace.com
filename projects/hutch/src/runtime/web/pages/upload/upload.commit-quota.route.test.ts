@@ -62,7 +62,7 @@ async function bearerUploadAndReceive(params: {
 }) {
 	const post = (path: string) =>
 		request(params.harness.server).post(path).set("Accept", SIREN).set("Authorization", `Bearer ${params.token}`);
-	const staged = await post("/upload?features=transcripts").type("form").send({});
+	const staged = await post("/upload").type("form").send({});
 	const confirm: string | undefined = staged.body.actions?.find((a: { name: string }) => a.name === "confirm-received")?.href;
 	assert(confirm, "the staged upload must carry confirm-received");
 	params.harness.mediaUpload.receivePendingOriginal({ uploadId: UploadIdSchema.parse(confirm.split("/")[2]), bytes: params.bytes });
@@ -77,7 +77,7 @@ describe("Metered upload commit", () => {
 	it("commits a flagged member's MP4 as video", async () => {
 		const signed = await signedIn();
 		const staged = await signed.agent
-			.post("/upload?features=transcripts")
+			.post("/upload")
 			.type("form")
 			.send({ fileName: "talk.mp4", byteLength: 64 });
 		const key = documentOf(staged.text).querySelector<HTMLInputElement>('[data-test-upload-s3-form] input[name="key"]')?.value;
@@ -101,7 +101,7 @@ describe("Metered upload commit", () => {
 
 		const { uploadId, received } = await uploadAndReceive({
 			signed,
-			startPath: "/upload?features=transcripts",
+			startPath: "/upload",
 			bytes: mp3Prefix(),
 		});
 
@@ -114,20 +114,20 @@ describe("Metered upload commit", () => {
 
 	it("refuses the flagged upload that would pass the day's allowance and keeps the flag on the retry", async () => {
 		const signed = await signedIn();
-		await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: mp3Prefix() });
-		await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: mp3Prefix() });
+		await uploadAndReceive({ signed, startPath: "/upload", bytes: mp3Prefix() });
+		await uploadAndReceive({ signed, startPath: "/upload", bytes: mp3Prefix() });
 
-		const third = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: mp3Prefix() });
+		const third = await uploadAndReceive({ signed, startPath: "/upload", bytes: mp3Prefix() });
 
 		expect(third.received.status).toBe(303);
-		expect(third.received.headers.location).toBe("/upload?features=transcripts&refused=transcript-quota");
+		expect(third.received.headers.location).toBe("/upload?refused=transcript-quota");
 		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(2);
 	});
 
-	it("names the refusal on the start page and keeps the start form metered", async () => {
+	it("names the refusal on the start page", async () => {
 		const signed = await signedIn();
 
-		const page = await signed.agent.get("/upload?features=transcripts&refused=transcript-too-long");
+		const page = await signed.agent.get("/upload?refused=transcript-too-long");
 
 		const doc = documentOf(page.text);
 		const alert = doc.querySelector('[data-test-alert="upload-refusal"]');
@@ -136,14 +136,14 @@ describe("Metered upload commit", () => {
 		expect(alert?.querySelector("[data-test-alert-message]")?.textContent).toBe(
 			"This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less.",
 		);
-		expect(doc.querySelector("[data-test-upload-start]")?.getAttribute("action")).toMatch(/^\/upload\?features=transcripts&utm_/);
+		expect(doc.querySelector("[data-test-upload-start]")?.getAttribute("action")).toMatch(/^\/upload\?utm_/);
 	});
 
 	it("names the book-quota refusal with the instant the reader may upload another book", async () => {
 		const signed = await signedIn();
 
 		const page = await signed.agent.get(
-			"/upload?features=transcripts&refused=book-quota&retry_at=2026-11-14T00%3A00%3A00.000Z",
+			"/upload?refused=book-quota&retry_at=2026-11-14T00%3A00%3A00.000Z",
 		);
 
 		const message = documentOf(page.text).querySelector('[data-test-alert="upload-refusal"] [data-test-alert-message]');
@@ -164,8 +164,8 @@ describe("Metered upload commit", () => {
 		};
 		const signed = await signedIn(fixture);
 
-		const first = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
-		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
+		const first = await uploadAndReceive({ signed, startPath: "/upload", bytes: epubPrefix() });
+		const second = await uploadAndReceive({ signed, startPath: "/upload", bytes: epubPrefix() });
 
 		expect([first.received.status, second.received.status]).toEqual([303, 303]);
 		expect([first.received.headers.location, second.received.headers.location]).toEqual(["/queue?queue=default", "/queue?queue=default"]);
@@ -187,12 +187,12 @@ describe("Metered upload commit", () => {
 			updatedAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
 		});
 
-		const first = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
-		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
+		const first = await uploadAndReceive({ signed, startPath: "/upload", bytes: epubPrefix() });
+		const second = await uploadAndReceive({ signed, startPath: "/upload", bytes: epubPrefix() });
 
 		expect([first.received.status, first.received.headers.location]).toEqual([303, "/queue?queue=default"]);
 		expect(second.received.status).toBe(303);
-		expect(second.received.headers.location).toMatch(/^\/upload\?features=transcripts&refused=book-quota&retry_at=/);
+		expect(second.received.headers.location).toMatch(/^\/upload\?refused=book-quota&retry_at=/);
 		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
 	});
 
@@ -251,7 +251,7 @@ describe("Metered upload commit", () => {
 
 		const { uploadId } = await uploadAndReceive({
 			signed,
-			startPath: "/upload?features=transcripts",
+			startPath: "/upload",
 			bytes: epubPrefix(),
 		});
 
@@ -301,12 +301,12 @@ describe("Metered upload commit refused by the kind's own judgement", () => {
 
 		const { uploadId, received } = await uploadAndReceive({
 			signed: { harness, agent },
-			startPath: "/upload?features=transcripts",
+			startPath: "/upload",
 			bytes: mp3Prefix(),
 		});
 
 		expect(received.status).toBe(303);
-		expect(received.headers.location).toBe("/upload?features=transcripts&refused=no-audio-track");
+		expect(received.headers.location).toBe("/upload?refused=no-audio-track");
 		expect(reads).toEqual([{ uploadId, etag: expect.any(String) }]);
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
 		const page = await agent.get("/upload?refused=no-audio-track");

@@ -28,7 +28,6 @@ import {
 	type UploadWriteContext,
 	writeUploadOutcome,
 } from "./upload.outcome";
-import { isMeteredStart, uploadStartPathOf } from "./upload-features";
 import { type TranscriptRefusalReason, bookQuotaRedirectQueryOf, uploadRefusalOf } from "./upload.refusal";
 import {
 	acceptAttributeOf,
@@ -84,7 +83,7 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 					...toUploadStartViewModel(
 						context.kinds,
 						Boolean(context.req.userId),
-						uploadStartPathOf(context.metered),
+						"/upload",
 					),
 					transcriptAllowance: transcriptAllowanceOf({
 						kinds: context.kinds,
@@ -103,7 +102,7 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 
 function refusalWriter(reason: TranscriptRefusalReason): (res: Response) => void {
 	return (res) => {
-		res.redirect(303, `${uploadStartPathOf(true)}&refused=${reason}`);
+		res.redirect(303, `/upload?refused=${reason}`);
 	};
 }
 
@@ -112,7 +111,7 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 		const start = toUploadStartViewModel(
 			context.kinds,
 			Boolean(context.req.userId),
-			uploadStartPathOf(false),
+			"/upload",
 		);
 		sendPage(
 			context,
@@ -153,7 +152,7 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	"unreadable-audio": refusalWriter("unreadable-audio"),
 	"no-audio-track": refusalWriter("no-audio-track"),
 	"book-quota": (res, outcome) => {
-		res.redirect(303, `${uploadStartPathOf(true)}&${bookQuotaRedirectQueryOf(outcome.retryAt)}`);
+		res.redirect(303, `/upload?${bookQuotaRedirectQueryOf(outcome.retryAt)}`);
 	},
 };
 
@@ -164,7 +163,7 @@ function writeStartPage(res: Response, context: UploadWriteContext): void {
 		UploadPage({
 			view: "start",
 			start: {
-				...toUploadStartViewModel(context.kinds, Boolean(context.req.userId), uploadStartPathOf(context.metered)),
+				...toUploadStartViewModel(context.kinds, Boolean(context.req.userId), "/upload"),
 				refusal: uploadRefusalOf({
 					query: context.req.query,
 					allowanceSeconds: context.transcriptAllowanceSeconds,
@@ -201,7 +200,6 @@ export interface UploadRouteDependencies {
 	mintUploadId: () => UploadId;
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
-	METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[];
 	transcriptAllowanceSeconds: number;
 	pickUploadProtocol: (req: Request) => UploadProtocol;
 	buildBannerState: BuildBannerState;
@@ -211,19 +209,18 @@ export interface UploadRouteDependencies {
 
 export function initUploadRouter(deps: UploadRouteDependencies): Router {
 	const router = express.Router();
-	const viewerKinds = (req: Request, metered = isMeteredStart(req.query)) =>
+	const viewerKinds = (req: Request) =>
 		kindsForViewer({
 			kinds: deps.MEDIA_KINDS,
 			guestKinds: deps.GUEST_UPLOAD_KINDS,
 			isSignedIn: Boolean(req.userId),
-		}).filter((kind) => metered || !deps.METERED_ONLY_UPLOAD_KINDS.includes(kind.name));
+		});
 
-	async function contextOf(req: Request, metered: boolean): Promise<UploadWriteContext> {
+	async function contextOf(req: Request): Promise<UploadWriteContext> {
 		return {
 			req,
 			bannerState: await deps.buildBannerState(req),
-			kinds: viewerKinds(req, metered),
-			metered,
+			kinds: viewerKinds(req),
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 		};
 	}
@@ -232,18 +229,17 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		req: Request,
 		res: Response,
 		outcome: UploadOutcome<K>,
-		metered = isMeteredStart(req.query),
 	) {
 		writeUploadOutcome({
 			writers: deps.pickUploadProtocol(req).writers,
 			res,
 			outcome,
-			context: await contextOf(req, metered),
+			context: await contextOf(req),
 		});
 	}
 
 	router.get("/", async (req, res) => {
-		deps.pickUploadProtocol(req).start(res, await contextOf(req, isMeteredStart(req.query)));
+		deps.pickUploadProtocol(req).start(res, await contextOf(req));
 	});
 
 	router.post("/", ...deps.stageGates, async (req, res) => {
@@ -262,7 +258,6 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			userId: req.userId,
 			...(fileName === undefined ? {} : { fileName }),
 			...(byteLength === undefined ? {} : { byteLength }),
-			...(isMeteredStart(req.query) ? { metered: true } : {}),
 			saveAttemptId: newSaveAttemptId(),
 		});
 		const post = await deps.mintMediaPendingPost({
@@ -274,7 +269,6 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			outcome: "staged",
 			uploadId,
 			post,
-			uploadCeilingBytes,
 		});
 	});
 
@@ -294,7 +288,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		const views: Record<UploadSessionViewState, UploadOutcome> = {
 			staged: { outcome: "continue", uploadId: session.uploadId },
 			committed: { outcome: "committed", uploadId: session.uploadId },
-			failed: { outcome: "failed", uploadId: session.uploadId },
+			failed: { outcome: "failed" },
 		};
 		await write(req, res, views[session.status]);
 	});
@@ -305,14 +299,13 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			await write(req, res, { outcome: "upload_session_not_found" });
 			return;
 		}
-		const metered = session.metered === true;
 		if (session.status !== "staged") {
-			await write(req, res, { outcome: RECEIVED_AGAIN[session.status], uploadId: session.uploadId }, metered);
+			await write(req, res, { outcome: RECEIVED_AGAIN[session.status], uploadId: session.uploadId });
 			return;
 		}
 		const head = await deps.headMediaPendingOriginal({ uploadId: session.uploadId });
 		if (!head) {
-			await write(req, res, { outcome: "upload_not_received" }, metered);
+			await write(req, res, { outcome: "upload_not_received" });
 			return;
 		}
 		const prefix = await deps.readMediaPendingPrefix({
@@ -322,17 +315,17 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		});
 		const kind = detectUploadKind({
 			kinds: deps.MEDIA_KINDS,
-			offered: viewerKinds(req, metered),
+			offered: viewerKinds(req),
 			fileName: session.fileName,
 			prefix,
 		});
 		if (!kind) {
 			deps.logger.info("[Upload] unsupported type", { extension: refusedExtension(session.fileName) });
-			await write(req, res, { outcome: "upload_unsupported_type" }, metered);
+			await write(req, res, { outcome: "upload_unsupported_type" });
 			return;
 		}
 		if (head.size > kind.uploadCeilingBytes) {
-			await write(req, res, { outcome: "upload_too_large" }, metered);
+			await write(req, res, { outcome: "upload_too_large" });
 			return;
 		}
 		await write(
@@ -344,7 +337,6 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 				etag: head.etag,
 				size: head.size,
 			}),
-			metered,
 		);
 	});
 

@@ -1,4 +1,5 @@
 export { parseAdminEmails } from "./admin-emails";
+export { initRefuseAdminAccess } from "./admin-forbidden.page";
 export {
 	ADMIN_MFA_PATH,
 	findAllowlistedAdminEmail,

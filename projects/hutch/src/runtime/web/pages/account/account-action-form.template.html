@@ -1,0 +1,9 @@
+<form method="{{method}}" action="{{href}}" class="{{formClass}}"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
+                    hx-disabled-elt="find button"
+                    data-test-account-action="{{key}}">
+                    {{#each hiddenFields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button type="submit" class="{{buttonClass}}"{{#if isPending}} disabled{{/if}}>{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
+                  </form>

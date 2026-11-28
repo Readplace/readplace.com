@@ -20,10 +20,6 @@ export interface ImportAcquireViewModel {
 	readonly uploadAction: string;
 	readonly fromUrlAction: string;
 	readonly tabs: readonly ImportTabViewModel[];
-	/** Pre-filled into the from-url input so a deep link like
-	 * `/import?url=…` lands ready to auto-submit. Empty unless the
-	 * visitor arrived with a `url` query param on the from-url tab. */
-	readonly prefillUrl: string;
 	readonly intro: string;
 	readonly bookFallbackHref: string;
 	readonly signInHref?: string;
@@ -39,7 +35,6 @@ const GUEST_IMPORT_INTRO = `${IMPORT_INTRO} No account needed until you save.`;
 
 export function toImportAcquireViewModel(input: {
 	mode?: string;
-	url?: string;
 	errors?: readonly ComponentError[];
 	isSignedIn: boolean;
 }): ImportAcquireViewModel {
@@ -73,7 +68,6 @@ export function toImportAcquireViewModel(input: {
 			content: "fetch-links",
 		}),
 		tabs,
-		prefillUrl: mode === "from-url" ? (input.url?.trim() ?? "") : "",
 		intro: input.isSignedIn ? IMPORT_INTRO : GUEST_IMPORT_INTRO,
 		bookFallbackHref: UPLOAD_ENTRY_HREFS.importNoScript,
 		...(input.isSignedIn ? {} : { signInHref: UPLOAD_SIGN_IN_HREF }),

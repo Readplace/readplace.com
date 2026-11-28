@@ -1,13 +1,13 @@
 import {
 	mintPrivateItemUrl,
 	type PrivateItemUrl,
+	transcriptsKeyPrefix,
 } from "@packages/media-contracts";
 import type { SettleTranscriptCharge } from "@packages/provider-contracts";
 import {
 	type JobRequest,
 	jobRequestKey,
 	parseTranscriptionJobName,
-	transcriptsKeyPrefix,
 } from "../prepare/transcription-keys";
 
 export type ReadJobRequest = (params: {

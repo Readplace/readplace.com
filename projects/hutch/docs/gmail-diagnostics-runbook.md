@@ -156,7 +156,7 @@ Exactly one per request, written when the response finishes or the connection cl
 | `outcome` | The `error` or `notice` query value of a redirect to Readplace's own pages, such as `oauth_state`, `oauth_denied`, `connected` or `import_started` | Not one of our own redirects, or no such parameter |
 | `durationMs` | Milliseconds from `request.received` to completion | Never |
 
-`stage` names the guard that stopped the request or the part of the handler that was running: `received`, then the guards `returnSignedOutReader` (callback only), `requireAuth`, `requireNotLocked`, `requireGmailConnectionAccess` and `requirePaidFeatures`, then the handler stages from `handler` onwards (for example `state-check`, `exchange`, `account-email`, `account-check`, `save-credentials`, `reconnect`, `import-intent` and `done`). The integrations page module is the authority on the full list. A redirect with a guard's name as its `stage` means that guard ended the request.
+`stage` names the guard that stopped the request or the part of the handler that was running: `received`, then the guards `returnSignedOutReader` (callback only), `requireAuth`, `requireNotLocked` and `requireGmailConnectionAccess`, then the handler stages from `handler` onwards (for example `state-check`, `exchange`, `account-email`, `account-check`, `save-credentials`, `reconnect`, `import-intent` and `done`). The integrations page module is the authority on the full list. A redirect with a guard's name as its `stage` means that guard ended the request.
 
 ## Reading an OAuth trace
 

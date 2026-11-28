@@ -19,14 +19,14 @@ import {
 	utmValidationMiddleware,
 } from "@packages/web-analytics";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
-import { initRequireAdmin } from "@packages/admin-gate";
+import { initRefuseAdminAccess, initRequireAdmin } from "@packages/admin-gate";
 import type { AdminDashboard, AdminDashboardSlug } from "@packages/dashboard-widgets";
 import type { FindSessionAdminMfaVerifiedAt, FindUserByEmail } from "@packages/provider-contracts/auth";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import type { FindDashboardResults, KeepDashboardResults } from "./dashboards/admin-dashboard-results";
 import { initAdminDashboardsRoutes } from "./dashboards/admin-dashboards.page";
 import { ADMIN_DASHBOARDS_PATH } from "./dashboards/admin-dashboards.url";
-import { initRefuseAdminAccess } from "./dashboards/admin-forbidden.page";
+import { ADMIN_DASHBOARD_STYLES } from "./dashboards/admin-dashboard.styles";
 import { logAndRespondOnError } from "./web/error-handler";
 
 export interface AdminDashboardsAppDependencies {
@@ -120,7 +120,7 @@ export function createAdminDashboardsApp(deps: AdminDashboardsAppDependencies): 
 			adminEmails: deps.adminEmails,
 			serviceToken: { kind: "refused" },
 			secondFactor: { kind: "enforced", findSessionAdminMfaVerifiedAt: deps.findSessionAdminMfaVerifiedAt, now: deps.now },
-			refuse: initRefuseAdminAccess({ base: deps.base, bannerStateFor }),
+			refuse: initRefuseAdminAccess({ base: deps.base, bannerStateFor, styles: ADMIN_DASHBOARD_STYLES }),
 		}),
 		initAdminDashboardsRoutes({
 			base: deps.base,

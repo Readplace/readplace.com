@@ -7,6 +7,7 @@ import {
 	type ChangelogBanner,
 	type ClickSurface,
 	isClickSurface,
+	NotFoundPage,
 	type RenderBase,
 	renderChangelogBannerShell,
 	sendComponent,
@@ -14,7 +15,6 @@ import {
 import { readCookie, type ResolveLogin } from "@packages/web-session";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
-import { NotFoundPage } from "../not-found";
 import type { BlogPosts } from "./blog.posts";
 
 const CANONICAL_ORIGIN = "https://readplace.com";
@@ -152,7 +152,7 @@ export function initBlogRoutes(deps: {
 		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
 		const state = await bannerStateFor(resolveLogin, req);
 		if (!post) {
-			sendComponent(req, res, base(NotFoundPage(), { ...state, changelogBanner }));
+			sendComponent(req, res, base(NotFoundPage({ trackSource: "blog-not-found" }), { ...state, changelogBanner }));
 			return;
 		}
 		sendComponent(req, res, base(BlogPostPage({ post, staticBaseUrl }), { ...state, changelogBanner }));

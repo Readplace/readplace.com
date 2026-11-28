@@ -1,8 +1,8 @@
 import { initAttributeRefreshRefusal } from "./attribute-refusal";
 import { CredentialHistory } from "./evidence";
-import { initEvaluateRefreshOutcomes, RefreshRefusal, TestGrantWindows } from "./outcomes";
+import { RefreshRefusal } from "./outcomes";
 
-it.each([429, 503])("excludes a designated connection's %s while monitoring ordinary connections", async status => {
+it.each([429, 503])("attributes each connection's %s refusal to its own grant", async status => {
 	const minute = Date.parse("2026-09-12T12:00:00Z");
 	const record = jest.fn().mockResolvedValue(undefined);
 	const attribute = initAttributeRefreshRefusal({
@@ -20,12 +20,6 @@ it.each([429, 503])("excludes a designated connection's %s while monitoring ordi
 		{ refusalId: "development", occurredAt: minute - 600_000, fingerprint: "development", status, reason: "unknown", grantId: "test-grant" },
 		{ refusalId: "ordinary", occurredAt: minute - 600_000, fingerprint: "ordinary", status, reason: "unknown", grantId: "ordinary-grant" },
 	]);
-	const evaluate = initEvaluateRefreshOutcomes({
-		readDay: async () => record.mock.calls.map(([refusal]) => ({ day: "2026-09-12", order: refusal.refusalId, expiresAt: minute / 1000 + 86400, refusal })),
-		testGrants: TestGrantWindows.parse([{ grantId: "test-grant", from: minute - 700_000, until: minute }]),
-		publish: jest.fn(),
-	});
-	expect(await evaluate(minute)).toEqual({ raw: 2, test: 1, challenged: 0, expected: 0, recovered: 0, unexpected: 1, unknown: 0, pending: 0 });
 });
 
 it("keeps a credential with no history unknown and preserves existing attribution", async () => {

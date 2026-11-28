@@ -32,8 +32,8 @@ describe("initCommitReceivedUpload", () => {
 			now: () => new Date("2026-11-05T00:00:00.000Z"),
 		});
 
-		const first = await settle({ session, kind: BOOK, etag: '"e1"', size: 10 });
-		const retry = await settle({ session, kind: BOOK, etag: '"e1"', size: 10 });
+		const first = await settle({ session, kind: BOOK, etag: '"e1"' });
+		const retry = await settle({ session, kind: BOOK, etag: '"e1"' });
 
 		assert.deepEqual(first, { outcome: "committed", uploadId });
 		assert.deepEqual(retry, first);
@@ -58,7 +58,7 @@ describe("initCommitReceivedUpload", () => {
 			now: () => new Date("2026-11-05T00:00:00.000Z"),
 		});
 
-		await settle({ session, kind: AUDIO, etag: '"e1"', size: 10 });
+		await settle({ session, kind: AUDIO, etag: '"e1"' });
 
 		const saved = await articleStore.findArticleByUrl(
 			mintPrivateItemUrl(uploadId),

@@ -39,7 +39,7 @@ import { saveClientOf } from "../../shared/save-client";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
-import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
+import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, NotFoundPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReader } from "@packages/translations/hutch-reader";
@@ -70,7 +70,6 @@ import { extensionSuggestionBannerOob } from "../../shared/article-reader/reader
 import { isPrefetchOrBot, isPrefetchRequest } from "../../shared/prefetch-request";
 import { collectUtmParams } from "../../shared/utm";
 import { readerErrorLink, SaveErrorPage } from "../save/save-error.component";
-import { NotFoundPage } from "../not-found";
 import { ViewCrawlLimitPage } from "./view-crawl-limit.component";
 import { ViewDailySaveLimitPage } from "./view-daily-save-limit.component";
 import type { ClaimDailySaves } from "../readlist/daily-save-allowance";
@@ -297,7 +296,7 @@ function handleViewRoot(deps: ViewDependencies) {
 		const submittedUrl =
 			typeof req.query.url === "string" ? req.query.url : undefined;
 		if (submittedUrl === undefined) {
-			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 			return;
 		}
 		const validation = deps.validateSaveableUrl(submittedUrl);
@@ -350,7 +349,7 @@ function handleViewArticle(
 		// (so a visit can't re-stub it) and above the wantsMarkdown branch (so the
 		// markdown surface 404s too). Metadata/OG never render because we return here.
 		if (existing?.purgedAt) {
-			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 			return;
 		}
 		if (req.query.format === "epub") {
@@ -359,12 +358,12 @@ function handleViewArticle(
 				return;
 			}
 			if (!existing) {
-				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+				sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 				return;
 			}
 			const stored = await deps.readArticleContent({ url: articleUrl, viewer: viewerFor(req.userId) });
 			if (stored.kind !== "article") {
-				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+				sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 				return;
 			}
 			const title = existing.metadata.title;
@@ -430,7 +429,7 @@ function handleViewArticle(
 				articleUrl = priorCapture.provenOriginalUrl;
 				existing = await deps.findArticleByUrl(articleUrl);
 				if (existing?.purgedAt) {
-					sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+					sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 					return;
 				}
 			}
@@ -478,7 +477,7 @@ function handleViewArticle(
 						existing = await deps.findArticleByUrl(articleUrl);
 					}
 					if (existing?.purgedAt) {
-						sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+						sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await deps.buildBannerState(req)));
 						return;
 					}
 					if (meteredUserId !== undefined && (!existing || identity.contentSourceUrl !== undefined)) {

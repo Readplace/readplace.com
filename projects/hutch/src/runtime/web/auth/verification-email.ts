@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { EMAIL_COLORS } from "../email-colors";
 import { render } from "@packages/web-shell";
+import { renderEmailCard } from "../email-card";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchEmails } from "@packages/translations/hutch-emails";
+
+const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "verification-email.template.html"),
@@ -17,9 +22,11 @@ function verifyCtaUrl(verifyUrl: string): string {
 }
 
 export function buildVerificationEmailHtml(verifyUrl: string): string {
-	return render(TEMPLATE, {
-		verifyUrl: verifyCtaUrl(verifyUrl),
-		colors: EMAIL_COLORS,
-		fontStack: EMAIL_FONT_STACK,
+	return renderEmailCard({
+		titleHtml: t("verificationEmail.title"),
+		body: render(TEMPLATE, {
+			verifyUrl: verifyCtaUrl(verifyUrl),
+			colors: EMAIL_COLORS,
+		}),
 	});
 }

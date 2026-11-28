@@ -15,15 +15,7 @@
                 </div>
                 <div class="account-billing__actions">
                   {{#each paymentActions}}
-                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
-                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
-                    hx-disabled-elt="find button"
-                    data-test-account-action="{{key}}">
-                    {{#each hiddenFields}}
-                    <input type="hidden" name="{{name}}" value="{{value}}">
-                    {{/each}}
-                    <button type="submit" class="{{buttonClass}}">{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
-                  </form>
+                  {{{html}}}
                   {{/each}}
                 </div>
               </div>
@@ -36,22 +28,10 @@
                 </div>
                 <div class="account-billing__actions">
                   {{#each paymentActions}}
-                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
-                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
-                    hx-disabled-elt="find button"
-                    data-test-account-action="{{key}}">
-                    {{#each hiddenFields}}
-                    <input type="hidden" name="{{name}}" value="{{value}}">
-                    {{/each}}
-                    <button type="submit" class="{{buttonClass}}">{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
-                  </form>
+                  {{{html}}}
                   {{/each}}
                   {{#if payment.showRowAddForm}}
-                  <form method="POST" action="{{payment.addUrl}}" class="account-billing__add-form"
-                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-                    hx-push-url="false" data-test-add-card>
-                    <button type="submit" class="btn btn--neutral btn--m">{{icon "plus"}}<span class="account__action-label">Add a card</span>{{{actionLoaderHtml}}}</button>
-                  </form>
+                  {{{addCardFormHtml}}}
                   {{/if}}
                 </div>
               </div>
@@ -80,11 +60,7 @@
                 </ul>
                 <p class="account-billing__hint">{{payment.panel.hint}}</p>
                 {{#if payment.panel.showAddButton}}
-                <form method="POST" action="{{payment.addUrl}}" class="account-billing__add-form"
-                  hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-                  hx-push-url="false" data-test-add-card>
-                  <button type="submit" class="btn btn--neutral btn--m">{{icon "plus"}}<span class="account__action-label">Add a card</span>{{{actionLoaderHtml}}}</button>
-                </form>
+                {{{addCardFormHtml}}}
                 {{/if}}
                 {{#if payment.panel.showLimitHint}}
                 <p class="account-billing__hint" data-test-cards-limit-hint>{{payment.panel.limitHint}}</p>
@@ -115,15 +91,7 @@
                 </div>
                 <div class="account-row__actions">
                   {{#each historyActions}}
-                  <form method="{{method}}" action="{{href}}" class="{{formClass}}"
-                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="{{hxSwap}}"
-                    hx-disabled-elt="find button"
-                    data-test-account-action="{{key}}">
-                    {{#each hiddenFields}}
-                    <input type="hidden" name="{{name}}" value="{{value}}">
-                    {{/each}}
-                    <button type="submit" class="{{buttonClass}}">{{{leadingIconHtml}}}<span class="account__action-label">{{name}}</span>{{{trailingIconHtml}}}{{{loaderHtml}}}</button>
-                  </form>
+                  {{{html}}}
                   {{/each}}
                 </div>
               </div>

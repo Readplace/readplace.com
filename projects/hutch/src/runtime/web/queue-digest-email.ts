@@ -6,12 +6,14 @@ import { formatLocalInstant, render } from "@packages/web-shell";
 import type { QueueDigestEmailItem } from "../domain/engagement/digest-email.types";
 import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
+import { EMAIL_COLORS } from "./email-colors";
 import { EMAIL_POSTAL_ADDRESS, EMAIL_REPLY_INVITATION } from "./email-copy";
 import { KINDLE_GUIDE_PATH } from "./shared/epub/epub-download-guide";
 import { ACCOUNT_PLANS_URL } from "./pages/account/account.url";
 import { buildOwnerReaderPath } from "./pages/readlist/owner-reader-link";
 import { READLIST_PATH } from "./pages/readlist/readlist.url";
+import Handlebars from "handlebars";
+import { renderEmailCard } from "./email-card";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "queue-digest-email.template.html"),
@@ -20,7 +22,6 @@ const TEMPLATE = readFileSync(
 
 export const QUEUE_DIGEST_EMAIL_SUBJECT = "Waiting in your readlist";
 const CONTINUE_READING_LABEL = "Continue reading";
-export const MARK_ALL_READ_LABEL = "Mark all as read";
 const STARTER_CONTINUE_LABEL = "Read your Hacker News picks";
 export const KEEP_READPLACE_LABEL = "Keep Readplace";
 export const UNSUBSCRIBE_LABEL = "Stop these emails";
@@ -37,7 +38,6 @@ const UTM_SOURCE: Record<QueueDigestKind, string> = {
 	starter: "starter-email",
 };
 export const QUEUE_DIGEST_UNSUBSCRIBE_PATH = "/email/queue-digest/unsubscribe";
-export const QUEUE_DIGEST_MARK_READ_PATH = "/email/queue-digest/mark-read";
 const TOKEN_QUERY = "t";
 const KIND_QUERY = "kind";
 const ONE_CLICK_UNSUBSCRIBE = "List-Unsubscribe=One-Click";
@@ -71,7 +71,7 @@ type QueueDigestEmailParams = {
 	items: QueueDigestEmailItem[];
 	links: QueueDigestLinks;
 } & (
-	| { kind: "regular"; markReadToken: string }
+	| { kind: "regular" }
 	| { kind: "pay"; pay: { trialEndsAt: string } }
 	| { kind: "starter"; starter: { readlist: ReadlistSlug; campaignId: string } }
 );
@@ -79,12 +79,11 @@ type QueueDigestEmailParams = {
 type QueueDigestLinkContent =
 	| "article"
 	| "continue-reading"
-	| "mark-all-read"
 	| "keep-readplace"
 	| "kindle-guide"
 	| "unsubscribe";
 
-type ReadlistButtonContent = Extract<QueueDigestLinkContent, "continue-reading" | "mark-all-read">;
+type ReadlistButtonContent = Extract<QueueDigestLinkContent, "continue-reading">;
 
 interface QueueDigestEmailComponent {
 	subject: string;
@@ -117,7 +116,6 @@ interface ReadlistButton {
 	colors: EmailButtonColors;
 }
 
-const BUTTON_GAP = "0 12px 12px 0";
 const NO_BUTTON_GAP = "0";
 
 interface PayBlock {
@@ -167,15 +165,7 @@ function readlistButtonsFor(input: { params: QueueDigestEmailParams; readlistUrl
 	const { params, readlistUrl } = input;
 	switch (params.kind) {
 		case "regular":
-			return [
-				{ content: "continue-reading", url: readlistUrl, label: CONTINUE_READING_LABEL, colors: AMBER_BUTTON },
-				{
-					content: "mark-all-read",
-					url: tokenUrl({ path: QUEUE_DIGEST_MARK_READ_PATH, token: params.markReadToken, appOrigin: params.links.appOrigin }),
-					label: MARK_ALL_READ_LABEL,
-					colors: NEUTRAL_BUTTON,
-				},
-			];
+			return [{ content: "continue-reading", url: readlistUrl, label: CONTINUE_READING_LABEL, colors: AMBER_BUTTON }];
 		case "pay":
 			return [{ content: "continue-reading", url: readlistUrl, label: CONTINUE_READING_LABEL, colors: NEUTRAL_BUTTON }];
 		case "starter":
@@ -220,10 +210,10 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 	const footerReason = FOOTER_REASON[kind];
 	const readlistUrl = new URL(READLIST_PATH, links.appOrigin);
 	if (starter !== undefined) readlistUrl.searchParams.set("queue", starter.readlist);
-	const readlistButtons = readlistButtonsFor({ params, readlistUrl }).map((button, index, row) => ({
+	const readlistButtons = readlistButtonsFor({ params, readlistUrl }).map((button) => ({
 		href: link(button.url, button.content),
 		label: button.label,
-		gap: index === row.length - 1 ? NO_BUTTON_GAP : BUTTON_GAP,
+		gap: NO_BUTTON_GAP,
 		...button.colors,
 	}));
 	const payBlocks: PayBlock[] =
@@ -247,23 +237,25 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 		headers: listUnsubscribeHeaders(oneClickUnsubscribeUrl),
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
-					subject,
-					intro,
-					items: cards,
-					readlistButtons,
-					payBlocks,
-					keepLabel: KEEP_READPLACE_LABEL,
-					attachment,
-					kindleGuideUrl,
-					kindleGuideLabel: KINDLE_GUIDE_LABEL,
-					replyLine: EMAIL_REPLY_INVITATION,
-					footerReason,
-					unsubscribeUrl: unsubscribeLinkUrl,
-					unsubscribeLabel: UNSUBSCRIBE_LABEL,
-					postalAddress: EMAIL_POSTAL_ADDRESS,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
+				return renderEmailCard({
+					titleHtml: Handlebars.Utils.escapeExpression(subject),
+					body: render(TEMPLATE, {
+						subject,
+						intro,
+						items: cards,
+						readlistButtons,
+						payBlocks,
+						keepLabel: KEEP_READPLACE_LABEL,
+						attachment,
+						kindleGuideUrl,
+						kindleGuideLabel: KINDLE_GUIDE_LABEL,
+						replyLine: EMAIL_REPLY_INVITATION,
+						footerReason,
+						unsubscribeUrl: unsubscribeLinkUrl,
+						unsubscribeLabel: UNSUBSCRIBE_LABEL,
+						postalAddress: EMAIL_POSTAL_ADDRESS,
+						colors: EMAIL_COLORS,
+					}),
 				});
 			}
 

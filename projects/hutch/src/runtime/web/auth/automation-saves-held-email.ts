@@ -1,15 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import Handlebars from "handlebars";
+import { EMAIL_COLORS } from "../email-colors";
+import { renderEmailCardMessage } from "../email-card";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchEmails } from "@packages/translations/hutch-emails";
-import { render } from "@packages/web-shell";
-
-const TEMPLATE = readFileSync(
-	join(__dirname, "automation-saves-held-email.template.html"),
-	"utf-8",
-);
 
 export const AUTOMATION_SAVES_HELD_EMAIL_SUBJECT =
 	"links sent to your Readplace Inbox are waiting";
@@ -73,17 +67,18 @@ export function AutomationSavesHeldEmail(
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
+				return renderEmailCardMessage({
+					titleHtml: t("automationSavesHeldEmail.title"),
 					founderAvatarUrl: params.founderAvatarUrl,
-					opening,
-					paragraphs: paragraphs.map((paragraph) => paragraph.html),
-					ctaUrl: params.inboxUrl,
-					ctaLabel: CTA_LABEL,
-					replyLine: EMAIL_REPLY_INVITATION,
-					manageAddressesUrl: params.manageAddressesUrl,
+					paragraphs: [{ address: opening }, ...paragraphs.map((paragraph) => ({ html: paragraph.html }))],
+					cta: { url: params.inboxUrl, label: CTA_LABEL },
+					notes: [
+						{ text: EMAIL_REPLY_INVITATION },
+						{
+							html: `${t("automationSavesHeldEmail.optOut.before")}<a href="${Handlebars.Utils.escapeExpression(params.manageAddressesUrl)}" style="color:${EMAIL_COLORS.primaryText};">${t("automationSavesHeldEmail.optOut.link")}</a>${t("automationSavesHeldEmail.optOut.after")}`,
+						},
+					],
 					signoff: SIGNOFF,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

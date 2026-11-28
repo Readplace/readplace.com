@@ -1,10 +1,10 @@
 import assert from "node:assert";
 import { randomUUID } from "node:crypto";
-import { type AdvanceEpochKeeping, isCurrentGrant, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
+import { type AdvanceEpochKeeping, isCurrentGrant, OAuthGrantIdSchema, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
 import { defineDynamoTable, dynamoField, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/storage-client";
 import { authDiagnosticReference } from "@packages/web-session";
 import { z } from "zod";
-import { CredentialHistory, initRefreshProof, OAuthGrantId, refreshContext } from "../../oauth-refresh/evidence";
+import { CredentialHistory, initRefreshProof, refreshContext } from "../../oauth-refresh/evidence";
 import { authDiagnosticContext } from "../../auth-diagnostics/record";
 import { attributeOAuthClient } from "../../auth-diagnostics/oauth-context";
 import { OAuthTokenRow } from "./oauth-token-row";
@@ -17,7 +17,7 @@ const grantSchema = z.object({
 });
 const accountSchema = z.object({
 	pk: z.string(), epoch: z.number(), deletedAt: z.number().optional(),
-	exemption: dynamoField(z.object({ atEpoch: z.number(), grantId: OAuthGrantId, grantEpoch: z.number() })),
+	exemption: dynamoField(z.object({ atEpoch: z.number(), grantId: OAuthGrantIdSchema, grantEpoch: z.number() })),
 });
 type Operations = NonNullable<ConstructorParameters<typeof TransactWriteCommand>[0]["TransactItems"]>;
 
@@ -158,7 +158,7 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 		async saveInitial(value: RefreshCredential) {
 			await client.send(new TransactWriteCommand({ TransactItems: [epochCondition(value.userId, value.epoch), ...newCredential(value)] }));
 			const context = refreshContext.getStore();
-			if (context && value.refreshToken) context.credential = { pk: `credential#${fingerprint(value.refreshToken)}`, grantId: OAuthGrantId.parse(value.grantId), fingerprint: fingerprint(value.refreshToken), credentialExpiresAt: value.refreshExpiresAt, expiresAt: ttl(value.refreshExpiresAt) };
+			if (context && value.refreshToken) context.credential = { pk: `credential#${fingerprint(value.refreshToken)}`, grantId: OAuthGrantIdSchema.parse(value.grantId), fingerprint: fingerprint(value.refreshToken), credentialExpiresAt: value.refreshExpiresAt, expiresAt: ttl(value.refreshExpiresAt) };
 		},
 		async active(row: z.infer<typeof OAuthTokenRow>): Promise<boolean> {
 			if (!isCurrentGrant({ account: await readAccount(row.userId), credential: { grantId: row.grantId, epoch: row.epoch ?? 0 } })) return false;

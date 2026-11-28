@@ -90,7 +90,7 @@ import {
 import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-links";
-import { HxRedirectPage } from "../../hx-redirect-page";
+import { redirectFullPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import {
 	type EffectiveAccess,
@@ -116,7 +116,6 @@ import {
 	MAX_CARDS,
 	type PaymentSectionInput,
 	buildAppearanceSection,
-	buildImportLinks,
 	buildProfileSection,
 	buildSecuritySection,
 	parseAccountQuery,
@@ -280,7 +279,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
-		const importLinks = buildImportLinks();
 		const webVm = toAccountViewModel({
 			access: input.access,
 			queryState,
@@ -306,7 +304,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 							security,
 							appearance: appearanceSection,
 							connectedApps,
-							importLinks,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
 					),
@@ -326,7 +323,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(AccountPage(vm, { profile, security, appearance: appearanceSection, connectedApps, importLinks }), bannerState),
+			Base(AccountPage(vm, { profile, security, appearance: appearanceSection, connectedApps }), bannerState),
 		);
 	}
 
@@ -849,21 +846,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		);
 
 		return checkout;
-	}
-
-	/** Force the browser to fully navigate to `url` rather than swap <main>.
-	 * HTMX intercepts hx-boost forms via XHR; a 303 Location to an external origin
-	 * (Stripe Checkout) makes HTMX issue a cross-origin XHR and never leave the
-	 * page, and a same-origin 303 only swaps <main> (leaving stale chrome — wrong
-	 * after a logout-like action). HxRedirectPage carries HTMX's HX-Redirect
-	 * header, which triggers `window.location.href = url`. Plain (non-HTMX) form
-	 * posts still get the 303 Location, so progressive enhancement is preserved. */
-	function redirectFullPage(req: Request, res: Response, url: string): void {
-		if (req.get("HX-Request") === "true") {
-			sendComponent(req, res, HxRedirectPage(url));
-			return;
-		}
-		res.redirect(303, url);
 	}
 
 	const subscribeBranches: Record<

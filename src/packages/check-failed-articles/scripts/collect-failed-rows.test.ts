@@ -62,7 +62,6 @@ function createIndexClient(pagesByIndex: Partial<Record<string, Row[][]>>) {
 	});
 }
 
-const NOW = new Date("2026-05-18T12:00:00.000Z");
 const TABLE = "test-articles";
 const NO_EXCLUDES: readonly RegExp[] = [];
 
@@ -74,8 +73,6 @@ function collect(
 	return collectFailedRows({
 		client,
 		tableName: TABLE,
-		now: () => NOW,
-		lookbackDays: 0,
 		excludePatterns,
 		ignoredKeyHashes,
 	});
@@ -92,7 +89,7 @@ function placeholdersIn(expressions: (string | undefined)[], prefix: ":" | "#"):
 
 describe("buildQueryInputs", () => {
 	it("queries the failed partition of each status index — never a table scan", () => {
-		const [crawl, summary] = buildQueryInputs(NOW, 0);
+		const [crawl, summary] = buildQueryInputs();
 		assert.equal(crawl.IndexName, CRAWL_STATUS_INDEX);
 		assert.equal(crawl.KeyConditionExpression, "crawlStatus = :failed");
 		assert.equal(summary.IndexName, SUMMARY_STATUS_INDEX);
@@ -102,7 +99,7 @@ describe("buildQueryInputs", () => {
 	});
 
 	it("requires the other axis to be present and non-pending so only rows terminal on both axes are returned", () => {
-		const [crawl, summary] = buildQueryInputs(NOW, 0);
+		const [crawl, summary] = buildQueryInputs();
 		assert.match(
 			crawl.FilterExpression,
 			/attribute_exists\(summaryStatus\) AND summaryStatus <> :pending/,
@@ -114,14 +111,14 @@ describe("buildQueryInputs", () => {
 	});
 
 	it("excludes a failed row whose metered legs were deferred to the reader, since the paid crawl never tried it", () => {
-		for (const input of buildQueryInputs(NOW, 0)) {
+		for (const input of buildQueryInputs()) {
 			assert.match(input.FilterExpression, /attribute_exists\(fullCrawlRequestedAt\)/);
 			assert.match(input.FilterExpression, /AND attribute_not_exists\(meteredLegsDeferredSince\)/);
 		}
 	});
 
 	it("never matches unsupported or summary-skipped — they are complete outcomes, not failures", () => {
-		for (const input of buildQueryInputs(NOW, 0)) {
+		for (const input of buildQueryInputs()) {
 			const expressions = `${input.KeyConditionExpression} ${input.FilterExpression}`;
 			assert.ok(!expressions.includes("unsupported"));
 			assert.ok(!expressions.includes("skipped"));
@@ -130,51 +127,26 @@ describe("buildQueryInputs", () => {
 		}
 	});
 
-	it("omits the savedAt time gate from both filters when lookbackDays = 0 (operator wants full history)", () => {
-		for (const input of buildQueryInputs(NOW, 0)) {
-			assert.ok(
-				!input.FilterExpression.includes("savedAt"),
-				`expected no savedAt clause, got: ${input.FilterExpression}`,
-			);
-			assert.equal(input.ExpressionAttributeValues[":since"], undefined);
-		}
-	});
-
-	it("anchors the savedAt time gate in both filters to (now - lookbackDays) when lookbackDays > 0", () => {
-		const expected = new Date(NOW.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-		for (const input of buildQueryInputs(NOW, 7)) {
-			assert.match(input.FilterExpression, /savedAt >= :since/);
-			assert.equal(input.ExpressionAttributeValues[":since"], expected);
-		}
-	});
-
 	it("gives each input exactly the value and name placeholders its own expressions reference (DynamoDB rejects unused ones)", () => {
-		for (const lookbackDays of [0, 7]) {
-			for (const input of buildQueryInputs(NOW, lookbackDays)) {
-				const expressions = [
-					input.KeyConditionExpression,
-					input.FilterExpression,
-					input.ProjectionExpression,
-				];
-				assert.deepEqual(
-					Object.keys(input.ExpressionAttributeValues).sort(),
-					placeholdersIn(expressions, ":"),
-				);
-				assert.deepEqual(
-					Object.keys(input.ExpressionAttributeNames).sort(),
-					placeholdersIn(expressions, "#"),
-				);
-			}
+		for (const input of buildQueryInputs()) {
+			const expressions = [
+				input.KeyConditionExpression,
+				input.FilterExpression,
+				input.ProjectionExpression,
+			];
+			assert.deepEqual(
+				Object.keys(input.ExpressionAttributeValues).sort(),
+				placeholdersIn(expressions, ":"),
+			);
+			assert.deepEqual(
+				Object.keys(input.ExpressionAttributeNames).sort(),
+				placeholdersIn(expressions, "#"),
+			);
 		}
-	});
-
-	it("rejects negative or non-integer lookbackDays values (caller bug)", () => {
-		assert.throws(() => buildQueryInputs(NOW, -1), /non-negative integer/);
-		assert.throws(() => buildQueryInputs(NOW, 1.5), /non-negative integer/);
 	});
 
 	it("projects the failure-reason attributes the canary actually reports on", () => {
-		for (const input of buildQueryInputs(NOW, 0)) {
+		for (const input of buildQueryInputs()) {
 			for (const attr of [
 				"originalUrl",
 				"crawlStatus",
@@ -203,7 +175,7 @@ describe("buildQueryInputs", () => {
 	});
 
 	it("aliases the reserved 'url' keyword via #u to keep ProjectionExpression valid", () => {
-		for (const input of buildQueryInputs(NOW, 0)) {
+		for (const input of buildQueryInputs()) {
 			assert.equal(input.ExpressionAttributeNames["#u"], "url");
 			assert.match(input.ProjectionExpression, /#u/);
 		}
@@ -285,7 +257,7 @@ describe("collectFailedRows", () => {
 	it("issues one Query per status index against the configured table with the buildQueryInputs bodies", async () => {
 		const { client, calls } = createIndexClient({});
 		await collect(client);
-		const expected = buildQueryInputs(NOW, 0);
+		const expected = buildQueryInputs();
 		assert.equal(calls.length, 2);
 		for (const [i, input] of expected.entries()) {
 			const call = calls[i];

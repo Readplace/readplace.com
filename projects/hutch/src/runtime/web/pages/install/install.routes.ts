@@ -2,11 +2,11 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
+import type { ClientName } from "@packages/supported-clients";
 import { sendComponent } from "@packages/web-shell";
 import { redirectToDetectedClient } from "./detected-client.middleware";
 import {
 	InstallPage,
-	type InstallClient,
 	parseClient,
 	type FetchFirefoxDownloadUrl,
 	isSelfHostedDownload,
@@ -23,7 +23,7 @@ export function initInstallRoutes(deps: {
 	router.get("/install", redirectToDetectedClient);
 
 	router.get("/install", async (req: Request, res: Response) => {
-		let client: InstallClient;
+		let client: ClientName;
 		try {
 			client = parseClient(req.query.client);
 		} catch {

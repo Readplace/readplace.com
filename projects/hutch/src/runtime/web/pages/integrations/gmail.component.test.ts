@@ -6,8 +6,8 @@ import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { parseHTML } from "linkedom";
-import { GmailPage, renderGmailSenderResults, renderGmailSenderStatus } from "./gmail.component";
-import { renderGmailSenderChecklistHtml } from "./gmail-sender-widget.component";
+import { GmailPage, renderGmailSenderResults } from "./gmail.component";
+import { renderGmailSenderChecklistHtml, renderGmailSenderStatusHtml } from "./gmail-sender-widget.component";
 import type { GmailPageInput } from "./gmail.viewmodel";
 import { toGmailPageViewModel } from "./gmail.viewmodel";
 
@@ -95,9 +95,9 @@ describe("GMail Newsletters discovery fragments", () => {
 		assert.equal(pageButtons.length, 1);
 		assert.equal(pageButtons[0]?.textContent, "Checking…");
 		assert.equal(pageButtons[0]?.hasAttribute("hx-swap-oob"), false);
-		const ordinary = fragmentDocument(renderGmailSenderStatus(vm, { outOfBandLoadButton: false }));
+		const ordinary = fragmentDocument(renderGmailSenderStatusHtml(vm.status, { outOfBandLoadButton: false }));
 		assert.deepEqual(Array.from(ordinary.body.children, (element) => element.id), ["gmail-sender-status"]);
-		const swapped = fragmentDocument(renderGmailSenderStatus(vm, { outOfBandLoadButton: true }));
+		const swapped = fragmentDocument(renderGmailSenderStatusHtml(vm.status, { outOfBandLoadButton: true }));
 		assert.deepEqual(Array.from(swapped.body.children, (element) => element.id), ["gmail-load-senders-button", "gmail-sender-status"]);
 		assert.equal(swapped.querySelector("#gmail-load-senders-button")?.getAttribute("hx-swap-oob"), "outerHTML");
 		assert.equal(swapped.querySelector("#gmail-sender-status")?.getAttribute("hx-include"), "#gmail-checklist-listed");
@@ -125,13 +125,13 @@ describe("GMail Newsletters discovery fragments", () => {
 
 	it("swaps in a neutral discovery Reconnect beside Save", () => {
 		const requiresReconnect: GmailPageInput["discovery"] = { state: "failed", mode: "full", checkedMessageCount: 0, requiresReconnect: true };
-		const status = fragmentDocument(renderGmailSenderStatus(toGmailPageViewModel(input({ discovery: requiresReconnect })), { outOfBandLoadButton: true }));
+		const status = fragmentDocument(renderGmailSenderStatusHtml(toGmailPageViewModel(input({ discovery: requiresReconnect })).status, { outOfBandLoadButton: true }));
 		assert.equal(status.querySelector("[data-test-gmail-discovery-reconnect]")?.getAttribute("class"), "btn btn--neutral");
 	});
 
 	it("submits the refresh for newly found newsletters through the mapping form", () => {
 		const vm = toGmailPageViewModel(input({ detection: { status: "available", recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), match: "exact" }]]) }, listed: 0 }));
-		const refresh = fragmentDocument(renderGmailSenderStatus(vm, { outOfBandLoadButton: false })).querySelector("[data-test-gmail-refresh-checklist]");
+		const refresh = fragmentDocument(renderGmailSenderStatusHtml(vm.status, { outOfBandLoadButton: false })).querySelector("[data-test-gmail-refresh-checklist]");
 		assert(refresh);
 		assert.equal(refresh.textContent, "Show 1 newly found newsletter");
 		assert.deepEqual(["type", "form", "formmethod"].map((name) => refresh.getAttribute(name)), ["submit", "gmail-readlist-selection", "get"]);

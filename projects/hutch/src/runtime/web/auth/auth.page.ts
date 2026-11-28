@@ -1,3 +1,4 @@
+import { FOUNDER_SENDER } from "../../email-senders";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
@@ -94,7 +95,6 @@ const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 const CheckoutSuccessQuerySchema = z.looseObject({ session_id: z.string().min(1) });
 const SignupQuerySchema = z.looseObject({ email: z.string().email() });
 
-const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 
 import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
 export type { BotDefenseEvent };
@@ -171,7 +171,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				const verifyUrl = `${deps.baseUrl}/verify-email?token=${token}`;
 				const html = buildVerificationEmailHtml(verifyUrl);
 				return deps.sendEmail({
-					from: EMAIL_FROM,
+					from: FOUNDER_SENDER,
 					to: email,
 					subject: "Verify your email — Readplace",
 					html,

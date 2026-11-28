@@ -6,7 +6,6 @@ import { initAuthDiagnosticPermits } from "../../auth-diagnostics/permit";
 import { randomUUID } from "node:crypto";
 import { initDynamoRefreshStore } from "./dynamodb-refresh-store";
 import { initRefreshProof } from "../../oauth-refresh/evidence";
-import { OAuthGrantId } from "../../oauth-refresh/evidence";
 import { OAuthTokenRow, initOAuthCredentialLifecycle } from "./oauth-credential-lifecycle";
 import {
 	type DynamoDBDocumentClient,
@@ -32,7 +31,7 @@ import type {
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import { OAuthSignInSchema, generateToken, initOAuthRefresh, signInOf } from "@packages/domain/oauth";
+import { OAuthGrantIdSchema, OAuthSignInSchema, generateToken, initOAuthRefresh, signInOf } from "@packages/domain/oauth";
 
 function toEpochSeconds(date: Date): number {
 	return Math.floor(date.getTime() / 1000);
@@ -48,7 +47,7 @@ const AuthCodeRow = z.object({
 	codeChallengeMethod: z.enum(["S256", "plain"]),
 	scope: z.array(z.string()).optional(),
 	emailVerified: z.boolean(),
-	grantId: OAuthGrantId.optional(),
+	grantId: OAuthGrantIdSchema.optional(),
 	epoch: z.number().optional(),
 	signedIn: OAuthSignInSchema.optional(),
 });
@@ -114,7 +113,7 @@ export function initDynamoDbOAuthModel(deps: {
 			await authCodes.put({
 				Item: {
 					pk: `code#${code.authorizationCode}`,
-					grantId: OAuthGrantId.parse(randomUUID()),
+					grantId: OAuthGrantIdSchema.parse(randomUUID()),
 					epoch: (await atomic.store.readAccount(user.id)).epoch,
 					clientId: oauthClient.id,
 					userId: user.id,

@@ -1,3 +1,4 @@
+import { FOUNDER_SENDER, REPLY_TO } from "../email-senders";
 import assert from "node:assert";
 import type { SavedArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -16,8 +17,6 @@ import { trialDayOf } from "../domain/trial/trial-day";
 import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
 import type { TrialNudgeEmail } from "../web/auth/trial-nudge-email";
 
-const TRIAL_NUDGE_FROM = "Fayner from Readplace <fayner@readplace.com>";
-const TRIAL_NUDGE_REPLY_TO = "fayner@readplace.com";
 const SAVES_PAGE_SIZE = 50;
 
 const NUDGE_COPY = {
@@ -74,8 +73,8 @@ export async function sendTrialNudge(
 	try {
 		await deps.sendEmail({
 			to: contact.email,
-			from: TRIAL_NUDGE_FROM,
-			replyTo: TRIAL_NUDGE_REPLY_TO,
+			from: FOUNDER_SENDER,
+			replyTo: REPLY_TO,
 			bcc: copy.bcc,
 			subject: email.subject,
 			html: email.to("text/html"),

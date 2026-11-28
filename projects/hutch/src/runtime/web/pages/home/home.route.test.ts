@@ -45,18 +45,6 @@ describe("GET / (authenticated)", () => {
 	});
 });
 
-describe("GET / (retired split arm URLs)", () => {
-	it.each(["/landing-a", "/landing-b"])(
-		"should redirect %s to the one homepage those arms became",
-		async (path) => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get(path);
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/");
-		},
-	);
-});
-
 describe("GET /", () => {
 	it("should return 200 and HTML content", async () => {
 		const { response } = await loadHomepage();

@@ -117,4 +117,21 @@ const SHARED_CLIENT_BUNDLES = [
   },
 ];
 
-module.exports = { SHARED_CLIENT_BUNDLES };
+function buildOptions(bundle) {
+  return {
+    entryPoints: [bundle.entry],
+    outfile: bundle.outfile,
+    bundle: true,
+    format: "iife",
+    globalName: bundle.globalName,
+    footer: { js: bundle.footer },
+    target: ["es2020"],
+    platform: "browser",
+    keepNames: false,
+    minify: false,
+    sourcemap: true,
+    logLevel: "info",
+  };
+}
+
+module.exports = { SHARED_CLIENT_BUNDLES, buildOptions };

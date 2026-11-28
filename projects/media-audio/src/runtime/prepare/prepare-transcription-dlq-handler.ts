@@ -6,6 +6,7 @@ import type {
 } from "aws-lambda";
 import { MediaUploadCommittedEvent } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
+import { transcriptsKeyPrefix } from "@packages/media-contracts";
 import type { RefundTranscriptCharge } from "@packages/provider-contracts";
 import { z } from "zod";
 import type { WriteMinimalAudioBody } from "../minimal-body/write-minimal-audio-body";
@@ -16,7 +17,6 @@ import {
 	type JobRequest,
 	jobRequestKey,
 	transcriptionJobName,
-	transcriptsKeyPrefix,
 } from "./transcription-keys";
 
 const CommittedEnvelope = z.object({

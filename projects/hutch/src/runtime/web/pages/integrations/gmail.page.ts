@@ -18,9 +18,10 @@ import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription
 import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { HxRedirectPage } from "../../hx-redirect-page";
+import { redirectFullPage } from "../../hx-redirect-page";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
-import { GmailPage, renderGmailPoll, renderGmailSenderResults, renderGmailSenderStatus } from "./gmail.component";
+import { GmailPage, renderGmailPoll, renderGmailSenderResults } from "./gmail.component";
+import { renderGmailSenderStatusHtml } from "./gmail-sender-widget.component";
 import {
 	buildGmailUrl,
 	confirmGmailReadlists,
@@ -84,13 +85,6 @@ export function registerGmailPageRoutes(
 	const ownerOf = (req: Request): UserId => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		return UserIdSchema.parse(req.userId);
-	};
-	const redirectFullPage = (req: Request, res: Response, url: string): void => {
-		if (req.get("HX-Request") === "true") {
-			sendComponent(req, res, HxRedirectPage(url));
-			return;
-		}
-		res.redirect(303, url);
 	};
 	const connected: RequestHandler = async (req, res, next) => {
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(ownerOf(req));
@@ -182,7 +176,7 @@ export function registerGmailPageRoutes(
 			return;
 		}
 		if (queryValue(req, "poll") !== undefined) {
-			res.type("html").send(renderGmailSenderStatus(vm, { outOfBandLoadButton: true }));
+			res.type("html").send(renderGmailSenderStatusHtml(vm.status, { outOfBandLoadButton: true }));
 			return;
 		}
 		res.set("HX-Push-Url", vm.pageUrl);

@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { renderEmailCardMessage } from "../email-card";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
-import { render } from "@packages/web-shell";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchEmails } from "@packages/translations/hutch-emails";
 
-const TEMPLATE = readFileSync(
-	join(__dirname, "inbox-first-arrival-email.template.html"),
-	"utf-8",
-);
+const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
 export const INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT =
 	"Your first email landed in your Readplace Inbox";
@@ -43,16 +39,13 @@ export function InboxFirstArrivalEmail(
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
+				return renderEmailCardMessage({
+					titleHtml: t("inboxFirstArrivalEmail.title"),
 					founderAvatarUrl: params.founderAvatarUrl,
-					opening,
-					paragraphs: [PARAGRAPH],
-					ctaUrl: params.inboxUrl,
-					ctaLabel: CTA_LABEL,
-					replyLine: EMAIL_REPLY_INVITATION,
+					paragraphs: [{ address: opening }, { html: PARAGRAPH }],
+					cta: { url: params.inboxUrl, label: CTA_LABEL },
+					notes: [{ text: EMAIL_REPLY_INVITATION }],
 					signoff: SIGNOFF,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 

@@ -437,7 +437,6 @@ describe("toIntegrationsIndexViewModel", () => {
 
 	it("explains each connect failure the callback can redirect with", () => {
 		for (const error of [
-			"connect_failed",
 			"oauth_denied",
 			"oauth_state",
 			"oauth_scope",

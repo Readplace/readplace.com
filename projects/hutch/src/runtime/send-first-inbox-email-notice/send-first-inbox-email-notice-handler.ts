@@ -1,3 +1,4 @@
+import { READPLACE_SENDER, REPLY_TO } from "../email-senders";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SendFirstInboxEmailNoticeCommand } from "@packages/infra-components";
@@ -13,8 +14,6 @@ import {
 	INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT,
 } from "../web/auth/inbox-first-arrival-email";
 
-const EMAIL_FROM = "Readplace <readplace@readplace.com>";
-const EMAIL_REPLY_TO = "fayner@readplace.com";
 const EMAIL_BCC = "readplace+first_inbox_email@readplace.com";
 
 export interface SendFirstInboxEmailNoticeDeps {
@@ -88,10 +87,10 @@ export function initSendFirstInboxEmailNoticeHandler(
 			});
 
 			await deps.sendEmail({
-				from: EMAIL_FROM,
+				from: READPLACE_SENDER,
 				to: email,
 				bcc: EMAIL_BCC,
-				replyTo: EMAIL_REPLY_TO,
+				replyTo: REPLY_TO,
 				subject: INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT,
 				html: component.to("text/html"),
 				text: component.to("text/plain"),

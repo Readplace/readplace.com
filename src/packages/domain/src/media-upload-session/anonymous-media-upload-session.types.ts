@@ -16,7 +16,6 @@ export interface AnonymousMediaUploadSession {
 	readonly fileName?: string;
 	readonly byteLength?: number;
 	readonly saveAttemptId: MediaUploadSession["saveAttemptId"];
-	readonly metered?: boolean;
 	readonly status: AnonymousMediaUploadSessionState;
 	readonly etag?: string;
 	readonly facts?: MediaInspectionFacts;

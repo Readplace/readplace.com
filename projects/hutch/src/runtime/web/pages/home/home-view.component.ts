@@ -1,6 +1,7 @@
 import {
 	CONFIRM_POPOVER_STYLES,
 	STATED_PRICING_PANELS,
+	trackedGetForm,
 	withInternalTracking,
 } from "@packages/web-shell";
 import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
@@ -26,14 +27,7 @@ import {
 import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
-const PARSE_ORIGIN = "https://internal.invalid";
-
 const TRACKING_SOURCE = "homepage";
-
-interface HiddenParam {
-	readonly name: string;
-	readonly value: string;
-}
 
 interface ActionInput {
 	readonly name: string;
@@ -45,7 +39,7 @@ interface RenderedAction {
 	readonly key: string;
 	readonly label: string;
 	readonly action: string;
-	readonly hiddenParams: readonly HiddenParam[];
+	readonly hiddenParams: readonly { name: string; value: string }[];
 	readonly cssClass: string;
 	readonly input?: ActionInput;
 	readonly saveTipState?: SaveTipState;
@@ -69,10 +63,7 @@ function renderAction(input: {
 	lead?: string;
 	target?: RenderedLink;
 }): RenderedAction {
-	const tracked = new URL(
-		withInternalTracking(input.href, { source: TRACKING_SOURCE, content: input.content }),
-		PARSE_ORIGIN,
-	);
+	const form = trackedGetForm(input.href, { source: TRACKING_SOURCE, content: input.content });
 	return {
 		key: input.key,
 		label: input.label,
@@ -81,8 +72,8 @@ function renderAction(input: {
 		saveTipState: input.saveTipState,
 		lead: input.lead,
 		target: input.target,
-		action: tracked.pathname,
-		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
+		action: form.action,
+		hiddenParams: form.fields,
 	};
 }
 
@@ -321,6 +312,5 @@ export function buildHomePageFrame(params: { staticBaseUrl: string; styles: stri
 		seo: buildHomeSeo({ staticBaseUrl: params.staticBaseUrl, faq: faq.items }),
 		styles: `${HOME_PAGE_STYLES}\n${params.styles}\n${CONFIRM_POPOVER_STYLES}`,
 		scripts: `${SAVE_TIP_SCRIPT}${PAGE_DEPTH_SCRIPT}`,
-		bodyClass: "page-home",
 	};
 }

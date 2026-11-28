@@ -10,7 +10,7 @@ import {
 import type { IconName } from "@packages/ui-icons";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, trackedGetForm, withInternalTracking } from "@packages/web-shell";
 
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
@@ -83,8 +83,6 @@ const PLACEMENT_CLASSES: Record<
 };
 
 const NAV_SOURCE = "queue-nav";
-
-const PARSE_ORIGIN = "https://internal.invalid";
 
 interface ReadlistCreateForm {
 	action: string;
@@ -221,22 +219,7 @@ function limitFormsOf(input: {
 	limitAlertHref: string;
 }): ReadlistLimitForm[] {
 	if (input.canCreate) return [];
-	const tracked = new URL(
-		withInternalTracking(input.limitAlertHref, {
-			source: NAV_SOURCE,
-			content: "readlist-limit",
-		}),
-		PARSE_ORIGIN,
-	);
-	return [
-		{
-			action: tracked.pathname,
-			fields: Array.from(tracked.searchParams, ([name, value]) => ({
-				name,
-				value,
-			})),
-		},
-	];
+	return [trackedGetForm(input.limitAlertHref, { source: NAV_SOURCE, content: "readlist-limit" })];
 }
 
 interface ReadlistNavInput {

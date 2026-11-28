@@ -110,17 +110,7 @@ describe("Upload routes", () => {
 		]);
 	});
 
-	it("tells a member who started with the transcripts feature the daily transcript allowance", async () => {
-		const { agent } = await signedIn();
-		const response = await agent.get("/upload?features=transcripts");
-		expect(
-			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
-		).toBe(
-			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
-		);
-	});
-
-	it("tells a member without the transcripts feature that audio and video files are transcribed, and a guest that audio files are", async () => {
+	it("tells a member that audio and video files are transcribed, and a guest that audio files are", async () => {
 		const { agent, harness } = await signedIn();
 		const member = await agent.get("/upload");
 		const guest = await request(harness.server).get("/upload");
@@ -132,16 +122,6 @@ describe("Upload routes", () => {
 			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
 			"Audio files get a timestamped transcript, up to 20 minutes a day.",
 		]);
-	});
-
-	it("tells a guest on the transcripts feature that audio files are transcribed", async () => {
-		const { harness } = await signedIn();
-		const response = await request(harness.server).get("/upload?features=transcripts");
-		expect(
-			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
-		).toBe(
-			"Audio files get a timestamped transcript, up to 20 minutes a day.",
-		);
 	});
 
 	it("describes books and audio to a guest", async () => {
@@ -323,7 +303,7 @@ describe("Upload routes", () => {
 		expect(saved?.metadata.title).toBe("Audio upload");
 	});
 
-	it("commits a member's MP4 as video without the transcripts feature", async () => {
+	it("commits a member's MP4 as video", async () => {
 		const { harness, agent, userId } = await signedIn();
 		const staged = await agent.post("/upload").type("form").send({ fileName: "talk.mp4", byteLength: 64 });
 		const uploadId = stagedUploadId(documentOf(staged.text));
@@ -355,7 +335,6 @@ describe("Upload routes", () => {
 	});
 
 	it.each([
-		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
 		{ startPath: "/upload", features: null, allowance: 1 },
 	])("keeps the start path $startPath on a received file's error page", async ({ startPath, features, allowance }) => {
 		const { harness, agent } = await signedIn();
@@ -376,7 +355,6 @@ describe("Upload routes", () => {
 	});
 
 	it.each([
-		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
 		{ startPath: "/upload", features: null, allowance: 1 },
 	])("keeps the start path $startPath when a declared size is refused", async ({ startPath, features, allowance }) => {
 		const { agent } = await signedIn();

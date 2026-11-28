@@ -92,10 +92,10 @@ describe("toUploadStartViewModel", () => {
 	});
 
 	it("names a signed-out viewer a guest and shows them the guest notice", () => {
-		const vm = toUploadStartViewModel([BOOK], false, "/upload?features=transcripts");
+		const vm = toUploadStartViewModel([BOOK], false, "/upload");
 
 		assert.equal(vm.heading, "Upload a book");
-		assert.equal(vm.startPath, "/upload?features=transcripts");
+		assert.equal(vm.startPath, "/upload");
 		assert.equal(vm.viewer, "guest");
 		assert.equal(vm.showsGuestNotice, true);
 	});

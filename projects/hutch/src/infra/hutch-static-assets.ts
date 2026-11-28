@@ -9,7 +9,7 @@ import { CloudFrontInvalidation } from "./cloudfront-invalidation";
 
 export interface StaticDomainEntry {
 	domain: string;
-	zoneId?: pulumi.Input<string>;
+	zoneId: pulumi.Input<string>;
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -96,10 +96,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 			),
 		);
 
-		const corsOrigins =
-			args.domains.length > 0
-				? args.domains.map((d) => `https://${d}`)
-				: ["*"];
+		const corsOrigins = args.domains.map((d) => `https://${d}`);
 
 		const responseHeadersPolicy = new aws.cloudfront.ResponseHeadersPolicy(
 			`${name}-response-headers`,
@@ -116,14 +113,11 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 			{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
 		);
 
-		const hasAnyZone = args.staticDomains.some((sd) => sd.zoneId !== undefined);
-		const usEast1 = hasAnyZone
-			? new aws.Provider(
-					`${name}-us-east-1`,
-					{ region: "us-east-1" },
-					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
-				)
-			: undefined;
+		const usEast1 = new aws.Provider(
+			`${name}-us-east-1`,
+			{ region: "us-east-1" },
+			{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+		);
 
 		const distributions: aws.cloudfront.Distribution[] = [];
 
@@ -131,35 +125,22 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 			const safeName = entry.domain.replace(/\./g, "-");
 			const nameSuffix = i === 0 ? "" : `-${safeName}`;
 
-			let viewerCertificate: aws.types.input.cloudfront.DistributionViewerCertificate;
-			let distributionAliases: pulumi.Input<string>[] | undefined;
-
-			if (entry.zoneId && usEast1) {
-				const cert = new Certificate(
-					`${name}${nameSuffix}`,
-					{
-						primaryDomain: entry.domain,
-						altDomains: [],
-						zoneId: entry.zoneId,
-						provider: usEast1,
-					},
-					{ parent: this },
-				);
-				viewerCertificate = {
-					acmCertificateArn: cert.certificateArn,
-					sslSupportMethod: "sni-only",
-					minimumProtocolVersion: "TLSv1.2_2021",
-				};
-				distributionAliases = [entry.domain];
-			} else {
-				viewerCertificate = { cloudfrontDefaultCertificate: true };
-			}
+			const cert = new Certificate(
+				`${name}${nameSuffix}`,
+				{
+					primaryDomain: entry.domain,
+					altDomains: [],
+					zoneId: entry.zoneId,
+					provider: usEast1,
+				},
+				{ parent: this },
+			);
 
 			const distribution = new aws.cloudfront.Distribution(
 				`${name}-cdn${nameSuffix}`,
 				{
 					enabled: true,
-					aliases: distributionAliases,
+					aliases: [entry.domain],
 					origins: [
 						{
 							originId: "s3",
@@ -180,7 +161,11 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 							restrictionType: "none",
 						},
 					},
-					viewerCertificate,
+					viewerCertificate: {
+						acmCertificateArn: cert.certificateArn,
+						sslSupportMethod: "sni-only",
+						minimumProtocolVersion: "TLSv1.2_2021",
+					},
 					priceClass: "PriceClass_100",
 				},
 				{
@@ -191,24 +176,22 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 
 			distributions.push(distribution);
 
-			if (entry.zoneId) {
-				new aws.route53.Record(
-					`${name}-record-${safeName}`,
-					{
-						zoneId: entry.zoneId,
-						name: entry.domain,
-						type: "A",
-						aliases: [
-							{
-								name: distribution.domainName,
-								zoneId: distribution.hostedZoneId,
-								evaluateTargetHealth: false,
-							},
-						],
-					},
-					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
-				);
-			}
+			new aws.route53.Record(
+				`${name}-record-${safeName}`,
+				{
+					zoneId: entry.zoneId,
+					name: entry.domain,
+					type: "A",
+					aliases: [
+						{
+							name: distribution.domainName,
+							zoneId: distribution.hostedZoneId,
+							evaluateTargetHealth: false,
+						},
+					],
+				},
+				{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+			);
 		}
 
 		this.distributions = distributions;

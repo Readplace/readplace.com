@@ -3,7 +3,7 @@ import {
 	ChargedMediaUploadCommittedDetailSchema,
 	MediaUploadCommittedEvent,
 } from "@packages/infra-components";
-import { type UploadId, UploadIdSchema } from "@packages/media-contracts";
+import { transcriptsKeyPrefix, type UploadId, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 
 export const ChargedCommittedDetailSchema =
@@ -24,11 +24,7 @@ export const JobRequestSchema = z.object({
 });
 export type JobRequest = z.infer<typeof JobRequestSchema>;
 
-type JobRef = { uploadId: string; attempt: number };
-
-export function transcriptsKeyPrefix(uploadId: string): string {
-	return `transcripts/${uploadId}/`;
-}
+type JobRef = { uploadId: UploadId; attempt: number };
 
 export function transcriptionJobName(ref: JobRef): string {
 	return `rp-${ref.uploadId}-${ref.attempt}`;

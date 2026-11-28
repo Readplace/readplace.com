@@ -17,7 +17,6 @@ export type SettleReceivedUpload = (params: {
 	session: MediaUploadSession;
 	kind: MediaKindManifest;
 	etag: string;
-	size: number;
 	charge?: TranscriptCharge;
 }) => Promise<UploadOutcome<"committed" | UploadRefusalReason>>;
 

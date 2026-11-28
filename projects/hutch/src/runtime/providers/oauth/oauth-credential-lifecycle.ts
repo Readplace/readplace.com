@@ -7,7 +7,7 @@ import {
 	forEachQueryPage,
 	transactIfConditions,
 } from "@packages/storage-client";
-import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, laterSignIn, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId as GrantId, type OAuthSignIn } from "@packages/domain/oauth";
+import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, laterSignIn, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId, OAuthGrantIdSchema, type OAuthSignIn } from "@packages/domain/oauth";
 import type {
 	ListUserOAuthClients,
 	RevokeAllUserOAuthTokens,
@@ -15,7 +15,7 @@ import type {
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import { z } from "zod";
-import { OAuthGrantId, initRefreshProof } from "../../oauth-refresh/evidence";
+import { initRefreshProof } from "../../oauth-refresh/evidence";
 
 export { OAuthTokenRow } from "./oauth-token-row";
 import { OAuthTokenRow } from "./oauth-token-row";
@@ -35,7 +35,7 @@ export function initOAuthCredentialLifecycle(deps: {
 
 	function historyValues(row: OAuthTokenRow) {
 		return {
-			":grant": row.grantId ?? OAuthGrantId.parse(randomUUID()),
+			":grant": row.grantId ?? OAuthGrantIdSchema.parse(randomUUID()),
 			":fingerprint": proof.fingerprint(row.refreshToken),
 			":expiry": row.refreshTokenExpiresAt * 1000,
 			":ttl": row.refreshTokenExpiresAt + 30 * 86400,
@@ -58,7 +58,7 @@ export function initOAuthCredentialLifecycle(deps: {
 		return outcome.kind === "written";
 	}
 
-	async function sweep(input: { userId: string; cause: "logout-all" | "account-deletion"; spare: GrantId | undefined }): Promise<void> {
+	async function sweep(input: { userId: string; cause: "logout-all" | "account-deletion"; spare: OAuthGrantId | undefined }): Promise<void> {
 		await forEachQueryPage(byUser, {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
@@ -148,7 +148,7 @@ export function initOAuthCredentialLifecycle(deps: {
 
 	return {
 		grant(user: User) {
-			return { grantId: typeof user.grantId === "string" ? OAuthGrantId.parse(user.grantId) : OAuthGrantId.parse(randomUUID()) };
+			return { grantId: typeof user.grantId === "string" ? OAuthGrantIdSchema.parse(user.grantId) : OAuthGrantIdSchema.parse(randomUUID()) };
 		},
 		revokeAll,
 		revokeOther,

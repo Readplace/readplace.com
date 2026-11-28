@@ -6,14 +6,12 @@ export interface HomepageSplitVariant {
 }
 
 export interface HomepageSplitConfig {
-	readonly active: boolean;
 	readonly campaign: string;
 	readonly epoch: number;
 	readonly variants: readonly [HomepageSplitVariant, HomepageSplitVariant];
 }
 
 export const HOMEPAGE_SPLIT: HomepageSplitConfig = {
-	active: true,
 	campaign: "homepage-ai-cost",
 	epoch: 3,
 	variants: [

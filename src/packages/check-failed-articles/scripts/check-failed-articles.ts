@@ -34,17 +34,6 @@ import { parseIgnoredKeyHashes } from "./ignored-key-hashes";
 import { parseReviewedAccess } from "./reviewed-access";
 import { getEnv, requireEnv } from "@packages/require-env";
 
-function parseLookbackDays(): number {
-	const raw = getEnv("FAILED_ARTICLES_LOOKBACK_DAYS");
-	if (raw === undefined) return 0;
-	const parsed = Number(raw);
-	assert(
-		Number.isInteger(parsed) && parsed >= 0,
-		`FAILED_ARTICLES_LOOKBACK_DAYS must be a non-negative integer (got '${raw}')`,
-	);
-	return parsed;
-}
-
 test("Failed articles canary", async () => {
 	const ignoredKeyHashes = parseIgnoredKeyHashes(getEnv("FAILED_ARTICLES_IGNORED_KEY_HASHES"));
 	const reviewedAccess = parseReviewedAccess(getEnv("FAILED_ARTICLES_REVIEWED_ACCESS"));
@@ -61,16 +50,10 @@ test("Failed articles canary", async () => {
 		source: CanaryReportSourceSchema.parse(`run-${runId}-${requireEnv("GITHUB_RUN_ATTEMPT")}`),
 	};
 	const reportUrl = `${origin}${canaryReportPath(key)}`;
-	const lookbackDays = parseLookbackDays();
 	const client = createDynamoDocumentClient({ region });
-	process.stderr.write(
-		`[info] lookback gate: ${lookbackDays === 0 ? "disabled (all time)" : `savedAt >= now - ${lookbackDays}d`}\n`,
-	);
 	const failed = await collectFailedRows({
 		client,
 		tableName,
-		now: () => new Date(),
-		lookbackDays,
 		excludePatterns: EXCLUDE_PATTERNS,
 		ignoredKeyHashes,
 	});

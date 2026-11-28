@@ -19,7 +19,7 @@ export function resolveHomepageArm(input: {
 	drawRandomByte: () => number;
 }): HomepageArm {
 	const { req, config, eligible, drawRandomByte } = input;
-	if (!config.active || !eligible) {
+	if (!eligible) {
 		return { variant: config.variants[0], participating: false };
 	}
 	const recorded = readHomepageAssignment(req, config);

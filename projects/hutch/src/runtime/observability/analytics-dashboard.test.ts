@@ -8,7 +8,6 @@ import {
 	GMAIL_METRIC_NAMESPACE,
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/infra-components";
-import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
@@ -27,12 +26,12 @@ import {
 	ANALYTICS_LOG_GROUP,
 	buildAdminDashboards,
 	CONVERSION_EVENTS,
+	ENGAGEMENT_EVENTS,
 	type ExcludedIdentities,
 	LIFECYCLE_EMAIL_EVENTS,
 	SUBSCRIPTION_EVENTS,
 } from "@packages/dashboard-widgets";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
-import { ENGAGEMENT_EVENTS } from "../domain/engagement/engagement-events";
 
 const EXCLUDED_VISITOR_ID = "11111111-1111-4111-8111-111111111111";
 const EXCLUDED_USER_ID = "22222222222222222222222222222222";
@@ -311,7 +310,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(byVersion).not.toContain("count_distinct(visitor_hash)");
 	});
 
-	it("the homepage history widgets count exposures from the current split, the current version, and the retired split", () => {
+	it("the homepage history widgets count exposures from the current split only", () => {
 		const homepageQueries = buildBody()
 			.widgets.filter(({ properties }) => [
 				"Homepage — distinct visitors and landings by version",
@@ -320,8 +319,8 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			.map((widget) => String(widget.properties.query));
 		expect(homepageQueries.length).toBe(2);
 		for (const query of homepageQueries) {
-			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3", "homepage-ai-cost-e1", "homepage-ai-cost-e2", "${campaignTag(HOMEPAGE_SPLIT)}"]`);
-			expect(query).toContain('utm_campaign = "homepage-split-e3"');
+			expect(query).toContain(`experiment in ["${campaignTag(HOMEPAGE_SPLIT)}"]`);
+			expect(query).not.toContain("homepage-split-e3");
 		}
 	});
 

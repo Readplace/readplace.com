@@ -149,7 +149,7 @@ import { initStripeCheckout } from "./stripe-checkout/stripe-checkout";
 import { initDynamoDbPendingSignup } from "./pending-signup/dynamodb-pending-signup";
 import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./subscription-providers/dynamodb-subscription-writes";
-import { Logger, consoleLogger } from "@packages/logger";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress, initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
@@ -166,7 +166,7 @@ import { initDynamoDbPendingViewHighlights } from "./pending-view-highlights/dyn
  * absolute URL handed to a client has to point back at this process. */
 export function initProdProviders(input: { appOrigin: string }) {
 	const logger = Logger.from(consoleLogger);
-	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
+	const logError = (message: string, error?: Error) => logger.error(formatErrorLogLine({ message, error, now: () => new Date() }));
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, egress: { kind: "direct" } });

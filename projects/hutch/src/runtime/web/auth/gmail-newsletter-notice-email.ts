@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { GMAIL_HISTORY_IMPORT_WINDOW_DAYS } from "@packages/domain/gmail";
 import { render } from "@packages/web-shell";
 import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS, GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS } from "../../domain/gmail/gmail-newsletter-notice-cadence";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { EMAIL_COLORS } from "../email-colors";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
+import Handlebars from "handlebars";
+import { renderEmailCard } from "../email-card";
 
 const TEMPLATE = readFileSync(join(__dirname, "gmail-newsletter-notice-email.template.html"), "utf-8");
 const CTA_LABEL = "Choose readlists";
@@ -53,13 +55,13 @@ export function GmailNewsletterNoticeEmail(input: { founderAvatarUrl: string; ne
 	assert(input.newsletters.length > 0, "A Gmail newsletter notice lists at least one newsletter");
 	assert(input.newsletters.length > 1 || input.waiting === 0, "A single-newsletter Gmail notice never leaves newsletters waiting");
 	const [first] = input.newsletters;
-	const shared = { founderAvatarUrl: input.founderAvatarUrl, ctaLabel: CTA_LABEL, replyLine: EMAIL_REPLY_INVITATION, signoff: SIGNOFF, colors: EMAIL_COLORS, fontStack: EMAIL_FONT_STACK };
+	const shared = { founderAvatarUrl: input.founderAvatarUrl, ctaLabel: CTA_LABEL, replyLine: EMAIL_REPLY_INVITATION, signoff: SIGNOFF, colors: EMAIL_COLORS };
 	if (input.newsletters.length === 1) {
 		const copy = singleCopy(first);
 		return {
 			subject: copy.subject,
 			to(mediaType: "text/html" | "text/plain"): string {
-				if (mediaType === "text/html") return render(TEMPLATE, { ...shared, subject: copy.subject, openings: [copy.opening], lists: [], paragraph: copy.paragraph, ctaUrl: first.choiceUrl, footer: copy.footer });
+				if (mediaType === "text/html") return renderEmailCard({ titleHtml: Handlebars.Utils.escapeExpression(copy.subject), body: render(TEMPLATE, { ...shared, subject: copy.subject, openings: [copy.opening], lists: [], paragraph: copy.paragraph, ctaUrl: first.choiceUrl, footer: copy.footer }) });
 				return [`${copy.opening.before}${copy.opening.address}${copy.opening.after}`, copy.paragraph, `${CTA_LABEL}: ${first.choiceUrl}`, EMAIL_REPLY_INVITATION, SIGNOFF, copy.footer].join("\n\n");
 			},
 		};
@@ -78,7 +80,7 @@ export function GmailNewsletterNoticeEmail(input: { founderAvatarUrl: string; ne
 	return {
 		subject: copy.subject,
 		to(mediaType: "text/html" | "text/plain"): string {
-			if (mediaType === "text/html") return render(TEMPLATE, { ...shared, subject: copy.subject, openings: [], lists: [{ introLine: copy.introLine, items, notes }], paragraph: copy.paragraph, ctaUrl: input.gmailUrl, footer: copy.footer });
+			if (mediaType === "text/html") return renderEmailCard({ titleHtml: Handlebars.Utils.escapeExpression(copy.subject), body: render(TEMPLATE, { ...shared, subject: copy.subject, openings: [], lists: [{ introLine: copy.introLine, items, notes }], paragraph: copy.paragraph, ctaUrl: input.gmailUrl, footer: copy.footer }) });
 			return [
 				copy.introLine,
 				...items.map((item) => item.plain),

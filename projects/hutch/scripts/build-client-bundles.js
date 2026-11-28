@@ -20,7 +20,7 @@
 const esbuild = require("esbuild");
 const fs = require("node:fs");
 const path = require("node:path");
-const { SHARED_CLIENT_BUNDLES } = require("@packages/web-shell/client-bundles");
+const { SHARED_CLIENT_BUNDLES, buildOptions } = require("@packages/web-shell/client-bundles");
 const { PAGE_EXIT_KINDS } = require("@packages/web-analytics");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -592,23 +592,6 @@ const ALL_BUNDLES = [
   })),
   ...BUNDLES,
 ];
-
-function buildOptions(bundle) {
-  return {
-    entryPoints: [bundle.entry],
-    outfile: bundle.outfile,
-    bundle: true,
-    format: "iife",
-    globalName: bundle.globalName,
-    footer: { js: bundle.footer },
-    target: ["es2020"],
-    platform: "browser",
-    keepNames: false,
-    minify: false,
-    sourcemap: true,
-    logLevel: "info",
-  };
-}
 
 async function main() {
   const watch = process.argv.includes("--watch");

@@ -17,10 +17,9 @@ const session: MediaUploadSession = {
 	kind: "book",
 	saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
 	status: "staged",
-	metered: true,
 };
-const bookParams = { session, kind: BOOK, etag: '"e1"', size: 10 };
-const audioParams = { session: { ...session, kind: "audio" as const }, kind: AUDIO, etag: '"e1"', size: 10 };
+const bookParams = { session, kind: BOOK, etag: '"e1"' };
+const audioParams = { session: { ...session, kind: "audio" as const }, kind: AUDIO, etag: '"e1"' };
 const rule = { limit: 9, windowSeconds: 86_400 };
 const now = new Date("2026-11-13T21:30:00.000Z");
 const INACTIVE: EffectiveAccess = {

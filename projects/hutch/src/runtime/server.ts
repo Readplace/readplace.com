@@ -291,10 +291,7 @@ import { initMeterBookUploads } from "./web/pages/upload/meter-book-uploads";
 import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
-import {
-	initAnonymousUploadRoutes,
-	METERED_ONLY_UPLOAD_KINDS,
-} from "./web/pages/upload/upload-review.page";
+import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import type { ReadAdminTotpSecrets } from "./web/pages/admin/admin-totp-secrets";
@@ -340,8 +337,6 @@ import { initAdminRoutes } from "./web/pages/admin/admin.routes";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
-import { initQueueDigestMarkReadRoutes } from "./web/pages/queue-digest-mark-read/queue-digest-mark-read.page";
-import { initQueueDigestMarkReadToken } from "./domain/email/queue-digest-mark-read-token";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAccountPasswordRoutes } from "./web/pages/account/account-password.page";
 import { ACCOUNT_PASSWORD_URL, ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
@@ -377,6 +372,7 @@ import {
 	createCrossSiteRequestMiddleware,
 	createCspNonceMiddleware,
 	generateCspNonce,
+	NotFoundPage,
 	requireCspNonce,
 	sendComponent,
 	sendContentSecurityPolicy,
@@ -428,7 +424,6 @@ import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/pr
 import type { FindCanaryReport } from "@packages/provider-contracts/canary-report";
 import { LANDING_PAGE_CONTENT, LandingPage, landingPageLastModified } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
-import { NotFoundPage } from "./web/pages/not-found";
 import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
 import { initCanSaveContent } from "./web/middleware/can-save-content";
@@ -1280,14 +1275,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		);
 	});
 
-	// The arms of the retired homepage split were their own URLs, so they sit in
-	// histories and bookmarks; `/` is the page they ever meant.
-	for (const retiredArmPath of ["/landing-a", "/landing-b"]) {
-		app.get(retiredArmPath, (_req: Request, res: Response) => {
-			res.redirect(303, "/");
-		});
-	}
-
 	for (const slug of LANDING_PAGE_SLUGS) {
 		app.get(`/${slug}`, async (req: Request, res: Response) => {
 			sendComponent(
@@ -1751,7 +1738,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			mintUploadId: deps.mintUploadId,
 			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
-					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
 			logger: deps.uploadLogger,
@@ -1826,17 +1812,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			setQueueDigestOptOut: deps.setQueueDigestOptOut,
 			recordUngatedAnalyticsEvent,
 			now: deps.now,
-			buildBannerState,
-		}),
-	);
-
-	app.use(
-		initQueueDigestMarkReadRoutes({
-			verifyMarkReadToken: initQueueDigestMarkReadToken(deps.salt).verify,
-			updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
-			findArticleById: deps.findArticleById,
-			findReadlistArticleById: deps.findReadlistArticleById,
-			listReadlistDefinitions: deps.listReadlistDefinitions,
 			buildBannerState,
 		}),
 	);
@@ -1928,7 +1903,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/oauth", oauthRouter);
 
 	app.use(async (req: Request, res: Response) => {
-		sendComponent(req, res, Base(NotFoundPage(), await buildBannerState(req)));
+		sendComponent(req, res, Base(NotFoundPage({ trackSource: "not-found" }), await buildBannerState(req)));
 	});
 
 	return app;

@@ -8,7 +8,6 @@ import { join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DynamoDbStreamBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
 import {
-	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
 	CheckoutCompletedEvent,
@@ -101,7 +100,6 @@ import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-e
 import { REANCHOR_HIGHLIGHTS_ENV } from "../runtime/reanchor-highlights.env";
 import { SMART_READLIST_INTAKE_ENV } from "../runtime/smart-readlist-intake.env";
 import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
-import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
@@ -123,7 +121,8 @@ const adminTotpSecretsParameter = new aws.ssm.Parameter("admin-totp-secrets", {
 });
 const engagementDeploymentSha = config.require("engagementStarterDeploymentSha");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
-const domains = config.getObject<string[]>("domains") ?? [];
+const domains = config.requireObject<string[]>("domains");
+assert(domains.length > 0, "domains must have at least one entry");
 const SsrCdnSchema = z.object({
 	domain: z.string().min(1),
 	dnsTarget: z.enum(["api-gateway", "cloudfront"]),
@@ -289,10 +288,10 @@ const redirectSubdomains = config.getObject<Array<{ host: string; zoneName: stri
  *                          wins so migrating to a new canonical just means appending.
  */
 const [legacyPrimaryDomain, ...additionalDomains] = domains;
-const canonicalDomain: string | undefined = domains[domains.length - 1];
+const canonicalDomain: string = domains[domains.length - 1];
 
 const legacyDomainRegistration = new DomainRegistration("hutch-domain", {
-	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
+	domains: [legacyPrimaryDomain],
 });
 
 const additionalDomainRegistrations = additionalDomains.map((domain) =>
@@ -307,18 +306,14 @@ const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainReg
  * complete the DNSSEC chain of trust. */
 const canonicalDomainRegistration =
 	allDomainRegistrations[allDomainRegistrations.length - 1];
-const agentDiscoveryDns =
-	canonicalDomain && canonicalDomainRegistration?.zoneId
-		? new AgentDiscoveryDns("hutch-agent-dns", {
-				domain: canonicalDomain,
-				zoneId: canonicalDomainRegistration.zoneId,
-			})
-		: undefined;
+const agentDiscoveryDns = new AgentDiscoveryDns("hutch-agent-dns", {
+	domain: canonicalDomain,
+	zoneId: canonicalDomainRegistration.zoneId,
+});
 
-export const agentDnsDsRecord = agentDiscoveryDns?.dsRecord;
+export const agentDnsDsRecord = agentDiscoveryDns.dsRecord;
 
 if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
-	assert(canonicalDomain, "redirectDomains requires domains to be configured");
 	new DomainRedirect("hutch-redirect", {
 		redirectDomains,
 		redirectSubdomains,
@@ -328,10 +323,9 @@ if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
 
 const staticDomainEntries = staticDomains.map((staticDomain) => {
 	const parentIndex = domains.findIndex((d) => staticDomain.endsWith(`.${d}`));
-	const parentRegistration = parentIndex >= 0 ? allDomainRegistrations[parentIndex] : undefined;
-	return parentRegistration?.zoneId
-		? { domain: staticDomain, zoneId: parentRegistration.zoneId }
-		: { domain: staticDomain };
+	const parentRegistration = allDomainRegistrations[parentIndex];
+	assert(parentRegistration, `staticDomain ${staticDomain} must be a subdomain of a configured domain`);
+	return { domain: staticDomain, zoneId: parentRegistration.zoneId };
 });
 
 const staticAssets = new HutchStaticAssets("hutch-static", {
@@ -434,9 +428,7 @@ const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	description: `Readplace API Gateway (${stage})`,
 });
 
-export const appOrigin: pulumi.Input<string> = canonicalDomain
-	? `https://${canonicalDomain}`
-	: api.apiEndpoint;
+export const appOrigin: pulumi.Input<string> = `https://${canonicalDomain}`;
 
 // --- EventBridge Scheduler Group + Execution Role ---
 // One-shot schedules created at trial signup live in a dedicated group so a
@@ -730,7 +722,7 @@ const gateway = new APIGateway("hutch", {
 	api,
 	lambda: lambda,
 	stage,
-	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
+	domains: [legacyPrimaryDomain],
 	zoneId: legacyDomainRegistration.zoneId,
 	certificateArn: legacyDomainRegistration.certificateArn,
 	throttling: apiThrottle,
@@ -740,8 +732,6 @@ const gateway = new APIGateway("hutch", {
 for (const [i, domain] of additionalDomains.entries()) {
 	const safeName = domain.replace(/\./g, "-");
 	const registration = additionalDomainRegistrations[i];
-	assert(registration.certificateArn, `${domain} registration must have a certificate`);
-	assert(registration.zoneId, `${domain} registration must have a zoneId`);
 
 	const customDomain = new aws.apigatewayv2.DomainName(
 		`hutch-apigw-domain-${safeName}`,
@@ -2734,52 +2724,13 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 
 // --- Exports ---
 
-export const apiUrl: pulumi.Input<string> = canonicalDomain ? `https://${canonicalDomain}` : gateway.apiUrl;
+export const apiUrl: pulumi.Input<string> = `https://${canonicalDomain}`;
 // Consumed by sibling deployables (blog-site, marketing-site) via a Pulumi
 // StackReference to attach their own more-specific routes to this same API.
 export const apiGatewayId = gateway.apiGatewayId;
 export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const staticBaseUrl = staticAssets.baseUrl;
 export const _dependencies = [gateway.defaultRoute];
-
-const evaluateRefreshQueue = new Sqs("evaluate-oauth-refresh", { visibilityTimeoutSeconds: 180 });
-const evaluateRefreshRead = new DynamoDBAccess("evaluate-oauth-refresh-read", {
-	tables: [{ arn: oauthOutcomes.arn, includeIndexes: false }], actions: ["dynamodb:Query"],
-});
-const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
-	entryPoint: "./src/runtime/evaluate-oauth-refresh.main.ts", outputDir: ".lib/evaluate-oauth-refresh", assetDir: "./src/runtime",
-	memorySize: 256, timeout: 30,
-	environmentNames: EVALUATE_OAUTH_REFRESH_ENV,
-	environment: { EVENT_BUS_NAME: eventBus.eventBusName, DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name, OAUTH_TEST_GRANTS: JSON.stringify(config.requireObject("oauthTestGrants")) },
-	policies: [...evaluateRefreshRead.policies, { name: "oauth-refresh-metrics", policy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "cloudwatch:PutMetricData", Resource: "*", Condition: { StringEquals: { "cloudwatch:namespace": "Readplace/OAuth" } } }] }) }],
-});
-eventBus.grantPublish(evaluateRefreshLambda);
-new SqsBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
-const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
-	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
-});
-new aws.iam.RolePolicy("evaluate-oauth-refresh-scheduler-send", {
-	role: evaluateRefreshRole.id,
-	policy: evaluateRefreshQueue.queueArn.apply(arn => JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "sqs:SendMessage", Resource: arn }] })),
-});
-new aws.scheduler.Schedule("evaluate-oauth-refresh", {
-	scheduleExpression: "rate(1 minute)", flexibleTimeWindow: { mode: "OFF" },
-	target: { arn: evaluateRefreshQueue.queueArn, roleArn: evaluateRefreshRole.arn, input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>) },
-});
-new aws.cloudwatch.MetricAlarm("oauth-refresh-unexpected-comparison", {
-	name: "oauth-refresh-unexpected-comparison", namespace: "Readplace/OAuth", metricName: "OAuthRefreshUnexpected24h",
-	comparisonOperator: "GreaterThanOrEqualToThreshold", threshold: 5, period: 60, evaluationPeriods: 1, statistic: "Maximum", treatMissingData: "missing",
-	alarmDescription: "Five qualifying refresh failures in the preceding 24 hours; comparison alarm before production cutover",
-});
-new aws.cloudwatch.MetricAlarm("oauth-refresh-monitoring-health", {
-	name: "oauth-refresh-monitoring-health",
-	comparisonOperator: "LessThanThreshold", threshold: 1, evaluationPeriods: 5, datapointsToAlarm: 5, treatMissingData: "breaching",
-	metricQueries: [
-		{ id: "heartbeat", metric: { namespace: "Readplace/OAuth", metricName: "OAuthRefreshEvaluationSucceeded", period: 60, stat: "Maximum" }, returnData: false },
-		{ id: "completed", expression: "FILL(heartbeat, 0)", returnData: true },
-	],
-	alarmActions: [oauthRefreshRefusedTopic.arn], alarmDescription: "OAuth refresh monitoring has not completed an evaluation for five minutes",
-});
 
 if (mcpScanListingWindowHours !== undefined) {
 	new aws.cloudwatch.LogMetricFilter("mcp-tools-listed-by-openai-scan-filter", {

@@ -18,7 +18,6 @@ function appWriting(writers: UploadOutcomeWriters) {
 				req,
 				bannerState: { isAuthenticated: true, emailVerified: true, cspNonce: generateCspNonce() },
 				kinds: [],
-				metered: true,
 				transcriptAllowanceSeconds: 1200,
 			},
 		});
@@ -27,12 +26,12 @@ function appWriting(writers: UploadOutcomeWriters) {
 }
 
 describe("book-quota upload outcome", () => {
-	it("redirects a browser to the metered start page carrying the instant it may upload another book", async () => {
+	it("redirects a browser to the start page carrying the instant it may upload another book", async () => {
 		const response = await request(appWriting(UPLOAD_OUTCOME_HTML)).post("/received");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			"/upload?features=transcripts&refused=book-quota&retry_at=2026-11-14T00%3A00%3A00.000Z",
+			"/upload?refused=book-quota&retry_at=2026-11-14T00%3A00%3A00.000Z",
 		);
 	});
 

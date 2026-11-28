@@ -26,7 +26,7 @@ import { initInMemoryGmailHistory, initInMemoryRawEmailBucket } from "@packages/
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 import { type GmailHistoryImport, type GmailHistoryImportPage, type GmailHistoryImportStep, initGmailHistoryImport } from "./gmail-history-import";
 import { initGmailHistoryImportHandler } from "./gmail-history-import-handler";
 import { type CapturedGmailDiagnostic, captureGmailDiagnostics, throwingGmailDiagnosticSink } from "./gmail-import-diagnostics.test-helper";

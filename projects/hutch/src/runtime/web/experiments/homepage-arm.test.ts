@@ -11,10 +11,10 @@ function reqWithCookie(raw?: string): Request {
 	return { cookies: raw === undefined ? {} : { [EXPERIMENT_COOKIE_NAME]: raw } } as unknown as Request;
 }
 
-function resolve(input: { cookie?: string; eligible?: boolean; byte?: number; active?: boolean }) {
+function resolve(input: { cookie?: string; eligible?: boolean; byte?: number }) {
 	return resolveHomepageArm({
 		req: reqWithCookie(input.cookie),
-		config: { ...HOMEPAGE_SPLIT, active: input.active ?? true },
+		config: HOMEPAGE_SPLIT,
 		eligible: input.eligible ?? true,
 		drawRandomByte: () => input.byte ?? 0,
 	});
@@ -69,13 +69,6 @@ describe("resolveHomepageArm", () => {
 
 	it("ignores a recorded assignment for an ineligible visitor, so a crawler carrying a cookie still gets the incumbent", () => {
 		const arm = resolve({ eligible: false, cookie: "homepage-ai-cost:3:variant-f" });
-
-		assert.equal(arm.variant, VARIANT_A);
-		expect(arm.participating).toBe(false);
-	});
-
-	it("serves the incumbent arm to everyone once the kill switch is off", () => {
-		const arm = resolve({ active: false, cookie: "homepage-ai-cost:3:variant-f", byte: 255 });
 
 		assert.equal(arm.variant, VARIANT_A);
 		expect(arm.participating).toBe(false);

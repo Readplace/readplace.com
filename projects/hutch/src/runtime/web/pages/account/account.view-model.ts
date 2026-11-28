@@ -21,6 +21,7 @@ import {
 	parsePollParam,
 	toAbsoluteDate,
 	toRelativePhrase,
+	trackedGetForm,
 	withInternalTracking,
 } from "@packages/web-shell";
 import {
@@ -37,7 +38,6 @@ import {
 	ACCOUNT_CARDS_CONFIRM_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
-	ACCOUNT_IMPORT_URL,
 	ACCOUNT_INVOICES_URL,
 	ACCOUNT_PROFILE_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -308,17 +308,14 @@ function postAction(input: ActionInput): AccountAction {
 
 function getAction(input: ActionInput & { fields: AccountHiddenField[] }): AccountAction {
 	const { fields, ...rest } = input;
-	const tracked = new URL(
-		withInternalTracking(input.href, { source: ACCOUNT_SOURCE, content: input.key }),
-		APP_HREF_PARSE_ORIGIN,
-	);
+	const form = trackedGetForm(input.href, { source: ACCOUNT_SOURCE, content: input.key });
 	return {
 		...rest,
 		method: "GET",
 		isPending: false,
 		buttonClass: ACCOUNT_ACTION_BUTTON_CLASS[input.variant],
-		href: tracked.pathname,
-		hiddenFields: [...Array.from(tracked.searchParams, ([name, value]) => ({ name, value })), ...fields],
+		href: form.action,
+		hiddenFields: [...form.fields, ...fields],
 	};
 }
 
@@ -880,7 +877,6 @@ function withoutPurchaseActions(actions: AccountAction[], options: AppSurfaceOpt
 export interface AppearanceOptionView {
 	value: AppearancePreference;
 	label: string;
-	active: boolean;
 	ariaPressed: "true" | "false";
 }
 
@@ -921,7 +917,6 @@ export function buildAppearanceSection(input: {
 				return {
 					value,
 					label: APPEARANCE_LABELS[value],
-					active,
 					ariaPressed: active ? "true" : "false",
 				};
 			}),
@@ -1001,24 +996,6 @@ export function buildSecuritySection(input: {
 		updated: updatedAt === undefined ? undefined : toRelativePhrase({ iso: updatedAt, now: input.now }),
 		changed: input.changed,
 	};
-}
-
-interface AccountImportLink {
-	href: string;
-}
-
-export interface AccountImportRow {
-	links: readonly AccountImportLink[];
-	locks: readonly string[];
-}
-
-const IMPORT_ROW: AccountImportRow = {
-	links: [{ href: withInternalTracking(ACCOUNT_IMPORT_URL, { source: ACCOUNT_SOURCE, content: "import" }) }],
-	locks: [],
-};
-
-export function buildImportLinks(): readonly AccountImportRow[] {
-	return [IMPORT_ROW];
 }
 
 /** Rewrites the account view model for the app's in-app web surface: strips

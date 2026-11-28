@@ -80,51 +80,17 @@ describe("POST /import/from-url routes", () => {
 			expect(button.textContent).toBe("Fetch link");
 		});
 
-		it("prefills the url input and emits the auto-submit script for a from-url deep link", async () => {
+		it("ignores a url param and leaves the url input empty", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?url=https://news.ycombinator.com");
 
-			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const input = doc.querySelector("[data-test-import-from-url-input]");
 			assert(input, "url input must be rendered");
-			expect(input.getAttribute("value")).toBe("https://news.ycombinator.com");
-			expect(response.text).toContain("form.requestSubmit()");
-		});
-
-		it("contains the prefilled url inside the input attribute without breaking out into markup", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const response = await agent.get(
-				`/import?url=${encodeURIComponent('https://evil.example/"><script>alert(1)</script>')}`,
-			);
-
-			expect(response.status).toBe(200);
-			const doc = new JSDOM(response.text).window.document;
-			const injected = Array.from(doc.querySelectorAll("script")).some((s) =>
-				s.textContent?.includes("alert(1)"),
-			);
-			assert(!injected, "the payload must not be parsed as a real <script> element");
-			const input = doc.querySelector("[data-test-import-from-url-input]");
-			assert(input, "url input must be rendered");
-			expect(input.getAttribute("value")).toBe(
-				'https://evil.example/"><script>alert(1)</script>',
-			);
-		});
-
-		it("leaves the url input empty when no url param is supplied", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const response = await agent.get("/import");
-
-			const doc = new JSDOM(response.text).window.document;
-			const input = doc.querySelector("[data-test-import-from-url-input]");
-			assert(input, "url input must be rendered");
-			expect(input.getAttribute("value")).toBe("");
+			expect(input.hasAttribute("value")).toBe(false);
+			expect(response.text).not.toContain("requestSubmit");
 		});
 
 		it("keeps rendering the from-url panel for the legacy ?mode=from-url deep link", async () => {
@@ -147,21 +113,6 @@ describe("POST /import/from-url routes", () => {
 			expect(canonical.getAttribute("href")).toBe("https://readplace.com/import");
 		});
 
-		it("prefills and auto-submits for the legacy ?mode=from-url&url deep link", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const response = await agent.get(
-				"/import?mode=from-url&url=https://news.ycombinator.com",
-			);
-
-			expect(response.status).toBe(200);
-			const doc = new JSDOM(response.text).window.document;
-			const input = doc.querySelector("[data-test-import-from-url-input]");
-			assert(input, "url input must be rendered");
-			expect(input.getAttribute("value")).toBe("https://news.ycombinator.com");
-			expect(response.text).toContain("form.requestSubmit()");
-		});
 	});
 
 	describe("POST /import/from-url (unauthenticated)", () => {

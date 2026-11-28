@@ -1,4 +1,5 @@
 
+import { safeJsonParse } from "../../../safe-json-parse";
 import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import {
@@ -124,14 +125,6 @@ function normalizeMediaType(mediaType: string): string {
 
 function isPdfMediaType(mediaType: string): boolean {
 	return normalizeMediaType(mediaType) === "application/pdf";
-}
-
-function safeJsonParse(text: string): unknown {
-	try {
-		return JSON.parse(text);
-	} catch {
-		return undefined;
-	}
 }
 
 const SAVE_ATTEMPT_ID_HEADER = "x-readplace-save-attempt-id";

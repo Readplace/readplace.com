@@ -275,7 +275,7 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 	{
 		slug: "queue-digest--default",
 		widths: [DESKTOP, MOBILE],
-		buttons: 2,
+		buttons: 1,
 		html: () =>
 			QueueDigestEmail({
 				kind: "regular",
@@ -304,13 +304,12 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 					sendId: "b6e3f0a2-5c1d-4e7f-9a83-2d4c6e8f1a57",
 					unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.db6e0c9463396e7e6143ec80076a062a3ca046dd6838dc5ba87abf7f7af7e7cc",
 				},
-				markReadToken: "eyJ1c2VySWQiOiI0ZjlhMWM3ZTJiM2Q0OGU2YTBjNWQ5ZjFlN2IyYTZjMyIsImFydGljbGVJZHMiOlsiMmNlNWQwNTg5NWRmMDlhNzhmNmY0MGIyODQ1MjRiMDUiLCI3YzM2OGVmZmJkY2E0NmEwZjUyYzJlZmMwMjQ3OGI0YyIsIjJiMGVkODFjZTJjNjNiYmM3MGJjOTAyZTU4YjgzZmNmIl19.3e29653bc13b1de7cd70048916a139b43e9dd421ff22d71f185b153a1fd0abc8",
 			}).to("text/html"),
 	},
 	{
 		slug: "queue-digest--single-article",
 		widths: [DESKTOP],
-		buttons: 2,
+		buttons: 1,
 		html: () =>
 			QueueDigestEmail({
 				kind: "regular",
@@ -327,7 +326,6 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 					sendId: "e41a7b39-6d02-4c85-b1f3-7a9e2c5d0b68",
 					unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.db6e0c9463396e7e6143ec80076a062a3ca046dd6838dc5ba87abf7f7af7e7cc",
 				},
-				markReadToken: "eyJ1c2VySWQiOiI0ZjlhMWM3ZTJiM2Q0OGU2YTBjNWQ5ZjFlN2IyYTZjMyIsImFydGljbGVJZHMiOlsiZWQ5ZDZjNWIzYjIyZmI5ZmUxZGJiMTMwMjFmNTM2OGYiXX0.4096df2c23e0f123f29a24baba2b74a0fed46f9a2b155b2940b9c2fab97e25fe",
 			}).to("text/html"),
 	},
 	{
@@ -487,7 +485,6 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 			buildUserDataExportEmailHtml({
 				downloadUrl: "https://hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com/exports/944bd89b7f3dea9073c72bedad648df4/2026-10-06T05-17-44-312Z.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAIOSFODNN7EXAMPLE%2F20261006%2Fap-southeast-2%2Fs3%2Faws4_request&X-Amz-Date=20261006T051744Z&X-Amz-Expires=604800&X-Amz-Security-Token=IQoJb3JpZ2luX2VjECOuCv4z1WzgSJYnZ6NtjVo0urgC3ptD%2FbJr%2B0Yoy79kZmosULyG607XbAEFYEqOTpwsiYL%2BZ98RS1EksKuOxcHiCV636GPb5izUv0yDmKwbmuWJxS08y%2FSoJaHgZs5hv69YwzE1hPIwgLlEChNhz7AICvOBNINK28kUI4wfVaNrG9K4D0Cs4Kxtkv89cffmnjW9zCnEL0M9iiSp%2F4emxLyn913EYxCY3OgfA5qsO5UiTRMuTP%2FeDocx7%2Bfhg%2F3%2BeLpd7ZKemhoSXgvvY7OXKFGE%2FM9B7GYWyKXxoiNl8EvQuPIpp0EgFVcc0wyCEn3WBQtH3%2Fm%2BBJHI0tzQRM24kbJJMew7d4uKKbLsXH1cfBfM7QEorYYXF%2ByMOd3%2B5DMWrIsnoM6HNjgTZ0bLOHde%2Ff2oPyYba0iXcGPuuSib0nek0YHWIOIwGAOaDpqLwSJxTrUiHuYbAoj3HcNNZYc4Ibr1AKkFRps6TOBKnhZY04XgHhwBZn7fQCPBxsPtKr35k2VFBP0f1W71x3q6yPhA%2BjNIml4ZmgfUS2TfpMlwg5NQ5jc29tTzeXoKLTY3prb5bobzj7ydXvLGUu9xN6qHmGHXtGcCXKkromF6Exs86ftmYfvoNjencuavWiFfk9dbmtsUGuGrQZ5xUcZlWKjYxn3gVxXD59jNVHj5j9kglmCRTNDgLxmgMZAuASWdOOuegGqxDLB2kAXl73YaFkcXgf2DFcwVK4DNGonX8AkFEuNZJaxpZ3GMVMP1i2eSld70koGWVAlo2IsidT3laXhiUKV63jAzMaaakWD%2BOTADQeKsojhlW44JjaMuGdTdCZ8fbBZQauEWp9NKyUENpzudBjPkYj%2FwRFYUiP7D9Jh9Ue5v03kqQWM4GROhBW8DvevpMGAweljkwGEuQwFjVEtWK67fpMgGclD9hcU38BKYVvdPVzpJd28YAxhmFRh4E%2Bb5cQv6mPE7ZpyHb2pyDA0f3wnCahf1UX20dlYjWIsM2nq3c81QBQlp1Cm2o0CzGCDAQulM6xewfcOrDmGV%2BxqgZVDTjn7qIA9pWwVv4z47qNMQ%3D&X-Amz-Signature=eca0547fd269f10d4179de4009f3bd32d1fdc31cc1183f5061c549fa6e78cb86&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
 				articleCount: 14,
-				ttlDays: 7,
 			}),
 	},
 	{
@@ -498,7 +495,6 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 			buildUserDataExportEmailHtml({
 				downloadUrl: "https://hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com/exports/c1c4bd92a3f35e7421ea2a3533ad7ab4/2026-10-06T05-17-44-357Z.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAIOSFODNN7EXAMPLE%2F20261006%2Fap-southeast-2%2Fs3%2Faws4_request&X-Amz-Date=20261006T051744Z&X-Amz-Expires=604800&X-Amz-Security-Token=IQoJb3JpZ2luX2VjECOuCv4z1WzgSJYnZ6NtjVo0urgC3ptD%2FbJr%2B0Yoy79kZmosULyG607XbAEFYEqOTpwsiYL%2BZ98RS1EksKuOxcHiCV636GPb5izUv0yDmKwbmuWJxS08y%2FSoJaHgZs5hv69YwzE1hPIwgLlEChNhz7AICvOBNINK28kUI4wfVaNrG9K4D0Cs4Kxtkv89cffmnjW9zCnEL0M9iiSp%2F4emxLyn913EYxCY3OgfA5qsO5UiTRMuTP%2FeDocx7%2Bfhg%2F3%2BeLpd7ZKemhoSXgvvY7OXKFGE%2FM9B7GYWyKXxoiNl8EvQuPIpp0EgFVcc0wyCEn3WBQtH3%2Fm%2BBJHI0tzQRM24kbJJMew7d4uKKbLsXH1cfBfM7QEorYYXF%2ByMOd3%2B5DMWrIsnoM6HNjgTZ0bLOHde%2Ff2oPyYba0iXcGPuuSib0nek0YHWIOIwGAOaDpqLwSJxTrUiHuYbAoj3HcNNZYc4Ibr1AKkFRps6TOBKnhZY04XgHhwBZn7fQCPBxsPtKr35k2VFBP0f1W71x3q6yPhA%2BjNIml4ZmgfUS2TfpMlwg5NQ5jc29tTzeXoKLTY3prb5bobzj7ydXvLGUu9xN6qHmGHXtGcCXKkromF6Exs86ftmYfvoNjencuavWiFfk9dbmtsUGuGrQZ5xUcZlWKjYxn3gVxXD59jNVHj5j9kglmCRTNDgLxmgMZAuASWdOOuegGqxDLB2kAXl73YaFkcXgf2DFcwVK4DNGonX8AkFEuNZJaxpZ3GMVMP1i2eSld70koGWVAlo2IsidT3laXhiUKV63jAzMaaakWD%2BOTADQeKsojhlW44JjaMuGdTdCZ8fbBZQauEWp9NKyUENpzudBjPkYj%2FwRFYUiP7D9Jh9Ue5v03kqQWM4GROhBW8DvevpMGAweljkwGEuQwFjVEtWK67fpMgGclD9hcU38BKYVvdPVzpJd28YAxhmFRh4E%2Bb5cQv6mPE7ZpyHb2pyDA0f3wnCahf1UX20dlYjWIsM2nq3c81QBQlp1Cm2o0CzGCDAQulM6xewfcOrDmGV%2BxqgZVDTjn7qIA9pWwVv4z47qNMQ%3D&X-Amz-Signature=e89065f32359a6c532851a231b4fbb88a4554715904d44381bc2f1b315383fe7&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
 				articleCount: 1,
-				ttlDays: 7,
 			}),
 	},
 	{
@@ -509,7 +505,6 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 			buildUserDataExportEmailHtml({
 				downloadUrl: "https://hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com/exports/ae70c7d8d05cba7ca83575ce2d89516b/2026-10-06T05-17-44-373Z.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAIOSFODNN7EXAMPLE%2F20261006%2Fap-southeast-2%2Fs3%2Faws4_request&X-Amz-Date=20261006T051744Z&X-Amz-Expires=604800&X-Amz-Security-Token=IQoJb3JpZ2luX2VjECOuCv4z1WzgSJYnZ6NtjVo0urgC3ptD%2FbJr%2B0Yoy79kZmosULyG607XbAEFYEqOTpwsiYL%2BZ98RS1EksKuOxcHiCV636GPb5izUv0yDmKwbmuWJxS08y%2FSoJaHgZs5hv69YwzE1hPIwgLlEChNhz7AICvOBNINK28kUI4wfVaNrG9K4D0Cs4Kxtkv89cffmnjW9zCnEL0M9iiSp%2F4emxLyn913EYxCY3OgfA5qsO5UiTRMuTP%2FeDocx7%2Bfhg%2F3%2BeLpd7ZKemhoSXgvvY7OXKFGE%2FM9B7GYWyKXxoiNl8EvQuPIpp0EgFVcc0wyCEn3WBQtH3%2Fm%2BBJHI0tzQRM24kbJJMew7d4uKKbLsXH1cfBfM7QEorYYXF%2ByMOd3%2B5DMWrIsnoM6HNjgTZ0bLOHde%2Ff2oPyYba0iXcGPuuSib0nek0YHWIOIwGAOaDpqLwSJxTrUiHuYbAoj3HcNNZYc4Ibr1AKkFRps6TOBKnhZY04XgHhwBZn7fQCPBxsPtKr35k2VFBP0f1W71x3q6yPhA%2BjNIml4ZmgfUS2TfpMlwg5NQ5jc29tTzeXoKLTY3prb5bobzj7ydXvLGUu9xN6qHmGHXtGcCXKkromF6Exs86ftmYfvoNjencuavWiFfk9dbmtsUGuGrQZ5xUcZlWKjYxn3gVxXD59jNVHj5j9kglmCRTNDgLxmgMZAuASWdOOuegGqxDLB2kAXl73YaFkcXgf2DFcwVK4DNGonX8AkFEuNZJaxpZ3GMVMP1i2eSld70koGWVAlo2IsidT3laXhiUKV63jAzMaaakWD%2BOTADQeKsojhlW44JjaMuGdTdCZ8fbBZQauEWp9NKyUENpzudBjPkYj%2FwRFYUiP7D9Jh9Ue5v03kqQWM4GROhBW8DvevpMGAweljkwGEuQwFjVEtWK67fpMgGclD9hcU38BKYVvdPVzpJd28YAxhmFRh4E%2Bb5cQv6mPE7ZpyHb2pyDA0f3wnCahf1UX20dlYjWIsM2nq3c81QBQlp1Cm2o0CzGCDAQulM6xewfcOrDmGV%2BxqgZVDTjn7qIA9pWwVv4z47qNMQ%3D&X-Amz-Signature=9e2bbca61febba79cf983c71a89a0419c741e2225f5c359a5e984b591d8830f9&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
 				articleCount: 0,
-				ttlDays: 7,
 			}),
 	},
 	{

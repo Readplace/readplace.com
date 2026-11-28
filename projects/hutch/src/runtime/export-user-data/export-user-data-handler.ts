@@ -1,3 +1,4 @@
+import { READPLACE_SENDER, REPLY_TO } from "../email-senders";
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
@@ -35,11 +36,8 @@ import {
 	toExportRemovedArticle,
 } from "../web/pages/export/build-export-record";
 import { groupHighlightsByArticle, toExportHighlights } from "../web/pages/export/build-export-highlight";
-import { EXPORT_DOWNLOAD_TTL_DAYS } from "../web/pages/export/export-ttl";
 import { buildUserDataExportEmailHtml } from "../web/pages/export/user-data-export-email";
 
-const EMAIL_FROM = "Readplace <readplace@readplace.com>";
-const EMAIL_REPLY_TO = "fayner@readplace.com";
 const PAGE_SIZE = 500;
 
 export interface ExportUserDataDependencies {
@@ -169,14 +167,13 @@ async function processCommand(
 	}
 
 	await deps.sendEmail({
-		from: EMAIL_FROM,
-		replyTo: EMAIL_REPLY_TO,
+		from: READPLACE_SENDER,
+		replyTo: REPLY_TO,
 		to: beforeSend.email,
 		subject: "Your Readplace export is ready",
 		html: buildUserDataExportEmailHtml({
 			downloadUrl,
 			articleCount: articles.length,
-			ttlDays: EXPORT_DOWNLOAD_TTL_DAYS,
 		}),
 	});
 	deps.logger.info("[ExportUserData] sent email", {

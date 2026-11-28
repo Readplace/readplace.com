@@ -282,7 +282,7 @@ describe("observedFetch", () => {
 			{ failure: new TypeError("fetch failed sentinel", { cause: { code: "ECONNRESET" } }), expected: { errorName: "TypeError", errorCode: "ECONNRESET" } },
 			{ failure: Object.assign(new Error("sentinel timeout"), { code: "ETIMEDOUT" }), expected: { errorName: "Error", errorCode: "ETIMEDOUT" } },
 			{ failure: new TypeError("fetch failed", { cause: { code: "econnreset sentinel" } }), expected: { errorName: "TypeError", errorCode: undefined } },
-			{ failure: "sentinel string thrown", expected: { errorName: "unknown", errorCode: undefined } },
+			{ failure: "sentinel string thrown", expected: { errorName: "non-error:string", errorCode: undefined } },
 		];
 
 		for (const { failure, expected } of cases) {

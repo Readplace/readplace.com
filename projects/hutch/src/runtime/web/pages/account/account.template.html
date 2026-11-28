@@ -66,7 +66,6 @@
                 <a class="btn btn--neutral btn--m" href="{{exportHref}}" data-test-account-export-link>{{icon "download"}}Export data</a>
               </div>
             </div>
-            {{#each importLinks}}
             <div class="account-row">
               <span class="account-row__icon" aria-hidden="true">{{icon "file-down"}}</span>
               <div class="account-row__text">
@@ -74,15 +73,9 @@
                 <p class="account-row__description">Paste a page link or upload a bookmarks file.</p>
               </div>
               <div class="account-row__actions">
-                {{#each links}}
-                <a class="btn btn--neutral btn--m" href="{{href}}" data-test-account-import-link>{{icon "file-down"}}Import links</a>
-                {{/each}}
-                {{#each locks}}
-                {{{this}}}
-                {{/each}}
+                <a class="btn btn--neutral btn--m" href="{{importHref}}" data-test-account-import-link>{{icon "file-down"}}Import links</a>
               </div>
             </div>
-            {{/each}}
           </div>
         </section>
         <section class="account-section" aria-labelledby="account-section-danger" data-test-account-section="danger">

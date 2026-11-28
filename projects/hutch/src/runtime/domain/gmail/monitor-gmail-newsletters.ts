@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { DiscoveredGmailSender, GmailConnection, GmailConnectionStore, GmailDiscoveryStore, GmailMappingStore } from "@packages/domain/gmail";
+import { type DiscoveredGmailSender, type GmailConnection, type GmailConnectionStore, type GmailDiscoveryStore, type GmailMappingStore, liveGmailConnection, sameGmailAccount } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import type { UserId } from "@packages/domain/user";
 import type { GmailIncomingMailbox, GmailMailboxResult } from "@packages/provider-contracts/gmail-mailbox";
@@ -32,7 +32,7 @@ export function initMonitorGmailNewsletters(deps: {
 }): MonitorGmailNewsletters {
 	async function active(userId: UserId) {
 		const connection = await deps.connections.findConnectionByUserId(userId);
-		return connection === undefined || connection.accountEmail === undefined || connection.disconnectRequestedAt !== undefined || connection.revokedAt !== undefined ? undefined : connection;
+		return liveGmailConnection(connection) ? connection : undefined;
 	}
 	async function read<T>(connection: GmailConnection, result: GmailMailboxResult<T>): Promise<T | undefined> {
 		if (result.ok) return result.value;
@@ -61,18 +61,18 @@ export function initMonitorGmailNewsletters(deps: {
 		const checkpoint = await deps.monitoring.findCheckpoint(input.userId);
 		if (checkpoint === undefined || checkpoint.generation !== input.generation) return progress(undefined);
 		const connection = await active(input.userId);
-		if (connection === undefined || connection.gatewayAddress !== checkpoint.gatewayAddress || connection.accountEmail?.toLowerCase() !== checkpoint.accountEmail.toLowerCase()) return progress(undefined);
+		if (connection === undefined || connection.gatewayAddress !== checkpoint.gatewayAddress || !sameGmailAccount(connection.accountEmail, checkpoint.accountEmail)) return progress(undefined);
 		if (checkpoint.page !== input.page || checkpoint.mode === "complete") return progress(checkpoint);
 		assert(await deps.monitoring.claimPage(input), "Gmail monitoring page is already being processed; retry after the lease");
 		let next: GmailMonitoringCheckpoint = { ...checkpoint, page: checkpoint.page + 1, noticesToDispatch: [] };
 		let notices: GmailMonitoringProgress["notices"] = [];
 		if (checkpoint.mode === "profile") {
 			const profile = await read(connection, await deps.mailbox.findProfile({ userId: input.userId }));
-			if (profile === undefined || profile.accountEmail.toLowerCase() !== checkpoint.accountEmail.toLowerCase()) return progress(undefined);
+			if (profile === undefined || !sameGmailAccount(profile.accountEmail, checkpoint.accountEmail)) return progress(undefined);
 			next = { ...next, historyId: profile.historyId, mode: checkpoint.initializing ? "discovered" : "baseline", pageToken: undefined, scannedCount: 0, lastCheckedAt: checkpoint.initializing ? deps.now().getTime() : checkpoint.lastCheckedAt };
 		} else if (checkpoint.mode === "discovered") {
 			const discovery = await deps.discovery.findDiscoveryByUserId(input.userId);
-			const sameMailbox = discovery?.accountEmail.toLowerCase() === checkpoint.accountEmail.toLowerCase() && discovery.gatewayAddress === checkpoint.gatewayAddress;
+			const sameMailbox = discovery !== undefined && sameGmailAccount(discovery.accountEmail, checkpoint.accountEmail) && discovery.gatewayAddress === checkpoint.gatewayAddress;
 			const found = sameMailbox ? await deps.discovery.listSendersPage({ userId: input.userId, pageToken: checkpoint.pageToken }) : { senders: [], nextPageToken: undefined };
 			await observe(checkpoint, found.senders, "baseline");
 			next = { ...next, pageToken: found.nextPageToken, mode: found.nextPageToken !== undefined ? "discovered" : checkpoint.initializing ? "baseline" : "arrivals" };
@@ -115,7 +115,7 @@ export function initMonitorGmailNewsletters(deps: {
 			const connection = await active(userId);
 			if (connection?.accountEmail === undefined) return progress(undefined);
 			const previous = await deps.monitoring.findCheckpoint(userId);
-			const sameMailbox = previous?.accountEmail.toLowerCase() === connection.accountEmail.toLowerCase();
+			const sameMailbox = previous !== undefined && sameGmailAccount(previous.accountEmail, connection.accountEmail);
 			if (!sameMailbox || previous.mode === "complete" || previous.gatewayAddress !== connection.gatewayAddress) {
 				const generation = deps.newGeneration();
 				const checkpoint: GmailMonitoringCheckpoint = {

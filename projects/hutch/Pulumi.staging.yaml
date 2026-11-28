@@ -105,6 +105,5 @@ config:
   hutch:engagementStarterDeploymentSha: '86715381be193c8cf0b8fe2eb53428ee4ff91970'
   hutch:excludedUserIds: []
   hutch:dynamodbOAuthOutcomesTable: hutch-oauth-refresh-outcomes-staging
-  hutch:oauthTestGrants: []
 secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
 encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwHQT+rUV4n8rO+oTGoWp96NAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM3ZhjLwx6EHTR5rrPAgEQgDudq/iuCNPtCmG4d23b5fwD2XiNXU0vtgRVkNZ4JYOLj+XlwTOcTdmJUEWbUTGDnZ7XTSvRdjAzgolWWQ==

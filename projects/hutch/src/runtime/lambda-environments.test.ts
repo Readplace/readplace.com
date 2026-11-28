@@ -22,7 +22,6 @@ import { SUBSCRIPTION_EVENTS_ENV } from "./subscription-events.env";
 import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "./send-trial-feedback-email.env";
 import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "./send-first-inbox-email-notice.env";
 import { FORWARD_ANALYTICS_ENV } from "./forward-analytics.env";
-import { EVALUATE_OAUTH_REFRESH_ENV } from "./evaluate-oauth-refresh.env";
 import { REANCHOR_HIGHLIGHTS_ENV } from "./reanchor-highlights.env";
 import { SMART_READLIST_INTAKE_ENV } from "./smart-readlist-intake.env";
 
@@ -51,7 +50,6 @@ const tuples = {
 	SEND_TRIAL_FEEDBACK_EMAIL_ENV,
 	SEND_FIRST_INBOX_EMAIL_NOTICE_ENV,
 	FORWARD_ANALYTICS_ENV,
-	EVALUATE_OAUTH_REFRESH_ENV,
 	REANCHOR_HIGHLIGHTS_ENV,
 	SMART_READLIST_INTAKE_ENV,
 };

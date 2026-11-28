@@ -5,7 +5,7 @@ import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
 import { z } from "zod";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import type { GmailDiagnosticEvent } from "../../../observability/gmail-diagnostics";
+import type { GmailDiagnosticEvent } from "../../../domain/gmail/gmail-diagnostic.types";
 import { signState } from "../../auth/oauth-state";
 import {
 	fingerprintGmailOAuthState,

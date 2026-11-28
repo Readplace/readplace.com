@@ -3,7 +3,6 @@ import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { initDynamoRefreshOutcomes } from "./dynamodb-outcomes";
 import { RefreshAttempt } from "./evidence";
-import { initEvaluateRefreshOutcomes } from "./outcomes";
 
 const keySchema = z.object({ day: z.string(), order: z.string() });
 const commandSchema = z.object({
@@ -54,9 +53,7 @@ it("preserves recovery delivered before refusal and does not inflate duplicate o
 	const { store } = setup();
 	const attempt = RefreshAttempt.parse({ refusalId: "first", occurredAt: Date.parse("2026-09-11T12:00:00Z"), fingerprint: "fingerprint" });
 	const refusal = { ...attempt, reason: "unknown", status: 400 };
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: store.readDay, testGrants: [], publish: async () => {} });
 	await store.recover(attempt, attempt.occurredAt + 1000);
-	expect(await evaluate(attempt.occurredAt + 360_000)).toMatchObject({ raw: 0, recovered: 0, unexpected: 0 });
 	await store.refuse(refusal);
 	await store.refuse({ ...refusal, status: 503 });
 	await store.recover(attempt, attempt.occurredAt + 2000);
@@ -66,7 +63,6 @@ it("preserves recovery delivered before refusal and does not inflate duplicate o
 		expiresAt: attempt.occurredAt / 1000 + 31 * 86400,
 		refusal, recoveredAt: attempt.occurredAt + 1000,
 	}]);
-	expect(await evaluate(attempt.occurredAt + 360_000)).toMatchObject({ raw: 1, recovered: 1, unexpected: 0 });
 });
 
 it("strongly consistently reads every page within the original refusal interval", async () => {
@@ -82,8 +78,8 @@ it("strongly consistently reads every page within the original refusal interval"
 	expect(queries.slice(1).map(query => query.ExclusiveStartKey)).toEqual(rows.slice(0, 2).map(({ day, order }) => ({ day, order })));
 });
 
-it.each([1, 2])("propagates a failed query page %s and does not publish a partial evaluation", async page => {
-	const { store, controls, queries } = setup();
+it.each([1, 2])("propagates a failed query page %s", async page => {
+	const { store, controls } = setup();
 	const occurredAt = Date.parse("2026-09-11T12:00:00Z");
 	for (const refusalId of ["first", "second"]) {
 		const attempt = RefreshAttempt.parse({ refusalId, occurredAt, fingerprint: "fingerprint" });
@@ -91,12 +87,6 @@ it.each([1, 2])("propagates a failed query page %s and does not publish a partia
 	}
 	controls.failQueryAt = page;
 	await expect(store.readDay({ day: "2026-09-11", from: occurredAt, until: occurredAt })).rejects.toThrow("query unavailable");
-	queries.length = 0;
-	controls.failQueryAt = page + 1;
-	const publish = jest.fn().mockResolvedValue(undefined);
-	const evaluate = initEvaluateRefreshOutcomes({ readDay: store.readDay, testGrants: [], publish });
-	await expect(evaluate(occurredAt + 360_000)).rejects.toThrow("query unavailable");
-	expect(publish.mock.calls).toEqual([]);
 });
 
 it("propagates refusal and recovery write failures to their delivery retry paths", async () => {

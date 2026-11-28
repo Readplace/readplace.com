@@ -1,0 +1,5 @@
+<form method="POST" action="{{addUrl}}" class="account-billing__add-form"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                    hx-push-url="false" data-test-add-card>
+                    <button type="submit" class="btn btn--neutral btn--m">{{icon "plus"}}<span class="account__action-label">Add a card</span>{{{loaderHtml}}}</button>
+                  </form>

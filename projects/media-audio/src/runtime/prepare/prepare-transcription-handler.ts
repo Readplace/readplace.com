@@ -11,7 +11,7 @@ import {
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import { stagedObjectKey } from "@packages/media-contracts";
+import { stagedObjectKey, transcriptsKeyPrefix } from "@packages/media-contracts";
 import type { UnrefAllForUpload } from "@packages/media-object-store";
 import type {
 	MarkTranscriptStarted,
@@ -35,7 +35,6 @@ import {
 	transcriptionInputKey,
 	transcriptionJobName,
 	transcriptOutputKey,
-	transcriptsKeyPrefix,
 } from "./transcription-keys";
 
 const CommittedEnvelope = z.object({

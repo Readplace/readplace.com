@@ -1,5 +1,6 @@
 import { noopLogger } from "@packages/logger";
-import { initRefreshProof, CredentialHistory, OAuthGrantId } from "./evidence";
+import { OAuthGrantIdSchema } from "@packages/domain/oauth";
+import { initRefreshProof, CredentialHistory } from "./evidence";
 import { initVerifyRefreshRecovery } from "./recovery";
 
 const now = 1_800_000_000_000;
@@ -34,7 +35,7 @@ it.each(["forged", proof.sign(proof.attempt("old", now + 1)), proof.sign(proof.a
 	expect(deps.findHistory.mock.calls).toEqual([]);
 });
 
-it.each([undefined, { ...credential("old"), grantId: OAuthGrantId.parse("other") }, { ...credential("old"), revocation: undefined }, { ...credential("old"), revocation: { cause: "logout" as const, completedAt: now } }])("rejects an unproven successor relationship", async parent => {
+it.each([undefined, { ...credential("old"), grantId: OAuthGrantIdSchema.parse("other") }, { ...credential("old"), revocation: undefined }, { ...credential("old"), revocation: { cause: "logout" as const, completedAt: now } }])("rejects an unproven successor relationship", async parent => {
 	const rows = [credential("current", "old")];
 	if (parent) rows.push(parent);
 	const deps = setup(rows);

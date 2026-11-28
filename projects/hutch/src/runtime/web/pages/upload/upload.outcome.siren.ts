@@ -6,7 +6,6 @@ import type { UploadOutcomeWriters, UploadWriteContext } from "./upload.outcome"
 import { type TranscriptRefusalReason, bookQuotaMessageOf, uploadRefusalCopyOf } from "./upload.refusal";
 import type { UploadProtocol } from "./upload.page";
 import { uploadDescriptionOf, uploadHeadingOf } from "./upload-copy";
-import { uploadStartPathOf } from "./upload-features";
 import { transcriptAllowanceOf } from "./upload.viewmodel";
 
 function sendSiren(res: Response, status: number, entity: SirenEntity): void {
@@ -28,7 +27,7 @@ function selfLink(uploadId: UploadId) {
 }
 
 function writeStart(res: Response, context: UploadWriteContext): void {
-	const startPath = uploadStartPathOf(context.metered);
+	const startPath = "/upload";
 	sendSiren(res, 200, {
 		class: ["upload"],
 		properties: {

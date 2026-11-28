@@ -209,31 +209,6 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.tabs[1].isActive).toBe(true);
 	});
 
-	it("prefills the trimmed url on the from-url tab", () => {
-		const vm = toImportAcquireViewModel({
-			isSignedIn: true,
-			mode: "from-url",
-			url: "  https://news.ycombinator.com  ",
-		});
-		expect(vm.prefillUrl).toBe("https://news.ycombinator.com");
-	});
-
-	it("prefills the trimmed url when no mode param is given", () => {
-		const vm = toImportAcquireViewModel({ isSignedIn: true, url: "  https://news.ycombinator.com  " });
-		expect(vm.prefillUrl).toBe("https://news.ycombinator.com");
-	});
-
-	it("leaves the prefill empty on the from-url tab when no url is provided", () => {
-		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "from-url" });
-		expect(vm.prefillUrl).toBe("");
-	});
-
-	it("ignores a url param on the upload tab", () => {
-		const vm = toImportAcquireViewModel({ isSignedIn: true, mode: "upload", url: "https://news.ycombinator.com" });
-		expect(vm.mode).toBe("upload");
-		expect(vm.prefillUrl).toBe("");
-	});
-
 	it("gives a guest the no-account sentence after the designed intro", () => {
 		const vm = toImportAcquireViewModel({ isSignedIn: false });
 		expect(vm.intro).toBe(

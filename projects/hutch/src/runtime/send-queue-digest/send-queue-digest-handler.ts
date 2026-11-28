@@ -1,7 +1,8 @@
+import { READPLACE_SENDER, REPLY_TO } from "../email-senders";
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
+import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, type ShownSummary, viewerFor } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/infra-components";
@@ -43,7 +44,7 @@ import type {
 } from "../observability/queue-digest-events";
 import { buildDigestPreview } from "../web/digest-preview";
 import type { BuildQueueDigestBook } from "../web/queue-digest-book";
-import type { BookChapter } from "../web/shared/epub/book-epub";
+import { bookChapterOf } from "../domain/readlist/book-chapter";
 import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
 import {
 	QueueDigestEmail,
@@ -51,8 +52,6 @@ import {
 	type QueueDigestLinks,
 } from "../web/queue-digest-email";
 
-const EMAIL_FROM = "Readplace <readplace@readplace.com>";
-const EMAIL_REPLY_TO = "fayner@readplace.com";
 const HOUR_MS = 60 * 60 * 1000;
 const CONSENT_SEED_ARTICLE_KEY = ArticleResourceUniqueId.parse(CONSENT_SEED_ARTICLE_URL).value;
 
@@ -77,7 +76,6 @@ export interface SendQueueDigestDeps {
 	publishEvent: PublishEvent;
 	emitQueueDigestEvent: EmitQueueDigestEvent;
 	signUnsubscribeToken: (userId: UserId) => string;
-	signMarkReadToken: (input: { userId: UserId; articleIds: ReaderArticleHashId[] }) => string;
 	appOrigin: string;
 	cooldownMs: number;
 	regularDigestMinGapMs: number;
@@ -193,7 +191,7 @@ async function processQueueDigest(params: {
 		subject: email.subject,
 		sendId: messageId,
 		sentAt: sendInstant,
-		chapters: items.map(toBookChapter),
+		chapters: items.map(({ candidate, summary, contentHtml }) => bookChapterOf({ article: candidate.article, summary, contentHtml })),
 	});
 
 	const claim = await plan.claim(items.map((item) => item.candidate.article.url));
@@ -212,9 +210,9 @@ async function processQueueDigest(params: {
 
 	try {
 		await deps.sendEmail({
-			from: EMAIL_FROM,
+			from: READPLACE_SENDER,
 			to: contact.email,
-			replyTo: EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: email.subject,
 			html: email.to("text/html"),
 			text: email.to("text/plain"),
@@ -304,7 +302,6 @@ function regularDigestPlan(context: RecipientContext): DigestKindPlan {
 				kind: "regular",
 				items,
 				links,
-				markReadToken: deps.signMarkReadToken({ userId, articleIds: items.map((item) => item.articleId) }),
 			}),
 	};
 }
@@ -432,17 +429,6 @@ function toEmailItem({ candidate, summary }: ReadyItem): QueueDigestEmailItem {
 		title: candidate.article.metadata.title,
 		siteName: candidate.article.metadata.siteName,
 		preview: buildDigestPreview(summary),
-	};
-}
-
-function toBookChapter({ candidate, summary, contentHtml }: ReadyItem): BookChapter {
-	return {
-		articleUrl: candidate.article.url,
-		title: candidate.article.metadata.title,
-		siteName: candidate.article.metadata.siteName,
-		excerpt: candidate.article.metadata.excerpt,
-		summary,
-		contentHtml,
 	};
 }
 

@@ -12,6 +12,7 @@ import {
 	gmailHistoryImportRawKey,
 	parseGmailFrom,
 	resolveGmailDeliveryMode,
+	sameGmailAccount,
 } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GmailHistoryImportMessageFetchedDetail } from "@packages/infra-components";
@@ -57,7 +58,7 @@ const FAILURE_REASONS = {
 
 function connectionCancelReason(job: GmailHistoryImportJob, connection: GmailConnection | undefined): GmailHistoryImportCancelReason | undefined {
 	if (connection === undefined || connection.disconnectRequestedAt !== undefined) return "disconnected";
-	const sameAccount = connection.accountEmail?.toLowerCase() === job.connection.accountEmail.toLowerCase();
+	const sameAccount = connection.accountEmail !== undefined && sameGmailAccount(connection.accountEmail, job.connection.accountEmail);
 	return sameAccount && connection.gatewayAddress === job.connection.gatewayAddress ? undefined : "account-changed";
 }
 

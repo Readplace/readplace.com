@@ -17,5 +17,5 @@ export { MEDIA_KINDS, MediaKindNameSchema, type MediaKindName } from "./media-ki
 export { MediaFailureReasonSchema, type MediaFailureReason } from "./media-failure";
 export { MediaInspectionFactsSchema, type MediaInspectionFacts } from "./media-inspection-facts";
 export { EnclosureSchema, type Enclosure } from "./enclosure";
-export { stagedObjectKey } from "./staged-object-key";
+export { bookImagesKeyPrefix, stagedObjectKey, transcriptsKeyPrefix } from "./staged-object-key";
 export { allowanceSeconds, billableSeconds, chargedMinutes, displayMinutes } from "./transcript-minutes";

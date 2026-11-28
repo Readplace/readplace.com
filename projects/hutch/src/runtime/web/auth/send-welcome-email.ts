@@ -1,3 +1,4 @@
+import { FOUNDER_SENDER, REPLY_TO } from "../../email-senders";
 import type { UserId } from "@packages/domain/user";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import { trialDayOf } from "../../domain/trial/trial-day";
@@ -7,8 +8,6 @@ import type { SignupClient } from "./signup-client";
 import { buildWelcomeConnectorEmailHtml, buildWelcomeEmailHtml } from "./welcome-email";
 import type { LogError } from "@packages/logger";
 
-const WELCOME_EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
-const WELCOME_EMAIL_REPLY_TO = "fayner@readplace.com";
 const WELCOME_EMAIL_UTM_SOURCE = "welcome-email";
 
 const CONNECTOR_WELCOMES = {
@@ -75,10 +74,10 @@ export function initSendWelcomeEmail(deps: SendWelcomeEmailDeps): SendWelcomeEma
 				? { html: buildWelcomeEmailHtml({ installUrl: welcomeLink({ url: installUrl, content: "install" }), avatarUrl }) }
 				: connectorMessage({ userId: recipient.userId, assistantName: connector.assistantName });
 		return deps.sendEmail({
-			from: WELCOME_EMAIL_FROM,
+			from: FOUNDER_SENDER,
 			to: recipient.email,
 			bcc: "readplace+welcome@readplace.com",
-			replyTo: WELCOME_EMAIL_REPLY_TO,
+			replyTo: REPLY_TO,
 			subject: "Welcome to Readplace",
 			...message,
 		}).then(() => {

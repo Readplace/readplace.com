@@ -196,12 +196,7 @@ const { deleteContentObjects: deleteEmailContentObjects } = initS3DeleteContentO
 	bucketName: env.CONTENT_BUCKET_NAME,
 });
 
-const deleteEmailImageObjects = initS3DeleteObjectsByPrefix({
-	client: s3Client,
-	bucketName: env.CONTENT_BUCKET_NAME,
-});
-
-const deleteParsedPdfObjects = initS3DeleteObjectsByPrefix({
+const deleteContentObjectsByPrefix = initS3DeleteObjectsByPrefix({
 	client: s3Client,
 	bucketName: env.CONTENT_BUCKET_NAME,
 });
@@ -396,8 +391,8 @@ export const handler = initHandleByDetailType({
 				deleteRawEmailObjects,
 				deleteRawEmailObjectsByPrefix,
 				deleteEmailContentObjects,
-				deleteEmailImageObjects,
-				deleteParsedPdfObjects,
+				deleteEmailImageObjects: deleteContentObjectsByPrefix,
+				deleteParsedPdfObjects: deleteContentObjectsByPrefix,
 				deleteAllUserArticles: articleStore.deleteAllUserArticles,
 				deleteAllTranscriptQuota: transcriptLedger.deleteAllTranscriptQuota,
 				deleteAllUserHighlights: highlights.deleteAllUserHighlights,

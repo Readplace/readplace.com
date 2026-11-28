@@ -1,12 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
-import { render } from "@packages/web-shell";
+import { renderEmailCardMessage } from "../email-card";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchEmails } from "@packages/translations/hutch-emails";
 
-const TEMPLATE = readFileSync(
-	join(__dirname, "trial-feedback-email.template.html"),
-	"utf-8",
-);
+const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
 export const TRIAL_FEEDBACK_EMAIL_SUBJECT =
 	"you tried Readplace — what was missing?";
@@ -47,12 +43,11 @@ export function TrialFeedbackEmail(
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {
-				return render(TEMPLATE, {
+				return renderEmailCardMessage({
+					titleHtml: t("trialFeedbackEmail.title"),
 					founderAvatarUrl: params.founderAvatarUrl,
-					paragraphs,
+					paragraphs: paragraphs.map((html) => ({ html })),
 					signoff: SIGNOFF,
-					colors: EMAIL_COLORS,
-					fontStack: EMAIL_FONT_STACK,
 				});
 			}
 
