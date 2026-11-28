@@ -68,6 +68,7 @@ interface HarnessContext {
 }
 
 async function harness(overrides: {
+	tracksRawCapture?: true;
 	destinationAddresses?: GmailHistoryImportJob["destinationAddresses"];
 	history?: (history: GmailHistory, context: HarnessContext) => GmailHistory;
 	imports?: (imports: GmailHistoryImportStore) => GmailHistoryImportStore;
@@ -95,7 +96,7 @@ async function harness(overrides: {
 	await connections.recordAccountEmail({ userId: READER, accountEmail: ACCOUNT });
 	await mappings.addSenderToFilter({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR });
 	await mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
-	await store.createJob({ ...awaitingPermissionJob(), destinationAddresses: overrides.destinationAddresses ?? [WORK_READLIST] });
+	await store.createJob({ ...awaitingPermissionJob(), ...(overrides.tracksRawCapture && { tracksRawCapture: true }), destinationAddresses: overrides.destinationAddresses ?? [WORK_READLIST] });
 
 	const observed = initGmailHistoryImport({
 		history: wrapHistory(gmail.history, context),
@@ -422,6 +423,44 @@ describe("initGmailHistoryImport", () => {
 			{ kind: "page-saved", nextPagePresent: false },
 			{ kind: "job-completed", persisted: true },
 		]);
+	});
+
+	it("skips a capture that lost its running generation", async () => {
+		const h = await harness({ imports: (store) => ({ ...store, reserveRawCapture: async () => undefined }) });
+		await h.startJob("generation-1");
+		h.addUnread({ id: "stale", internalDate: "2026-08-31T00:00:00.000Z" });
+		await h.runAllPages("generation-1");
+		assert.deepEqual(h.bucket.keys(), []);
+		assert(h.takeObservations().some((event) => event.kind === "page-skipped" && event.reason === "fetched-stale"));
+	});
+
+	it.each(["stale", "already-settled"] as const)("leaves a %s message alone at capture expiry", async (recorded) => {
+		const h = await harness({ imports: (store) => ({ ...store, recordFetched: async () => recorded }) });
+		await h.startJob("generation-1");
+		h.addUnread({ id: "stale", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.advance(30 * DAY_MS);
+		await h.runAllPages("generation-1");
+		assert.deepEqual(h.bucket.keys(), []);
+		assert.equal((await h.job()).counts.failed, 0);
+	});
+
+	it("does not recreate a deleted capture on a late retry after publication failed", async () => {
+		const h = await harness({
+			tracksRawCapture: true,
+			publishFetched: async () => { throw new Error("transport unavailable"); },
+		});
+		await h.startJob("generation-1");
+		h.addUnread({ id: "retry", internalDate: "2026-08-31T00:00:00.000Z" });
+		const input = { userId: READER, jobId: JOB, generation: "generation-1" };
+		await assert.rejects(h.importer.start(input), /transport unavailable/);
+		const [key] = h.bucket.keys();
+		assert(key);
+		await h.bucket.delete(key);
+		h.advance(30 * DAY_MS);
+		const retry = await h.importer.start(input);
+		assert.deepEqual(h.bucket.keys(), []);
+		assert.equal(retry.completed?.counts.failed, 1);
+		assert(h.takeObservations().some((event) => event.kind === "message-processed" && event.outcome === "raw-expired"));
 	});
 
 	it("publishes the fetched mail again without counting it twice when the page could not be saved after publishing", async () => {

@@ -13,6 +13,7 @@ import {
 	AliasNameSchema,
 	DEFAULT_INBOX_ALIAS,
 	GMAIL_FORWARDING_ALIAS,
+	ISSUE_OUTPUT_KEY,
 	InboxAddressSchema,
 	type InboxEmailStore,
 	type IngestionAttempt,
@@ -987,7 +988,8 @@ describe("initReceiveEmailHandler", () => {
 			linkCounts: undefined,
 		});
 		await identities.claim({ key: MESSAGE_KEY, userId: OWNER, receivedAtMessageId: IMPORTED_ROW, attempt: IMPORT_ATTEMPT, now: new Date(IMPORTED_AT) });
-		await completion.selectOutputs({ userId: OWNER, receivedAtMessageId: IMPORTED_ROW, selection: { outputs: [], truncated: false, selectedAt: IMPORTED_AT } });
+		await completion.selectOutputs({ userId: OWNER, receivedAtMessageId: IMPORTED_ROW, selection: { outputs: [ISSUE_OUTPUT_KEY], truncated: false, selectedAt: IMPORTED_AT } });
+		await completion.acknowledgeOutput({ userId: OWNER, receivedAtMessageId: IMPORTED_ROW, output: ISSUE_OUTPUT_KEY });
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		await run(gateway);
@@ -1168,7 +1170,7 @@ describe("initReceiveEmailHandler redrive of a finished extraction", () => {
 		expect(routings).toEqual([]);
 	});
 
-	it("records the origin of a settled Gmail recipient and evaluates its completion", async () => {
+	it("records the origin of a settled Gmail recipient without marking when no output was selected", async () => {
 		const { addressStore, emailStore, completion, linkStore, marks, rawMap, published, run } = makeHarness();
 		const gateway = await mintGatewayAddress(addressStore);
 		await seedReceivedRow(emailStore, { recipientAddress: gateway, gmail: true });
@@ -1179,6 +1181,6 @@ describe("initReceiveEmailHandler redrive of a finished extraction", () => {
 		expect((await run(gateway))?.batchItemFailures).toEqual([]);
 		expect(published).toEqual([]);
 		assert.deepEqual((await completion.findCompletion({ userId: OWNER, receivedAtMessageId: RECEIVED_ROW }))?.origins, [FORWARDED_ORIGIN]);
-		assert.deepEqual(marks, [{ userId: OWNER, receivedAtMessageId: RECEIVED_ROW, origin: FORWARDED_ORIGIN }]);
+		assert.deepEqual(marks, []);
 	});
 });

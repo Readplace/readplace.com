@@ -96,7 +96,7 @@ export interface EmailImportCompletion {
 export function isEmailSavedToAll(completion: Pick<EmailImportCompletion, "selection" | "savedOutputs">): boolean {
 	const { selection, savedOutputs } = completion;
 	if (selection === undefined || selection.truncated || Object.values(selection.matches ?? {}).includes(null)) return false;
-	return selection.outputs.every((output) => savedOutputs.has(output));
+	return selection.outputs.length > 0 && selection.outputs.every((output) => savedOutputs.has(output));
 }
 
 export function uniqueGmailOrigins(origins: readonly GmailMessageOrigin[]): GmailMessageOrigin[] {

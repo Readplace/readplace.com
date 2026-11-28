@@ -70,15 +70,15 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 	};
 
 	return {
-		claimPending: async ({ userId, origin, supplemental, now }) => {
+		claimPending: async ({ userId, receivedAtMessageId, origin, supplemental, now }) => {
 			const claimUntil = new Date(now.getTime() + CLAIM_MS).toISOString();
 			const result = await writeIfCondition(() =>
 				table.update({
 					Key: updateKey({ userId, origin, supplemental }),
-					UpdateExpression: "SET claimUntil = :until",
+					UpdateExpression: "SET claimUntil = :until, receivedAtMessageId = :message, #origin = :origin",
 					ConditionExpression: "#status = :pending AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)",
-					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: { ":pending": "pending", ":until": claimUntil, ":now": now.toISOString() },
+					ExpressionAttributeNames: { "#status": "status", "#origin": "origin" },
+					ExpressionAttributeValues: { ":pending": "pending", ":until": claimUntil, ":now": now.toISOString(), ":message": receivedAtMessageId, ":origin": origin },
 				}),
 			);
 			return result.kind === "written" ? claimUntil : undefined;
@@ -123,14 +123,14 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 				}),
 			);
 		},
-		markFailed: async ({ userId, origin, supplemental, reason, now }) => {
+		markFailed: async ({ userId, receivedAtMessageId, origin, supplemental, reason, now }) => {
 			const written = (await writeIfCondition(() =>
 				table.update({
 					Key: updateKey({ userId, origin, supplemental }),
 					UpdateExpression: "SET #status = :failed, failedAt = :now, failureReason = :reason REMOVE claimUntil",
-					ConditionExpression: "attribute_exists(recordKey) AND #status = :pending",
-					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: { ":failed": "failed", ":now": now.toISOString(), ":reason": reason, ":pending": "pending" },
+					ConditionExpression: "#status = :pending AND receivedAtMessageId = :message AND #origin.senderEmail = :sender",
+					ExpressionAttributeNames: { "#status": "status", "#origin": "origin" },
+					ExpressionAttributeValues: { ":failed": "failed", ":pending": "pending", ":reason": reason, ":now": now.toISOString(), ":message": receivedAtMessageId, ":sender": origin.senderEmail },
 				}),
 			)).kind;
 			return written === "written" ? "failed" : "unchanged";
@@ -152,13 +152,17 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 			);
 			return pending;
 		},
-		discardPending: async ({ userId, origin, supplemental }) => {
+		discardPending: async ({ userId, origin, supplemental, ifUnclaimed }) => {
 			const written = (await writeIfCondition(() =>
 				table.delete({
 					Key: updateKey({ userId, origin, supplemental }),
-					ConditionExpression: "#status = :pending",
-					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: { ":pending": "pending" },
+					ConditionExpression: ifUnclaimed
+						? "#status = :pending AND receivedAtMessageId = :message AND #origin.senderEmail = :sender AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)"
+						: "#status = :pending",
+					ExpressionAttributeNames: { "#status": "status", ...(ifUnclaimed && { "#origin": "origin" }) },
+					ExpressionAttributeValues: { ":pending": "pending", ...(ifUnclaimed && {
+						":message": ifUnclaimed.receivedAtMessageId, ":sender": origin.senderEmail, ":now": ifUnclaimed.now.toISOString(),
+					}) },
 				}),
 			)).kind;
 			return written === "written" ? "discarded" : "unchanged";

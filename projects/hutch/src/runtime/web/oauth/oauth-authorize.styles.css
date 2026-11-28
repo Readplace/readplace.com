@@ -66,6 +66,10 @@
   padding-inline: 24px;
 }
 
+.oauth-authorize__buttons .btn--primary {
+  min-width: 152px;
+}
+
 .oauth-authorize__switch {
   display: block;
   min-height: 44px;

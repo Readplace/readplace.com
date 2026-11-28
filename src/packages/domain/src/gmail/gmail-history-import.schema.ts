@@ -12,6 +12,7 @@ export const GmailMessageIdSchema = z
 	.brand<"GmailMessageId">();
 export type GmailMessageId = z.infer<typeof GmailMessageIdSchema>;
 
+export const GMAIL_RAW_RETENTION_MS = 29 * 86_400_000;
 export const GMAIL_HISTORY_IMPORT_WINDOW_DAYS = 30;
 export const GMAIL_HISTORY_IMPORT_PAGE_SIZE = 25;
 export const GMAIL_HISTORY_IMPORT_MAX_POLLS = 100;

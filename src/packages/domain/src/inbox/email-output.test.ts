@@ -41,8 +41,9 @@ describe("isEmailSavedToAll", () => {
 		assert.equal(isEmailSavedToAll({ selection: selection([ISSUE_OUTPUT_KEY, link]), savedOutputs: new Set([ISSUE_OUTPUT_KEY]) }), false);
 	});
 
-	it("is saved when extraction selected nothing", () => {
-		assert.equal(isEmailSavedToAll({ selection: selection([]), savedOutputs: new Set() }), true);
+	it("requires a selected output even if a stale acknowledgement exists", () => {
+		assert.equal(isEmailSavedToAll({ selection: selection([]), savedOutputs: new Set() }), false);
+		assert.equal(isEmailSavedToAll({ selection: selection([]), savedOutputs: new Set([link]) }), false);
 	});
 
 	it("never counts truncated processing as saved", () => {

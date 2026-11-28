@@ -1,4 +1,3 @@
-import { ZodError } from "zod";
 import { noopLogger } from "@packages/logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { initLinkSummariser, MAX_SUMMARY_INPUT_CHARS } from "./link-summariser";
@@ -93,7 +92,7 @@ describe("initLinkSummariser", () => {
 		expect(result).toEqual({ kind: "declined" });
 	});
 
-	it("logs the model's raw reply and token usage with the refusal sentinel, so the refusal can be diagnosed from the logs", async () => {
+	it("logs token usage with the refusal sentinel without the reply", async () => {
 		const raw = '{"summary": "Summary not available.", "excerpt": "Summary not available.", "note": "kept"}';
 		const usage = { input_tokens: 44000, output_tokens: 20, cache_hit_input_tokens: 43000, cache_miss_input_tokens: 1000 };
 		const createMessage: CreateAiMessage = async () => ({
@@ -118,12 +117,11 @@ describe("initLinkSummariser", () => {
 
 		expect(info).toHaveBeenCalledWith("[summarize] model returned the refusal sentinel", {
 			url: "https://example.com/registry",
-			raw,
 			usage,
 		});
 	});
 
-	it("returns kind 'unusable-answer' and logs the raw answer, usage and error at WARN when the model's JSON does not parse, so the defect can be read from the logs and the worker retries instead of crashing", async () => {
+	it("identifies invalid JSON in the warning without logging the reply", async () => {
 		const raw = '{"summary": "He said "hi" and left.", "excerpt": "A teaser."}';
 		const usage = { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 };
 		const createMessage: CreateAiMessage = async () => ({
@@ -147,9 +145,8 @@ describe("initLinkSummariser", () => {
 		expect(result).toEqual({ kind: "unusable-answer" });
 		expect(warn).toHaveBeenCalledWith("[summarize] model answer is not the JSON shape asked for", {
 			url,
-			raw,
 			usage,
-			error: expect.any(SyntaxError),
+			reason: "Model response contains invalid JSON",
 		});
 	});
 
@@ -177,9 +174,8 @@ describe("initLinkSummariser", () => {
 		expect(result).toEqual({ kind: "unusable-answer" });
 		expect(warn).toHaveBeenCalledWith("[summarize] model answer is not the JSON shape asked for", {
 			url,
-			raw,
 			usage,
-			error: expect.any(ZodError),
+			reason: "Model response does not match the requested schema",
 		});
 	});
 

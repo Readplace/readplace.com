@@ -67,7 +67,7 @@ async function obtainAccessToken(harness: TestAppHarness, clientId: string): Pro
 	const consent = await agent.get("/oauth/authorize").query(grant);
 	assert.equal(consent.status, 200);
 
-	const approval = await agent.post("/oauth/authorize").type("form").send({ ...grant, action: "approve" });
+	const approval = await agent.post("/oauth/authorize").type("form").send({ ...grant, disclosure_version: "2026-11-27", action: "approve" });
 	assert.equal(approval.status, 302);
 	const code = new URL(approval.headers.location).searchParams.get("code");
 	assert(code, "approving must redirect with a code");

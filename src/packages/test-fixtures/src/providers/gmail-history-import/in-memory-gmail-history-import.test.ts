@@ -434,6 +434,20 @@ describe("initInMemoryGmailHistoryImport", () => {
 		});
 	});
 
+	it("keeps the original capture while a job can retry and erases the clock with its reader", async () => {
+		const store = initInMemoryGmailHistoryImport();
+		await runningJob(store, "gen-1");
+		const capture = { ...REF, generation: "gen-1", gmailMessageId: gmailMessage("m1"), initialTimestamp: 1 };
+		assert.equal(await store.reserveRawCapture(capture), 1);
+		assert.equal(await store.reserveRawCapture({ ...capture, initialTimestamp: 2 }), 1);
+		assert.equal(await store.reserveRawCapture({ ...capture, generation: "stale" }), undefined);
+		await store.deleteAllByUserId(OTHER_READER);
+		assert.equal(await store.reserveRawCapture({ ...capture, initialTimestamp: 3 }), 1);
+		await store.deleteAllByUserId(READER);
+		await runningJob(store, "gen-1");
+		assert.equal(await store.reserveRawCapture({ ...capture, initialTimestamp: 4 }), 4);
+	});
+
 	describe("deleteAllByUserId", () => {
 		it("erases the reader's jobs and messages and keeps other readers' jobs", async () => {
 			const store = initInMemoryGmailHistoryImport();

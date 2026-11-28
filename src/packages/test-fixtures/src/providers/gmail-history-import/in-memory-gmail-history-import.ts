@@ -28,6 +28,7 @@ function messageKey(input: { userId: UserId; jobId: GmailHistoryImportJobId; gma
 
 export function initInMemoryGmailHistoryImport(): GmailHistoryImportStore {
 	const jobs = new Map<string, GmailHistoryImportJob>();
+	const captures = new Map<string, number>();
 	const messages = new Map<string, GmailHistoryImportMessage>();
 	const leases = new Map<string, { page: number; until: number }>();
 
@@ -81,6 +82,13 @@ export function initInMemoryGmailHistoryImport(): GmailHistoryImportStore {
 			leases.set(jobKey(job), { page, until: now.getTime() + PAGE_LEASE_MS });
 			save({ ...job, state: "running", updatedAt: now.toISOString() });
 			return true;
+		},
+		reserveRawCapture: async (input) => {
+			if (!inRun(input)) return undefined;
+			const key = messageKey(input);
+			const at = captures.get(key) ?? input.initialTimestamp;
+			captures.set(key, at);
+			return at;
 		},
 		recordFetched: async ({ userId, jobId, generation, gmailMessageId, rawS3Key, now }) => {
 			const job = inRun({ userId, jobId, generation });
@@ -137,6 +145,9 @@ export function initInMemoryGmailHistoryImport(): GmailHistoryImportStore {
 		deleteAllByUserId: async (userId) => {
 			for (const [key, job] of jobs) {
 				if (job.userId === userId) jobs.delete(key);
+			}
+			for (const key of captures.keys()) {
+				if (key.startsWith(`${userId}#`)) captures.delete(key);
 			}
 			for (const [key, message] of messages) {
 				if (message.userId === userId) messages.delete(key);

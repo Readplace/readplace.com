@@ -4,6 +4,8 @@ import { type BuiltInOAuthClientId, type SupportedClient, isBuiltInOAuthClientId
 import { render } from "@packages/web-shell";
 import type { AlertContent } from "@packages/web-shell";
 
+export const CONSENT_DISCLOSURE_VERSION = "2026-11-27";
+
 const NOTICE_TEMPLATE = readFileSync(join(__dirname, "oauth-authorize-notice.template.html"), "utf-8");
 
 type ConsentAudience = "browserExtension" | "nativeApp" | "notesApp" | "selfRegistered";
@@ -38,7 +40,7 @@ const COPY_BY_AUDIENCE = {
 	}),
 	selfRegistered: ({ clientName, redirectHost }) => ({
 		heading: `Connect ${clientName}`,
-		body: `Allow ${clientName} to read and change your readlists. Its Readplace tools save articles, list and open what you saved, mark articles read or unread, and create readlists and add articles to them. None of them delete anything.`,
+		body: `Allow ${clientName} to read and change your readlists. Its tools can save and open articles, change their read status and organize them into readlists.`,
 		notice: { variant: "warning", message: { html: render(NOTICE_TEMPLATE, { clientName, redirectHost }) } },
 	}),
 } satisfies Record<ConsentAudience, (client: { clientName: string; redirectHost: string }) => ConsentCopy>;

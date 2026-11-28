@@ -2293,11 +2293,29 @@ const gmailMessageUpdatesLambda = new Lambda("gmail-message-updates", {
 	timeout: GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS,
 	environmentNames: GMAIL_MESSAGE_UPDATE_ENV,
 	environment: {
+		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
 		...gmailAccountEnvironment({ mappings: true }),
 	},
-	policies: [...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies],
+	policies: [
+		...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies,
+		{
+			name: "gmail-message-updates-completion-read",
+			policy: dynamoTableArn(tableNames.inboxEmails).apply((arn) => JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [{
+					Effect: "Allow", Action: "dynamodb:GetItem", Resource: arn,
+					Condition: {
+						"ForAllValues:StringEquals": {
+							"dynamodb:Attributes": ["userId", "receivedAtMessageId", "outputSelection", "supplementalSelection", "supplementalImport", "savedOutputs", "gmailOrigins"],
+						},
+						Null: { "dynamodb:Attributes": "false" },
+					},
+				}],
+			})),
+		},
+	],
 });
 eventBus.grantPublish(gmailMessageUpdatesLambda);
 const gmailMessageUpdatesWithSqs = new SqsBackedLambda("gmail-message-updates", {

@@ -15,7 +15,7 @@ describe("initInMemoryGmailMessageUpdate", () => {
 		await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now });
 		await updates.markCompleted({ userId, origin, now });
 		assert.equal((await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now })).status, "completed");
-		assert.equal(await updates.markFailed({ userId, origin, reason: "dead-lettered", now }), "unchanged");
+		assert.equal(await updates.markFailed({ userId, receivedAtMessageId: "r", origin, reason: "dead-lettered", now }), "unchanged");
 		assert.equal((await updates.find({ userId, origin }))?.status, "completed");
 	});
 
@@ -23,8 +23,8 @@ describe("initInMemoryGmailMessageUpdate", () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now });
 		await updates.recordPending({ userId, receivedAtMessageId: "r2", origin: other, now });
-		assert.equal(await updates.markFailed({ userId, origin, reason: "ambiguous-original", now }), "failed");
-		assert.equal(await updates.markFailed({ userId, origin, reason: "dead-lettered", now }), "unchanged");
+		assert.equal(await updates.markFailed({ userId, receivedAtMessageId: "r", origin, reason: "ambiguous-original", now }), "failed");
+		assert.equal(await updates.markFailed({ userId, receivedAtMessageId: "r", origin, reason: "dead-lettered", now }), "unchanged");
 		const failed = await updates.find({ userId, origin });
 		assert(failed?.status === "failed");
 		assert.equal(failed.failureReason, "ambiguous-original");
@@ -34,7 +34,7 @@ describe("initInMemoryGmailMessageUpdate", () => {
 
 	it("leases pending work until release or expiry", async () => {
 		const updates = initInMemoryGmailMessageUpdate();
-		const input = { userId, origin, now };
+		const input = { userId, receivedAtMessageId: "r", origin, now };
 		assert.equal(await updates.claimPending(input), undefined);
 		await updates.recordPending({ ...input, receivedAtMessageId: "r" });
 		const first = await updates.claimPending(input);
@@ -65,7 +65,7 @@ describe("initInMemoryGmailMessageUpdate", () => {
 	it("ignores completion and failure of an unrecorded update", async () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.markCompleted({ userId, origin, now });
-		assert.equal(await updates.markFailed({ userId, origin, reason: "dead-lettered", now }), "unchanged");
+		assert.equal(await updates.markFailed({ userId, receivedAtMessageId: "r", origin, reason: "dead-lettered", now }), "unchanged");
 		assert.equal(await updates.find({ userId, origin }), undefined);
 	});
 });

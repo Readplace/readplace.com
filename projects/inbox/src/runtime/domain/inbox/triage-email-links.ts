@@ -9,7 +9,7 @@ import {
 	parseModelJson,
 } from "@packages/ai-message";
 import type { Logger } from "@packages/logger";
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import {
 	type EmailLinkOrdinal,
 	EmailLinkOrdinalSchema,
@@ -93,7 +93,7 @@ export function initTriageEmailLinks(deps: {
 		if (answer.kind === "malformed") {
 			deps.logger.warn(
 				"[triage-email-links] response failed validation",
-				answer.error instanceof ZodError ? { issues: answer.error.issues } : { error: answer.error },
+				{ reason: answer.error.message },
 			);
 			return undefined;
 		}

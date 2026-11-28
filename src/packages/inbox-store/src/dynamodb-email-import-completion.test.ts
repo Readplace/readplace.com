@@ -210,12 +210,14 @@ describe("initDynamoDbEmailImportCompletion", () => {
 		await assert.rejects(completion.acknowledgeOutput({ ...KEY, output: ISSUE_OUTPUT_KEY }), /throttled/);
 	});
 
-	it("reads the completion state with a consistent read", async () => {
-		const { completion, sent } = store(() => ({
-			Item: { ...KEY, outputSelection: SELECTION, savedOutputs: new Set(["issue"]), gmailOrigins: new Set([JSON.stringify(ORIGIN)]) },
-		}));
-		assert.deepEqual(await completion.findCompletion(KEY), { selection: SELECTION, savedOutputs: new Set(["issue"]), origins: [ORIGIN] });
+	it("consistently reads the original and supplemental completion state using the worker's projected fields", async () => {
+		const supplementalImport = { ...work, deliveryMode: "links", origin: { ...ORIGIN, gmailMessageId: GmailMessageIdSchema.parse("m2") } };
+		const supplementalSelection = { ...SELECTION, outputs: [linkOutputKey(formatEmailLinkOrdinal(0))] };
+		const row = { ...KEY, outputSelection: SELECTION, supplementalImport, supplementalSelection, savedOutputs: new Set(["issue"]), gmailOrigins: new Set([JSON.stringify(ORIGIN)]) };
+		const { completion, sent } = store(({ input }) => ({ Item: projected(row, input) }));
+		assert.deepEqual(await completion.findCompletion(KEY), { selection: SELECTION, supplementalImport, supplementalSelection, savedOutputs: new Set(["issue"]), origins: [ORIGIN] });
 		assert.equal(sent[0].input.ConsistentRead, true);
+		assert.deepEqual(Object.values(sent[0].input.ExpressionAttributeNames ?? {}).sort(), ["gmailOrigins", "outputSelection", "receivedAtMessageId", "savedOutputs", "supplementalImport", "supplementalSelection", "userId"]);
 	});
 
 	it("reads an email with no tracking yet as unselected with nothing saved", async () => {

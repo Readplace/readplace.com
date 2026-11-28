@@ -7,7 +7,7 @@ import {
 	GmailMessageIdSchema,
 	type GmailMessageOrigin,
 } from "@packages/domain/gmail";
-import { InboxAddressSchema, NormalizedMessageIdSchema } from "@packages/domain/inbox";
+import { type EmailImportCompletion, type EmailImportCompletionStore, EmailOutputKeySchema, ISSUE_OUTPUT_KEY, InboxAddressSchema, NormalizedMessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import type { GmailMessageCandidate, OpenedGmailMailbox, OpenGmailMailboxResult } from "@packages/provider-contracts/gmail-message-update";
@@ -26,6 +26,15 @@ const FORWARDED: GmailMessageOrigin = {
 	accountEmail: ACCOUNT,
 	senderEmail: ForwardableSenderSchema.parse("dan@news.test"),
 	rfcMessageId: NormalizedMessageIdSchema.parse("issue@news.test"),
+};
+
+const LINK_OUTPUT = EmailOutputKeySchema.parse("link#1");
+const FOLLOW_UP: NonNullable<EmailImportCompletion["supplementalImport"]> = {
+	deliveryMode: "links",
+	destinationAddresses: [InboxAddressSchema.parse("letters-abc123@read.place")],
+	rawEmailS3Key: "gmail-import/second",
+	senderName: "News",
+	origin: HISTORY,
 };
 
 interface FakeMailbox {
@@ -99,6 +108,7 @@ async function harness(
 		open?: (fake: ReturnType<typeof fakeMailbox>) => OpenGmailMailboxResult;
 		connectedAs?: typeof ACCOUNT | undefined;
 		mapped?: boolean;
+		findCompletion?: EmailImportCompletionStore["findCompletion"];
 	} = {},
 ) {
 	const updates = initInMemoryGmailMessageUpdate();
@@ -112,7 +122,15 @@ async function harness(
 	const opened: { accountEmail: string }[] = [];
 	const gateChecks: unknown[] = [];
 	const mapped = opts.mapped ?? true;
+	const completion: EmailImportCompletion = {
+		selection: { selectedAt: NOW.toISOString(), truncated: false, outputs: [ISSUE_OUTPUT_KEY] },
+		savedOutputs: new Set([ISSUE_OUTPUT_KEY]), origins: [HISTORY, FORWARDED],
+	};
 	const mark = initMarkGmailEmailImported({
+		findCompletion: opts.findCompletion ?? (async (key) => {
+			assert.deepEqual(key, { userId: USER, receivedAtMessageId: RAM });
+			return completion;
+		}),
 		updates,
 		isSenderMapped: async (input) => {
 			gateChecks.push(input);
@@ -125,7 +143,11 @@ async function harness(
 		},
 		now: () => NOW,
 	});
-	return { updates, connections, fake, opened, gateChecks, mark: (origin: GmailMessageOrigin = HISTORY, supplemental?: true) => mark({ userId: USER, receivedAtMessageId: RAM, origin, ...(supplemental ? { supplemental } : {}) }) };
+	return {
+		updates, connections, fake, opened, gateChecks, completion,
+		mark: (origin: GmailMessageOrigin = HISTORY, work: { receivedAtMessageId?: string; supplemental?: true } = {}) =>
+			mark({ userId: USER, receivedAtMessageId: RAM, origin, ...work }),
+	};
 }
 
 describe("initMarkGmailEmailImported", () => {
@@ -154,27 +176,54 @@ describe("initMarkGmailEmailImported", () => {
 
 		assert.deepEqual(await h.mark(), { kind: "already-marked" });
 		assert.ok(original.labelIds.includes("UNREAD"));
-		assert.deepEqual(await h.mark(HISTORY, true), { kind: "marked" });
+
+		h.completion.supplementalImport = FOLLOW_UP;
+		h.completion.supplementalSelection = { outputs: [LINK_OUTPUT], selectedAt: NOW.toISOString(), truncated: false };
+		assert.deepEqual(await h.mark(), { kind: "skipped" });
+		assert.deepEqual(await h.mark(HISTORY, { supplemental: true }), { kind: "skipped" });
+		assert.ok(original.labelIds.includes("UNREAD"));
+
+		h.completion.savedOutputs = new Set([ISSUE_OUTPUT_KEY, LINK_OUTPUT]);
+		h.completion.origins = [FORWARDED];
+		assert.deepEqual(await h.mark(HISTORY, { supplemental: true }), { kind: "marked" });
 		assert.equal(original.labelIds.includes("UNREAD"), false);
 		original.labelIds.push("UNREAD");
 
-		assert.deepEqual(await h.mark(HISTORY, true), { kind: "already-marked" });
+		assert.deepEqual(await h.mark(HISTORY, { supplemental: true }), { kind: "already-marked" });
 		assert.ok(original.labelIds.includes("UNREAD"));
 		assert.equal(h.fake.calls.filter((call) => call.startsWith("modify:")).length, 2);
 	});
 
+	it("accepts only the registered supplemental origin and its exact sender", async () => {
+		const h = await harness();
+		h.completion.supplementalSelection = { outputs: [LINK_OUTPUT], selectedAt: NOW.toISOString(), truncated: false };
+		h.completion.savedOutputs = new Set([LINK_OUTPUT]);
+		assert.deepEqual(await h.mark(HISTORY, { supplemental: true }), { kind: "skipped" });
+
+		h.completion.supplementalImport = FOLLOW_UP;
+		assert.deepEqual(await h.mark(FORWARDED, { supplemental: true }), { kind: "skipped" });
+		const otherSender = { ...HISTORY, senderEmail: ForwardableSenderSchema.parse("other@news.test") };
+		assert.deepEqual(await h.mark(otherSender, { supplemental: true }), { kind: "skipped" });
+		assert.deepEqual(h.opened, []);
+		assert.deepEqual(await h.mark(HISTORY, { supplemental: true }), { kind: "marked" });
+	});
+
 	it("leaves Gmail unread when the sender is no longer configured for the second import", async () => {
 		const h = await harness({ mapped: false });
-		assert.deepEqual(await h.mark(HISTORY, true), { kind: "skipped" });
+		h.completion.supplementalImport = FOLLOW_UP;
+		h.completion.supplementalSelection = { outputs: [LINK_OUTPUT], selectedAt: NOW.toISOString(), truncated: false };
+		h.completion.savedOutputs = new Set([ISSUE_OUTPUT_KEY, LINK_OUTPUT]);
+		assert.deepEqual(await h.mark(HISTORY, { supplemental: true }), { kind: "skipped" });
 		assert.ok(h.fake.messages.get(MESSAGE)?.labelIds.includes("UNREAD"));
 		assert.deepEqual(h.fake.calls, []);
 		assert.deepEqual(h.updates.all(), []);
 	});
 
-		it("discards a pending update left from before the sender was removed", async () => {
+	it("discards a pending update left from before the sender was removed", async () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.recordPending({ userId: USER, receivedAtMessageId: RAM, origin: HISTORY, now: NOW });
 		const mark = initMarkGmailEmailImported({
+			findCompletion: async () => undefined,
 			updates,
 			isSenderMapped: async () => false,
 			connections: initInMemoryGmailConnection({ now: () => NOW }),
@@ -185,6 +234,93 @@ describe("initMarkGmailEmailImported", () => {
 		assert.deepEqual(await mark({ userId: USER, receivedAtMessageId: RAM, origin: HISTORY }), { kind: "skipped" });
 
 		assert.deepEqual(updates.all(), []);
+	});
+
+	it("skips a previously queued command when its inbox record was deleted", async () => {
+		const h = await harness({ findCompletion: async () => undefined });
+		assert.deepEqual(await h.mark(), { kind: "skipped" });
+		assert.deepEqual(h.opened, []);
+		assert.deepEqual(h.updates.all(), []);
+	});
+
+	it("rechecks a pending update after permission is granted and leaves a zero-output original unread", async () => {
+		let granted = false;
+		const h = await harness({ open: (fake) => granted ? { ok: true, mailbox: fake.mailbox } : { ok: false, reason: "modify-permission-required" } });
+		assert.deepEqual(await h.mark(), { kind: "deferred", reason: "permission-required" });
+		granted = true;
+		h.opened.length = 0;
+		h.completion.selection = { outputs: [], truncated: false, selectedAt: NOW.toISOString() };
+		assert.deepEqual(await h.mark(), { kind: "skipped" });
+		assert.deepEqual(h.opened, []);
+		assert.deepEqual(h.updates.all(), []);
+		assert(h.fake.messages.get(MESSAGE)?.labelIds.includes("UNREAD"));
+	});
+
+	it("rejects a different origin and sender even when the inbox issue was saved", async () => {
+		const h = await harness();
+		h.completion.origins = [FORWARDED, { ...HISTORY, senderEmail: ForwardableSenderSchema.parse("other@example.test") }];
+		assert.deepEqual(await h.mark(HISTORY), { kind: "skipped" });
+		assert.deepEqual(h.opened, []);
+		assert.deepEqual(await h.mark(FORWARDED), { kind: "marked" });
+	});
+
+	it("leaves the canonical pending update intact if a stale command references a different inbox record", async () => {
+		const h = await harness({ findCompletion: async () => undefined });
+		const canonicalId = "other-received-message";
+		await h.updates.recordPending({ userId: USER, receivedAtMessageId: canonicalId, origin: HISTORY, now: NOW });
+		assert.deepEqual(await h.mark(), { kind: "skipped" });
+		assert.deepEqual(h.opened, []);
+		assert.equal((await h.updates.find({ userId: USER, origin: HISTORY }))?.receivedAtMessageId, canonicalId);
+	});
+
+	it("binds an unclaimed stale pending row to a valid delivery, then resumes that delivery after a grant", async () => {
+		let granted = false;
+		const h = await harness({
+			findCompletion: async (key): Promise<EmailImportCompletion | undefined> => key.receivedAtMessageId === RAM ? h.completion : undefined,
+			open: (fake) => granted ? { ok: true, mailbox: fake.mailbox } : { ok: false, reason: "modify-permission-required" },
+		});
+		const stale = "unsaved-inbox-message";
+		await h.updates.recordPending({ userId: USER, receivedAtMessageId: stale, origin: HISTORY, now: NOW });
+		assert.deepEqual(await h.mark(), { kind: "deferred", reason: "permission-required" });
+		assert.deepEqual(await h.mark(HISTORY, { receivedAtMessageId: stale }), { kind: "skipped" });
+		const [pending] = await h.updates.listPendingByAccount({ userId: USER, accountEmail: ACCOUNT });
+		assert.equal(pending.receivedAtMessageId, RAM);
+		granted = true;
+		assert.deepEqual(await h.mark(pending.origin, { receivedAtMessageId: pending.receivedAtMessageId }), { kind: "marked" });
+		assert.equal(h.fake.calls.filter((call) => call.startsWith("modify")).length, 1);
+	});
+
+	it("retries a valid delivery while a stale worker holds the claim, then marks once after stale cleanup", async () => {
+		const h = await harness();
+		const stale = { userId: USER, receivedAtMessageId: "unsaved-inbox-message", origin: HISTORY, now: NOW };
+		await h.updates.recordPending(stale);
+		assert(await h.updates.claimPending(stale));
+		await assert.rejects(h.mark(), /another worker/);
+		assert.deepEqual(h.opened, []);
+		await h.updates.discardPending(stale);
+		assert.deepEqual(await h.mark(), { kind: "marked" });
+		assert.deepEqual(await h.mark(), { kind: "already-marked" });
+		assert.equal(h.fake.calls.filter((call) => call.startsWith("modify")).length, 1);
+	});
+
+	it("rejects a selection that ceases to qualify between initial validation and claim", async () => {
+		const h = await harness();
+		const claim = h.updates.claimPending;
+		h.updates.claimPending = async (input) => {
+			const token = await claim(input);
+			h.completion.savedOutputs = new Set();
+			return token;
+		};
+		assert.deepEqual(await h.mark(), { kind: "skipped" });
+		assert.deepEqual(h.opened, []);
+		assert.deepEqual(h.updates.all(), []);
+	});
+
+	it("retries a failed completion read without opening Gmail", async () => {
+		const h = await harness({ findCompletion: async () => { throw new Error("DynamoDB unavailable"); } });
+		await assert.rejects(h.mark(), /DynamoDB unavailable/);
+		assert.deepEqual(h.opened, []);
+		assert.deepEqual(h.updates.all(), []);
 	});
 
 	it("creates the label on first use, adds it and removes UNREAD in one request, then records completion", async () => {
@@ -364,7 +500,7 @@ describe("initMarkGmailEmailImported", () => {
 	it("reports an update as already failed if the dead-letter handler settled it first", async () => {
 		const h = await harness();
 		h.fake.mailbox.findMessage = async () => {
-			await h.updates.markFailed({ userId: USER, origin: HISTORY, reason: "dead-lettered", now: NOW });
+			await h.updates.markFailed({ userId: USER, receivedAtMessageId: RAM, origin: HISTORY, reason: "dead-lettered", now: NOW });
 			return { ok: true, value: { found: false } };
 		};
 
@@ -388,6 +524,7 @@ describe("initMarkGmailEmailImported", () => {
 		const first = { ...HISTORY, jobId: GmailHistoryImportJobIdSchema.parse("00000000000000000000000000000001") };
 		const fresh = { ...HISTORY, jobId: GmailHistoryImportJobIdSchema.parse("00000000000000000000000000000002") };
 
+		h.completion.origins.push(first, fresh);
 		assert.deepEqual(await h.mark(first), { kind: "marked" });
 		message.labelIds.push("UNREAD");
 		assert.deepEqual(await h.mark(first), { kind: "already-marked" });

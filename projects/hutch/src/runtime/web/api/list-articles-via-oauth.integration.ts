@@ -44,6 +44,7 @@ describe("List articles via OAuth flow", () => {
 				code_challenge: codeChallenge,
 				code_challenge_method: "S256",
 				state,
+				disclosure_version: "2026-11-27",
 				action: "approve",
 			});
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { CONFIRM_GMAIL_FORWARDING_ENV } from "./confirm-gmail-forwarding.env";
 import { CRAWL_EMAIL_LINK_PREVIEW_ENV } from "./crawl-email-link-preview.env";
 import { EXTRACT_EMAIL_LINKS_ENV } from "./extract-email-links.env";
+import { GMAIL_RAW_CLEANUP_ENV } from "./gmail-raw-cleanup.env";
 import { GMAIL_IMPORT_COMPLETION_ENV } from "./gmail-import-completion.env";
 import { INBOX_FAILURES_DLQ_ENV } from "./inbox-failures-dlq.env";
 import { INGEST_GMAIL_IMPORT_ENV } from "./ingest-gmail-import.env";
@@ -15,6 +16,7 @@ const tuples = {
 	CRAWL_EMAIL_LINK_PREVIEW_ENV,
 	EXTRACT_EMAIL_LINKS_ENV,
 	GMAIL_IMPORT_COMPLETION_ENV,
+	GMAIL_RAW_CLEANUP_ENV,
 	INBOX_FAILURES_DLQ_ENV,
 	INGEST_GMAIL_IMPORT_ENV,
 	INBOX_WEB_ENV,

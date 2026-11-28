@@ -250,7 +250,7 @@ describe("initDeepseekClient", () => {
 	});
 
 	it("lets a 400 reach the caller with its status and logs no line", async () => {
-		const { fetch, calls } = fakeFetch([{ status: 400, body: { error: { message: "bad" } } }]);
+		const { fetch, calls } = fakeFetch([{ status: 400, body: { error: { message: "SYNTHETIC_BODY" } } }]);
 		const { client, lines } = door({ fetch });
 
 		const answer = initCreateDeepseekChatCompletion({ client })({
@@ -259,9 +259,21 @@ describe("initDeepseekClient", () => {
 			messages: [{ role: "user", content: "Pick" }],
 		});
 
-		await expect(answer).rejects.toMatchObject({ status: 400 });
+		await expect(answer).rejects.toMatchObject({ status: 400, message: "DeepSeek returned HTTP 400" });
+		await expect(answer).rejects.not.toHaveProperty("error");
 		expect(calls).toHaveLength(1);
 		expect(lines).toEqual([]);
+	});
+
+	it("identifies malformed HTTP response JSON without exposing the reply in the error", async () => {
+		const { client } = door({
+			fetch: async () => new Response("PRIVATE_REPLY", { headers: { "content-type": "application/json" } }),
+		});
+		await expect(initCreateDeepseekChatCompletion({ client })({
+			feature: DEEPSEEK_FEATURES.summary,
+			max_tokens: 128,
+			messages: [{ role: "user", content: "Summarize" }],
+		})).rejects.toMatchObject({ name: "SyntaxError", message: "DeepSeek returned invalid JSON" });
 	});
 
 	it("does not retry a 500 when maxRetries is 0", async () => {

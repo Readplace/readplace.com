@@ -49,6 +49,7 @@ async function obtainAccessToken(
 			code_challenge: codeChallenge,
 			code_challenge_method: "S256",
 			state: randomBytes(16).toString("base64url"),
+			disclosure_version: "2026-11-27",
 			action: "approve",
 		});
 

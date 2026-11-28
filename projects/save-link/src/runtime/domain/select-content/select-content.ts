@@ -52,7 +52,7 @@ const JUDGE_MAX_ATTEMPTS = 2;
 
 type JudgeAttempt =
 	| { outcome: "judged"; decision: ContentDecision; readability: CandidateReadability }
-	| { outcome: "invalid"; reason: string; issues: string[]; text: string | undefined }
+	| { outcome: "invalid"; reason: string; issues: string[] }
 	| { outcome: "rejected" };
 
 export function initSelectMostCompleteContent(deps: {
@@ -100,7 +100,7 @@ export function initSelectMostCompleteContent(deps: {
 				cacheMissInputTokens: response.usage?.prompt_cache_miss_tokens ?? "unknown",
 			});
 			const text = response.choices[0]?.message?.content?.trim();
-			const invalid = (reason: string, issues: string[] = []): JudgeAttempt => ({ outcome: "invalid", reason, issues, text });
+			const invalid = (reason: string, issues: string[] = []): JudgeAttempt => ({ outcome: "invalid", reason, issues });
 			if (!text) return invalid("empty response");
 			let json: unknown;
 			try {
@@ -109,7 +109,7 @@ export function initSelectMostCompleteContent(deps: {
 				return invalid("malformed response");
 			}
 			const parsed = ResponseSchema.safeParse(json);
-			if (!parsed.success) return invalid("schema mismatch", parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`));
+			if (!parsed.success) return invalid("schema mismatch", parsed.error.issues.map((issue) => issue.code));
 			const answer = parsed.data;
 			const idByLabel = new Map(params.candidates.map((candidate, index) => [labelForIndex(index), candidate.id]));
 			const idsOf = (labels: readonly string[]): CandidateId[] => labels.flatMap((label) => idByLabel.get(label.trim().toUpperCase()) ?? []);
@@ -142,7 +142,7 @@ export function initSelectMostCompleteContent(deps: {
 			attempt += 1;
 			const result = await judgeOnce();
 			if (result.outcome === "invalid") {
-				logger.warn("[SelectContent] invalid response", { url: params.url, attempt, maxAttempts: JUDGE_MAX_ATTEMPTS, reason: result.reason, issues: result.issues, text: result.text ?? "" });
+				logger.warn("[SelectContent] invalid response", { url: params.url, attempt, maxAttempts: JUDGE_MAX_ATTEMPTS, reason: result.reason, issues: result.issues });
 			}
 			return result;
 		}, { maxAttempts: JUDGE_MAX_ATTEMPTS, retryDelayMs: 0, shouldRetry: (result) => result.outcome === "invalid" });

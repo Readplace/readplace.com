@@ -31,6 +31,7 @@ import { initObserveTokenOutcome } from "./token-refusal";
 import { initTokenExchange } from "./token-exchange";
 import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initTokenRevocation } from "./token-revocation";
+import { CONSENT_DISCLOSURE_VERSION } from "./consent-copy";
 import { describeSignInDevice } from "./sign-in-device";
 
 const authorizeQuerySchema = z.object({
@@ -348,6 +349,10 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				return;
 			}
 
+			if (req.body.action !== "approve" || req.body.disclosure_version !== CONSENT_DISCLOSURE_VERSION) {
+				res.status(400).json({ error: "invalid_request", error_description: "Reopen the authorization page and choose Allow access to connect this app." });
+				return;
+			}
 			next();
 		},
 		oauthServer.authorize({
@@ -357,6 +362,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 						id: req.userId,
 						emailVerified: req.emailVerified === true,
 						signedIn: oauthSignIn({
+							consent: { disclosureVersion: CONSENT_DISCLOSURE_VERSION, action: "approve" },
 							at: deps.now().getTime(),
 							location: viewerOf(req).location,
 							device: describeSignInDevice(req.headers["user-agent"]),

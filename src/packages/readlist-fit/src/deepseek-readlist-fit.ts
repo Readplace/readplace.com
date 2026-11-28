@@ -30,8 +30,8 @@ function clipReason(reason: string): string {
 function labelsById(input: { verdicts: readonly Verdict[]; known: ReadonlySet<string> }): Map<string, Verdict> {
 	const labelled = new Map<string, Verdict>();
 	for (const verdict of input.verdicts) {
-		assert(input.known.has(verdict.id), `model labelled id ${verdict.id}, which is not in the input`);
-		assert(!labelled.has(verdict.id), `model labelled id ${verdict.id} more than once`);
+		assert(input.known.has(verdict.id), "model labelled an unknown id");
+		assert(!labelled.has(verdict.id), "model labelled an id more than once");
 		labelled.set(verdict.id, verdict);
 	}
 	return labelled;

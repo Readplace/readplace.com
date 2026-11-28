@@ -43,7 +43,7 @@ function answerConsent(agent: Agent, params: { challenge: string; action: "appro
 	return agent
 		.post("/oauth/authorize")
 		.type("form")
-		.send({ ...authorizeFields(params.challenge), action: params.action });
+		.send({ ...authorizeFields(params.challenge), disclosure_version: "2026-11-27", action: params.action });
 }
 
 async function approvedRedirect(agent: Agent, challenge: string): Promise<URL> {

@@ -61,7 +61,7 @@
           <li class="mcp-connect__operation" data-test-operation="{{name}}"><span class="mcp-connect__marker mcp-connect__marker--included">{{icon "check"}}</span><span class="mcp-connect__operation-text"><code class="mcp-connect__operation-name">{{name}}</code> {{summary}}</span></li>
           {{/each}}
         </ul>
-        <p class="mcp-connect__tool-req">For your safety, <strong>deleting stays in the Readplace app</strong> &mdash; your assistant can mark an article read or unread, but it can&rsquo;t remove anything from your readlist, only point you to the app to do that yourself.</p>
+        <p class="mcp-connect__tool-req">The MCP tools offer no delete action. The connection also gives the assistant access to saved newsletter issues and lets it open a browser session to read your Readplace inbox. A browser session the assistant opened can stay signed in after you disconnect it.</p>
         <ul class="mcp-connect__operations" data-test-section="app-only-operations">
           {{#each appOnlyOperations}}
           <li class="mcp-connect__operation" data-test-operation="{{name}}"><span class="mcp-connect__marker mcp-connect__marker--excluded">{{icon "x"}}</span><span class="mcp-connect__operation-text"><code class="mcp-connect__operation-name">{{name}}</code> {{summary}}</span></li>

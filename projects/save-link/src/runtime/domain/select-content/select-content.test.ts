@@ -167,7 +167,7 @@ describe("initSelectMostCompleteContent", () => {
 
 	const missingReadability = JSON.stringify({ kind: "winner", candidate: "B", reason: "Article" });
 
-	it("asks the judge once more when its reply is invalid, and logs the invalid reply", async () => {
+	it("asks the judge once more when its reply is invalid, and logs the validation code", async () => {
 		const createChatCompletion = jest.fn(fakeChat(missingReadability))
 			.mockImplementationOnce(fakeChat(missingReadability))
 			.mockImplementationOnce(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
@@ -179,7 +179,7 @@ describe("initSelectMostCompleteContent", () => {
 		expect(warn).toHaveBeenCalledTimes(1);
 		expect(warn).toHaveBeenCalledWith("[SelectContent] invalid response", {
 			url: request.url, attempt: 1, maxAttempts: 2, reason: "schema mismatch",
-			issues: ["readability: Invalid input: expected array, received undefined"], text: missingReadability,
+			issues: ["invalid_type"],
 		});
 	});
 
@@ -189,6 +189,6 @@ describe("initSelectMostCompleteContent", () => {
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, warn }, deepseekCallFailedLog: noopLogger });
 		await expect(selectMostCompleteContent(request)).rejects.toThrow("judge returned an invalid response: empty response");
 		expect(createChatCompletion).toHaveBeenCalledTimes(2);
-		expect(warn.mock.calls.map(([, line]) => [line.attempt, line.reason, line.text])).toEqual([[1, "empty response", ""], [2, "empty response", ""]]);
+		expect(warn.mock.calls.map(([, line]) => [line.attempt, line.reason])).toEqual([[1, "empty response"], [2, "empty response"]]);
 	});
 });

@@ -1,5 +1,4 @@
 import type { CreateAiMessage } from "@packages/ai-message";
-import { ZodError } from "zod";
 import { readlistPurposeVersion } from "@packages/domain/readlist";
 import { initDecideReadlistFitWithDeepseek } from "./deepseek-readlist-fit";
 import type { ReadlistFitEngine } from "./readlist-fit-engine";
@@ -72,19 +71,19 @@ describe("initDecideReadlistFitWithDeepseek", () => {
 	it("throws when the model answers a shape other than the one asked for", async () => {
 		const { result } = decide({ body: { links: "none" } });
 
-		await expect(result).rejects.toThrow(ZodError);
+		await expect(result).rejects.toThrow("Model response does not match the requested schema");
 	});
 
 	it("throws when the model labels an id that is not in the input", async () => {
 		const { result } = decide({ body: { links: [...ALL_THREE.links, { id: "0009", verdict: "keep", reason: "r" }] } });
 
-		await expect(result).rejects.toThrow("model labelled id 0009, which is not in the input");
+		await expect(result).rejects.toThrow("model labelled an unknown id");
 	});
 
 	it("throws when the model labels an id twice", async () => {
 		const { result } = decide({ body: { links: [...ALL_THREE.links, ALL_THREE.links[0]] } });
 
-		await expect(result).rejects.toThrow("model labelled id 0005 more than once");
+		await expect(result).rejects.toThrow("model labelled an id more than once");
 	});
 
 	it("throws when the model leaves an id unlabelled", async () => {

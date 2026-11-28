@@ -62,7 +62,7 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		const authorization = await owner.post("/oauth/authorize", { form: {
 			client_id: "ios-app", redirect_uri: "readplace://oauth-callback", response_type: "code",
 			code_challenge: createHash("sha256").update(verifier).digest("base64url"),
-			code_challenge_method: "S256", state: run, action: "approve",
+			code_challenge_method: "S256", state: run, disclosure_version: "2026-11-27", action: "approve",
 		}, maxRedirects: 0 });
 		expect(authorization.status()).toBe(302);
 		const code = new URL(authorization.headers().location).searchParams.get("code");

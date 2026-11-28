@@ -8,6 +8,7 @@ export type SignInOs = z.infer<typeof SignInOsSchema>;
 
 export const OAuthSignInSchema = z.object({
 	at: z.number(),
+	consent: z.object({ disclosureVersion: z.string(), action: z.literal("approve") }).optional(),
 	location: z.object({ city: z.string().optional(), country: z.string().optional() }).optional(),
 	device: z.object({ browser: SignInBrowserSchema, os: SignInOsSchema }).optional(),
 });
@@ -28,11 +29,13 @@ function signInLocation(location: OAuthSignInLocation): OAuthSignInLocation {
 
 export function oauthSignIn(input: {
 	at: number;
+	consent?: OAuthSignIn["consent"];
 	location: OAuthSignInLocation | undefined;
 	device: OAuthSignInDevice | undefined;
 }): OAuthSignIn {
 	return {
 		at: input.at,
+		...(input.consent === undefined ? {} : { consent: input.consent }),
 		...(input.location === undefined ? {} : { location: signInLocation(input.location) }),
 		...(input.device === undefined ? {} : { device: { browser: input.device.browser, os: input.device.os } }),
 	};

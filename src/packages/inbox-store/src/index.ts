@@ -17,3 +17,4 @@ export { initDynamoDbGmailMonitoring } from "./dynamodb-gmail-monitoring";
 export { initDynamoDbEmailImportCompletion } from "./dynamodb-email-import-completion";
 export { initDynamoDbGmailMessageUpdate } from "./dynamodb-gmail-message-update";
 export { initDynamoDbMarkLinkSavedWhileQueued } from "./dynamodb-mark-link-saved-while-queued";
+export { initGmailRawCleanup } from "./gmail-raw-cleanup";

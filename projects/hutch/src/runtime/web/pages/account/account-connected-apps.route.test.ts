@@ -46,6 +46,7 @@ async function grant(
 		code_challenge: pkce.challenge,
 		code_challenge_method: "S256",
 		state: "connected-apps",
+		disclosure_version: "2026-11-27",
 		action: "approve",
 	});
 	assert.equal(authorize.status, 302, "the reader's approval must redirect with a code");

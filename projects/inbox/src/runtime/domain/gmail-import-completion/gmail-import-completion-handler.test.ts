@@ -117,13 +117,13 @@ describe("gmail import completion", () => {
 		assert.equal(marks.length, 2);
 	});
 
-	it("completes a links-only email whose extraction selected nothing", async () => {
+	it("leaves the original unread when links-only extraction selected nothing", async () => {
 		const { run, select, marks } = await setup();
 		await select([]);
 
-		await run([selectedBody(0)]);
+		await run([selectedBody(0), savedBody(LINK), selectedBody(0)]);
 
-		assert.equal(marks.length, 1);
+		assert.deepEqual(marks, []);
 	});
 
 	it("does not treat an acknowledgement before the selection as complete", async () => {

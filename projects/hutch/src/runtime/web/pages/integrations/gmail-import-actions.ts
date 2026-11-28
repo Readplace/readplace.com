@@ -108,6 +108,7 @@ export function initGmailImportActions(deps: {
 			},
 			failureReason: undefined,
 			cancelReason: undefined,
+			tracksRawCapture: true,
 			createdAt: at,
 			updatedAt: at,
 			completedAt: undefined,

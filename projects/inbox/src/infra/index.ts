@@ -38,6 +38,7 @@ import { INBOX_WEB_ENV } from "../runtime/lambda.env";
 import { CONFIRM_GMAIL_FORWARDING_ENV } from "../runtime/confirm-gmail-forwarding.env";
 import { CRAWL_EMAIL_LINK_PREVIEW_ENV } from "../runtime/crawl-email-link-preview.env";
 import { EXTRACT_EMAIL_LINKS_ENV } from "../runtime/extract-email-links.env";
+import { GMAIL_RAW_CLEANUP_ENV } from "../runtime/gmail-raw-cleanup.env";
 import { GMAIL_IMPORT_COMPLETION_ENV } from "../runtime/gmail-import-completion.env";
 import { INBOX_FAILURES_DLQ_ENV } from "../runtime/inbox-failures-dlq.env";
 import { INGEST_GMAIL_IMPORT_ENV } from "../runtime/ingest-gmail-import.env";
@@ -996,6 +997,54 @@ eventBus.subscribeAll(
 	gmailImportCompletionWithSQS,
 	{ name: "inbox-gmail-import-completion" },
 );
+
+const cleanupName = "inbox-gmail-raw-cleanup";
+const cleanupTables = new DynamoDBAccess(`${cleanupName}-clock`, {
+	tables: [{ arn: tableArn(tableNames.gmailHistoryImports), includeIndexes: false }],
+	actions: ["dynamodb:BatchGetItem"],
+});
+const cleanup = new Lambda(cleanupName, {
+	entryPoint: "./src/runtime/gmail-raw-cleanup.main.ts",
+	outputDir: ".lib/inbox-gmail-raw-cleanup",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 900,
+	environmentNames: GMAIL_RAW_CLEANUP_ENV,
+	environment: { RAW_EMAIL_BUCKET_NAME: rawEmailBucketName, DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: tableNames.gmailHistoryImports },
+	policies: [...cleanupTables.policies, {
+		name: `${cleanupName}-s3`,
+		policy: JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{ Effect: "Allow", Action: "s3:ListBucket", Resource: `arn:aws:s3:::${rawEmailBucketName}`, Condition: { StringEquals: { "s3:prefix": "gmail-import/" } } },
+				{ Effect: "Allow", Action: "s3:DeleteObject", Resource: `arn:aws:s3:::${rawEmailBucketName}/gmail-import/*` },
+			],
+		}),
+	}],
+});
+const cleanupSchedule = new aws.cloudwatch.EventRule(cleanupName, { scheduleExpression: "rate(1 hour)" });
+const allowCleanup = new aws.lambda.Permission(cleanupName, {
+	action: "lambda:InvokeFunction", function: cleanup.functionName, principal: "events.amazonaws.com", sourceArn: cleanupSchedule.arn,
+});
+new aws.cloudwatch.EventTarget(cleanupName, { rule: cleanupSchedule.name, arn: cleanup.arn }, { dependsOn: [allowCleanup] });
+
+const cleanupTopic = new aws.sns.Topic(`${cleanupName}-alerts`);
+new aws.sns.TopicSubscription(`${cleanupName}-email`, { topic: cleanupTopic.arn, protocol: "email", endpoint: alertEmail });
+new aws.cloudwatch.MetricAlarm(`${cleanupName}-errors`, {
+	namespace: "AWS/Lambda", metricName: "Errors", dimensions: { FunctionName: cleanup.functionName },
+	statistic: "Sum", period: 300, evaluationPeriods: 1, comparisonOperator: "GreaterThanOrEqualToThreshold", threshold: 1,
+	treatMissingData: "notBreaching", alarmActions: [cleanupTopic.arn],
+	alarmDescription: "An hourly Gmail raw cleanup failed. Inspect permissions and retry before the 31-day deadline.",
+});
+const cleanupHeartbeat = new aws.cloudwatch.LogMetricFilter(`${cleanupName}-heartbeat`, {
+	logGroupName: cleanup.logGroupName, pattern: '"gmail-raw-cleanup-completed"',
+	metricTransformation: { namespace: "Readplace/Gmail", name: "RawCleanupCompleted", value: "1" },
+});
+new aws.cloudwatch.MetricAlarm(`${cleanupName}-missed`, {
+	namespace: "Readplace/Gmail", metricName: "RawCleanupCompleted", statistic: "Sum", period: 3600, evaluationPeriods: 3,
+	comparisonOperator: "LessThanThreshold", threshold: 1, treatMissingData: "breaching", alarmActions: [cleanupTopic.arn],
+	alarmDescription: "No completed Gmail raw cleanup in three hourly periods. Restore the schedule and run cleanup before day 31.",
+}, { dependsOn: [cleanupHeartbeat] });
 
 export const routeKeys = inboxRoutes.routes.map((route) => route.routeKey);
 

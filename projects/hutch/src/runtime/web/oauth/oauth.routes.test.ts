@@ -56,6 +56,7 @@ async function obtainTokenPair(
 			code_challenge: pkce.challenge,
 			code_challenge_method: "S256",
 			state: "token-pair-state",
+			disclosure_version: "2026-11-27",
 			action: "approve",
 		});
 
@@ -299,9 +300,28 @@ describe("OAuth routes", () => {
 				agent.post(button.formaction).type("form").send({ ...hiddenFields, action: button.action });
 			const [deny, approve, switchAccount] = buttons;
 
+			expect(hiddenFields.disclosure_version).toBe("2026-11-27");
+			expect(page.text).toContain("read your saved newsletter issues");
+			expect(page.text).toContain("use your Readplace inbox");
+			const withoutVersion = { ...hiddenFields };
+			delete withoutVersion.disclosure_version;
+			for (const fields of [
+				{ ...withoutVersion, action: "approve" },
+				{ ...hiddenFields, disclosure_version: "older", action: "approve" },
+				{ ...hiddenFields, action: "unknown" },
+				hiddenFields,
+			]) {
+				const refused = await agent.post(approve.formaction).type("form").send(fields);
+				expect(refused.status).toBe(400);
+				expect(refused.headers.location).toBeUndefined();
+			}
 			const approved = await submit(approve);
 			expect(approved.status).toBe(302);
-			expect(new URL(approved.headers.location).searchParams.get("code")).toBeTruthy();
+			const code = new URL(approved.headers.location).searchParams.get("code");
+			assert(code, "the approval must produce a code");
+			const stored = await harness.oauthModel.getAuthorizationCode(code);
+			assert(stored, "the code must carry the consent record");
+			expect(stored.user.signedIn).toMatchObject({ consent: { disclosureVersion: "2026-11-27", action: "approve" } });
 			const denied = await submit(deny);
 			expect(denied.status).toBe(302);
 			expect(denied.headers.location).toContain("error=access_denied");
@@ -369,7 +389,7 @@ describe("OAuth routes", () => {
 			const document = new JSDOM(response.text).window.document;
 			expect(textOf(document, ".oauth-authorize__title")).toBe("Connect Definitely Readplace");
 			expect(textOf(document, ".oauth-authorize__text")).toBe(
-				"Allow Definitely Readplace to read and change your readlists. Its Readplace tools save articles, list and open what you saved, mark articles read or unread, and create readlists and add articles to them. None of them delete anything.",
+				"Allow Definitely Readplace to read and change your readlists. Its tools can save and open articles, change their read status and organize them into readlists.",
 			);
 			const notice = document.querySelector('[data-test-alert="consent-notice"]');
 			assert(notice, "the consent notice must render");
@@ -472,6 +492,7 @@ describe("OAuth routes", () => {
 					response_type: "code",
 					code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
 					code_challenge_method: "S256",
+					disclosure_version: "2026-11-27",
 					action: "approve",
 				});
 
@@ -561,6 +582,7 @@ describe("OAuth routes", () => {
 					code_challenge: pkce.challenge,
 					code_challenge_method: "S256",
 					state: "test-state",
+					disclosure_version: "2026-11-27",
 					action: "approve",
 				});
 
@@ -853,6 +875,7 @@ describe("OAuth routes", () => {
 					code_challenge: pkce.challenge,
 					code_challenge_method: "S256",
 					state: "token-test-state",
+					disclosure_version: "2026-11-27",
 					action: "approve",
 				});
 
@@ -1501,6 +1524,7 @@ describe("OAuth routes", () => {
 					code_challenge: pkce.challenge,
 					code_challenge_method: "S256",
 					state: "dyn-state",
+					disclosure_version: "2026-11-27",
 					action: "approve",
 				});
 
@@ -1591,6 +1615,7 @@ describe("OAuth routes", () => {
 					code_challenge: pkce.challenge,
 					code_challenge_method: "S256",
 					state: "loopback-state",
+					disclosure_version: "2026-11-27",
 					action: "approve",
 				});
 
@@ -1672,6 +1697,7 @@ describe("consent seed save on approve", () => {
 			code_challenge: pkce.challenge,
 			code_challenge_method: "S256",
 			state: "seed-state",
+			disclosure_version: "2026-11-27",
 			action: "approve",
 		});
 	}
@@ -1768,6 +1794,7 @@ describe("consent seed save on approve", () => {
 			response_type: "code",
 			code_challenge: pkce.challenge,
 			code_challenge_method: "S256",
+			disclosure_version: "2026-11-27",
 			action: "approve",
 		});
 

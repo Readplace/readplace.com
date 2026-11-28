@@ -46,6 +46,7 @@ export {
 	type GmailHistoryImportJobId,
 	GmailMessageIdSchema,
 	type GmailMessageId,
+	GMAIL_RAW_RETENTION_MS,
 	GMAIL_HISTORY_IMPORT_WINDOW_DAYS,
 	GMAIL_HISTORY_IMPORT_PAGE_SIZE,
 	GMAIL_HISTORY_IMPORT_MAX_POLLS,
