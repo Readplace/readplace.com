@@ -11,7 +11,7 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import { type CspNonce, DISTRACTION_FREE_BODY_CLASS, type PageBody } from "@packages/web-shell";
 import { readerScripts } from "../../shared/reader-nav-script";
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
-import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { WebReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { RECRAWL_STYLES } from "./recrawl.styles";
@@ -82,7 +82,7 @@ export interface AdminRecrawlPageInput {
  * column and surface as "(legacy)".
  */
 export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
-	const actions = RegularReader({ actionBtns: { readlistPicker: undefined } });
+	const actions = WebReader({ actionBtns: { readlistPicker: undefined } });
 	const { html: innerContent } = renderArticleBody({
 		readerSection: input.readerSection,
 		now: input.now,
@@ -101,7 +101,6 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
-		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
 	const railHtml = renderArticleRail({
 		url: input.destinationUrl,

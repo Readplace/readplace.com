@@ -1,9 +1,4 @@
-import type {
-	CreateMediaUploadSession,
-	FailMediaUpload,
-	FindMediaUploadSession,
-	MarkMediaUploadCommitted,
-} from "@packages/domain";
+import type { FailMediaUpload, MarkMediaUploadCommitted } from "@packages/domain";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
@@ -30,10 +25,7 @@ const SessionRow = z.object({
 export function initDynamoDbMediaUploadSessions(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	now: () => Date;
 }): {
-	createMediaUploadSession: CreateMediaUploadSession;
-	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
 } {
@@ -58,20 +50,6 @@ export function initDynamoDbMediaUploadSessions(deps: {
 	};
 
 	return {
-		createMediaUploadSession: async (params) => {
-			const session = { ...params, status: "staged" as const };
-			await table.put({
-				Item: {
-					...session,
-					expiresAt: Math.floor(deps.now().getTime() / 1000) + MEDIA_UPLOAD_SESSION_TTL_SECONDS,
-				},
-			});
-			return session;
-		},
-		findMediaUploadSession: async ({ uploadId, userId }) => {
-			const row = await table.get({ uploadId });
-			return row?.userId === userId ? row : undefined;
-		},
 		markMediaUploadCommitted: async ({ uploadId, userId }) => {
 			const outcome = await transition({
 				uploadId,

@@ -294,7 +294,6 @@ const eventBus = EventBus.fromPlatformStack(config);
 
 const failuresDlq = new SharedDlq(SAVE_LINK_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
-	drainedByHandler: true,
 });
 
 const generateSummaryQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.generateSummary, {
@@ -458,7 +457,6 @@ const saveLinkCommandDynamodb = new DynamoDBAccess("save-link-command-dynamodb",
 });
 
 const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand, {
-	priorLogGroupLogicalName: "saveLinkCommand-log-group",
 	entryPoint: "./src/runtime/save-link-command.main.ts",
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
@@ -672,7 +670,6 @@ const saveLinkRawHtmlCommandDynamodb = new DynamoDBAccess("save-link-raw-html-co
 });
 
 const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawHtmlCommand, {
-	priorLogGroupLogicalName: "saveLinkRawHtmlCommand-log-group",
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
@@ -722,7 +719,6 @@ const saveAnonymousLinkCommandDynamodb = new DynamoDBAccess("save-anonymous-link
 });
 
 const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAnonymousLinkCommand, {
-	priorLogGroupLogicalName: "saveAnonymousLinkCommand-log-group",
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
@@ -1024,7 +1020,6 @@ const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 };
 
 const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.comprehensiveCrawlCommand, {
-	priorLogGroupLogicalName: "comprehensiveCrawlCommand-log-group",
 	// The orchestrator buffers the whole PDF (the AWS SDK stream collector alone
 	// peaks ~3× the file transiently) and writes it to /tmp for pdfinfo + S3
 	// staging, so a 500 MB upload needs headroom well above the post-fan-out
@@ -1209,7 +1204,6 @@ const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
 };
 
 const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
-	priorLogGroupLogicalName: "saveLinkRawPdfCommand-log-group",
 	// Reads the whole staged PDF into memory (SDK stream collector peaks ~3× the
 	// file) and writes it to /tmp for pdfinfo + S3 staging before per-page fan-out.
 	// A 500 MB client upload needs 3008 MB + a 2 GiB /tmp, matching the OCR path.
@@ -1280,7 +1274,6 @@ const staleCheckRequestedDynamodb = new DynamoDBAccess("stale-check-requested-dy
 });
 
 const staleCheckRequestedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRequested, {
-	priorLogGroupLogicalName: "staleCheckRequested-log-group",
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
@@ -1342,7 +1335,6 @@ const selectMostCompleteContentDynamodb = new DynamoDBAccess(`${SAVE_LINK_LAMBDA
 });
 
 const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
-	priorLogGroupLogicalName: "selectMostCompleteContent-log-group",
 			entryPoint: "./src/runtime/select-most-complete-content.main.ts",
 		outputDir: ".lib/select-most-complete-content",
 		assetDir: "./src",
@@ -2023,7 +2015,6 @@ const recrawlLinkInitiatedDynamodb = new DynamoDBAccess("recrawl-link-initiated-
 });
 
 const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated, {
-	priorLogGroupLogicalName: "recrawlLinkInitiated-log-group",
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
@@ -2137,7 +2128,6 @@ eventBus.subscribe(SummaryGeneratedEvent, summaryGeneratedLambdaWithSQS);
 // --- SummaryGenerationFailed handler ---
 
 const summaryGenerationFailedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.summaryGenerationFailed, {
-	priorLogGroupLogicalName: "summaryGenerationFailed-log-group",
 	entryPoint: "./src/runtime/summary-generation-failed.main.ts",
 	outputDir: ".lib/summary-generation-failed",
 	assetDir: "./src",

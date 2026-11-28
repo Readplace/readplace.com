@@ -1,8 +1,6 @@
 export type {
 	MediaUploadSessionState,
 	MediaUploadSession,
-	CreateMediaUploadSession,
-	FindMediaUploadSession,
 	MarkMediaUploadCommitted,
 	FailMediaUpload,
 	MediaPendingSuccessAction,

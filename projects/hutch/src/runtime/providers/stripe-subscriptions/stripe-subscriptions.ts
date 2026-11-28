@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STRIPE_API, readStripeErrorMessage, stripeHeaders } from "../stripe-api/stripe-api";
 import {
 	INVOICE_PAGE_SIZE,
 	InvoiceIdSchema,
@@ -13,22 +14,6 @@ import {
 	type ReverseScheduledCancellation,
 	type ScheduleCancellationAtPeriodEnd,
 } from "@packages/provider-contracts/subscription-billing";
-
-const STRIPE_API = "https://api.stripe.com/v1";
-
-/** Pinned so the response shape cannot shift under us when Stripe advances the
- * account's default version. Stripe's Basil release (2025-03-31) moved
- * current_period_end off the Subscription onto its line items; an unpinned
- * default silently delivered that shape and broke deferred-cancellation. */
-const STRIPE_API_VERSION = "2026-04-22.dahlia";
-
-const StripeErrorResponse = z.object({
-	error: z.object({
-		code: z.string().optional(),
-		message: z.string().optional(),
-		type: z.string().optional(),
-	}),
-});
 
 const StripeSubscriptionResponse = z.object({
 	id: z.string(),
@@ -139,23 +124,14 @@ export function initStripeSubscriptions(deps: {
 	listInvoices: ListInvoices;
 	findOpenInvoiceFailure: FindOpenInvoiceFailure;
 } {
-	const stripeHeaders = {
-		Authorization: `Bearer ${deps.apiKey}`,
-		"Stripe-Version": STRIPE_API_VERSION,
-	};
-
-	async function readStripeErrorMessage(response: Response): Promise<string> {
-		const json = await response.json();
-		const parsed = StripeErrorResponse.safeParse(json);
-		return parsed.success ? parsed.data.error.message ?? "Stripe error" : "Stripe error";
-	}
+	const authHeaders = stripeHeaders(deps.apiKey);
 
 	const cancelImmediately: CancelSubscriptionImmediately = async ({ subscriptionId }) => {
 		const response = await deps.fetch(
 			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
 			{
 				method: "DELETE",
-				headers: stripeHeaders,
+				headers: authHeaders,
 			},
 		);
 
@@ -197,7 +173,7 @@ export function initStripeSubscriptions(deps: {
 		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
 			method: "POST",
 			headers: {
-				...stripeHeaders,
+				...authHeaders,
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: body.toString(),
@@ -218,7 +194,7 @@ export function initStripeSubscriptions(deps: {
 	const findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod = async ({ subscriptionId }) => {
 		const response = await deps.fetch(
 			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
-			{ method: "GET", headers: stripeHeaders },
+			{ method: "GET", headers: authHeaders },
 		);
 
 		if (!response.ok) {
@@ -243,7 +219,7 @@ export function initStripeSubscriptions(deps: {
 			{
 				method: "POST",
 				headers: {
-					...stripeHeaders,
+					...authHeaders,
 					"Content-Type": "application/x-www-form-urlencoded",
 				},
 				body: body.toString(),
@@ -275,7 +251,7 @@ export function initStripeSubscriptions(deps: {
 			{
 				method: "POST",
 				headers: {
-					...stripeHeaders,
+					...authHeaders,
 					"Content-Type": "application/x-www-form-urlencoded",
 				},
 				body: body.toString(),
@@ -307,7 +283,7 @@ export function initStripeSubscriptions(deps: {
 			`${STRIPE_API}/customers/${encodeURIComponent(customerId)}`,
 			{
 				method: "DELETE",
-				headers: stripeHeaders,
+				headers: authHeaders,
 			},
 		);
 
@@ -329,7 +305,7 @@ export function initStripeSubscriptions(deps: {
 
 		const subscriptionResponse = await deps.fetch(
 			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
-			{ method: "GET", headers: stripeHeaders, signal },
+			{ method: "GET", headers: authHeaders, signal },
 		);
 
 		// A subscription we no longer have is not a fault — there is simply no charge
@@ -358,7 +334,7 @@ export function initStripeSubscriptions(deps: {
 		const previewResponse = await deps.fetch(`${STRIPE_API}/invoices/create_preview`, {
 			method: "POST",
 			headers: {
-				...stripeHeaders,
+				...authHeaders,
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: previewBody.toString(),
@@ -396,7 +372,7 @@ export function initStripeSubscriptions(deps: {
 		});
 		const response = await deps.fetch(`${STRIPE_API}/invoices?${query.toString()}`, {
 			method: "GET",
-			headers: stripeHeaders,
+			headers: authHeaders,
 		});
 
 		if (!response.ok) {
@@ -430,7 +406,7 @@ export function initStripeSubscriptions(deps: {
 		});
 		const response = await deps.fetch(`${STRIPE_API}/invoices?${query.toString()}`, {
 			method: "GET",
-			headers: stripeHeaders,
+			headers: authHeaders,
 		});
 
 		if (!response.ok) {

@@ -26,7 +26,6 @@ import type {
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
-	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroyOAuthGrantSessions,
 	DestroySession,
@@ -91,7 +90,6 @@ import type {
 import type {
 	PublishCancelSubscriptionCommand,
 	PublishDeleteAccountCommand,
-	PublishSubscriptionReactivated,
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
@@ -306,9 +304,7 @@ import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/pro
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
-	CreateMediaUploadSession,
 	FindMediaUploadByCapability,
-	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
@@ -454,7 +450,6 @@ export interface AppDependencies {
 	staticBaseUrl: string;
 	hashPassword: (password: string) => Promise<string>;
 	fetchFirefoxDownloadUrl: FetchFirefoxDownloadUrl;
-	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
@@ -654,11 +649,9 @@ export interface AppDependencies {
 	transcriptAllowanceSeconds: number;
 	chargeTranscriptQuota: ChargeTranscriptQuota;
 	refundUnstartedCharge: RefundUnstartedCharge;
-	createMediaUploadSession: CreateMediaUploadSession;
 	storePendingViewHighlights: StorePendingViewHighlights;
 	findPendingViewHighlights: FindPendingViewHighlights;
 	releasePendingViewHighlights: ReleasePendingViewHighlights;
-	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
@@ -687,7 +680,6 @@ export interface AppDependencies {
 	claimPendingSignup: ClaimPendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
-	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		recordFounderNote: RecordFounderNote;
@@ -1206,7 +1198,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const isAllowedExtensionOrigin = (origin: string | undefined): boolean =>
 		!origin ||
 		origin === appOrigin ||
-		origin === "https://hutch-app.com" ||
 		extensionOriginPattern.test(origin);
 
 	const extensionCors = cors({
@@ -1317,10 +1308,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	// Bare (HtmlPage, not Base) so the iOS Share-help sheet can render it in a
-	// WKWebView without site chrome; public like /privacy. The current iOS client
-	// holds this path client-side; the /queue collection still advertises it via the
-	// add-links-help rel so older installed clients resolve the help URL from there.
-	// Either way the copy ships via a hutch deploy rather than an App Store review.
+	// WKWebView without site chrome; public like /privacy.
 	//
 	// The app sheet appends ?shell=app, which earns the same chromeless "← Back to
 	// queue" deep link the account page renders — so both surfaces the sheet hosts

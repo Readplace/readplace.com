@@ -210,7 +210,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(queueDoc.body.className).toBe("page-readlist");
 	});
 
-	it("puts the web reader's mark-as-read in the toolbar row with no bottom bar", async () => {
+	it("puts the web reader's mark-as-read in the toolbar row", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-web-toolbar");
@@ -220,8 +220,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const toolbar = doc.querySelector(".article-body__toolbar");
 		assert(toolbar, "the web reader must render the toolbar row");
 		assert(toolbar.querySelector("[data-test-mark-read-form]"), "the toolbar row keeps the mark-read form");
-		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
-		expect(doc.querySelector("[data-test-mark-read-bottom-slot]")).toBe(null);
 		expect(doc.body.className).toBe("page-reader page-distraction-free");
 	});
 
@@ -239,18 +237,16 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
 	});
 
-	it("points the top back link at the native-close deep link and drops the bottom bar", async () => {
+	it("points the top back link at the native-close deep link", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-back");
 
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 		expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
-		expect(doc.querySelector("[data-test-back-bottom-link]")).toBe(null);
-		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
 	});
 
-	it("keeps htmx and the top mark-read form but drops the whole bottom bar so mark-as-read still bridges to the app", async () => {
+	it("keeps htmx and the top mark-read form so mark-as-read still bridges to the app", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-markread");
@@ -265,9 +261,6 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		expect(
 			topForm.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
 		).toBe("read");
-
-		expect(doc.querySelector("[data-test-mark-read-bottom-slot]")).toBe(null);
-		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
 	});
 
 	it("injects the server-owned mark-read bridge for the app, absent from the browser shell", async () => {

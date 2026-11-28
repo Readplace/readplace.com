@@ -19,7 +19,7 @@ const unknownUploadId = UploadIdSchema.parse("fedcba9876543210fedcba9876543210")
 
 async function stagedSession() {
 	const sessions = initInMemoryMediaUploadSessions();
-	await sessions.createMediaUploadSession({
+	await sessions.createAnyMediaUploadSession({
 		uploadId,
 		userId: owner,
 		kind: "book",
@@ -34,7 +34,7 @@ describe("initInMemoryMediaUploadSessions", () => {
 	it("creates a staged session its owner can find", async () => {
 		const sessions = await stagedSession();
 
-		const found = await sessions.findMediaUploadSession({ uploadId, userId: owner });
+		const found = await sessions.findMediaUploadByCapability({ uploadId, userId: owner });
 
 		assert.equal(found?.status, "staged");
 		assert.equal(found?.fileName, "novel.epub");
@@ -43,7 +43,7 @@ describe("initInMemoryMediaUploadSessions", () => {
 	it("hides a session from another user", async () => {
 		const sessions = await stagedSession();
 
-		assert.equal(await sessions.findMediaUploadSession({ uploadId, userId: otherUser }), undefined);
+		assert.equal(await sessions.findMediaUploadByCapability({ uploadId, userId: otherUser }), undefined);
 	});
 
 	it("moves staged to committed, then committed to failed", async () => {
@@ -51,7 +51,7 @@ describe("initInMemoryMediaUploadSessions", () => {
 
 		assert.equal(await sessions.markMediaUploadCommitted({ uploadId, userId: owner }), "committed");
 		assert.equal(await sessions.failMediaUpload({ uploadId }), "failed");
-		assert.equal((await sessions.findMediaUploadSession({ uploadId, userId: owner }))?.status, "failed");
+		assert.equal((await sessions.findMediaUploadByCapability({ uploadId, userId: owner }))?.status, "failed");
 	});
 
 	it("refuses to commit a session that is no longer staged", async () => {
@@ -65,7 +65,7 @@ describe("initInMemoryMediaUploadSessions", () => {
 		const sessions = await stagedSession();
 
 		assert.equal(await sessions.markMediaUploadCommitted({ uploadId, userId: otherUser }), "not-staged");
-		assert.equal((await sessions.findMediaUploadSession({ uploadId, userId: owner }))?.status, "staged");
+		assert.equal((await sessions.findMediaUploadByCapability({ uploadId, userId: owner }))?.status, "staged");
 	});
 
 	it("refuses to commit an unknown upload", async () => {
@@ -81,7 +81,7 @@ describe("initInMemoryMediaUploadSessions", () => {
 		const sessions = await stagedSession();
 
 		assert.equal(await sessions.failMediaUpload({ uploadId }), "not-committed");
-		assert.equal((await sessions.findMediaUploadSession({ uploadId, userId: owner }))?.status, "staged");
+		assert.equal((await sessions.findMediaUploadByCapability({ uploadId, userId: owner }))?.status, "staged");
 	});
 
 	it("refuses to fail a session twice", async () => {
@@ -207,7 +207,6 @@ describe("initInMemoryMediaUploadSessions for a guest upload", () => {
 	it("inspects, records and lets its reader claim the upload, which S01's ports then see", async () => {
 		const sessions = initInMemoryMediaUploadSessions();
 		await sessions.createAnyMediaUploadSession(guest);
-		assert.equal(await sessions.findMediaUploadSession({ uploadId, userId: owner }), undefined);
 		assert.equal(await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"', kind: "book" }), "inspecting");
 		assert.equal(
 			await sessions.recordMediaInspection({
@@ -269,7 +268,7 @@ describe("initInMemoryMediaUploadSessions for a guest upload", () => {
 		const created = await sessions.createAnyMediaUploadSession({ ...guest, userId: owner });
 
 		assert.equal(created.userId, owner);
-		assert.equal((await sessions.findMediaUploadSession({ uploadId, userId: owner }))?.status, "staged");
+		assert.equal((await sessions.findMediaUploadByCapability({ uploadId, userId: owner }))?.status, "staged");
 	});
 });
 

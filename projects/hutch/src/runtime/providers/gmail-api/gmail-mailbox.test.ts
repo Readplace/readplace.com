@@ -190,6 +190,24 @@ describe("initGmailMailbox", () => {
 		assert.deepEqual(refreshes, [false, true]);
 	});
 
+	it("asks for re-authorisation without another refresh when the scope retry answers HTTP 401", async () => {
+		let requests = 0;
+		const { mailbox, refreshes } = harness(() => ++requests === 1
+			? { status: 403, body: { error: { message: "Missing scope", errors: [{ reason: "insufficientPermissions" }] } } }
+			: { status: 401, body: {} });
+		assert.deepEqual(await mailbox.findProfile({ userId: USER }), { ok: false, reason: "reauth-required" });
+		assert.deepEqual(refreshes, [false, true]);
+	});
+
+	it("reports missing metadata access without another refresh when the 401 retry answers a scope HTTP 403", async () => {
+		let requests = 0;
+		const { mailbox, refreshes } = harness(() => ++requests === 1
+			? { status: 401, body: {} }
+			: { status: 403, body: { error: { message: "Missing scope", errors: [{ reason: "insufficientPermissions" }] } } });
+		assert.deepEqual(await mailbox.findProfile({ userId: USER }), { ok: false, reason: "metadata-permission-required" });
+		assert.deepEqual(refreshes, [false, true]);
+	});
+
 	it.each(["rateLimitExceeded", "userRateLimitExceeded"])("retries HTTP 403 %s as a quota failure without forcing consent", async (reason) => {
 		const { mailbox, refreshes } = harness(() => ({ status: 403, body: { error: { message: "Slow down", errors: [{ reason }] } } }));
 		assert.deepEqual(await mailbox.listMessageSenders({ userId: USER }), { ok: false, reason: "unavailable", status: 403 });

@@ -5,7 +5,6 @@ import { type IconName, iconSvg } from "@packages/ui-icons";
 import {
 	type ActionButtons,
 	ChromelessReader,
-	RegularReader,
 	WebReader,
 	renderReaderDownloadsOob,
 	renderReaderDownloadsSlotOob,
@@ -15,7 +14,6 @@ import { epubDownloadGuideFor } from "../../epub/epub-download-guide";
 
 const BACK = {
 	topHref: "/queue?utm_content=back-top",
-	bottomHref: "/queue?utm_content=back-bottom",
 	label: "Back to readlist",
 };
 
@@ -26,14 +24,6 @@ const ACTION_BTNS = {
 		{
 			position: "top",
 			postUrl: "/queue/abc/status?utm_content=mark-read-top",
-			label: "Mark as read",
-			iconName: "check",
-			testAction: "mark-read",
-			fields: [{ name: "status", value: "read" }],
-		},
-		{
-			position: "bottom",
-			postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
 			label: "Mark as read",
 			iconName: "check",
 			testAction: "mark-read",
@@ -544,7 +534,7 @@ describe("toolbar order", () => {
 
 	it("gives the menu's share disclosure the panel rendered for the menu", () => {
 		const doc = parse(
-			RegularReader({ actionBtns: { ...FULL_ACTION_BTNS, menu: { deleteItemsHtml: "" } } }).top.to("text/html").body,
+			WebReader({ actionBtns: { ...FULL_ACTION_BTNS, menu: { deleteItemsHtml: "" } } }).top.to("text/html").body,
 		);
 
 		expect(
@@ -599,7 +589,6 @@ describe("withheld sharing", () => {
 	} satisfies ActionButtons;
 
 	it.each([
-		["RegularReader", RegularReader],
 		["WebReader", WebReader],
 		["ChromelessReader", ChromelessReader],
 	])("dims Share and Download in the %s, both opening the dialog that says why", (_name, renderActions) => {
@@ -778,20 +767,13 @@ describe("mark-read confirmation", () => {
 	});
 });
 
-describe("RegularReader", () => {
-	it("renders inline top and bottom bars with back links and mark-read forms", () => {
-		const { top, bottom } = RegularReader({ actionBtns: ACTION_BTNS });
-		const topDoc = parse(top.to("text/html").body);
-		const bottomDoc = parse(bottom.to("text/html").body);
-
-		const toolbar = topDoc.querySelector(".article-body__toolbar");
-		assert(toolbar, "the toolbar row must wrap the top bar, as on every reader");
-		assert(toolbar.querySelector(".article-body__actions--top"), "top bar must render inside the toolbar row");
+describe("WebReader", () => {
+	it("renders the back link and an in-place mark-read form in the top bar", () => {
+		const topDoc = parse(WebReader({ actionBtns: ACTION_BTNS }).top.to("text/html").body);
 
 		const backSlot = topDoc.querySelector("[data-test-back-slot]");
 		assert(backSlot, "top back slot must render");
 		expect(backSlot.classList.contains("article-body__back-slot--visible")).toBe(true);
-		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
 
 		const form = topDoc.querySelector("[data-test-mark-read-form]");
 		assert(form, "top mark-read form must render");
@@ -800,29 +782,11 @@ describe("RegularReader", () => {
 		expect(form.getAttribute("hx-target")).toBe("main");
 		expect(form.getAttribute("hx-select")).toBe("main");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
-
-		// In flight the visible label is visibility:hidden (dropped from the a11y
-		// tree) and the loader is aria-hidden, so aria-label keeps the button named
-		// while it is disabled — parity with the readlist and toast mark-read controls.
-		expect(topDoc.querySelector("[data-test-mark-read-btn]")?.getAttribute("aria-label")).toBe(
-			"Mark as read",
-		);
-		expect(
-			bottomDoc.querySelector("[data-test-mark-read-bottom-btn]")?.getAttribute("aria-label"),
-		).toBe("Mark as read");
-
-		expect(bottomDoc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe(
-			BACK.bottomHref,
-		);
-		const bottomForm = bottomDoc.querySelector("[data-test-mark-read-bottom-form]");
-		assert(bottomForm, "bottom mark-read form must render");
-		expect(bottomForm.getAttribute("action")).toBe("/queue/abc/status?utm_content=mark-read-bottom");
+		expect(topDoc.querySelector("[data-test-mark-read-btn]")?.getAttribute("aria-label")).toBe("Mark as read");
 	});
 
-	it("renders hidden slots when given no action buttons (ViewPage/AdminRecrawl parity)", () => {
-		const { top, bottom } = RegularReader({ actionBtns: { readlistPicker: undefined } });
-		const topDoc = parse(top.to("text/html").body);
-		const bottomDoc = parse(bottom.to("text/html").body);
+	it("renders hidden top slots when given no action buttons", () => {
+		const topDoc = parse(WebReader({ actionBtns: { readlistPicker: undefined } }).top.to("text/html").body);
 
 		expect(
 			topDoc.querySelector("[data-test-back-slot]")?.classList.contains("article-body__back-slot--hidden"),
@@ -832,24 +796,8 @@ describe("RegularReader", () => {
 				.querySelector("[data-test-mark-read-slot]")
 				?.classList.contains("article-body__mark-read-slot--hidden"),
 		).toBe(true);
-		expect(
-			bottomDoc
-				.querySelector("[data-test-back-bottom-slot]")
-				?.classList.contains("article-body__back-bottom-slot--hidden"),
-		).toBe(true);
-		expect(
-			bottomDoc
-				.querySelector("[data-test-mark-read-bottom-slot]")
-				?.classList.contains("article-body__mark-read-slot--hidden"),
-		).toBe(true);
 	});
 
-	it("carries the distraction-free page body class (no chromeless offset)", () => {
-		expect(RegularReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader page-distraction-free");
-	});
-});
-
-describe("WebReader", () => {
 	it("places the top action buttons inside the toolbar row, keeping the mark-read form", () => {
 		const { top } = WebReader({ actionBtns: ACTION_BTNS });
 		const topDoc = parse(top.to("text/html").body);
@@ -862,11 +810,6 @@ describe("WebReader", () => {
 		);
 		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "the web reader keeps the top mark-read form");
-	});
-
-	it("drops the entire bottom bar — the toolbar row carries the article's actions", () => {
-		const { bottom } = WebReader({ actionBtns: ACTION_BTNS });
-		expect(bottom.to("text/html").body).toBe("");
 	});
 
 	it("carries the distraction-free page body class so the shell hides its chrome", () => {
@@ -887,11 +830,6 @@ describe("ChromelessReader", () => {
 		);
 		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "chromeless keeps the top mark-read form");
-	});
-
-	it("drops the entire bottom bar — the native sheet handles dismissal", () => {
-		const { bottom } = ChromelessReader({ actionBtns: ACTION_BTNS });
-		expect(bottom.to("text/html").body).toBe("");
 	});
 
 	it("carries the chromeless body class so the reader CSS pins the toolbar row at the top", () => {

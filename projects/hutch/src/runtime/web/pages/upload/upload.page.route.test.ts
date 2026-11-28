@@ -199,7 +199,7 @@ describe("Upload routes", () => {
 			.type("form")
 			.send({ fileName: "dune.epub", byteLength: "lots" });
 		expect(response.status).toBe(200);
-		const session = await harness.mediaUpload.findMediaUploadSession({
+		const session = await harness.mediaUpload.findMediaUploadByCapability({
 			uploadId: stagedUploadId(documentOf(response.text)),
 			userId,
 		});
@@ -232,7 +232,7 @@ describe("Upload routes", () => {
 		expect(last?.getAttribute("name")).toBe("file");
 		expect(last?.getAttribute("accept")).toBe(".epub,.mp3,.m4a,.mp4");
 		const uploadId = stagedUploadId(doc);
-		const session = await harness.mediaUpload.findMediaUploadSession({
+		const session = await harness.mediaUpload.findMediaUploadByCapability({
 			uploadId,
 			userId,
 		});
@@ -246,7 +246,7 @@ describe("Upload routes", () => {
 			.post("/upload")
 			.type("form")
 			.send({ fileName: "dune.epub", byteLength: "1024" });
-		const session = await harness.mediaUpload.findMediaUploadSession({
+		const session = await harness.mediaUpload.findMediaUploadByCapability({
 			uploadId: stagedUploadId(documentOf(response.text)),
 			userId,
 		});
@@ -272,7 +272,7 @@ describe("Upload routes", () => {
 		expect(received.status).toBe(303);
 		expect(received.headers.location).toBe("/queue?queue=default");
 
-		const session = await harness.mediaUpload.findMediaUploadSession({ uploadId, userId });
+		const session = await harness.mediaUpload.findMediaUploadByCapability({ uploadId, userId });
 		expect(session?.status).toBe("committed");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([
 			expect.objectContaining({ uploadId, userId, kind: "book", saveAttemptId: session?.saveAttemptId, attempt: 1 }),
@@ -455,7 +455,7 @@ describe("Upload routes", () => {
 			href: `/upload/${uploadId}/received`,
 			method: "POST",
 		});
-		expect((await harness.mediaUpload.findMediaUploadSession({ uploadId, userId }))?.fileName).toBe("dune.epub");
+		expect((await harness.mediaUpload.findMediaUploadByCapability({ uploadId, userId }))?.fileName).toBe("dune.epub");
 	});
 
 	it("keeps the HTML S3 form on a redirect back to the upload", async () => {
@@ -603,7 +603,7 @@ describe("Upload routes for a bearer client", () => {
 		expect(staged.status).toBe(200);
 		expect(staged.body.class).toEqual(["upload-staged"]);
 		expect(staged.body.actions.map((a: SirenActionBody) => a.name)).toEqual(["upload-content", "confirm-received"]);
-		expect((await harness.mediaUpload.findMediaUploadSession({ uploadId, userId }))?.userId).toBe(userId);
+		expect((await harness.mediaUpload.findMediaUploadByCapability({ uploadId, userId }))?.userId).toBe(userId);
 	});
 
 	it("refuses an invalid bearer before staging anything", async () => {

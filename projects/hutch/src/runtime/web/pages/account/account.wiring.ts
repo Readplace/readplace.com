@@ -5,7 +5,7 @@ import { initDeleteAccount } from "../../../domain/account/delete-account";
 import type { initAccountRoutes } from "./account.page";
 
 export function accountDependenciesFrom(
-	deps: Pick<AppDependencies, "subscriptionProviders" | "findEmailByUserId" | "findUserById" | "findUserPasswordStatus" | "setUserAppearance" | "setUserDisplayName" | "destroyUserSessions" | "revokeAllUserOAuthTokens" | "revokeUserOAuthClient" | "markAccountDeleted" | "publishDeleteAccountCommand" | "publishCancelSubscriptionCommand" | "publishSubscriptionReactivated" | "createCheckoutSession" | "createSubscriptionOnExistingCustomer" | "findSubscriptionNextCharge" | "findSubscriptionPaymentMethod" | "listInvoices" | "reverseScheduledCancellation" | "paymentMethods" | "stripePublishableKey" | "trialScheduler" | "storePendingSignup" | "resolvePriceId" | "keepOfferCouponId" | "salt" | "logError" | "now" | "rateLimitRules">,
+	deps: Pick<AppDependencies, "subscriptionProviders" | "findEmailByUserId" | "findUserById" | "findUserPasswordStatus" | "setUserAppearance" | "setUserDisplayName" | "destroyUserSessions" | "revokeAllUserOAuthTokens" | "revokeUserOAuthClient" | "markAccountDeleted" | "publishDeleteAccountCommand" | "publishCancelSubscriptionCommand" | "createCheckoutSession" | "createSubscriptionOnExistingCustomer" | "findSubscriptionNextCharge" | "findSubscriptionPaymentMethod" | "listInvoices" | "reverseScheduledCancellation" | "paymentMethods" | "stripePublishableKey" | "trialScheduler" | "storePendingSignup" | "resolvePriceId" | "keepOfferCouponId" | "salt" | "logError" | "now" | "rateLimitRules">,
 	built: Pick<
 		Parameters<typeof initAccountRoutes>[0],
 		"keepOffer" | "getEffectiveAccess" | "listConnectedOAuthClients" | "appOrigin" | "buildBannerState" | "recordSubscriptionEvent" | "recordAnalyticsEvent"
@@ -44,7 +44,6 @@ export function accountDependenciesFrom(
 		listConnectedOAuthClients,
 		revokeUserOAuthClient: deps.revokeUserOAuthClient,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
-		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,

@@ -68,7 +68,6 @@ describe("Readlist freshness integration", () => {
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
 			freshness: { refreshArticleIfStale },
 		});

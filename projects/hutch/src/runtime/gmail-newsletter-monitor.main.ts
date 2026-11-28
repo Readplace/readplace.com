@@ -23,7 +23,7 @@ import { initGmailNewsletterMonitorHandler } from "./domain/gmail/gmail-newslett
 import { initMonitorGmailNewsletters } from "./domain/gmail/monitor-gmail-newsletters";
 import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailMailbox } from "./providers/gmail-api/gmail-mailbox";
-import { NEWSLETTER_CATALOG_OBJECT_KEY, initS3NewsletterCatalog } from "./providers/newsletter-catalog/s3-newsletter-catalog";
+import { initS3NewsletterCatalog } from "./providers/newsletter-catalog/s3-newsletter-catalog";
 import { GMAIL_NEWSLETTER_MONITOR_ENV } from "./gmail-newsletter-monitor.env";
 
 const env = readEnv(GMAIL_NEWSLETTER_MONITOR_ENV);
@@ -39,7 +39,7 @@ const connections = initDynamoDbGmailConnection({ client, tableName: env.DYNAMOD
 const discovery = initDynamoDbGmailDiscovery({ client, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now });
 const monitoring = initDynamoDbGmailMonitoring({ client, tableName: env.DYNAMODB_GMAIL_MONITORING_TABLE, now });
 const mappings = initDynamoDbGmailMapping({ client, tableName: env.DYNAMODB_GMAIL_MAPPINGS_TABLE, now });
-const catalog = initS3NewsletterCatalog({ client: new S3Client({}), bucketName: env.NEWSLETTER_CATALOG_BUCKET_NAME, key: NEWSLETTER_CATALOG_OBJECT_KEY, logger });
+const catalog = initS3NewsletterCatalog({ client: new S3Client({}), bucketName: env.NEWSLETTER_CATALOG_BUCKET_NAME, logger });
 const mailbox = initGmailMailbox({
 	accessToken: initGmailAccessToken({ clientId: env.GMAIL_INTEGRATION_CLIENT_ID, clientSecret: env.GMAIL_INTEGRATION_CLIENT_SECRET, credentials, fetch: globalThis.fetch, now, logger }),
 	fetch: globalThis.fetch,

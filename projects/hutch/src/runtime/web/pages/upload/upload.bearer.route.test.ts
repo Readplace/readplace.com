@@ -70,7 +70,7 @@ describe("Upload routes for a bearer client", () => {
 
 		expect(staged.status).toBe(200);
 		const uploadId = uploadIdOf(actionNamed(staged.body, "confirm-received").href);
-		const session = await harness.mediaUpload.findMediaUploadSession({ uploadId, userId });
+		const session = await harness.mediaUpload.findMediaUploadByCapability({ uploadId, userId });
 		expect(session?.userId).toBe(userId);
 	});
 

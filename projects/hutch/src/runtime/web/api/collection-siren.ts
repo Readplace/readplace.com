@@ -130,15 +130,6 @@ export function toArticleCollectionEntity(
 		{ rel: ["account"], title: "Account", href: accountHref },
 	];
 
-	// Older iOS builds resolve the Share-help URL from this rel; the current client
-	// holds the path itself and ignores this link, but it stays advertised so those
-	// installed builds keep their server-rendered help instead of a bundled fallback.
-	// The href is server-internal, so the help page can move without a client release.
-	links.push({
-		rel: ["add-links-help"],
-		title: "How to add links",
-		href: "/help/add-links",
-	});
 	links.push({ rel: ["upload"], href: "/upload" });
 
 	if (page > 1) {

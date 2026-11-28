@@ -88,8 +88,4 @@ describe("truncateForSeo", () => {
 
 		expect(result).toBe(`${"x".repeat(159)}…`);
 	});
-
-	it("respects a custom maxChars argument", () => {
-		expect(truncateForSeo("hello world there", 11)).toBe("hello…");
-	});
 });

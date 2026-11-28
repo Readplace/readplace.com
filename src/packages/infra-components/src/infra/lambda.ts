@@ -215,15 +215,6 @@ export class Lambda<const N extends readonly string[] = readonly string[]> exten
 			layers?: pulumi.Input<string>[];
 			architectures?: pulumi.Input<string>[];
 			ephemeralStorageSize?: number;
-			/**
-			 * Logical name of the top-level `aws.cloudwatch.LogGroup` this call
-			 * site previously managed for the Lambda. Set only when migrating such
-			 * a site: the component now owns the group, and this drives an alias so
-			 * Pulumi re-parents the existing state resource instead of deleting the
-			 * live group and creating a new one. Omit for Lambdas whose group AWS
-			 * auto-created — those are adopted out-of-band via `pulumi import`.
-			 */
-			priorLogGroupLogicalName?: string;
 			recursiveLoop?: "Allow";
 		},
 		opts?: pulumi.ComponentResourceOptions,
@@ -271,18 +262,13 @@ export class Lambda<const N extends readonly string[] = readonly string[]> exten
 		// later attempt to manage it by its fixed name collides with
 		// ResourceAlreadyExistsException. Creating it here — before the Function, via
 		// dependsOn — makes a group's existence imply Pulumi made it, so that
-		// collision is unrepresentable. `priorLogGroupLogicalName` aliases a group a
-		// call site previously managed as a top-level resource, so the migration
-		// re-parents the live group instead of deleting and recreating it.
+		// collision is unrepresentable.
 		const logGroup = new aws.cloudwatch.LogGroup(`${lambdaName}-log-group`, {
 			name: `/aws/lambda/${lambdaName}`,
 			retentionInDays: 30,
 		}, {
 			parent: this,
 			retainOnDelete: true,
-			aliases: args.priorLogGroupLogicalName
-				? [{ name: args.priorLogGroupLogicalName, parent: pulumi.rootStackResource }]
-				: [],
 		});
 
 		// Every Lambda's log group funnels into the shared observability

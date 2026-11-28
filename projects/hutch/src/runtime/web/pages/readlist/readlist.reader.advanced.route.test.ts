@@ -51,7 +51,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -118,7 +117,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -183,7 +181,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
 	findGeneratedSummary: findGeneratedSummary,
@@ -245,7 +242,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl:{
 	findArticleCrawlStatus: findArticleCrawlStatus,
@@ -311,7 +307,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl:{
 	findArticleCrawlStatus: findArticleCrawlStatus,
@@ -559,7 +554,6 @@ describe("Readlist routes", () => {
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 						publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 					},
 				});
 				const { auth } = harness;
@@ -637,7 +631,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -681,7 +674,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -726,7 +718,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -783,7 +774,6 @@ describe("Readlist routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;

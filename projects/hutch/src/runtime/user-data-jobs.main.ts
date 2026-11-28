@@ -23,7 +23,7 @@ import { BulkArticlesProgressedEvent, RunBulkArticlesCommand, AgeLockDeletionDue
 import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
-import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-model";
+import { initOAuthCredentialLifecycle } from "./providers/oauth/oauth-credential-lifecycle";
 import {
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
@@ -45,7 +45,6 @@ import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-id
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
 import { initAgeLockDeletionDueHandler } from "./age-lock-deletion/age-lock-deletion-due-handler";
 import { initDeleteAccount } from "./domain/account/delete-account";
-import { initEventBridgeDeleteAccountCommand } from "./providers/events/eventbridge-delete-account-command";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
 import { initReleasePrivateItems } from "./media-release/release-private-items";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
@@ -91,11 +90,11 @@ const auth = initDynamoDbAuth({
 	sessionsTableName: env.DYNAMODB_SESSIONS_TABLE,
 });
 
-const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({
+const revokeAllUserOAuthTokens = initOAuthCredentialLifecycle({
 	secret: env.ANALYTICS_SALT,
 	client: dynamoClient,
 	tableName: env.DYNAMODB_OAUTH_TABLE,
-});
+}).revokeAll;
 
 const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
@@ -428,7 +427,7 @@ export const handler = initHandleByDetailType({
 					markAccountDeleted: auth.markAccountDeleted,
 					revokeAllUserOAuthTokens,
 					destroyUserSessions: auth.destroyUserSessions,
-					publishDeleteAccountCommand: initEventBridgeDeleteAccountCommand({ publishEvent }).publishDeleteAccountCommand,
+					publishDeleteAccountCommand: (params) => publishEvent(DeleteAccountCommand, params),
 					now,
 				}),
 				logger,

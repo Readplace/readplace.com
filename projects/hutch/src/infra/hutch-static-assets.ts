@@ -57,7 +57,6 @@ function walkStaticAssets(rootAbs: string): Array<{ key: string; absolutePath: s
  */
 export class HutchStaticAssets extends pulumi.ComponentResource {
 	public readonly baseUrl: pulumi.Output<string>;
-	public readonly distributions: aws.cloudfront.Distribution[];
 
 	constructor(
 		name: string,
@@ -76,7 +75,6 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 
 		const publicBucket = new S3PublicRead(name, {
 			bucketName: args.bucketName,
-			bucketOpts: { aliases: [{ name: `${name}-bucket`, parent: pulumi.rootStackResource }] },
 		}, { parent: this });
 
 		const files = walkStaticAssets(args.sourceDir);
@@ -113,7 +111,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 					originOverride: true,
 				},
 			},
-			{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+			{ parent: this },
 		);
 
 		const hasAnyZone = args.staticDomains.some((sd) => sd.zoneId !== undefined);
@@ -121,7 +119,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 			? new aws.Provider(
 					`${name}-us-east-1`,
 					{ region: "us-east-1" },
-					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+					{ parent: this },
 				)
 			: undefined;
 
@@ -183,10 +181,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 					viewerCertificate,
 					priceClass: "PriceClass_100",
 				},
-				{
-					parent: this,
-					aliases: i === 0 ? [{ parent: pulumi.rootStackResource }] : undefined,
-				},
+				{ parent: this },
 			);
 
 			distributions.push(distribution);
@@ -206,12 +201,10 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 							},
 						],
 					},
-					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+					{ parent: this },
 				);
 			}
 		}
-
-		this.distributions = distributions;
 
 		const triggerHash: pulumi.Output<string> = pulumi
 			.all(bucketObjects.map((o) => o.etag))

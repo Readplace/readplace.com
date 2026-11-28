@@ -6,8 +6,6 @@ export class Sqs extends pulumi.ComponentResource {
 	public readonly queueArn: SqsQueue["queueArn"];
 	public readonly queueUrl: SqsQueue["queueUrl"];
 	public readonly dlqArn: SqsQueue["dlqArn"];
-	public readonly dlqUrl: SqsQueue["dlqUrl"];
-	public readonly dlqName: SqsQueue["dlqName"];
 	public readonly ownDlq: SqsQueue["ownDlq"];
 	public readonly policies: LambdaPolicy[];
 
@@ -30,8 +28,6 @@ export class Sqs extends pulumi.ComponentResource {
 		this.queueArn = queue.queueArn;
 		this.queueUrl = queue.queueUrl;
 		this.dlqArn = queue.dlqArn;
-		this.dlqUrl = queue.dlqUrl;
-		this.dlqName = queue.dlqName;
 		this.ownDlq = queue.ownDlq;
 
 		this.policies = [

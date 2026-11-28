@@ -537,7 +537,7 @@ describe("/developers copy", () => {
 			"past-last": "A page past the last answers 200 with no entities, a prev link and no next link.",
 			"offline-prefetch":
 				"A next link can carry a class of offline-prefetch. It tells Readplace's own apps how to load that page while they download a readlist for offline reading, so ignore it.",
-			rels: "Links use the IANA rel where one exists, such as self, next and prev. original is Memento's. read, upload-again, root, account, add-links-help and upload are Readplace's own.",
+			rels: "Links use the IANA rel where one exists, such as self, next and prev. original is Memento's. read, upload-again, root, account and upload are Readplace's own. Collections no longer carry an add-links-help link: an app that shows help for adding links keeps that help page's address itself.",
 			"article-self":
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",
 			"article-original":

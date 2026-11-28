@@ -348,7 +348,6 @@ export function ReaderPage(
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
-		bottomActionsHtml: actions.bottom.to("text/html").body,
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),

@@ -17,7 +17,6 @@ import type {
 import { z } from "zod";
 import { OAuthGrantId, initRefreshProof } from "../../oauth-refresh/evidence";
 
-export { OAuthTokenRow } from "./oauth-token-row";
 import { OAuthTokenRow } from "./oauth-token-row";
 import { initDynamoRefreshStore } from "./dynamodb-refresh-store";
 

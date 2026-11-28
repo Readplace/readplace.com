@@ -42,7 +42,6 @@ import {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishCancelSubscriptionCommand,
-	PublishSubscriptionReactivated,
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
@@ -160,7 +159,6 @@ interface AccountDependencies {
 	listConnectedOAuthClients: ListConnectedOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
-	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	createCheckoutSession: CreateCheckoutSession;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
@@ -740,10 +738,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					subscriptionId: row.subscriptionId,
 				});
 				await deps.markActiveSubscription({ userId });
-				await deps.publishSubscriptionReactivated({
-					userId,
-					subscriptionId: row.subscriptionId,
-				});
 				if (reversed.trialEndsAt) {
 					try {
 						await deps.trialScheduler.createChargeReminderSchedule({
@@ -780,7 +774,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				upsertTrialing: deps.upsertTrialingSubscription,
 				trialScheduler: deps.trialScheduler,
 			});
-			await deps.publishSubscriptionReactivated({ userId });
 			res.redirect(303, buildAccountUrl());
 		} catch (err) {
 			deps.logger.error("[reactivate] failed", {

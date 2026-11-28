@@ -93,10 +93,8 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
-	CreateMediaUploadSession,
 	FailMediaUpload,
 	FindMediaUploadByCapability,
-	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
@@ -280,7 +278,6 @@ import type {
 	PublishSaveLinkRawHtmlCommand,
 	PublishSaveLinkRawPdfCommand,
 	PublishStaleCheckRequested,
-	PublishSubscriptionReactivated,
 	PublishUpdateFetchTimestamp,
 	PutPendingHtml,
 	PutPendingPdf,
@@ -685,7 +682,6 @@ export interface EventsBundle {
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
-	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 }
 
 export interface PendingHtmlBundle {
@@ -876,8 +872,6 @@ export interface SharedBundle {
 }
 
 export interface MediaUploadBundle {
-	createMediaUploadSession: CreateMediaUploadSession;
-	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;

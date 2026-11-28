@@ -4,8 +4,19 @@ import type { DiscoveredGmailSender } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { GetGmailAccessToken } from "@packages/provider-contracts/gmail-filters";
 import type { GmailIncomingMailbox, GmailMailboxResult, GmailSenderPage } from "@packages/provider-contracts/gmail-mailbox";
+import {
+	classifyWith,
+	GmailErrorReasons,
+	GmailErrorResponse,
+	gmailErrorReasons,
+	initCallGmail,
+	isRateLimited,
+	isScopeMissing,
+	rejectionFrom,
+} from "./gmail-call";
+import { GMAIL_API_ORIGIN } from "./gmail-http-evidence";
 
-const ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me";
+const ENDPOINT = `${GMAIL_API_ORIGIN}/gmail/v1/users/me`;
 const PAGE_SIZE = 25;
 const CONCURRENCY = 5;
 const MessageReference = z.object({ id: z.string() });
@@ -34,13 +45,6 @@ const ProfileResponse = z.object({
 	historyId: z.string(),
 });
 const HistoryCursor = z.object({ pageToken: z.string().optional(), offset: z.number().int().nonnegative() });
-const ErrorResponse = z.object({
-	error: z.object({
-		message: z.string(),
-		errors: z.array(z.object({ reason: z.string() })).optional(),
-		details: z.array(z.object({ reason: z.string().optional() })).optional(),
-	}),
-});
 
 function encodeHistoryCursor(cursor: z.infer<typeof HistoryCursor>): string {
 	return Buffer.from(JSON.stringify(cursor)).toString("base64url");
@@ -57,51 +61,38 @@ export function initGmailMailbox(deps: {
 		url: string,
 		schema: TSchema,
 	): Promise<GmailMailboxResult<z.output<TSchema>>> {
-		async function attempt(forceRefresh: boolean): Promise<GmailMailboxResult<z.output<TSchema>>> {
-			const token = await deps.accessToken({ userId, forceRefresh });
-			if (!token.ok) return token;
-			const response = await deps.fetch(url, {
-				method: "GET",
-				headers: { Authorization: `Bearer ${token.value}` },
+		let refreshed = false;
+		const callGmail = initCallGmail({
+			fetch: deps.fetch,
+			accessToken: (input) => {
+				if (input.forceRefresh) refreshed = true;
+				return deps.accessToken(input);
+			},
+		});
+		const attempt = async (forceRefresh: true | undefined): Promise<GmailMailboxResult<z.output<TSchema>>> =>
+			classifyWith(await callGmail(userId, { url, method: "GET", forceRefresh }), {
+				onOk: async (response) => {
+					const parsed = schema.safeParse(await response.json().catch(() => undefined));
+					return parsed.success
+						? { ok: true, value: parsed.data }
+						: { ok: false, reason: "unavailable", status: response.status };
+				},
+				onRefused: async (response): Promise<GmailMailboxResult<never>> => {
+					const body: unknown = await response.json().catch(() => undefined);
+					const reasons = GmailErrorReasons.safeParse(body);
+					const listed = reasons.success ? gmailErrorReasons(reasons.data) : [];
+					if (response.status === 403 && isRateLimited(listed)) {
+						return { ok: false, reason: "unavailable", status: response.status };
+					}
+					if (response.status === 403 && isScopeMissing(listed)) {
+						return { ok: false, reason: "metadata-permission-required" };
+					}
+					return rejectionFrom({ response, body: GmailErrorResponse.safeParse(body) });
+				},
 			});
-			if (response.status === 401) {
-				if (!forceRefresh) return attempt(true);
-				return { ok: false, reason: "reauth-required" };
-			}
-			if (response.status === 429 || response.status >= 500) {
-				return { ok: false, reason: "unavailable", status: response.status };
-			}
-			const body: unknown = await response.json().catch(() => undefined);
-			if (response.ok) {
-				const parsed = schema.safeParse(body);
-				return parsed.success
-					? { ok: true, value: parsed.data }
-					: { ok: false, reason: "unavailable", status: response.status };
-			}
-			const parsedError = ErrorResponse.safeParse(body);
-			const reasons = parsedError.success
-				? [
-					...(parsedError.data.error.errors ?? []).map((error) => error.reason),
-					...(parsedError.data.error.details ?? []).map((error) => error.reason),
-				]
-				: [];
-			if (response.status === 403) {
-				if (reasons.some((reason) => reason === "rateLimitExceeded" || reason === "userRateLimitExceeded")) {
-					return { ok: false, reason: "unavailable", status: response.status };
-				}
-				if (reasons.includes("insufficientPermissions") || reasons.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT")) {
-					if (!forceRefresh) return attempt(true);
-					return { ok: false, reason: "metadata-permission-required" };
-				}
-			}
-			return {
-				ok: false,
-				reason: "rejected",
-				status: response.status,
-				message: parsedError.success ? parsedError.data.error.message : response.statusText,
-			};
-		}
-		return attempt(false);
+		const first = await attempt(undefined);
+		if (first.ok || first.reason !== "metadata-permission-required" || refreshed) return first;
+		return attempt(true);
 	}
 
 	async function findSenders(userId: UserId, messageIds: string[], withDates: boolean): Promise<GmailMailboxResult<ScannedMessages>> {

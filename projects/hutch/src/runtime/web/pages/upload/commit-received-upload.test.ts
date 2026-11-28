@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { MediaUploadSession } from "@packages/domain";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { AUDIO, BOOK, mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
@@ -18,13 +19,8 @@ describe("initCommitReceivedUpload", () => {
 		const sessions = initInMemoryMediaUploadSessions();
 		const committed = initInMemoryMediaUploadCommitted();
 		const articleStore = initInMemoryArticleStore();
-		const session = await sessions.createMediaUploadSession({
-			uploadId,
-			userId,
-			kind: "book",
-			fileName: "Book upload",
-			saveAttemptId,
-		});
+		const session: MediaUploadSession = { uploadId, userId, kind: "book", fileName: "Book upload", saveAttemptId, status: "staged" };
+		await sessions.createAnyMediaUploadSession(session);
 		const settle = initCommitReceivedUpload({
 			savePrivateItem: articleStore.savePrivateItem,
 			publishMediaUploadCommitted: committed.publishMediaUploadCommitted,
@@ -37,7 +33,7 @@ describe("initCommitReceivedUpload", () => {
 
 		assert.deepEqual(first, { outcome: "committed", uploadId });
 		assert.deepEqual(retry, first);
-		assert.equal((await sessions.findMediaUploadSession({ uploadId, userId }))?.status, "committed");
+		assert.equal((await sessions.findMediaUploadByCapability({ uploadId, userId }))?.status, "committed");
 		const expected = { uploadId, kind: "book", url: mintPrivateItemUrl(uploadId), userId, saveAttemptId, etag: '"e1"', attempt: 1 };
 		assert.deepEqual(committed.publishedMediaUploadCommitted, [expected, expected]);
 	});
@@ -46,11 +42,8 @@ describe("initCommitReceivedUpload", () => {
 		const sessions = initInMemoryMediaUploadSessions();
 		const committed = initInMemoryMediaUploadCommitted();
 		const articleStore = initInMemoryArticleStore();
-		const session = await sessions.createMediaUploadSession({
-			uploadId,
-			userId,
-			saveAttemptId,
-		});
+		const session: MediaUploadSession = { uploadId, userId, saveAttemptId, status: "staged" };
+		await sessions.createAnyMediaUploadSession(session);
 		const settle = initCommitReceivedUpload({
 			savePrivateItem: articleStore.savePrivateItem,
 			publishMediaUploadCommitted: committed.publishMediaUploadCommitted,

@@ -21,7 +21,6 @@ const baseInput = {
 	articleId: "0123456789abcdef0123456789abcdef",
 	appOrigin: "https://readplace.com",
 	topActionsHtml: "",
-	bottomActionsHtml: "",
 	saved: undefined,
 	publishedOn: undefined,
 	now: new Date("2026-11-05T10:00:00.000Z"),
@@ -231,19 +230,16 @@ describe("renderArticleBody", () => {
 		).toBe("Generating summary");
 	});
 
-	it("splices the injected action bars above the header and below the reader slot", () => {
+	it("splices the injected action bar above the header", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: articleBody("<p>Body</p>"),
 			topActionsHtml: '<div data-test-top-actions>top</div>',
-			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
 		}).html;
 		const doc = parse(html);
 
 		assert(doc.querySelector("[data-test-top-actions]"), "top actions must be spliced in");
-		assert(doc.querySelector("[data-test-bottom-actions]"), "bottom actions must be spliced in");
 		expect(html.indexOf("data-test-top-actions")).toBeLessThan(html.indexOf('id="article-header"'));
-		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-test-reader-content"));
 	});
 
 	it("leaves the rail's cards out of the article column, so the summary slot is followed directly by the reader slot", () => {
@@ -378,7 +374,6 @@ describe("renderArticleBody", () => {
 			crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 			topActionsHtml: '<div data-test-top-actions>top</div>',
 			issueLinksHtml: '<section data-test-issue-links>links</section>',
-			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
 		}).html;
 		const doc = parse(html);
 
@@ -390,7 +385,6 @@ describe("renderArticleBody", () => {
 			"data-test-article-card",
 			"data-test-reader-notice",
 			"data-test-issue-links",
-			"data-test-bottom-actions",
 		]);
 		const card = doc.querySelector("[data-test-article-card]");
 		assert(card, "the article card must be rendered");

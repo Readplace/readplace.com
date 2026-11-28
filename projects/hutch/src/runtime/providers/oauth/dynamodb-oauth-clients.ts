@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { toEpochSeconds } from "./epoch-seconds";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -48,10 +49,6 @@ export const IDLE_TTL_SECONDS = 48 * 60 * 60;
  * can never outlive the client row it resolves through.
  */
 export const ACTIVE_TTL_SECONDS = 365 * 24 * 60 * 60;
-
-function toEpochSeconds(date: Date): number {
-	return Math.floor(date.getTime() / 1000);
-}
 
 const clientKey = (clientId: string): string => `client#${clientId}`;
 const pointerKey = (dedupeKey: string): string => `clientdedupe#${dedupeKey}`;

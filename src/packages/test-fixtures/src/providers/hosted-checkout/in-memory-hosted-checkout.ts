@@ -74,11 +74,8 @@ export function initInMemoryHostedCheckout(opts: {
 		return {
 			ok: true,
 			paid: session.paid,
-			paymentStatus: session.paymentStatus,
 			amountTotal: session.amountTotal,
-			customerEmail: session.customerEmail,
 			status: session.status,
-			created: session.created,
 			subscriptionId: session.subscriptionId,
 			customerId: session.customerId,
 		};

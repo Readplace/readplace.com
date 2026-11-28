@@ -77,7 +77,6 @@ export const SaveLinkRawHtmlCommand = defineEvent({
 		captureTrigger: z.enum(["automatic", "manual"]),
 	}),
 });
-export type SaveLinkRawHtmlDetail = z.infer<typeof SaveLinkRawHtmlCommand.detailSchema>;
 
 /** Tier-0 PDF entry point. The extension uploads PDF bytes from the user's
  * browser context (their real session cookies + real TLS fingerprint pass
@@ -98,7 +97,6 @@ export const SaveLinkRawPdfCommand = defineEvent({
 		title: z.string().optional(),
 	}),
 });
-export type SaveLinkRawPdfDetail = z.infer<typeof SaveLinkRawPdfCommand.detailSchema>;
 
 export const SaveAnonymousLinkCommand = defineEvent({
 	name: "save-anonymous-link-command",
@@ -112,9 +110,6 @@ export const SaveAnonymousLinkCommand = defineEvent({
 		userId: UserIdSchema.optional(),
 	}),
 });
-export type SaveAnonymousLinkDetail = z.infer<
-	typeof SaveAnonymousLinkCommand.detailSchema
->;
 
 /** Unified entry-point command for the redesigned save flow.
  *
@@ -148,7 +143,6 @@ export const SubmitLinkCommand = defineEvent({
 		z.strictObject({ url: z.string(), saveAttemptId: SaveAttemptIdSchema, rawHtml: z.string().optional() }), /* 2 */
 	]),
 });
-export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
 const ResolveOnViewSurfaceSchema = z.enum([
 	"readlist-html",
@@ -170,7 +164,6 @@ export const ResolveArticleOnViewCommand = defineEvent({
 		userId: UserIdSchema.optional(),
 	}),
 });
-export type ResolveArticleOnViewDetail = z.infer<typeof ResolveArticleOnViewCommand.detailSchema>;
 
 const PurposeVersionSchema = z.string().regex(/^[0-9a-f]{12}$/);
 
@@ -215,7 +208,6 @@ export const ArticleFiledIntoReadlistEvent = defineEvent({
 	detailType: "ArticleFiledIntoReadlist",
 	detailSchema: z.object({ userId: UserIdSchema, readlist: z.string(), url: z.string(), source: ReadlistFitSourceSchema }),
 });
-export type ArticleFiledIntoReadlistDetail = z.infer<typeof ArticleFiledIntoReadlistEvent.detailSchema>;
 
 /** Irreversible fact: the simple crawl reported `unsupported` for a URL.
  * Published by `save-link-work` (initial save / recrawl) and by the
@@ -257,9 +249,6 @@ export const ComprehensiveCrawlCommand = defineEvent({
 	detailType: "ComprehensiveCrawlCommand",
 	detailSchema: DeferredCrawlFields,
 });
-export type ComprehensiveCrawlDetail = z.infer<
-	typeof ComprehensiveCrawlCommand.detailSchema
->;
 
 export const RenderCrawlCommand = defineEvent({
 	name: "render-crawl-command",
@@ -282,9 +271,6 @@ export const StaleCheckRequestedEvent = defineEvent({
 		url: z.string(),
 	}),
 });
-export type StaleCheckRequestedDetail = z.infer<
-	typeof StaleCheckRequestedEvent.detailSchema
->;
 
 export const LinkSavedEvent = defineEvent({
 	name: "link-saved",
@@ -320,7 +306,6 @@ export const LinkQueuedEvent = defineEvent({
 		userId: UserIdSchema,
 	}),
 });
-export type LinkQueuedDetail = z.infer<typeof LinkQueuedEvent.detailSchema>;
 
 /** Irreversible fact: a save added an article to a reader's queue that was not
  * in it before. Narrower than {@link LinkQueuedEvent} on both axes: it is silent
@@ -427,7 +412,6 @@ export const LinkQueueFailedEvent = defineEvent({
 		receiveCount: z.number(),
 	}),
 });
-export type LinkQueueFailedDetail = z.infer<typeof LinkQueueFailedEvent.detailSchema>;
 
 /** Irreversible fact: a reader's per-user queue row was deleted, so the link is
  * no longer in their queue. The inverse of {@link LinkQueuedEvent}, and the fact
@@ -451,7 +435,6 @@ export const LinkDequeuedEvent = defineEvent({
 		userId: UserIdSchema,
 	}),
 });
-export type LinkDequeuedDetail = z.infer<typeof LinkDequeuedEvent.detailSchema>;
 
 export const ReleaseHeldUploadCommand = defineEvent({
 	name: "release-held-upload", source: "hutch.user-data-jobs", detailType: "ReleaseHeldUploadCommand",
@@ -530,9 +513,6 @@ export const ArchiveCaptureCrawlFailedEvent = defineEvent({
 		reason: z.string(),
 	}),
 });
-export type ArchiveCaptureCrawlFailedDetail = z.infer<
-	typeof ArchiveCaptureCrawlFailedEvent.detailSchema
->;
 
 export const CrawlArticleCompletedEvent = defineEvent({
 	name: "crawl-article-completed",
@@ -542,9 +522,6 @@ export const CrawlArticleCompletedEvent = defineEvent({
 		url: z.string(),
 	}),
 });
-export type CrawlArticleCompletedDetail = z.infer<
-	typeof CrawlArticleCompletedEvent.detailSchema
->;
 
 /** Irreversible fact: the content-selection authority (re)established the
  * canonical readable content for a URL. Published by the tier selector when the
@@ -560,9 +537,6 @@ export const CanonicalContentChangedEvent = defineEvent({
 		url: z.string(),
 	}),
 });
-export type CanonicalContentChangedDetail = z.infer<
-	typeof CanonicalContentChangedEvent.detailSchema
->;
 
 export const CrawlArticleFailedEvent = defineEvent({
 	name: "crawl-article-failed",
@@ -574,9 +548,6 @@ export const CrawlArticleFailedEvent = defineEvent({
 		receiveCount: z.number(),
 	}),
 });
-export type CrawlArticleFailedDetail = z.infer<
-	typeof CrawlArticleFailedEvent.detailSchema
->;
 
 export const RecrawlLinkInitiatedEvent = defineEvent({
 	name: "recrawl-link-initiated",
@@ -591,9 +562,6 @@ export const RecrawlLinkInitiatedEvent = defineEvent({
 		]),
 	}),
 });
-export type RecrawlLinkInitiatedDetail = z.infer<
-	typeof RecrawlLinkInitiatedEvent.detailSchema
->;
 
 /** A user asked for the crawl-version snapshot they authored at
  * `versionMinuteId` to be removed. Deletes that snapshot (iff they authored it)
@@ -613,7 +581,6 @@ export const RemoveMyContentCommand = defineEvent({
 		versionMinuteId: z.string(),
 	}),
 });
-export type RemoveMyContentDetail = z.infer<typeof RemoveMyContentCommand.detailSchema>;
 
 /** Re-establish the canonical content from whatever tier sources remain after
  * a removal. Deliberately NOT a TierContentExtractedEvent: that event's
@@ -629,9 +596,6 @@ export const ReselectAfterRemovalEvent = defineEvent({
 		url: z.string(),
 	}),
 });
-export type ReselectAfterRemovalDetail = z.infer<
-	typeof ReselectAfterRemovalEvent.detailSchema
->;
 
 export const RecrawlContentExtractedEvent = defineEvent({
 	name: "recrawl-content-extracted",
@@ -648,9 +612,6 @@ export const RecrawlContentExtractedEvent = defineEvent({
 		extractedAt: z.string().optional(),
 	}),
 });
-export type RecrawlContentExtractedDetail = z.infer<
-	typeof RecrawlContentExtractedEvent.detailSchema
->;
 
 export const RefreshContentExtractedEvent = defineEvent({
 	name: "refresh-content-extracted",
@@ -703,9 +664,6 @@ export const RecrawlCompletedEvent = defineEvent({
 		url: z.string(),
 	}),
 });
-export type RecrawlCompletedDetail = z.infer<
-	typeof RecrawlCompletedEvent.detailSchema
->;
 
 export const GenerateSummaryCommand = defineCommand({
 	detailSchema: z.object({
@@ -783,7 +741,6 @@ export const DeleteAccountCommand = defineEvent({
 		userId: UserIdSchema,
 	}),
 });
-export type DeleteAccountDetail = z.infer<typeof DeleteAccountCommand.detailSchema>;
 
 const SavedLinksJobSendersSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("all") }),
@@ -827,7 +784,6 @@ export const SavedLinksJobCompletedEvent = defineEvent({
 		completedAt: z.string(),
 	}),
 });
-export type SavedLinksJobCompletedDetail = z.infer<typeof SavedLinksJobCompletedEvent.detailSchema>;
 
 export const SavedLinksJobFailedEvent = defineEvent({
 	name: "saved-links-job-failed",
@@ -840,7 +796,6 @@ export const SavedLinksJobFailedEvent = defineEvent({
 		failedAt: z.string(),
 	}),
 });
-export type SavedLinksJobFailedDetail = z.infer<typeof SavedLinksJobFailedEvent.detailSchema>;
 
 export const AgeLockDeletionDueCommand = defineEvent({
 	name: "age-lock-deletion-due-command",
@@ -862,7 +817,6 @@ export const UserDataExportedEvent = defineEvent({
 		exportedAt: z.string(),
 	}),
 });
-export type UserDataExportedDetail = z.infer<typeof UserDataExportedEvent.detailSchema>;
 
 export const UserDataExportSkippedEvent = defineEvent({
 	name: "user-data-export-skipped",
@@ -915,7 +869,6 @@ export const SubscriptionCancelledEvent = defineEvent({
 		]),
 	}),
 });
-export type SubscriptionCancelledDetail = z.infer<typeof SubscriptionCancelledEvent.detailSchema>;
 
 /** Cancel request. Published by `POST /account/cancel` (no `reason` — the
  * cancel-subscription Lambda derives the user-initiated variant), by the
@@ -945,7 +898,6 @@ export const CancelSubscriptionCommand = defineEvent({
 			.optional(),
 	}),
 });
-export type CancelSubscriptionDetail = z.infer<typeof CancelSubscriptionCommand.detailSchema>;
 
 /** Irreversible fact: a cancel was scheduled for the user's
  * cancellation-effective-at instant. Published by the `cancel-subscription`
@@ -966,28 +918,6 @@ export const SubscriptionCancellationScheduledEvent = defineEvent({
 		cancellationEffectiveAt: z.string(),
 	}),
 });
-export type SubscriptionCancellationScheduledDetail = z.infer<
-	typeof SubscriptionCancellationScheduledEvent.detailSchema
->;
-
-/** Irreversible fact: a user reactivated a scheduled cancellation inside the
- * cancellation-effective-at window. Published by `POST /account/reactivate`
- * after the synchronous Stripe PATCH (paid) or upsertTrialing (trial) has
- * succeeded. No load-bearing handler today — the route does the row write
- * itself — but the event is wired so future analytics / email-reminder
- * handlers can subscribe without a schema change. */
-export const SubscriptionReactivatedEvent = defineEvent({
-	name: "subscription-reactivated",
-	source: "hutch.subscriptions",
-	detailType: "SubscriptionReactivated",
-	detailSchema: z.object({
-		userId: UserIdSchema,
-		subscriptionId: z.string().optional(),
-	}),
-});
-export type SubscriptionReactivatedDetail = z.infer<
-	typeof SubscriptionReactivatedEvent.detailSchema
->;
 
 /** Trial-end auto-conversion request. Published by the EventBridge Scheduler
  * one-shot rule created at trial signup (fires at `trialEndsAt`). Consumed by
@@ -1024,9 +954,6 @@ export const SubscriptionChargeSucceededEvent = defineEvent({
 		plan: z.enum(["monthly", "yearly", "triennial"]).optional(),
 	}),
 });
-export type SubscriptionChargeSucceededDetail = z.infer<
-	typeof SubscriptionChargeSucceededEvent.detailSchema
->;
 
 export const CheckoutCompletedEvent = defineEvent({
 	name: "checkout-completed",
@@ -1039,7 +966,6 @@ export const CheckoutCompletedEvent = defineEvent({
 		amountTotal: z.number().int().nonnegative(),
 	}),
 });
-export type CheckoutCompletedDetail = z.infer<typeof CheckoutCompletedEvent.detailSchema>;
 
 /** Irreversible fact: a trial-end charge attempt failed. Reasons:
  *   - `no_card_on_file` — the trialing row has no `customerId`, so no card
@@ -1058,9 +984,6 @@ export const SubscriptionChargeFailedEvent = defineEvent({
 		reason: z.enum(["no_card_on_file", "stripe_error"]),
 	}),
 });
-export type SubscriptionChargeFailedDetail = z.infer<
-	typeof SubscriptionChargeFailedEvent.detailSchema
->;
 
 /** Subscription-lifecycle email request carrying the email kinds that share
  * one Lambda (`send-trial-feedback-email`). Every kind's handler re-reads the
@@ -1104,9 +1027,6 @@ export const SendFirstInboxEmailNoticeCommand = defineEvent({
 		inboxAddress: z.string(),
 	}),
 });
-export type SendFirstInboxEmailNoticeDetail = z.infer<
-	typeof SendFirstInboxEmailNoticeCommand.detailSchema
->;
 
 /** Global, per-URL fact: an article's clean reader view reached the successful
  * terminal state (crawl ready AND summary ready/skipped). Published by the
@@ -1137,9 +1057,6 @@ export const ReaderViewLoadingSucceeded = defineEvent({
 		contentSourceTier: z.enum(["tier-0", "tier-1", "tier-2"]).optional(),
 	}),
 });
-export type ReaderViewLoadingSucceededDetail = z.infer<
-	typeof ReaderViewLoadingSucceeded.detailSchema
->;
 
 /** Per-user command to (maybe) send one reader-ready digest email. Dispatched
  * by the `digest-scan` Lambda on each `rate(6 hours)` flush tick, via direct
@@ -1149,9 +1066,6 @@ export const SendUserDigestCommand = defineCommand({
 		userId: UserIdSchema,
 	}),
 });
-export type SendUserDigestDetail = z.infer<
-	typeof SendUserDigestCommand.detailSchema
->;
 
 /** Irreversible fact: a reader-ready email was sent to a user. Published by the
  * `send-user-digest` Lambda after the email send and the per-article set-once
@@ -1167,9 +1081,6 @@ export const ReaderReadyEmailSentEvent = defineEvent({
 		sentAt: z.string(),
 	}),
 });
-export type ReaderReadyEmailSentDetail = z.infer<
-	typeof ReaderReadyEmailSentEvent.detailSchema
->;
 
 /** Published once a forwarded email is parsed, sanitized, stored, and a row
  * written. The irreversible "an email arrived" fact. M2 has no consumer; M3
@@ -1217,7 +1128,6 @@ export const CrawlEmailLinkPreview = defineEvent({
 		url: z.string(),
 	}),
 });
-export type CrawlEmailLinkPreviewDetail = z.infer<typeof CrawlEmailLinkPreview.detailSchema>;
 
 const TriagedLinkSchema = z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() });
 
@@ -1247,7 +1157,6 @@ export const EmailLinksTriagedEvent = defineEvent({
 		}),
 	]),
 });
-export type EmailLinksTriagedDetail = z.infer<typeof EmailLinksTriagedEvent.detailSchema>;
 
 export const SaveEmailIssueCommand = defineEvent({
 	name: "save-email-issue-command",
@@ -1294,7 +1203,6 @@ export const EmailLinksFilteredEvent = defineEvent({
 		reasoningTokens: z.number(),
 	}),
 });
-export type EmailLinksFilteredDetail = z.infer<typeof EmailLinksFilteredEvent.detailSchema>;
 
 export const EmailLinksFilterFailedEvent = defineEvent({
 	name: "email-links-filter-failed",
@@ -1309,9 +1217,6 @@ export const EmailLinksFilterFailedEvent = defineEvent({
 		receiveCount: z.number(),
 	}),
 });
-export type EmailLinksFilterFailedDetail = z.infer<
-	typeof EmailLinksFilterFailedEvent.detailSchema
->;
 
 export const ConfirmGmailForwardingCommand = defineEvent({
 	name: "confirm-gmail-forwarding",
@@ -1323,9 +1228,6 @@ export const ConfirmGmailForwardingCommand = defineEvent({
 		verifyUrl: z.string(),
 	}),
 });
-export type ConfirmGmailForwardingDetail = z.infer<
-	typeof ConfirmGmailForwardingCommand.detailSchema
->;
 
 export const GmailForwardingConfirmedEvent = defineEvent({
 	name: "gmail-forwarding-confirmed",
@@ -1336,9 +1238,6 @@ export const GmailForwardingConfirmedEvent = defineEvent({
 		forwardingAddress: z.string(),
 	}),
 });
-export type GmailForwardingConfirmedDetail = z.infer<
-	typeof GmailForwardingConfirmedEvent.detailSchema
->;
 
 export const GmailForwardingConfirmFailedEvent = defineEvent({
 	name: "gmail-forwarding-confirm-failed",
@@ -1363,7 +1262,6 @@ export const RewriteGmailFilterCommand = defineEvent({
 		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "retry-requested", "reconnected", "readlist-deleted"]),
 	}),
 });
-export type RewriteGmailFilterDetail = z.infer<typeof RewriteGmailFilterCommand.detailSchema>;
 
 export const GmailFilterRewrittenEvent = defineEvent({
 	name: "gmail-filter-rewritten",
@@ -1375,7 +1273,6 @@ export const GmailFilterRewrittenEvent = defineEvent({
 		senderCount: z.number(),
 	}),
 });
-export type GmailFilterRewrittenDetail = z.infer<typeof GmailFilterRewrittenEvent.detailSchema>;
 
 export const GmailFilterRewriteFailedEvent = defineEvent({
 	name: "gmail-filter-rewrite-failed",
@@ -1402,7 +1299,6 @@ export const DisconnectGmailCommand = defineEvent({
 	detailType: "DisconnectGmail",
 	detailSchema: z.object({ userId: UserIdSchema }),
 });
-export type DisconnectGmailDetail = z.infer<typeof DisconnectGmailCommand.detailSchema>;
 
 export const GmailDisconnectedEvent = defineEvent({
 	name: "gmail-disconnected",
@@ -1414,7 +1310,6 @@ export const GmailDisconnectedEvent = defineEvent({
 		grantRevoked: z.boolean(),
 	}),
 });
-export type GmailDisconnectedDetail = z.infer<typeof GmailDisconnectedEvent.detailSchema>;
 
 export const GmailDisconnectSkippedEvent = defineEvent({
 	name: "gmail-disconnect-skipped",
@@ -1425,7 +1320,6 @@ export const GmailDisconnectSkippedEvent = defineEvent({
 		reason: z.enum(["not-connected", "not-requested"]),
 	}),
 });
-export type GmailDisconnectSkippedDetail = z.infer<typeof GmailDisconnectSkippedEvent.detailSchema>;
 
 export const StartGmailSenderDiscoveryCommand = defineEvent({
 	name: "start-gmail-sender-discovery",
@@ -1457,7 +1351,6 @@ export const SubmitNewsletterSenderCommand = defineEvent({
 	detailType: "SubmitNewsletterSender",
 	detailSchema: z.object({ senderEmail: z.string() }),
 });
-export type SubmitNewsletterSenderDetail = z.infer<typeof SubmitNewsletterSenderCommand.detailSchema>;
 
 export const NewsletterSenderSubmittedEvent = defineEvent({
 	name: "newsletter-sender-submitted",
@@ -1476,7 +1369,6 @@ export const StartGmailHistoryImportCommand = defineEvent({
 	detailType: "StartGmailHistoryImport",
 	detailSchema: z.object({ userId: UserIdSchema, jobId: z.string(), generation: z.string() }),
 });
-export type StartGmailHistoryImportDetail = z.infer<typeof StartGmailHistoryImportCommand.detailSchema>;
 
 export const ProcessGmailHistoryImportPageCommand = defineEvent({
 	name: "process-gmail-history-import-page",
@@ -1489,7 +1381,6 @@ export const ProcessGmailHistoryImportPageCommand = defineEvent({
 		page: z.number().int().nonnegative(),
 	}),
 });
-export type ProcessGmailHistoryImportPageDetail = z.infer<typeof ProcessGmailHistoryImportPageCommand.detailSchema>;
 
 export const GmailHistoryImportPageProcessedEvent = defineEvent({
 	name: "gmail-history-import-page-processed",
@@ -1501,7 +1392,6 @@ export const GmailHistoryImportPageProcessedEvent = defineEvent({
 		nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(),
 	}),
 });
-export type GmailHistoryImportPageProcessedDetail = z.infer<typeof GmailHistoryImportPageProcessedEvent.detailSchema>;
 
 export const GmailHistoryImportMessageFetchedEvent = defineEvent({
 	name: "gmail-history-import-message-fetched",
@@ -1562,7 +1452,6 @@ export const GmailHistoryImportCompletedEvent = defineEvent({
 		}),
 	}),
 });
-export type GmailHistoryImportCompletedDetail = z.infer<typeof GmailHistoryImportCompletedEvent.detailSchema>;
 
 export const GmailHistoryImportFailedEvent = defineEvent({
 	name: "gmail-history-import-failed",
@@ -1574,7 +1463,6 @@ export const GmailHistoryImportFailedEvent = defineEvent({
 		reason: z.enum(["gmail-rejected", "permission-revoked", "dead-lettered"]),
 	}),
 });
-export type GmailHistoryImportFailedDetail = z.infer<typeof GmailHistoryImportFailedEvent.detailSchema>;
 
 const GmailMessageOriginDetail = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("history"), accountEmail: z.string(), gmailMessageId: z.string(), jobId: z.string().optional(), senderEmail: z.string() }),
@@ -1592,7 +1480,6 @@ export const EmailOutputsSelectedEvent = defineEvent({
 		supplemental: z.literal(true).optional(),
 	}),
 });
-export type EmailOutputsSelectedDetail = z.infer<typeof EmailOutputsSelectedEvent.detailSchema>;
 
 export const EmailOutputSavedToAllEvent = defineEvent({
 	name: "email-output-saved-to-all",
@@ -1604,7 +1491,6 @@ export const EmailOutputSavedToAllEvent = defineEvent({
 		outputKey: z.string(),
 	}),
 });
-export type EmailOutputSavedToAllDetail = z.infer<typeof EmailOutputSavedToAllEvent.detailSchema>;
 
 export const EmailIssueSaveSkippedEvent = defineEvent({
 	name: "email-issue-save-skipped",
@@ -1628,7 +1514,6 @@ export const MarkGmailEmailImportedCommand = defineEvent({
 		supplemental: z.literal(true).optional(),
 	}),
 });
-export type MarkGmailEmailImportedDetail = z.infer<typeof MarkGmailEmailImportedCommand.detailSchema>;
 
 export const GmailEmailMarkedImportedEvent = defineEvent({
 	name: "gmail-email-marked-imported",
@@ -1641,7 +1526,6 @@ export const GmailEmailMarkedImportedEvent = defineEvent({
 		outcome: z.enum(["marked", "already-marked"]),
 	}),
 });
-export type GmailEmailMarkedImportedDetail = z.infer<typeof GmailEmailMarkedImportedEvent.detailSchema>;
 
 export const GmailEmailUpdateDeferredEvent = defineEvent({
 	name: "gmail-email-update-deferred",
@@ -1654,7 +1538,6 @@ export const GmailEmailUpdateDeferredEvent = defineEvent({
 		reason: z.enum(["permission-required", "account-unavailable"]),
 	}),
 });
-export type GmailEmailUpdateDeferredDetail = z.infer<typeof GmailEmailUpdateDeferredEvent.detailSchema>;
 
 export const GmailEmailUpdateFailedEvent = defineEvent({
 	name: "gmail-email-update-failed",
@@ -1675,7 +1558,6 @@ export const GmailModifyPermissionGrantedEvent = defineEvent({
 	detailType: "GmailModifyPermissionGranted",
 	detailSchema: z.object({ userId: UserIdSchema, accountEmail: z.string() }),
 });
-export type GmailModifyPermissionGrantedDetail = z.infer<typeof GmailModifyPermissionGrantedEvent.detailSchema>;
 
 export type { EventDefinition, CommandDefinition };
 
@@ -1752,7 +1634,6 @@ export const ChargedMediaUploadCommittedDetailSchema = MediaUploadCommittedEvent
 	chargedSeconds: z.number().int().positive(),
 	chargedDay: TranscriptChargeDaySchema,
 });
-export type ChargedMediaUploadCommittedDetail = z.infer<typeof ChargedMediaUploadCommittedDetailSchema>;
 
 export const MediaProcessingFailedEvent = defineEvent({
 	name: "media-processing-failed", source: "hutch.media", detailType: "MediaProcessingFailed",
@@ -1766,7 +1647,6 @@ export const MediaProcessingFailedEvent = defineEvent({
 		notice: z.string().min(1),
 	}),
 });
-export type MediaProcessingFailedDetail = z.infer<typeof MediaProcessingFailedEvent.detailSchema>;
 
 export const MediaUploadStagedEvent = defineEvent({
 	name: "media-upload-staged", source: "hutch.media", detailType: "MediaUploadStaged",
@@ -1790,7 +1670,6 @@ export const MediaInspectedEvent = defineEvent({
 		facts: MediaInspectionFactsSchema,
 	}),
 });
-export type MediaInspectedDetail = z.infer<typeof MediaInspectedEvent.detailSchema>;
 
 export const MediaRejectedEvent = defineEvent({
 	name: "media-rejected", source: "hutch.media", detailType: "MediaRejected",
@@ -1801,7 +1680,6 @@ export const MediaRejectedEvent = defineEvent({
 		notice: z.string().min(1),
 	}),
 });
-export type MediaRejectedDetail = z.infer<typeof MediaRejectedEvent.detailSchema>;
 
 export const TranscribeJobStateChangedEvent = defineEvent({
 	name: "transcribe-job-state-changed", source: "aws.transcribe", detailType: "Transcribe Job State Change",
@@ -1810,7 +1688,6 @@ export const TranscribeJobStateChangedEvent = defineEvent({
 		TranscriptionJobStatus: z.enum(["COMPLETED", "FAILED"]),
 	}),
 });
-export type TranscribeJobStateChangedDetail = z.infer<typeof TranscribeJobStateChangedEvent.detailSchema>;
 
 export const HighlightsReanchoredEvent = defineEvent({
 	name: "highlights-reanchored",
@@ -1823,7 +1700,6 @@ export const HighlightsReanchoredEvent = defineEvent({
 		orphaned: z.number().int().nonnegative(),
 	}),
 });
-export type HighlightsReanchoredDetail = z.infer<typeof HighlightsReanchoredEvent.detailSchema>;
 
 export const MatchSmartReadlistsCommand = defineEvent({
 	name: "match-smart-readlists-command",
@@ -1835,7 +1711,6 @@ export const MatchSmartReadlistsCommand = defineEvent({
 		savedAt: z.iso.datetime(),
 	}),
 });
-export type MatchSmartReadlistsDetail = z.infer<typeof MatchSmartReadlistsCommand.detailSchema>;
 
 export const SmartReadlistsMatchedEvent = defineEvent({
 	name: "smart-readlists-matched",

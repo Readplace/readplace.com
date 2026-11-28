@@ -86,7 +86,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 					projectionType: "ALL",
 				},
 			],
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.userArticlesTable = new aws.dynamodb.Table(`hutch-user-articles`, {
 			name: args.tableNames.userArticles,
@@ -142,7 +142,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.usersTable = new aws.dynamodb.Table(`hutch-users`, {
 			name: args.tableNames.users,
@@ -161,7 +161,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 					projectionType: "ALL",
 				},
 			],
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		const accountId = pulumi
 			.output(aws.getCallerIdentity({}))
@@ -306,7 +306,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.oauthTable = new aws.dynamodb.Table(`hutch-oauth`, {
 			name: args.tableNames.oauth,
@@ -329,7 +329,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }], protect: true });
+		}, { parent: this, protect: true });
 
 		this.verificationTokensTable = new aws.dynamodb.Table(`hutch-verification-tokens`, {
 			name: args.tableNames.verificationTokens,
@@ -340,7 +340,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.passwordResetTokensTable = new aws.dynamodb.Table(`hutch-password-reset-tokens`, {
 			name: args.tableNames.passwordResetTokens,
@@ -359,14 +359,14 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.pendingSignupsTable = new aws.dynamodb.Table(`hutch-pending-signups`, {
 			name: args.tableNames.pendingSignups,
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "checkoutSessionId",
 			attributes: [{ name: "checkoutSessionId", type: "S" }]
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.importSessionsTable = new aws.dynamodb.Table(`hutch-import-sessions`, {
 			name: args.tableNames.importSessions,
@@ -377,7 +377,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this });
 
 		this.mediaUploadSessionsTable = new aws.dynamodb.Table(`hutch-media-upload-sessions`, {
 			name: args.tableNames.mediaUploadSessions,

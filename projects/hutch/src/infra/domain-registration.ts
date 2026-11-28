@@ -5,29 +5,23 @@ import { Certificate } from "@packages/infra-components/infra";
 export class DomainRegistration extends pulumi.ComponentResource {
 	public readonly certificateArn?: pulumi.Output<string>;
 	public readonly zoneId?: Promise<string>;
-	public readonly domains: string[];
-	public readonly primaryDomain?: string;
 
-	constructor(name: string, args: { domains: string[] }, opts?: pulumi.ComponentResourceOptions) {
+	constructor(name: string, args: { domain: string | undefined }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:DomainRegistration", name, {}, opts);
 
-		this.domains = args.domains;
-
-		if (args.domains.length === 0) {
+		const { domain } = args;
+		if (domain === undefined) {
 			this.registerOutputs();
 			return;
 		}
 
-		const [primaryDomain, ...altDomains] = args.domains;
-		this.primaryDomain = primaryDomain;
-
-		const zone = aws.route53.getZone({ name: primaryDomain });
+		const zone = aws.route53.getZone({ name: domain });
 		const zoneId = zone.then((z) => z.zoneId);
 		this.zoneId = zoneId;
 
 		const cert = new Certificate(name, {
-			primaryDomain,
-			altDomains,
+			primaryDomain: domain,
+			altDomains: [],
 			zoneId,
 		}, { parent: this });
 

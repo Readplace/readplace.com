@@ -4,10 +4,8 @@ import type {
 	ClaimMediaUpload,
 	ClaimedMediaUpload,
 	CreateAnyMediaUploadSession,
-	CreateMediaUploadSession,
 	FailMediaUpload,
 	FindMediaUploadByCapability,
-	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
@@ -24,8 +22,6 @@ import type {
 import { stagedObjectKey } from "@packages/media-contracts";
 
 export interface InMemoryMediaUploadSessions {
-	createMediaUploadSession: CreateMediaUploadSession;
-	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
@@ -50,15 +46,6 @@ export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
 	};
 
 	return {
-		createMediaUploadSession: async (params) => {
-			const session: MediaUploadSession = { ...params, status: "staged" };
-			sessions.set(session.uploadId, session);
-			return session;
-		},
-		findMediaUploadSession: async ({ uploadId, userId }) => {
-			const session = signedIn(uploadId);
-			return session?.userId === userId ? session : undefined;
-		},
 		markMediaUploadCommitted: async ({ uploadId, userId }) => {
 			const session = signedIn(uploadId);
 			if (session?.userId !== userId || session.status !== "staged") return "not-staged";

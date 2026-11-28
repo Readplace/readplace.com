@@ -32,7 +32,6 @@ import type {
 	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
-	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroyOAuthGrantSessions,
 	DestroySession,
@@ -120,13 +119,63 @@ function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | 
 	return row && !row.deletedAt ? row : undefined;
 }
 
+function defineUsersTable(deps: { client: DynamoDBDocumentClient; usersTableName: string }) {
+	return defineDynamoTable({
+		client: deps.client,
+		tableName: deps.usersTableName,
+		schema: UserRow,
+	});
+}
+
+function initUserRowLookups(users: ReturnType<typeof defineUsersTable>) {
+	const findUserRowByUserId = async (userId: UserId) =>
+		(
+			await users.query({
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+				Limit: 1,
+			})
+		).items[0];
+
+	const findEmailByUserId: FindEmailByUserId = async (userId) => {
+		const row = await findUserRowByUserId(userId);
+		return row ? row.email : null;
+	};
+
+	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
+		const row = await findUserRowByUserId(userId);
+		if (!row) return null;
+		return {
+			email: row.email,
+			emailVerified: row.emailVerified === true,
+			queueDigestOptOutAt: row.queueDigestOptOutAt,
+			registeredAt: row.registeredAt,
+			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
+			deletedAt: row.deletedAt,
+		};
+	};
+
+	return { findUserRowByUserId, findEmailByUserId, findUserContactByUserId };
+}
+
+export function initDynamoDbUserContact(deps: {
+	client: DynamoDBDocumentClient;
+	usersTableName: string;
+}): {
+	findEmailByUserId: FindEmailByUserId;
+	findUserContactByUserId: FindUserContactByUserId;
+} {
+	const { findEmailByUserId, findUserContactByUserId } = initUserRowLookups(defineUsersTable(deps));
+	return { findEmailByUserId, findUserContactByUserId };
+}
+
 export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
 	usersTableName: string;
 	sessionsTableName: string;
 	observeSession: ObserveSession;
 }): {
-	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
@@ -169,11 +218,8 @@ export function initDynamoDbAuth(deps: {
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
 } {
-	const users = defineDynamoTable({
-		client: deps.client,
-		tableName: deps.usersTableName,
-		schema: UserRow,
-	});
+	const users = defineUsersTable(deps);
+	const { findUserRowByUserId, findEmailByUserId, findUserContactByUserId } = initUserRowLookups(users);
 	const sessions = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.sessionsTableName,
@@ -242,30 +288,6 @@ export function initDynamoDbAuth(deps: {
 			}
 			throw error;
 		}
-	};
-
-	const createUser: CreateUser = async ({ email, password, attribution }) => {
-		const normalizedEmail = normalizeEmail(email);
-		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
-		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
-		const passwordHash = await hashPassword(password);
-		const at = new Date().toISOString();
-
-		const result = await writeNewUserRow({
-			userRow: {
-				email: normalizedEmail,
-				userId,
-				passwordHash,
-				passwordUpdatedAt: at,
-				emailVerified: false,
-				registeredAt: at,
-				canonicalEmail: canonicalizeEmail(email),
-				...(attribution ?? {}),
-			},
-			userId,
-			gmailClaimKey: gmailIdentityKey(email),
-		});
-		return result.ok ? { ok: true, userId } : result;
 	};
 
 	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution, signupOAuthClientId }) => {
@@ -344,13 +366,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		return row?.appleRefreshToken ?? null;
 	};
 
@@ -573,17 +589,6 @@ export function initDynamoDbAuth(deps: {
 		return count > 0;
 	};
 
-	const findEmailByUserId: FindEmailByUserId = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
-		return row ? row.email : null;
-	};
-
 	const closeUserAccount: CloseUserAccount = async (userId) => {
 		const email = await findEmailByUserId(userId);
 		if (email === null) return;
@@ -669,33 +674,8 @@ export function initDynamoDbAuth(deps: {
 		);
 	};
 
-	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
-		if (!row) return null;
-		return {
-			email: row.email,
-			emailVerified: row.emailVerified === true,
-			queueDigestOptOutAt: row.queueDigestOptOutAt,
-			registeredAt: row.registeredAt,
-			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
-			deletedAt: row.deletedAt,
-		};
-	};
-
 	const findUserById: FindUserById = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		if (!row) return null;
 		return {
 			userId: row.userId,
@@ -714,13 +694,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const countEarlyIntentionalSave: CountEarlyIntentionalSave = async ({ userId, at }) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		if (!row) return { inWindow: false };
 		const outcome = await writeIfCondition(() =>
 			users.update({
@@ -748,13 +722,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
-		const { items } = await users.query({
-			IndexName: "userId-index",
-			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
-			Limit: 1,
-		});
-		const row = items[0];
+		const row = await findUserRowByUserId(userId);
 		if (!row) return null;
 		if (row.passwordHash === undefined) return { kind: "not-set" };
 		return { kind: "set", updatedAt: row.passwordUpdatedAt };
@@ -865,7 +833,6 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	return {
-		createUser,
 		createUserWithPasswordHash,
 		createGoogleUser,
 		createAppleUser,

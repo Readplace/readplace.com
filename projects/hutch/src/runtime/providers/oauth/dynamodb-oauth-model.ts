@@ -7,7 +7,9 @@ import { randomUUID } from "node:crypto";
 import { initDynamoRefreshStore } from "./dynamodb-refresh-store";
 import { initRefreshProof } from "../../oauth-refresh/evidence";
 import { OAuthGrantId } from "../../oauth-refresh/evidence";
-import { OAuthTokenRow, initOAuthCredentialLifecycle } from "./oauth-credential-lifecycle";
+import { initOAuthCredentialLifecycle } from "./oauth-credential-lifecycle";
+import { OAuthTokenRow } from "./oauth-token-row";
+import { toEpochSeconds } from "./epoch-seconds";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -34,10 +36,6 @@ import type {
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import { OAuthSignInSchema, generateToken, initOAuthRefresh, signInOf } from "@packages/domain/oauth";
 
-function toEpochSeconds(date: Date): number {
-	return Math.floor(date.getTime() / 1000);
-}
-
 const AuthCodeRow = z.object({
 	pk: z.string(),
 	expiresAt: z.number(),
@@ -52,14 +50,6 @@ const AuthCodeRow = z.object({
 	epoch: z.number().optional(),
 	signedIn: OAuthSignInSchema.optional(),
 });
-
-export function initRevokeAllUserOAuthTokens(deps: {
-	client: DynamoDBDocumentClient;
-	tableName: string;
-	secret: string;
-}): RevokeAllUserOAuthTokens {
-	return initOAuthCredentialLifecycle(deps).revokeAll;
-}
 
 export function initDynamoDbOAuthModel(deps: {
 	enrollmentEnabled: boolean;

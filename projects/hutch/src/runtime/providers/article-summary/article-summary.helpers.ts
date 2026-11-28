@@ -17,9 +17,6 @@ export function pickExcerpt(
 
 const SEO_DESCRIPTION_MAX_CHARS = 160;
 
-export function truncateForSeo(
-	text: string,
-	maxChars: number = SEO_DESCRIPTION_MAX_CHARS,
-): string {
-	return truncateAtWordBoundary(text, maxChars);
+export function truncateForSeo(text: string): string {
+	return truncateAtWordBoundary(text, SEO_DESCRIPTION_MAX_CHARS);
 }

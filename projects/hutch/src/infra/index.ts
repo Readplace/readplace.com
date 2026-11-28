@@ -148,8 +148,6 @@ const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
 const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
-const gmailFilterRewriteFailedThreshold = config.requireNumber("gmailFilterRewriteFailedThreshold");
-const gmailEmailUpdateFailedThreshold = config.requireNumber("gmailEmailUpdateFailedThreshold");
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const mcpScanListingWindowHours = config.getNumber("mcpScanListingWindowHours");
 const analyticsSaltGeneration = config.requireNumber("analyticsSaltGeneration");
@@ -292,11 +290,11 @@ const [legacyPrimaryDomain, ...additionalDomains] = domains;
 const canonicalDomain: string | undefined = domains[domains.length - 1];
 
 const legacyDomainRegistration = new DomainRegistration("hutch-domain", {
-	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
+	domain: legacyPrimaryDomain,
 });
 
 const additionalDomainRegistrations = additionalDomains.map((domain) =>
-	new DomainRegistration(`hutch-domain-${domain.replace(/\./g, "-")}`, { domains: [domain] }),
+	new DomainRegistration(`hutch-domain-${domain.replace(/\./g, "-")}`, { domain }),
 );
 
 const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainRegistrations];
@@ -532,7 +530,6 @@ const heldUploadScheduleReadPolicy = {
 };
 
 const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
-	priorLogGroupLogicalName: "hutch-log-analytics",
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
@@ -821,20 +818,16 @@ new aws.s3.BucketLifecycleConfigurationV2("user-export-bucket-lifecycle", {
 // --- Outbound email auth for Google Workspace (Gmail) human mail ---
 // Publishes the apex SPF + Workspace DKIM so replies sent from Gmail to Sign in
 // with Apple `@privaterelay.appleid.com` addresses pass Apple's relay checks.
-// Only stacks whose mail runs on Google Workspace set `googleWorkspaceMail`;
-// staging (SES-only) omits it and skips this entirely.
-const googleWorkspaceMail = config.getObject<{
+const googleWorkspaceMail = config.requireObject<{
 	domain: string;
 	apexTxt: string[];
-	dkimRecord?: string;
+	dkimRecord: string;
 }>("googleWorkspaceMail");
-if (googleWorkspaceMail) {
-	new OutboundMailAuth("outbound-mail-auth", {
-		mailDomain: googleWorkspaceMail.domain,
-		apexTxt: googleWorkspaceMail.apexTxt,
-		googleDkimRecord: googleWorkspaceMail.dkimRecord,
-	});
-}
+new OutboundMailAuth("outbound-mail-auth", {
+	mailDomain: googleWorkspaceMail.domain,
+	apexTxt: googleWorkspaceMail.apexTxt,
+	googleDkimRecord: googleWorkspaceMail.dkimRecord,
+});
 
 // --- User data jobs worker Lambda (export + account deletion) ---
 // Durable, DLQ-backed export of a user's data and scrub of every user-owned
@@ -1226,47 +1219,45 @@ new SqsBackedLambda("digest-scan", {
 	batchSize: 1,
 });
 
+function scheduleQueueMessage(args: {
+	roleName: string;
+	policyName: string;
+	scheduleName: string;
+	queue: Sqs;
+	scheduleExpression: string;
+	input: string;
+}): void {
+	const role = new aws.iam.Role(args.roleName, {
+		assumeRolePolicy: JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }],
+		}),
+	});
+	new aws.iam.RolePolicy(args.policyName, {
+		role: role.id,
+		policy: args.queue.queueArn.apply((arn) => JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: arn }],
+		})),
+	});
+	new aws.scheduler.Schedule(args.scheduleName, {
+		scheduleExpression: args.scheduleExpression,
+		flexibleTimeWindow: { mode: "OFF" },
+		state: "ENABLED",
+		target: { arn: args.queue.queueArn, roleArn: role.arn, input: args.input },
+	});
+}
+
 // Recurring 6h flush: EventBridge Scheduler puts a trigger message on the
 // digest-scan queue. A dedicated execution role lets the scheduler service
 // SendMessage to that one queue.
-const digestSchedulerRole = new aws.iam.Role("hutch-digest-scheduler-role", {
-	assumeRolePolicy: JSON.stringify({
-		Version: "2012-10-17",
-		Statement: [
-			{
-				Effect: "Allow",
-				Principal: { Service: "scheduler.amazonaws.com" },
-				Action: "sts:AssumeRole",
-			},
-		],
-	}),
-});
-
-new aws.iam.RolePolicy("hutch-digest-scheduler-role-policy", {
-	role: digestSchedulerRole.id,
-	policy: digestScanQueue.queueArn.apply((arn) =>
-		JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Action: ["sqs:SendMessage"],
-					Resource: arn,
-				},
-			],
-		}),
-	),
-});
-
-new aws.scheduler.Schedule("hutch-digest-flush", {
+scheduleQueueMessage({
+	roleName: "hutch-digest-scheduler-role",
+	policyName: "hutch-digest-scheduler-role-policy",
+	scheduleName: "hutch-digest-flush",
+	queue: digestScanQueue,
 	scheduleExpression: "rate(6 hours)",
-	flexibleTimeWindow: { mode: "OFF" },
-	state: "ENABLED",
-	target: {
-		arn: digestScanQueue.queueArn,
-		roleArn: digestSchedulerRole.arn,
-		input: JSON.stringify({ trigger: "digest-flush" }),
-	},
+	input: JSON.stringify({ trigger: "digest-flush" }),
 });
 
 // Warns before Google's 100-test-user cap: an OAuth client in
@@ -1305,47 +1296,13 @@ new SqsBackedLambda("count-gmail-connections", {
 	batchSize: 1,
 });
 
-const countGmailConnectionsSchedulerRole = new aws.iam.Role(
-	"hutch-count-gmail-connections-scheduler-role",
-	{
-		assumeRolePolicy: JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Principal: { Service: "scheduler.amazonaws.com" },
-					Action: "sts:AssumeRole",
-				},
-			],
-		}),
-	},
-);
-
-new aws.iam.RolePolicy("hutch-count-gmail-connections-scheduler-role-policy", {
-	role: countGmailConnectionsSchedulerRole.id,
-	policy: countGmailConnectionsQueue.queueArn.apply((arn) =>
-		JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Action: ["sqs:SendMessage"],
-					Resource: arn,
-				},
-			],
-		}),
-	),
-});
-
-new aws.scheduler.Schedule("hutch-count-gmail-connections", {
+scheduleQueueMessage({
+	roleName: "hutch-count-gmail-connections-scheduler-role",
+	policyName: "hutch-count-gmail-connections-scheduler-role-policy",
+	scheduleName: "hutch-count-gmail-connections",
+	queue: countGmailConnectionsQueue,
 	scheduleExpression: "rate(1 hour)",
-	flexibleTimeWindow: { mode: "OFF" },
-	state: "ENABLED",
-	target: {
-		arn: countGmailConnectionsQueue.queueArn,
-		roleArn: countGmailConnectionsSchedulerRole.arn,
-		input: JSON.stringify({ trigger: "count-gmail-connections" }),
-	},
+	input: JSON.stringify({ trigger: "count-gmail-connections" }),
 });
 
 new aws.cloudwatch.LogMetricFilter("gmail-connections-filter", {
@@ -1513,7 +1470,6 @@ const sendTrialFeedbackEmailQueue = new Sqs("send-trial-feedback-email", {
 const sendTrialFeedbackEmailLambda = new Lambda(
 	LAMBDA_NAMES.sendTrialFeedbackEmail,
 	{
-		priorLogGroupLogicalName: "send-trial-feedback-email-log-group",
 		entryPoint: "./src/runtime/send-trial-feedback-email.main.ts",
 		outputDir: ".lib/send-trial-feedback-email",
 		assetDir: "./src/runtime",
@@ -1524,7 +1480,6 @@ const sendTrialFeedbackEmailLambda = new Lambda(
 			ANALYTICS_SALT: analyticsSalt,
 			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 			DYNAMODB_USERS_TABLE: storage.usersTable.name,
-			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 			DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 			RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
@@ -1714,10 +1669,8 @@ const sendFirstInboxEmailNoticeLambda = new Lambda("send-first-inbox-email-notic
 	timeout: 60,
 	environmentNames: SEND_FIRST_INBOX_EMAIL_NOTICE_ENV,
 	environment: {
-		ANALYTICS_SALT: analyticsSalt,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
-		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
 		STATIC_BASE_URL: staticAssets.baseUrl,
@@ -1954,7 +1907,7 @@ new aws.cloudwatch.MetricAlarm("gmail-filter-rewrite-failed-alarm", {
 	namespace: GMAIL_METRIC_NAMESPACE,
 	period: 3600,
 	statistic: "Sum",
-	threshold: gmailFilterRewriteFailedThreshold,
+	threshold: 1,
 	treatMissingData: "notBreaching",
 	alarmDescription: "Readplace could not write a reader's Gmail forwarding filter",
 	alarmActions: [gmailFilterRewriteFailedTopic.arn],
@@ -1994,14 +1947,12 @@ const gmailNewsletterNoticeLambda = new Lambda("gmail-newsletter-notice", {
 	timeout: 60,
 	environmentNames: GMAIL_NEWSLETTER_NOTICE_ENV,
 	environment: {
-		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
@@ -2065,28 +2016,13 @@ eventBus.subscribeAll([
 	GmailNewsletterMonitoringProgressedEvent,
 ], gmailNewsletterMonitorWithSqs, { name: "hutch-gmail-newsletter-monitor" });
 
-const gmailNewsletterSchedulerRole = new aws.iam.Role("hutch-gmail-newsletter-scheduler-role", {
-	assumeRolePolicy: JSON.stringify({
-		Version: "2012-10-17",
-		Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }],
-	}),
-});
-new aws.iam.RolePolicy("hutch-gmail-newsletter-scheduler-role-policy", {
-	role: gmailNewsletterSchedulerRole.id,
-	policy: gmailNewsletterMonitorQueue.queueArn.apply((arn) => JSON.stringify({
-		Version: "2012-10-17",
-		Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: arn }],
-	})),
-});
-new aws.scheduler.Schedule("hutch-gmail-newsletter-monitor", {
+scheduleQueueMessage({
+	roleName: "hutch-gmail-newsletter-scheduler-role",
+	policyName: "hutch-gmail-newsletter-scheduler-role-policy",
+	scheduleName: "hutch-gmail-newsletter-monitor",
+	queue: gmailNewsletterMonitorQueue,
 	scheduleExpression: "rate(6 hours)",
-	flexibleTimeWindow: { mode: "OFF" },
-	state: "ENABLED",
-	target: {
-		arn: gmailNewsletterMonitorQueue.queueArn,
-		roleArn: gmailNewsletterSchedulerRole.arn,
-		input: JSON.stringify({ "detail-type": CheckGmailNewslettersCommand.detailType, detail: {} }),
-	},
+	input: JSON.stringify({ "detail-type": CheckGmailNewslettersCommand.detailType, detail: {} }),
 });
 
 const gmailDiscoveryAccess = new DynamoDBAccess("hutch-gmail-discovery-tables", {
@@ -2165,7 +2101,7 @@ const newsletterCatalogSuggestionsWithSqs = new SqsBackedLambda("newsletter-cata
 });
 eventBus.subscribe(SubmitNewsletterSenderCommand, newsletterCatalogSuggestionsWithSqs, { name: "hutch-submit-newsletter-sender" });
 
-const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail, drainedByHandler: true });
+const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail });
 const gmailHistoryImportAccess = new DynamoDBAccess("hutch-gmail-history-import-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: [
@@ -2361,7 +2297,7 @@ new aws.cloudwatch.MetricAlarm("gmail-email-update-failed-alarm", {
 	namespace: GMAIL_METRIC_NAMESPACE,
 	period: 3600,
 	statistic: "Sum",
-	threshold: gmailEmailUpdateFailedThreshold,
+	threshold: 1,
 	treatMissingData: "notBreaching",
 	alarmDescription: "Readplace could not label and mark read the Gmail original of a saved email",
 	alarmActions: [gmailEmailUpdateFailedTopic.arn],
@@ -2762,16 +2698,13 @@ const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
 });
 eventBus.grantPublish(evaluateRefreshLambda);
 new SqsBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
-const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
-	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
-});
-new aws.iam.RolePolicy("evaluate-oauth-refresh-scheduler-send", {
-	role: evaluateRefreshRole.id,
-	policy: evaluateRefreshQueue.queueArn.apply(arn => JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "sqs:SendMessage", Resource: arn }] })),
-});
-new aws.scheduler.Schedule("evaluate-oauth-refresh", {
-	scheduleExpression: "rate(1 minute)", flexibleTimeWindow: { mode: "OFF" },
-	target: { arn: evaluateRefreshQueue.queueArn, roleArn: evaluateRefreshRole.arn, input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>) },
+scheduleQueueMessage({
+	roleName: "evaluate-oauth-refresh-scheduler",
+	policyName: "evaluate-oauth-refresh-scheduler-send",
+	scheduleName: "evaluate-oauth-refresh",
+	queue: evaluateRefreshQueue,
+	scheduleExpression: "rate(1 minute)",
+	input: JSON.stringify({ scheduledAt: "<aws.scheduler.scheduled-time>" } satisfies z.infer<typeof EvaluateOAuthRefreshCommand.detailSchema>),
 });
 new aws.cloudwatch.MetricAlarm("oauth-refresh-unexpected-comparison", {
 	name: "oauth-refresh-unexpected-comparison", namespace: "Readplace/OAuth", metricName: "OAuthRefreshUnexpected24h",

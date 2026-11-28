@@ -89,13 +89,6 @@
   display: none;
 }
 
-.article-body__actions--bottom {
-  margin-top: 2rem;
-  margin-bottom: 0;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
-
 .article-body__report {
   display: none;
   margin-bottom: 0;
@@ -118,30 +111,6 @@
 }
 
 .article-body__report-link:hover {
-  color: var(--primary-text);
-}
-
-.article-body__back-bottom-slot--visible {
-  display: inline-flex;
-}
-
-.article-body__back-bottom-slot--hidden {
-  display: none;
-}
-
-.article-body__back-bottom {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 44px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--foreground);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.article-body__back-bottom:hover {
   color: var(--primary-text);
 }
 

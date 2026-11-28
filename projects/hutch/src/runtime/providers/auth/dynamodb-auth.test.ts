@@ -8,7 +8,7 @@ import {
 import { HomeReadlistSlugSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema, hashPassword } from "@packages/domain/user";
-import { initDynamoDbAuth } from "./dynamodb-auth";
+import { initDynamoDbAuth, initDynamoDbUserContact } from "./dynamodb-auth";
 
 /** Fake that honours the GetCommand projection so a row with fields missing from it round-trips as real DynamoDB would. */
 function createFakeClient(
@@ -887,13 +887,15 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
-	describe("createUser", () => {
+	describe("createUserWithPasswordHash", () => {
 		it("writes the user row and canonical claim in one transaction for Gmail", async () => {
 			const { client, commands } = createWriteFakeClient();
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "John.Doe+promo@gmail.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			assert(result.ok, "create should succeed");
@@ -923,9 +925,11 @@ describe("initDynamoDbAuth", () => {
 		it("writes a single conditional put (no transaction) for a non-Gmail address", async () => {
 			const { client, commands } = createWriteFakeClient();
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "user@example.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result.ok).toBe(true);
@@ -937,24 +941,14 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 
-		it("records the password as changed at the instant the account was registered", async () => {
-			const { client, commands } = createWriteFakeClient();
-
-			await initAuth(client).createUser({ email: "user@example.com", password: "password123" });
-
-			const item = commands.find((c) => c.name === "PutCommand")?.input.Item;
-			assert(item && typeof item === "object", "expected a PutCommand item");
-			const { registeredAt, passwordUpdatedAt } = Object.fromEntries(Object.entries(item));
-			expect(typeof registeredAt).toBe("string");
-			expect(passwordUpdatedAt).toBe(registeredAt);
-		});
-
 		it("maps a Gmail transaction cancelled on the delivery-email key to email-already-exists", async () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["ConditionalCheckFailed", "None"]) });
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "john.doe@gmail.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -963,9 +957,11 @@ describe("initDynamoDbAuth", () => {
 		it("maps a Gmail transaction cancelled on the canonical-claim key to email-already-exists", async () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["None", "ConditionalCheckFailed"]) });
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "john.doe@gmail.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -975,9 +971,11 @@ describe("initDynamoDbAuth", () => {
 			const { client } = createWriteFakeClient({ fail: cancelled(["ThrottlingError", "None"]) });
 
 			await expect(
-				initAuth(client).createUser({
+				initAuth(client).createUserWithPasswordHash({
 					email: "john.doe@gmail.com",
-					password: "password123",
+					passwordHash: "hashed",
+					attribution: undefined,
+					signupOAuthClientId: null,
 				}),
 			).rejects.toThrow(TransactionCanceledException);
 		});
@@ -987,16 +985,15 @@ describe("initDynamoDbAuth", () => {
 				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "exists" }),
 			});
 
-			const result = await initAuth(client).createUser({
+			const result = await initAuth(client).createUserWithPasswordHash({
 				email: "user@example.com",
-				password: "password123",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});
-	});
-
-	describe("createUserWithPasswordHash", () => {
 		it("records the password as changed at the instant the account was registered", async () => {
 			const { client, commands } = createWriteFakeClient();
 
@@ -1933,5 +1930,56 @@ describe("initDynamoDbAuth", () => {
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});
+	});
+});
+
+describe("initDynamoDbUserContact", () => {
+	function initUserContact(client: DynamoDBDocumentClient) {
+		return initDynamoDbUserContact({ client, usersTableName: "users" });
+	}
+
+	it("finds the email through the users table's userId-index alone", async () => {
+		const { client, commands } = createQueryFakeClient({
+			row: { email: "user@example.com", userId: "abc123" },
+		});
+
+		const email = await initUserContact(client).findEmailByUserId(USER);
+
+		expect(email).toBe("user@example.com");
+		expect(commands.map((c) => [c.name, c.input.TableName, c.input.IndexName])).toEqual([
+			["QueryCommand", "users", "userId-index"],
+		]);
+	});
+
+	it("returns a null email when no row exists for the id", async () => {
+		const { client } = createQueryFakeClient({});
+
+		expect(await initUserContact(client).findEmailByUserId(USER)).toBeNull();
+	});
+
+	it("returns the same contact the full auth provider returns", async () => {
+		const row = {
+			email: "user@example.com",
+			userId: "abc123",
+			emailVerified: true,
+			registeredAt: "2026-10-01T00:00:00.000Z",
+			earlyIntentionalSaves: 2,
+		};
+
+		const contact = await initUserContact(createQueryFakeClient({ row }).client).findUserContactByUserId(USER);
+
+		expect(contact).toEqual(await initAuth(createQueryFakeClient({ row }).client).findUserContactByUserId(USER));
+		expect(contact).toEqual({
+			email: "user@example.com",
+			emailVerified: true,
+			registeredAt: "2026-10-01T00:00:00.000Z",
+			earlyIntentionalSaves: 2,
+		});
+	});
+
+	it("returns a null contact when no row exists for the id", async () => {
+		const { client } = createQueryFakeClient({});
+
+		expect(await initUserContact(client).findUserContactByUserId(USER)).toBeNull();
 	});
 });
