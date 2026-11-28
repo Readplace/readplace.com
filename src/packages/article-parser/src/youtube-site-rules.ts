@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { z } from "zod";
 import { parseYouTubeEmbed } from "@packages/crawl-article";
@@ -12,7 +11,7 @@ const VideoId = z.string().regex(/^[A-Za-z0-9_-]+$/);
 
 const InnertubeCommand = z.object({
 	commandMetadata: z.object({ webCommandMetadata: z.object({ url: z.string() }) }),
-	watchEndpoint: z.object({ videoId: VideoId, startTimeSeconds: z.number() }).optional(),
+	watchEndpoint: z.object({ videoId: VideoId, startTimeSeconds: z.number().default(0) }).optional(),
 });
 type InnertubeCommand = z.infer<typeof InnertubeCommand>;
 
@@ -23,7 +22,7 @@ const CommandRun = z.object({
 });
 type CommandRun = z.infer<typeof CommandRun>;
 
-const Description = z.object({ content: z.string(), commandRuns: z.array(CommandRun) });
+const Description = z.object({ content: z.string(), commandRuns: z.array(CommandRun).default([]) });
 type Description = z.infer<typeof Description>;
 
 const PrimaryInfo = z.object({
@@ -37,9 +36,15 @@ const ChannelRun = z.object({
 	navigationEndpoint: z.object({ browseEndpoint: z.object({ canonicalBaseUrl: z.string() }) }),
 });
 
+const VideoOwner = z.union([
+	z.object({ title: z.object({ runs: z.tuple([ChannelRun]).rest(z.unknown()) }) }),
+	z.object({ attributedTitle: z.object({ content: z.string() }) }),
+]);
+type VideoOwner = z.infer<typeof VideoOwner>;
+
 const SecondaryInfo = z.object({
-	owner: z.object({ videoOwnerRenderer: z.object({ title: z.object({ runs: z.tuple([ChannelRun]).rest(z.unknown()) }) }) }),
-	attributedDescription: Description,
+	owner: z.object({ videoOwnerRenderer: VideoOwner }),
+	attributedDescription: Description.default({ content: "", commandRuns: [] }),
 });
 
 const WatchResults = z
@@ -55,65 +60,88 @@ const YtInitialData = z.object({
 		}),
 	}),
 });
+type YtInitialData = z.infer<typeof YtInitialData>;
 
-export const youtubeSiteRules = {
-	matches: ({ url }) => parseYouTubeEmbed(url)?.kind === "video",
-	onCrawl: skipCrawl,
-	recoverContent: noRecovery,
-	extract: ({ html }): SiteArticleContent | undefined => {
-		const { document } = parseHTML(html);
-		const text = Array.from(document.querySelectorAll("script"))
+export function initYouTubeSiteRules(deps: { logError: (message: string, error?: Error) => void }) {
+	return {
+		matches: ({ url }) => parseYouTubeEmbed(url)?.kind === "video",
+		onCrawl: skipCrawl,
+		recoverContent: noRecovery,
+		extract: ({ html }, { savedUrl }): SiteArticleContent | undefined => {
+			const { document } = parseHTML(html);
+			const read = readYtInitialData(document);
+			if (!read.ok) {
+				deps.logError(`[YouTubeSiteRule] declined ${savedUrl}: ${read.reason}`);
+				return undefined;
+			}
+			return buildWatchPage({ document, data: read.data });
+		},
+		transform: noTransform,
+	} satisfies SiteRules;
+}
+
+function readYtInitialData(document: Document): { ok: true; data: YtInitialData } | { ok: false; reason: string } {
+	const text =
+		Array.from(document.querySelectorAll("script"))
 			.map((script) => String(script.textContent).trim())
-			.find((scriptText) => scriptText.startsWith(SCRIPT_PREFIX));
-		if (!text) return undefined;
+			.find((scriptText) => scriptText.startsWith(SCRIPT_PREFIX)) ??
+		document.querySelector("script#yt-initial-data")?.textContent;
+	if (!text) return { ok: false, reason: "no ytInitialData" };
 
-		let raw: unknown;
-		try {
-			raw = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-		} catch {
-			return undefined;
-		}
+	let raw: unknown;
+	try {
+		raw = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+	} catch {
+		return { ok: false, reason: "ytInitialData is not JSON" };
+	}
 
-		const parsed = YtInitialData.safeParse(raw);
-		if (!parsed.success) return undefined;
-		const videoId = parsed.data.currentVideoEndpoint.watchEndpoint.videoId;
-		const { videoPrimaryInfoRenderer: primary, videoSecondaryInfoRenderer: secondary } =
-			parsed.data.contents.twoColumnWatchNextResults.results.results.contents;
+	const parsed = YtInitialData.safeParse(raw);
+	if (!parsed.success) {
+		const [issue] = parsed.error.issues;
+		return { ok: false, reason: `${issue.path.join(".")}: ${issue.message}` };
+	}
+	return { ok: true, data: parsed.data };
+}
 
-		const metaDescription = document.querySelector('meta[name="description"]');
-		assert(metaDescription, "a YouTube watch page carries a meta description");
-		const excerpt = metaDescription.getAttribute("content");
-		assert(excerpt !== null, "a YouTube watch page's meta description has content");
+function buildWatchPage(params: { document: Document; data: YtInitialData }): SiteArticleContent {
+	const { document, data } = params;
+	const videoId = data.currentVideoEndpoint.watchEndpoint.videoId;
+	const { videoPrimaryInfoRenderer: primary, videoSecondaryInfoRenderer: secondary } =
+		data.contents.twoColumnWatchNextResults.results.results.contents;
 
-		const container = document.createElement("div");
+	const container = document.createElement("div");
 
-		const embed = document.createElement("iframe");
-		embed.setAttribute("src", `${YOUTUBE_ORIGIN}/embed/${videoId}`);
-		container.appendChild(embed);
+	const embed = document.createElement("iframe");
+	embed.setAttribute("src", `${YOUTUBE_ORIGIN}/embed/${videoId}`);
+	container.appendChild(embed);
 
-		const [channel] = secondary.owner.videoOwnerRenderer.title.runs;
-		const metadata = document.createElement("p");
-		const channelLink = document.createElement("a");
-		channelLink.setAttribute("href", new URL(channel.navigationEndpoint.browseEndpoint.canonicalBaseUrl, YOUTUBE_ORIGIN).href);
-		channelLink.textContent = channel.text;
-		metadata.appendChild(channelLink);
-		metadata.appendChild(
-			document.createTextNode(
-				` · ${primary.dateText.simpleText} · ${primary.viewCount.videoViewCountRenderer.viewCount.simpleText}`,
-			),
-		);
-		container.appendChild(metadata);
+	const metadata = document.createElement("p");
+	metadata.appendChild(channelNode({ document, owner: secondary.owner.videoOwnerRenderer }));
+	metadata.appendChild(
+		document.createTextNode(
+			` · ${primary.dateText.simpleText} · ${primary.viewCount.videoViewCountRenderer.viewCount.simpleText}`,
+		),
+	);
+	container.appendChild(metadata);
 
-		appendDescription({ document, container, description: secondary.attributedDescription });
+	appendDescription({ document, container, description: secondary.attributedDescription });
 
-		return {
-			title: primary.title.runs.map((run) => run.text).join(""),
-			excerpt,
-			bodyHtml: container.innerHTML,
-		};
-	},
-	transform: noTransform,
-} satisfies SiteRules;
+	return {
+		title: primary.title.runs.map((run) => run.text).join(""),
+		excerpt: secondary.attributedDescription.content.replace(/\s+/g, " ").trim(),
+		bodyHtml: container.innerHTML,
+	};
+}
+
+function channelNode(params: { document: Document; owner: VideoOwner }): Node {
+	const { document, owner } = params;
+	if ("attributedTitle" in owner) return document.createTextNode(owner.attributedTitle.content);
+	const [channel] = owner.title.runs;
+	const channelLink = document.createElement("a");
+	channelLink.setAttribute("href", new URL(channel.navigationEndpoint.browseEndpoint.canonicalBaseUrl, YOUTUBE_ORIGIN).href);
+	channelLink.textContent = channel.text;
+	return channelLink;
+}
 
 function appendDescription(params: { document: Document; container: Element; description: Description }): void {
 	const { document, container, description } = params;

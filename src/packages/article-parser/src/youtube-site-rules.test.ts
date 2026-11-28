@@ -5,7 +5,7 @@ import { parseHTML } from "linkedom";
 import { initArticleSiteRules } from "./article-site-rules";
 import { readabilityAdditions } from "./readability-additions";
 import { initReadabilityParser } from "./readability-parser";
-import { youtubeSiteRules } from "./youtube-site-rules";
+import { initYouTubeSiteRules } from "./youtube-site-rules";
 
 const WATCH_URL = "https://www.youtube.com/watch?v=J3PGI4yqta4";
 const FIXTURE = readFileSync(join(__dirname, "fixtures", "youtube-watch-J3PGI4yqta4.html"), "utf-8");
@@ -30,13 +30,14 @@ function parseWatchPage(html: string) {
 	return result.article;
 }
 
-function parseWithoutYouTubeRule(html: string) {
-	return parserWith(siteRules.filter((rule) => rule !== youtubeSiteRules)).parseHtml({
-		url: WATCH_URL,
-		documentUrl: WATCH_URL,
-		html,
-		thumbnailUrl: null,
-	});
+function parseWith(rules: typeof siteRules, html: string) {
+	return parserWith(rules).parseHtml({ url: WATCH_URL, documentUrl: WATCH_URL, html, thumbnailUrl: null });
+}
+
+function declineOf(html: string) {
+	const logged: string[] = [];
+	const withRule = parseWith([initYouTubeSiteRules({ logError: (message) => logged.push(message) })], html);
+	return { withRule, withoutRule: parseWith([], html), logged };
 }
 
 function blocksOf(content: string): Element[] {
@@ -58,8 +59,22 @@ function replaceScript(script: string): string {
 
 type CommandRun = { startIndex: number; length: number; onTap: { innertubeCommand: Record<string, unknown> } };
 
-function watchPageWithDescription(params: { content: string; commandRuns: CommandRun[] }): string {
-	const data = {
+const CHANNEL_OWNER = {
+	title: {
+		runs: [
+			{
+				text: "Ryan Carniato",
+				navigationEndpoint: { browseEndpoint: { canonicalBaseUrl: "/@ryansolid" } },
+			},
+		],
+	},
+};
+
+function watchPageWith(params: {
+	description?: { content: string; commandRuns?: CommandRun[] };
+	owner?: Record<string, unknown>;
+}): Record<string, unknown> {
+	return {
 		currentVideoEndpoint: { watchEndpoint: { videoId: "J3PGI4yqta4" } },
 		contents: {
 			twoColumnWatchNextResults: {
@@ -75,19 +90,8 @@ function watchPageWithDescription(params: { content: string; commandRuns: Comman
 							},
 							{
 								videoSecondaryInfoRenderer: {
-									owner: {
-										videoOwnerRenderer: {
-											title: {
-												runs: [
-													{
-														text: "Ryan Carniato",
-														navigationEndpoint: { browseEndpoint: { canonicalBaseUrl: "/@ryansolid" } },
-													},
-												],
-											},
-										},
-									},
-									attributedDescription: params,
+									owner: { videoOwnerRenderer: params.owner ?? CHANNEL_OWNER },
+									...(params.description ? { attributedDescription: params.description } : {}),
 								},
 							},
 						],
@@ -96,7 +100,14 @@ function watchPageWithDescription(params: { content: string; commandRuns: Comman
 			},
 		},
 	};
+}
+
+function classicScriptPage(data: Record<string, unknown>): string {
 	return replaceScript(`<script nonce="fixture">var ytInitialData = ${JSON.stringify(data)};</script>`);
+}
+
+function watchPageWithDescription(description: { content: string; commandRuns?: CommandRun[] }): string {
+	return classicScriptPage(watchPageWith({ description }));
 }
 
 function chapterRun(params: { startIndex: number; length: number; seconds: number }): CommandRun {
@@ -104,10 +115,16 @@ function chapterRun(params: { startIndex: number; length: number; seconds: numbe
 		startIndex: params.startIndex,
 		length: params.length,
 		onTap: {
-			innertubeCommand: {
-				commandMetadata: { webCommandMetadata: { url: `/watch?v=J3PGI4yqta4&t=${params.seconds}s` } },
-				watchEndpoint: { videoId: "J3PGI4yqta4", startTimeSeconds: params.seconds },
-			},
+			innertubeCommand:
+				params.seconds === 0
+					? {
+							commandMetadata: { webCommandMetadata: { url: "/watch?v=J3PGI4yqta4" } },
+							watchEndpoint: { videoId: "J3PGI4yqta4" },
+						}
+					: {
+							commandMetadata: { webCommandMetadata: { url: `/watch?v=J3PGI4yqta4&t=${params.seconds}s` } },
+							watchEndpoint: { videoId: "J3PGI4yqta4", startTimeSeconds: params.seconds },
+						},
 		},
 	};
 }
@@ -148,6 +165,44 @@ describe("youtubeSiteRules", () => {
 		assert.match(parseWatchPage(FIXTURE).excerpt, /^What if we had "Rust" for Frontend\?/);
 	});
 
+	it("keeps the description's whitespace collapsed as the excerpt", () => {
+		const html = watchPageWithDescription({ content: "Line one\nLine two\n\n  Next paragraph  " });
+
+		assert.equal(parseWatchPage(html).excerpt, "Line one Line two Next paragraph");
+	});
+
+	it("builds a video with no description from the poster and the channel line only", () => {
+		const article = parseWatchPage(classicScriptPage(watchPageWith({})));
+
+		const blocks = blocksOf(article.content);
+		assert.equal(blocks.length, 2);
+		assert.equal(blocks[0].getAttribute("class"), "reader-embed-facade");
+		assert.equal(blocks[1].textContent, "Ryan Carniato · Streamed live on Nov 6, 2026 · 7,667 views");
+		assert.equal(article.excerpt, "Content saved from www.youtube.com.");
+	});
+
+	it("names a collaboration's channels as plain text on the channel line", () => {
+		const html = classicScriptPage(
+			watchPageWith({
+				description: { content: "A joint stream" },
+				owner: { attributedTitle: { content: "A and B" } },
+			}),
+		);
+
+		const [, second] = blocksOf(parseWatchPage(html).content);
+
+		assert.equal(second.innerHTML, "A and B · Streamed live on Nov 6, 2026 · 7,667 views");
+	});
+
+	it("reads ytInitialData from its JSON script element when the page has no classic script", () => {
+		const data = watchPageWith({ description: { content: "Line one\nLine two" } });
+		const jsonElementPage = replaceScript(
+			`<script id="yt-initial-data" type="application/json">${JSON.stringify(data)}</script>`,
+		);
+
+		assert.deepEqual(parseWatchPage(jsonElementPage), parseWatchPage(classicScriptPage(data)));
+	});
+
 	it("lists chapters as links to their moment in the video", () => {
 		const document = contentDocument(parseWatchPage(FIXTURE).content);
 
@@ -177,6 +232,10 @@ describe("youtubeSiteRules", () => {
 			items.map((item) => item.textContent),
 			["0:00 Intro", "1:05 Setup", "2:10 Demo"],
 		);
+		assert.deepEqual(
+			items.map((item) => item.querySelector("a")?.getAttribute("href")),
+			[`${WATCH_URL}&t=0s`, `${WATCH_URL}&t=65s`, `${WATCH_URL}&t=130s`],
+		);
 	});
 
 	it("keeps a timestamp in the middle of a line as an inline link", () => {
@@ -195,7 +254,7 @@ describe("youtubeSiteRules", () => {
 	});
 
 	it("keeps the description's line breaks and paragraphs", () => {
-		const html = watchPageWithDescription({ content: "Line one\nLine two\n\nNext paragraph", commandRuns: [] });
+		const html = watchPageWithDescription({ content: "Line one\nLine two\n\nNext paragraph" });
 
 		const blocks = blocksOf(parseWatchPage(html).content);
 
@@ -250,25 +309,31 @@ describe("youtubeSiteRules", () => {
 		assert.equal(link?.textContent, "#solidjs");
 	});
 
-	it("falls back to the default parse when the page has no ytInitialData", () => {
-		const html = replaceScript("");
+	it("falls back to the default parse and logs why when the page has no ytInitialData", () => {
+		const { withRule, withoutRule, logged } = declineOf(replaceScript(""));
 
-		assert.deepEqual(parserWith(siteRules).parseHtml({ url: WATCH_URL, documentUrl: WATCH_URL, html, thumbnailUrl: null }), parseWithoutYouTubeRule(html));
+		assert.deepEqual(withRule, withoutRule);
+		assert.deepEqual(logged, [`[YouTubeSiteRule] declined ${WATCH_URL}: no ytInitialData`]);
 	});
 
-	it("falls back to the default parse when ytInitialData is not JSON", () => {
-		const html = replaceScript("<script>var ytInitialData = {broken;</script>");
+	it("falls back to the default parse and logs why when ytInitialData is not JSON", () => {
+		const { withRule, withoutRule, logged } = declineOf(replaceScript("<script>var ytInitialData = {broken;</script>"));
 
-		assert.deepEqual(parserWith(siteRules).parseHtml({ url: WATCH_URL, documentUrl: WATCH_URL, html, thumbnailUrl: null }), parseWithoutYouTubeRule(html));
+		assert.deepEqual(withRule, withoutRule);
+		assert.deepEqual(logged, [`[YouTubeSiteRule] declined ${WATCH_URL}: ytInitialData is not JSON`]);
 	});
 
-	it("falls back to the default parse when ytInitialData lacks the watch-page renderers", () => {
-		const html = replaceScript('<script>var ytInitialData = {"contents":{}};</script>');
+	it("falls back to the default parse and logs the first schema issue when ytInitialData lacks the watch-page renderers", () => {
+		const { withRule, withoutRule, logged } = declineOf(replaceScript('<script>var ytInitialData = {"contents":{}};</script>'));
 
-		assert.deepEqual(parserWith(siteRules).parseHtml({ url: WATCH_URL, documentUrl: WATCH_URL, html, thumbnailUrl: null }), parseWithoutYouTubeRule(html));
+		assert.deepEqual(withRule, withoutRule);
+		assert.deepEqual(logged, [
+			`[YouTubeSiteRule] declined ${WATCH_URL}: currentVideoEndpoint: Invalid input: expected object, received undefined`,
+		]);
 	});
 
 	it("claims YouTube video URLs only", () => {
+		const youtubeSiteRules = initYouTubeSiteRules({ logError: () => {} });
 		const matches = (url: string) => youtubeSiteRules.matches({ url, hostname: new URL(url).hostname });
 
 		assert.equal(matches(WATCH_URL), true);
