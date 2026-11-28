@@ -29,6 +29,10 @@ export function renderStatusToast(toast: StatusToastModel): string {
 	});
 }
 
+export function renderHomeToast(message: string): string {
+	return renderToast({ message, dismissMs: STATUS_TOAST_DISMISS_MS, actions: [] });
+}
+
 export type MoveUndoFields = { from: string; to: string } | { queue: readonly string[]; returnTo: string };
 
 interface MoveToastModel {

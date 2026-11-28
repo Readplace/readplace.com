@@ -200,9 +200,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		]);
 
 		await expect(page.locator('[data-test-readlist="default"]')).toHaveAttribute("aria-current", "page");
-		const status = page.locator('[role="status"][autofocus]');
-		await expect(status).toHaveText("Weekend is now your home readlist.");
-		await expect(status).toBeFocused();
+		await expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText("Weekend is now your home readlist.");
 
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		await expect(page.locator(`[data-test-readlist="${slug}"]`)).toHaveAttribute("aria-current", "page");
