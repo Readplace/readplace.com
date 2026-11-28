@@ -1387,5 +1387,21 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	widgets.push(
+		logWidget({
+			region,
+			title: "Highlights shared per day, by method",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, method",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.highlightShared}"`,
+				...exclude,
+				"| stats count(*) as shared by method, bin(1d)",
+			].join(" "),
+			x: 12, y: 358, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	return { widgets };
 }

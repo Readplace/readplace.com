@@ -48,6 +48,65 @@
   display: flex;
 }
 
+.menu__item.highlight-popover__share {
+  display: none;
+}
+
+.has-web-share .menu__item.highlight-popover__share {
+  display: flex;
+}
+
+.highlight-popover__share-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+}
+
+.has-web-share .highlight-popover__share-targets {
+  display: none;
+}
+
+.has-web-share .highlight-popover--share-failed .highlight-popover__share-targets {
+  display: flex;
+}
+
+.highlight-popover__share-heading {
+  margin: 0;
+  padding: 8px 12px 4px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.highlight-popover__share-row {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+}
+
+.menu__item.highlight-popover__share-target {
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  text-decoration: none;
+}
+
+.share-dialog__circle.highlight-popover__share-circle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+}
+
+.menu__item .share-dialog__circle.highlight-popover__share-circle svg {
+  width: 16px;
+  height: 16px;
+  color: #FFFFFF;
+}
+
 .highlight-copy-status {
   position: fixed;
   left: var(--page-gutter);

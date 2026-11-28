@@ -74,6 +74,7 @@ function mainHtml(input: { content?: string; highlights: readonly HighlightSpec[
 			rows: input.highlights.map((spec, orderKey) => highlightOf({ spec, text, orderKey })),
 			canonicalContentHash: "hash",
 			scope: input.scoped === false ? undefined : SCOPE,
+			share: undefined,
 		},
 	});
 	const rail = renderHighlightsRail({

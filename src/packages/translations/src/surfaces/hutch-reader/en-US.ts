@@ -39,6 +39,9 @@ export const enUS = {
 			copy: "Copy highlight",
 			copied: "Highlight copied",
 			copyFailed: "Couldn't copy the highlight. Select its text to copy it.",
+			share: "Share highlight",
+			shareTargets: "Share highlight",
+			quote: "“{quote}”",
 		},
 		highlightsRail: {
 			title: "Highlights",
@@ -190,6 +193,9 @@ export const enUS = {
 			},
 			choice: {
 				legend: "Send to an app",
+			},
+			target: {
+				email: "Email",
 			},
 		},
 		sharingOff: {

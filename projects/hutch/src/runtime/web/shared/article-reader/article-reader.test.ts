@@ -572,6 +572,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -604,6 +605,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -637,6 +639,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -671,6 +674,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -704,6 +708,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -736,6 +741,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 				readerSection: TEST_READER_SECTION,
 			};
 		}
@@ -816,6 +822,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -851,6 +858,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -882,6 +890,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -918,6 +927,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -952,6 +962,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -984,6 +995,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1016,6 +1028,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1048,6 +1061,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1078,6 +1092,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1118,6 +1133,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1163,6 +1179,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1200,6 +1217,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1235,6 +1253,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(headerOf(parse(toHtml(component)))).toEqual({
@@ -1270,6 +1289,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1303,6 +1323,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1341,6 +1362,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1375,6 +1397,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1423,6 +1446,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1461,6 +1485,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(headerOf(parse(toHtml(component)))).toEqual({
@@ -1497,6 +1522,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1540,6 +1566,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1575,6 +1602,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1613,6 +1641,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1648,6 +1677,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1683,6 +1713,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(`<div id="poll-response">${toHtml(component)}</div>`);
@@ -1729,6 +1760,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1771,6 +1803,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 			return parse(toHtml(component));
 		}
@@ -1992,6 +2025,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -2040,6 +2074,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			const notice = parse(toHtml(component)).body.lastElementChild;
@@ -2075,6 +2110,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 				readerSection: TEST_READER_SECTION,
 			};
 		}
@@ -2284,6 +2320,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
@@ -2319,6 +2356,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
@@ -2356,6 +2394,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2385,6 +2424,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...SUMMARY_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2414,6 +2454,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2444,6 +2485,7 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 				renderShareOob: undefined,
+				highlightShareFor: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2522,6 +2564,7 @@ describe("initArticleReader", () => {
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 						renderShareOob: undefined,
+						highlightShareFor: undefined,
 					}),
 				),
 			);
@@ -2572,6 +2615,7 @@ describe("initArticleReader", () => {
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 						renderShareOob: undefined,
+						highlightShareFor: undefined,
 					}),
 				),
 			);
@@ -2607,6 +2651,7 @@ describe("initArticleReader", () => {
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 						renderShareOob: undefined,
+						highlightShareFor: undefined,
 					}),
 				),
 			);
@@ -2643,6 +2688,7 @@ describe("initArticleReader", () => {
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 						renderShareOob: undefined,
+						highlightShareFor: undefined,
 					}),
 				),
 			);
@@ -2686,6 +2732,7 @@ describe("initArticleReader", () => {
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 						renderShareOob: undefined,
+						highlightShareFor: undefined,
 					}),
 				),
 			);
@@ -2779,6 +2826,7 @@ describe("the reader's gave-up poll", () => {
 			readerViewFailedOob: () => "",
 			renderDownloadsOob: undefined,
 			renderShareOob: undefined,
+			highlightShareFor: undefined,
 		});
 		return parse(toHtml(component));
 	}

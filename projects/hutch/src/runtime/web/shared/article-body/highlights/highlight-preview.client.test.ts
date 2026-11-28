@@ -68,6 +68,7 @@ function readerHtml(input: { content?: string; highlights: readonly HighlightSpe
 			rows: input.highlights.map((spec, orderKey) => highlightOf({ spec, text, orderKey })),
 			canonicalContentHash: "hash",
 			scope: undefined,
+			share: undefined,
 		},
 	}).html;
 }

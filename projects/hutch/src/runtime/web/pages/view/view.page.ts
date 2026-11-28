@@ -688,6 +688,7 @@ function handleViewPoll(deps: ViewDependencies, poll: ReturnType<typeof initArti
 			renderShareOob: existing === null
 				? undefined
 				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
+			highlightShareFor: undefined,
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));

@@ -1,6 +1,7 @@
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { initHighlightPanels } from "./highlight-popover.client";
+import { initHighlightShare, type WebShareData } from "./highlight-share.client";
 import {
 	type HighlightPreviews,
 	initHighlightPreviews,
@@ -65,6 +66,7 @@ interface HighlightToolbarDeps {
 	isOpen: (popover: Element) => boolean;
 	isFocusVisible: (element: Element) => boolean;
 	sendBeacon: (url: string) => void;
+	share: ((data: WebShareData) => Promise<void>) | undefined;
 	isAutoPopoverOpen: () => boolean;
 	paintDraft: (range: Range) => void;
 	clearDraft: () => void;
@@ -336,6 +338,8 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		hidePopover: deps.hidePopover,
 		isOpen: deps.isOpen,
 	});
+
+	initHighlightShare({ document, share: deps.share, sendBeacon: deps.sendBeacon, panels });
 
 	const editors = initNoteEditors({
 		document,

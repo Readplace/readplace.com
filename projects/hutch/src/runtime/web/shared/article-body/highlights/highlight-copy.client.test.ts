@@ -51,6 +51,7 @@ function readerMain(toolbarHtml: string): string {
 		highlightId: HIGHLIGHT_ID,
 		note: undefined,
 		quote: QUOTE,
+		share: undefined,
 	})}${toolbarHtml}</main>`;
 }
 
@@ -188,7 +189,7 @@ describe("initHighlightCopy", () => {
 		assert(main, "the reader renders main");
 		main.insertAdjacentHTML(
 			"beforeend",
-			renderHighlightPopoverPanel({ highlightId: LATER_ID, note: undefined, quote: "a later passage" }),
+			renderHighlightPopoverPanel({ highlightId: LATER_ID, note: undefined, quote: "a later passage", share: undefined }),
 		);
 
 		h.copyItem(LATER_ID).click();

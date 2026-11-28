@@ -158,6 +158,22 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 		assert.equal(surfaces.children.length, 0);
 	});
 
+	it("gives the logged-out reader's local highlight panel no Share highlight", async () => {
+		const harness = await harnessWith({ urls: [ARTICLE_URL] });
+
+		const response = await request(harness.server).get(VIEW_PATH).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		const text = doc.querySelector<HTMLTemplateElement>('template[data-view-highlights-surface="text"]');
+		assert(text, "the text surface template renders");
+		assert.deepEqual(
+			Array.from(text.content.querySelectorAll("[data-highlight-popover] :is([data-test-action], [data-highlight-share-target])"), (item) =>
+				item.getAttribute("data-test-action"),
+			),
+			["highlight-panel-note", "highlight-panel-copy", "highlight-panel-delete"],
+		);
+	});
+
 	it("runs every note and delete form of the surfaces and rows in the browser, naming its highlight", async () => {
 		const harness = await harnessWith({ urls: [ARTICLE_URL] });
 

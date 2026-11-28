@@ -1032,6 +1032,97 @@ describe("Highlights (POST /queue/:id/highlights/copied)", () => {
 	});
 });
 
+describe("Highlights (POST /queue/:id/highlights/shared)", () => {
+	const sharedPath = (articleId: string, query: string) =>
+		`/queue/${articleId}/highlights/shared${query}`;
+
+	it.each([
+		["", "web", "native-share", "view", "true", true],
+		["?platform=ios&", "ios", "whatsapp", "original", "false", false],
+		["?platform=android&", "android", "email", "none", "false", false],
+	] as const)(
+		"records highlight_shared with no text for the query prefix %j as surface %s and answers 204",
+		async (platformPrefix, surface, method, linked, fragmentParam, fragment) => {
+			const harness = useApp(parsedFixture());
+			const { agent, articleId } = await saveArticle(
+				harness,
+				`https://example.com/highlight-shared-${surface}`,
+			);
+			const highlightId = await createHighlight(agent, {
+				articleId,
+				exact: "readability parser",
+			});
+			const query = `${platformPrefix === "" ? "?" : platformPrefix}highlight=${highlightId}&method=${method}&linked=${linked}&fragment=${fragmentParam}`;
+
+			const response = await agent.post(sharedPath(articleId, query));
+
+			expect(response.status).toBe(204);
+			expect(
+				harness.analytics.events.filter((event) => event.event === "highlight_shared"),
+			).toEqual([
+				{
+					stream: "analytics",
+					event: "highlight_shared",
+					timestamp: expect.any(String),
+					user_id: expect.any(String),
+					visitor_hash: expect.any(String),
+					highlight_id: highlightId,
+					method,
+					linked,
+					fragment,
+					surface,
+				},
+			]);
+		},
+	);
+
+	it.each([
+		["an unknown method", "?highlight=11111111-1111-4111-8111-111111111111&method=telegram&linked=view&fragment=true"],
+		["an unknown link kind", "?highlight=11111111-1111-4111-8111-111111111111&method=x&linked=public&fragment=true"],
+		["a fragment that is not a boolean", "?highlight=11111111-1111-4111-8111-111111111111&method=x&linked=view&fragment=yes"],
+		["no query", ""],
+	])("answers 204 and records nothing for %s", async (_case, query) => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-shared-malformed",
+		);
+
+		const response = await agent.post(sharedPath(articleId, query));
+
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_shared"),
+		).toEqual([]);
+	});
+
+	it("answers 404 and records nothing for another owner's article", async () => {
+		const harness = useApp(parsedFixture());
+		const { articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-shared-foreign",
+		);
+		await harness.auth.createUser({
+			email: "other@example.com",
+			password: "password123",
+		});
+		const other = request.agent(harness.server);
+		await other
+			.post("/login")
+			.type("form")
+			.send({ email: "other@example.com", password: "password123" });
+
+		const response = await other.post(
+			sharedPath(articleId, "?highlight=11111111-1111-4111-8111-111111111111&method=x&linked=view&fragment=true"),
+		);
+
+		expect(response.status).toBe(404);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_shared"),
+		).toEqual([]);
+	});
+});
+
 describe("Highlights in the reader (GET /queue/:id/view)", () => {
 	it("lists a stored highlight and posts new ones to the plain create path with no query", async () => {
 		const harness = useApp(parsedFixture());
@@ -1287,7 +1378,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 
 		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
 
-		expect(actionsOf(panel)).toEqual(["Add note", "Copy highlight", "Delete highlight"]);
+		expect(actionsOf(panel)).toEqual(["Add note", "Copy highlight", "Share highlight", "Delete highlight"]);
 		expect(panel.querySelector(".highlight-popover__note")).toBeNull();
 		expect(panel.hasAttribute("aria-describedby")).toBe(false);
 	});
@@ -1304,7 +1395,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 		assert(note, "the panel shows the note");
 		expect(note.textContent).toBe("My thought");
 		expect(panel.getAttribute("aria-describedby")).toBe(note.id);
-		expect(actionsOf(panel)).toEqual(["Edit note", "Copy highlight", "Delete note", "Delete highlight"]);
+		expect(actionsOf(panel)).toEqual(["Edit note", "Copy highlight", "Share highlight", "Delete note", "Delete highlight"]);
 	});
 
 	it("points every panel action at a dialog or form the page renders", async () => {
@@ -1316,6 +1407,7 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 		const page = doc((await agent.get(viewPath(articleId))).text);
 		const targets = Array.from(page.querySelectorAll("[data-highlight-popover] button"), (button) => {
 			if (button.hasAttribute("data-highlight-copy")) return { kind: "copy", role: button.getAttribute("data-highlight-copy") };
+			if (button.hasAttribute("data-highlight-share")) return { kind: "share", role: button.getAttribute("data-share-text") };
 			const dialogId = button.getAttribute("popovertarget");
 			if (dialogId !== null) return { kind: "dialog", role: page.getElementById(dialogId)?.getAttribute("role") };
 			const formId = button.getAttribute("form");
@@ -1326,9 +1418,36 @@ describe("A highlight's actions beside the article (GET /queue/:id/view)", () =>
 		expect(targets).toEqual([
 			{ kind: "dialog", role: "dialog" },
 			{ kind: "copy", role: "readability parser" },
+			{ kind: "share", role: "“readability parser”" },
 			{ kind: "form", role: "FORM" },
 			{ kind: "dialog", role: "dialog" },
 		]);
+	});
+
+	it("gives a highlight's panel on the reader poll the same Share item as on the page", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-share-poll");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+		const shareOf = (panel: Element) => {
+			const button = panel.querySelector("[data-highlight-share]");
+			assert(button, "the panel offers Share highlight");
+			return {
+				beacon: panel.getAttribute("data-highlight-share-beacon"),
+				attributes: Array.from(button.attributes)
+					.filter(({ name }) => name.startsWith("data-share-"))
+					.map(({ name, value }) => [name, value]),
+				targets: Array.from(panel.querySelectorAll("[data-highlight-share-target]"), (target) => target.getAttribute("href")),
+			};
+		};
+
+		const onPage = shareOf(panelOf((await agent.get(viewPath(articleId))).text, id));
+		const onPoll = shareOf(panelOf((await agent.get(`/queue/${articleId}/reader?poll=1`)).text, id));
+
+		expect(onPoll).toEqual(onPage);
+		expect(Object.fromEntries(onPage.attributes)).toMatchObject({
+			"data-share-text": "“readability parser”",
+			"data-share-linked": "view",
+		});
 	});
 
 	it("renders every id on the reader page once", async () => {

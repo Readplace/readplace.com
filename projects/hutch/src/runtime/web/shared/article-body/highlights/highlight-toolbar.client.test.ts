@@ -87,7 +87,7 @@ function mainHtml(
 		url: READER_URL,
 		content: articleBody(content),
 		appOrigin: APP_ORIGIN,
-		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash", scope: undefined } } : {}),
+		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash", scope: undefined, share: undefined } } : {}),
 	}).html;
 	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false, section: undefined, refusal: undefined })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
@@ -226,6 +226,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isOpen: () => false,
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
+		share: undefined,
 		isAutoPopoverOpen: () => false,
 		paintDraft: () => h.order.push("paint"),
 		clearDraft: () => h.order.push("clear"),

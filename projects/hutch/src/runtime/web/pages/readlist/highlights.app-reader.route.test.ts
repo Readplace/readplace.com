@@ -300,6 +300,27 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		).toEqual([id]);
 	});
 
+	it("renders Share highlight with its target list and a shared beacon carrying the platform", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-share`);
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+		const panel = page.querySelector(`[data-highlight-popover="${id}"]`);
+
+		expect({
+			share: panel?.querySelector("[data-highlight-share]")?.getAttribute("data-share-text"),
+			targets: Array.from(panel?.querySelectorAll("[data-highlight-share-target]") ?? [], (target) =>
+				target.getAttribute("data-highlight-share-target"),
+			),
+			beacon: panel?.getAttribute("data-highlight-share-beacon"),
+		}).toEqual({
+			share: "“readability parser”",
+			targets: ["whatsapp", "facebook", "x", "email", "reddit"],
+			beacon: `/queue/${articleId}/highlights/shared?platform=${platform}`,
+		});
+	});
+
 	it("offers Copy highlight with the quote, the copy status and a copied beacon carrying the platform", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-copy`);

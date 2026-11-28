@@ -142,6 +142,7 @@ function harness(input: {
 			isOpen: () => false,
 			isFocusVisible: () => false,
 			sendBeacon: (url) => h.beacons.push(url),
+			share: undefined,
 			isAutoPopoverOpen: () => false,
 			paintDraft: () => undefined,
 			clearDraft: () => undefined,

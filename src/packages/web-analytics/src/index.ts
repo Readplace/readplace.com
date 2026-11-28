@@ -104,6 +104,7 @@ export {
 	type HighlightNoteSavedEvent,
 	type HighlightOpenedEvent,
 	type HighlightCopiedEvent,
+	type HighlightSharedEvent,
 	type ViewOpenedEvent,
 	type EpubImagesOverBudgetEvent,
 	type ViewSaveIntentEvent,
