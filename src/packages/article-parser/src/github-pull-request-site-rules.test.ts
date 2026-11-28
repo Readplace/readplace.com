@@ -180,6 +180,36 @@ describe("GitHub pull request conversation", () => {
 		expect(parsePage({ html, url: PR_URL })).toEqual(parsePage({ html, url: PR_URL, useSiteRules: false }));
 	});
 
+	const nestedReview = (ids: { outer: string; inner: string }) => `
+		<div class="js-comment"${ids.outer}>
+			<div class="timeline-comment-header">
+				<a class="author" href="/reviewer">reviewer</a> reviewed
+				<a href="#pullrequestreview-9"><relative-time datetime="2026-02-02T00:00:00Z">February 2</relative-time></a>
+			</div>
+			<div class="js-comment"${ids.inner}>
+				<div class="js-comment-body"><p>Lower the hold load before the oak handle ships.</p></div>
+			</div>
+		</div>`;
+
+	it("reads a review summary's byline from the review header that encloses its comment", () => {
+		const sameId = ' id="pullrequestreview-9"';
+		const html = publicConversation(`${openingComment}${nestedReview({ outer: sameId, inner: sameId })}`);
+		const { document } = parseHTML(`<html><body>${sanitizeArticleHtml(parsePage({ html, url: PR_URL }).content)}</body></html>`);
+		expect(document.body.textContent?.replace(/\s+/g, " ")).toMatch(/reviewer · 2026-02-02T00:00:00Z ?Lower the hold load before the oak handle ships\./);
+		expect([...document.querySelectorAll("a[href]")].slice(-2).map((link) => [link.textContent?.trim(), link.getAttribute("href")])).toEqual([
+			["reviewer", "https://github.com/reviewer"],
+			["2026-02-02T00:00:00Z", `${PR_URL}#pullrequestreview-9`],
+		]);
+	});
+
+	it.each([
+		["a different id", ' id="pullrequestreview-9"', ' id="pullrequestreview-10"'],
+		["no id", "", ""],
+	])("keeps default parsing when an untimed comment's enclosing comment has %s", (_case, outer, inner) => {
+		const html = publicConversation(`${openingComment}${nestedReview({ outer, inner })}`);
+		expect(parsePage({ html, url: PR_URL })).toEqual(parsePage({ html, url: PR_URL, useSiteRules: false }));
+	});
+
 	it.each(["text-mono", "diff-table", "blob-num", "blob-code", "blob-code-inner"])("keeps default parsing when a review has no %s markup", (marker) => {
 		const html = publicConversation(`${openingComment}
 			<review-thread-collapsible class="review-thread-component">

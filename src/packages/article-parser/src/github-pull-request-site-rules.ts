@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { noExtract, noRecovery, skipCrawl, type SiteRules } from "@packages/site-rules";
 
 const GITHUB = "https://github.com";
@@ -69,7 +70,7 @@ export const githubPullRequestSiteRules = {
 } satisfies SiteRules;
 
 function renderAuthor(body: Element): Element | undefined {
-	const comment = body.closest(".js-comment");
+	const comment = timedComment(body);
 	if (!comment) return undefined;
 	const author = comment.querySelector<HTMLAnchorElement>("a.author[href]");
 	const timestamp = comment.querySelector("relative-time[datetime]");
@@ -92,6 +93,15 @@ function renderAuthor(body: Element): Element | undefined {
 	if (badge?.innerText.trim() === "Bot") byline.append(" (Bot)");
 	byline.append(" · ", permalink);
 	return byline;
+}
+
+function timedComment(body: Element): Element | undefined {
+	const comment = body.closest(".js-comment");
+	if (!comment) return undefined;
+	if (comment.querySelector("relative-time[datetime]")) return comment;
+	assert(comment.parentElement, "a comment body's comment sits inside the discussion");
+	const enclosing = comment.parentElement.closest(".js-comment");
+	return comment.id && enclosing?.id === comment.id ? enclosing : comment;
 }
 
 function prepareMarkdown(body: Element): void {
