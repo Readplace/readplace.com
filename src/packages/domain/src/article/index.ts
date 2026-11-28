@@ -68,6 +68,7 @@ export {
 export { personalDecisionKey, personalReadlistPartition, personalReadlistOrder, type PersonalPickRequest, type PersonalReadlist } from "./personal-readlist";
 export {
 	REMOVAL_SKIP_REASONS,
+	classifyForRemoval,
 	ISSUE_SKIP_REASONS,
 	isNewsletterIssueKey,
 	isNewsletterLink,
@@ -78,6 +79,7 @@ export {
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
 	type NewsletterLinkSummary,
+	type RemovalClassification,
 	type RemovalSkipReason,
 } from "./newsletter-link";
 export {
