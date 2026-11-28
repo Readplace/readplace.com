@@ -10,7 +10,6 @@ import {
 	renderHighlightNoteDialog,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
-	renderLocalHighlightNoteDialog,
 } from "./highlight-note-dialog.component";
 
 const HIGHLIGHT_ID = HighlightIdSchema.parse(
@@ -52,7 +51,7 @@ function textareaOf(doc: Document): HTMLTextAreaElement {
 describe("renderHighlightNoteDialog", () => {
 	const doc = parse(
 		renderHighlightNoteDialog({
-			scope: WEB_SCOPE,
+			target: { kind: "server", scope: WEB_SCOPE },
 			hiddenFields: [
 				{ name: "exact", value: "" },
 				{ name: "answer", value: "dialog" },
@@ -240,7 +239,7 @@ describe("renderHighlightNoteFallbackForm", () => {
 describe("note dialogs in the app surface", () => {
 	it("posts the bar's note dialog with the readlist, then the surface, both as action and hx-post", () => {
 		const form = parse(
-			renderHighlightNoteDialog({ scope: APP_SCOPE, hiddenFields: [], autofocus: true }),
+			renderHighlightNoteDialog({ target: { kind: "server", scope: APP_SCOPE }, hiddenFields: [], autofocus: true }),
 		).querySelector("form");
 		const expected =
 			"/queue/abc/highlights?queue=work&platform=ios&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note";
@@ -396,7 +395,7 @@ describe("Delete note", () => {
 	it("is not offered in the bar's Add a note dialog or the no-popover note form", () => {
 		expect(
 			buttonRowOf(
-				parse(renderHighlightNoteDialog({ scope: WEB_SCOPE, hiddenFields: [], autofocus: true })),
+				parse(renderHighlightNoteDialog({ target: { kind: "server", scope: WEB_SCOPE }, hiddenFields: [], autofocus: true })),
 			),
 		).toEqual(["highlight-note-cancel", "highlight-note-save"]);
 		expect(
@@ -431,7 +430,7 @@ describe("note editors beside the passage", () => {
 
 	it("opens the toolbar's Add a note as a manual panel beside the passage", () => {
 		expect(
-			editorOf(renderHighlightNoteDialog({ scope: WEB_SCOPE, hiddenFields: [], autofocus: true })),
+			editorOf(renderHighlightNoteDialog({ target: { kind: "server", scope: WEB_SCOPE }, hiddenFields: [], autofocus: true })),
 		).toEqual(besidePassage);
 	});
 
@@ -442,7 +441,7 @@ describe("note editors beside the passage", () => {
 	});
 
 	it("opens the logged-out reader's Add a note as a manual panel beside the passage", () => {
-		expect(editorOf(renderLocalHighlightNoteDialog({ hiddenFields: [] }))).toEqual(besidePassage);
+		expect(editorOf(renderHighlightNoteDialog({ target: { kind: "local" }, hiddenFields: [], autofocus: true }))).toEqual(besidePassage);
 	});
 
 	it("keeps the editor marker on a refused create form, which replaces the one inside the panel", () => {
@@ -511,7 +510,7 @@ describe("Local forms", () => {
 	});
 
 	it("names the selection's create form as a create without a highlight id", () => {
-		const form = parse(renderLocalHighlightNoteDialog({ hiddenFields: [] })).querySelector("form");
+		const form = parse(renderHighlightNoteDialog({ target: { kind: "local" }, hiddenFields: [], autofocus: true })).querySelector("form");
 
 		expect(form?.getAttribute("data-highlight-local")).toBe("create");
 		expect(form?.hasAttribute("data-highlight-local-id")).toBe(false);

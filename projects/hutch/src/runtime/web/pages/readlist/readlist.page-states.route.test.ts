@@ -332,7 +332,7 @@ describe("empty states", () => {
 		expect(emptyActionKeys(empty)).toEqual([]);
 	});
 
-	it("offers a view-unread action on the Read tab of a reader with only unread saves", async () => {
+	it("shows the no-finished-articles empty state with no action on the Read tab of a reader with only unread saves", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await save(agent, "https://example.com/article");
@@ -344,12 +344,7 @@ describe("empty states", () => {
 		const title = empty.querySelector(".readlist-empty__title");
 		assert(title, "the empty state title must be rendered");
 		expect(title.textContent).toBe("No finished articles yet");
-		const viewUnread = doc.querySelector('[data-test-empty-action="view-unread"]');
-		assert(viewUnread, "the view-unread action must be rendered");
-		expect(submittedUrl(viewUnread)).toBe(
-			"/queue?queue=default&utm_source=queue-empty&utm_medium=internal&utm_content=view-unread",
-		);
-		expect(emptyActionKeys(empty)).toEqual(["view-unread"]);
+		expect(emptyActionKeys(empty)).toEqual([]);
 	});
 
 	it("tells a reader with a new custom readlist to add an article from All, and links to its preferences", async () => {

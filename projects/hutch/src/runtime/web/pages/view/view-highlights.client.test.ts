@@ -7,7 +7,8 @@ import { type DOMWindow, JSDOM } from "jsdom";
 import { Base } from "../../base.component";
 import { HIGHLIGHTS_RENDERED_EVENT } from "../../shared/article-body/highlights/highlights-rendered-event";
 import { initHighlightCopy } from "../../shared/article-body/highlights/highlight-copy.client";
-import { initHighlightToolbar, type ToolbarRect } from "../../shared/article-body/highlights/highlight-toolbar.client";
+import { initHighlightToolbar } from "../../shared/article-body/highlights/highlight-toolbar.client";
+import type { PassageRect } from "../../shared/article-body/highlights/place-clear-of-passage";
 import type { LocalHighlightStorage } from "../../shared/article-body/highlights/local-highlights";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -87,7 +88,7 @@ function harness(input: {
 	storage: LocalHighlightStorage;
 	supportsPopover?: boolean;
 	withToolbarScript?: boolean;
-	rectsOf?: () => readonly ToolbarRect[];
+	rectsOf?: () => readonly PassageRect[];
 	pageHtml?: string;
 	clipboard?: { writeText(text: string): Promise<void> };
 }): Harness {
@@ -750,7 +751,7 @@ describe("initViewHighlights", () => {
 });
 
 describe("initViewHighlights — the actions on a kept passage", () => {
-	const PASSAGE_RECTS: readonly ToolbarRect[] = [{ top: 100, bottom: 120, left: 100, width: 200 }];
+	const PASSAGE_RECTS: readonly PassageRect[] = [{ top: 100, bottom: 120, left: 100, width: 200 }];
 
 	function textHarness(storage = mapStorage()): Harness {
 		return harness({ storage, withToolbarScript: true, rectsOf: () => PASSAGE_RECTS });

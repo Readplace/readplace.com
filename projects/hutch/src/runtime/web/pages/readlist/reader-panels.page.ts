@@ -75,7 +75,7 @@ export function initReaderPanelRoutes(
 	const router = express.Router();
 	const requestRelatedPasses = initRequestRelatedPasses(deps);
 	const readerHighlightOptions = initReaderHighlightOptions(deps);
-	const { saveArticleAtReadlistTop, requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
+	const { saveArticleAtReadlistTop, requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
 		isNativeSurface(req)
@@ -232,7 +232,7 @@ export function initReaderPanelRoutes(
 						})
 					: undefined,
 			returnTo: readerReturnPath(req, article.id.value),
-			readerPathFor: readerPathFor(req),
+			readerPathFor: readerPathForReadlist(req),
 		});
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
 	});

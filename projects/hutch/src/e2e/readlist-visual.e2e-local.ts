@@ -496,7 +496,7 @@ async function saveErrorPhoneGeometry(page: Page): Promise<void> {
 	assert.ok(near({ actual: message.width, expected: listing.width }), "the save error must span the column on a phone");
 }
 
-async function emptyActionFitsEveryViewport(page: Page, key: "install" | "view-unread"): Promise<void> {
+async function emptyActionFitsEveryViewport(page: Page, key: "install"): Promise<void> {
 	const action = `${EMPTY} [data-test-empty-action="${key}"]`;
 	for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, { width: 768, height: 900 }, DESKTOP]) {
 		await page.setViewportSize(viewport);
@@ -1018,8 +1018,7 @@ async function readEmptySettled(page: Page): Promise<void> {
 	await expect(page.locator(EMPTY)).toBeVisible();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
-	await expect(page.locator(EMPTY_ACTION)).toHaveCount(1);
-	await expect(page.locator(`${EMPTY} [data-test-empty-action="view-unread"]`)).toBeVisible();
+	await expect(page.locator(EMPTY_ACTION)).toHaveCount(0);
 }
 
 async function articlesPageSettled(page: Page): Promise<void> {
@@ -2087,7 +2086,7 @@ test.describe("Readlist empty reasons", () => {
 			await captureCheckpoint(page, withTheme(PAGE_CAUGHT_UP, theme));
 		});
 
-		test(`shows the empty Read tab with one view-unread action (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the empty Read tab with no action (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			await openReadEmptyReadlist(
 				page,
@@ -2847,14 +2846,6 @@ test.describe("Readlist page reflow", () => {
 		await waitForBrandFonts(page, ["Inter"]);
 
 		await emptyActionFitsEveryViewport(page, "install");
-	});
-
-	test("keeps the Read tab's view-unread action on one line, down to the reflow minimum", async ({ page }, testInfo) => {
-		const email = `readlist-reflow-read-empty-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openReadEmptyReadlist(page, email);
-		await waitForBrandFonts(page, ["Inter"]);
-
-		await emptyActionFitsEveryViewport(page, "view-unread");
 	});
 });
 

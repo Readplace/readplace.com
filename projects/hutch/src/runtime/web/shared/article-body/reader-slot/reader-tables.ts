@@ -1,5 +1,4 @@
-import assert from "node:assert";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 import {
 	READER_CELL_LABEL_ATTRIBUTE,
 	READER_HEADER_ROW_ATTRIBUTE,
@@ -289,11 +288,7 @@ function describeTable(input: { table: Element; budget: Budget }): void {
 }
 
 export function describeReaderTables(html: string): string {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="reader-tables-root">${html}</div></body></html>`,
-	);
-	const root = document.querySelector("div#reader-tables-root");
-	assert(root, "parseHTML must produce the reader-tables wrapper div");
+	const root = parseFragmentRoot(html);
 	for (const attribute of [
 		READER_CELL_LABEL_ATTRIBUTE,
 		READER_HEADER_ROW_ATTRIBUTE,

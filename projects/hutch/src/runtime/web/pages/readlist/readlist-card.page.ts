@@ -31,7 +31,6 @@ import {
 } from "./readlist.url";
 import {
 	type ReadlistContext,
-	readerReadlists,
 	readlistToFileInto,
 } from "./readlist-context";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
@@ -43,6 +42,7 @@ import {
 	type ReadlistRef,
 	decideReadlistArticleMove,
 	type ReadlistArticleMoveDecision,
+	readerReadlists,
 	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
 import {

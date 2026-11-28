@@ -1,6 +1,6 @@
 import type { ArticleFrontMatter } from "../../../domain/readlist/book-chapter.types";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
-import { escapeXmlText } from "./epub-xhtml";
+import { escapeXmlText, paragraphXhtml } from "./epub-xhtml";
 
 const SUMMARY_HEADING = "Summary (TL;DR)";
 const PARAGRAPH_BREAK = "\n\n";
@@ -9,18 +9,14 @@ export const COLOPHON_XHTML = "<hr /><p>Read the Web, not the Slop.</p>";
 
 export type { ArticleFrontMatter } from "../../../domain/readlist/book-chapter.types";
 
-function paragraph(text: string): string {
-	return `<p>${escapeXmlText(text)}</p>`;
-}
-
 export function articleFrontMatterXhtml(input: ArticleFrontMatter): string {
-	const elements = [`<h1>${escapeXmlText(input.title)}</h1>`, paragraph(input.siteName)];
+	const elements = [`<h1>${escapeXmlText(input.title)}</h1>`, paragraphXhtml(input.siteName)];
 	const excerpt = pickExcerpt(input.summary, input.excerpt).text;
-	if (excerpt) elements.push(paragraph(excerpt));
+	if (excerpt) elements.push(paragraphXhtml(excerpt));
 	if (input.summary !== undefined && input.summary.status === "ready") {
 		elements.push(
 			`<h2>${SUMMARY_HEADING}</h2>`,
-			...input.summary.summary.split(PARAGRAPH_BREAK).map(paragraph),
+			...input.summary.summary.split(PARAGRAPH_BREAK).map(paragraphXhtml),
 		);
 	}
 	elements.push("<hr />");

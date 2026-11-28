@@ -130,10 +130,11 @@ export function renderHighlightNoteCreateForm(input: {
 }
 
 export function renderHighlightNoteDialog(input: {
-	scope: HighlightFormScope;
+	target: HighlightFormTarget;
 	hiddenFields: readonly { name: string; value: string }[];
 	autofocus: boolean;
 }): string {
+	const { target } = input;
 	return renderConfirmPopover({
 		id: HIGHLIGHT_NOTE_DIALOG_ID,
 		key: "highlight-note",
@@ -141,17 +142,31 @@ export function renderHighlightNoteDialog(input: {
 		title: ADD_TITLE,
 		body: "",
 		placement: "beside-passage",
-		actionsHtml: renderHighlightNoteCreateForm({
-			action: highlightFormUrl({
-				scope: input.scope,
-				path: "/highlights",
-				source: "highlight-toolbar",
-				content: "save-note",
+		actionsHtml: target.kind === "server"
+			? renderHighlightNoteCreateForm({
+				action: highlightFormUrl({
+					scope: target.scope,
+					path: "/highlights",
+					source: "highlight-toolbar",
+					content: "save-note",
+				}),
+				hiddenFields: input.hiddenFields,
+				value: "",
+				autofocus: input.autofocus,
+			})
+			: renderHighlightNoteForm({
+				popoverId: HIGHLIGHT_NOTE_DIALOG_ID,
+				key: "highlight-note",
+				inputId: "note-highlight-input",
+				action: "",
+				value: "",
+				hiddenFields: input.hiddenFields,
+				answersInPlace: false,
+				pushesHistory: false,
+				autofocus: input.autofocus,
+				local: { action: "create" },
+				noteEditor: true,
 			}),
-			hiddenFields: input.hiddenFields,
-			value: "",
-			autofocus: input.autofocus,
-		}),
 	});
 }
 
@@ -219,31 +234,5 @@ export function renderHighlightNoteFallbackForm(input: {
 		autofocus: input.open,
 		local: undefined,
 		noteEditor: false,
-	});
-}
-
-export function renderLocalHighlightNoteDialog(input: {
-	hiddenFields: readonly { name: string; value: string }[];
-}): string {
-	return renderConfirmPopover({
-		id: HIGHLIGHT_NOTE_DIALOG_ID,
-		key: "highlight-note",
-		subject: "selection",
-		title: ADD_TITLE,
-		body: "",
-		placement: "beside-passage",
-		actionsHtml: renderHighlightNoteForm({
-			popoverId: HIGHLIGHT_NOTE_DIALOG_ID,
-			key: "highlight-note",
-			inputId: "note-highlight-input",
-			action: "",
-			value: "",
-			hiddenFields: input.hiddenFields,
-			answersInPlace: false,
-			pushesHistory: false,
-			autofocus: true,
-			local: { action: "create" },
-			noteEditor: true,
-		}),
 	});
 }
