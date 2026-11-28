@@ -73,14 +73,6 @@
   text-decoration: underline;
 }
 
-.auth-card__founding-blurb {
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-  text-align: center;
-  margin-top: -20px;
-  margin-bottom: 24px;
-}
-
 .auth-form {
   display: flex;
   flex-direction: column;

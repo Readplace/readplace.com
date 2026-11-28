@@ -4,7 +4,6 @@ import express from "express";
 import { z } from "zod";
 import type { Logger, LogError } from "@packages/logger";
 import type {
-	CountUsers,
 	CreateSession,
 	RenewSession,
 	CreateUserWithPasswordHash,
@@ -65,20 +64,16 @@ import { readLastAuthProvider } from "../last-auth-provider";
 import { sessionCookie } from "../session-cookie";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
-import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { createBotDefenseEvent } from "./bot-defense-event";
 import { initValidateSignup } from "./validate-signup";
 import { initSignInWithPassword } from "./sign-in-with-password";
-import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "@packages/web-analytics";
 import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
-import { consumeLastViewUrl, LAST_VIEW_COOKIE_NAME } from "../last-view";
-import { resolvePostSignupRedirect } from "./post-signup-redirect";
-import { emitFirstArticleAutosaved } from "./first-article-autosaved";
+import { LAST_VIEW_COOKIE_NAME } from "../last-view";
 import type { ConversionEvent } from "../../conversions";
 import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
@@ -113,7 +108,6 @@ interface AuthDependencies {
 	createSession: CreateSession;
 	renewSession: RenewSession;
 	destroySession: DestroySession;
-	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	sendEmail: SendEmail;
@@ -140,7 +134,6 @@ interface AuthDependencies {
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;
-	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup" | "signupCreated">;
@@ -152,12 +145,6 @@ interface AuthDependencies {
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
 	const router = express.Router();
-
-	const fetchUserCount = initFetchUserCount({
-		countUsers: deps.countUsers,
-		logError: deps.logError,
-		logPrefix: "[Auth]",
-	});
 
 	const validateSignup = initValidateSignup({ findUserByEmail: deps.findUserByEmail });
 
@@ -205,8 +192,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		// which always carries a return — so the appended param stays well-formed on
 		// the Google button's href (it forces Google's own account chooser).
 		const chooseAccount = req.query.prompt === "select_account" && returnUrl !== undefined;
-		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, chooseAccount, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation, lastUsedProvider: readLastAuthProvider(req) }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, chooseAccount, pendingSaveHost: pendingSaveHostFrom(returnUrl), lastUsedProvider: readLastAuthProvider(req) }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({
@@ -220,15 +206,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const parsed = LoginSchema.safeParse(req.body);
 
 		if (!parsed.success) {
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
 				Base(LoginPage(
 					{
 						returnUrl,
 						pendingSaveHost,
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						email: req.body?.email,
 						errors: flattenZodErrors(parsed.error.issues),
@@ -248,15 +231,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		if (!signIn.ok) {
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
 				Base(LoginPage(
 					{
 						returnUrl,
 						pendingSaveHost,
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						email,
 						errors: [{ message: "Invalid email or password" }],
@@ -278,10 +258,9 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 		const returnUrl = extractReturnUrl(req.query);
-		const userCount = await fetchUserCount();
 		const parsed = SignupQuerySchema.safeParse(req.query);
 		const email = parsed.success ? parsed.data.email : undefined;
-		sendComponent(req, res, Base(SignupPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation, lastUsedProvider: readLastAuthProvider(req), loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(SignupPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), lastUsedProvider: readLastAuthProvider(req), loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
 	});
 
 	const signupRateLimit = createRateLimitMiddleware({
@@ -305,15 +284,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			);
 
 		const renderFailure = async ({ email, errors, statusCode = 422 }: { email: string | undefined; errors: ComponentError[]; statusCode?: number }) => {
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
 				Base(SignupPage(
 					{
 						returnUrl,
 						pendingSaveHost,
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
 						lastUsedProvider: readLastAuthProvider(req),
 						loadedAt: deps.now().getTime(),
 						email,
@@ -395,51 +371,11 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 		const passwordHash = await deps.hashPassword(password);
-		const userCount = await fetchUserCount();
 		/* Read once, then persisted on the user row (durable) AND emitted on the
 		 * user_created conversion event (30-day retention). */
 		const attribution = readClickAttribution(req);
 		const oauthClientId = oauthClientIdFrom(returnUrl);
 		const signupOAuthClientId = oauthClientId ?? null;
-
-		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution, signupOAuthClientId });
-			if (!created.ok) {
-				await signInExistingAccount({ email, password });
-				return;
-			}
-
-			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-			sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
-			res.set("Clear-Site-Data", '"storage"');
-			await sendVerificationEmail(created.userId, email);
-			logSignupAttempt(SIGNUP_OUTCOMES.created);
-			deps.recordConversionEvent(
-				req,
-				buildUserCreatedEvent(
-					{ now: deps.now },
-					{
-						userId: created.userId,
-						email,
-						method: "email",
-						tier: "free",
-						attribution,
-						homepageVariant: readHomepageVariantSlug(req),
-						visitorId: req.visitorId,
-						pendingSaveId: consumePendingSaveId({ req, res }),
-						oauthClientId,
-					},
-				),
-			);
-			const lastViewUrl = consumeLastViewUrl({ req, res });
-			const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
-			emitFirstArticleAutosaved(
-				{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-				{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
-			);
-			res.redirect(303, redirect.location);
-			return;
-		}
 
 		const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution, signupOAuthClientId });
 		if (!created.ok) {
@@ -479,13 +415,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				},
 			),
 		);
-		const lastViewUrl = consumeLastViewUrl({ req, res });
-		const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
-		emitFirstArticleAutosaved(
-			{ record: deps.recordAnalyticsEvent, now: deps.now, salt: deps.salt },
-			{ req, autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: viewerOf(req).ip },
-		);
-		res.redirect(303, redirect.location);
+		res.redirect(303, parseReturnUrl({ return: returnUrl }));
 	});
 
 	router.get("/auth/checkout/success", async (req: Request, res: Response) => {
@@ -506,10 +436,9 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					},
 				),
 			);
-			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, lastUsedProvider: readLastAuthProvider(req), loadedAt: deps.now().getTime(), errors: [{ message: params.message }] }, { statusCode: params.statusCode }), bannerStateFromRequest(req)),
+				Base(SignupPage({ lastUsedProvider: readLastAuthProvider(req), loadedAt: deps.now().getTime(), errors: [{ message: params.message }] }, { statusCode: params.statusCode }), bannerStateFromRequest(req)),
 			);
 		};
 

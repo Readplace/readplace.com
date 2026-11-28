@@ -471,7 +471,7 @@ describe("initCrawlFetch", () => {
 		);
 	});
 
-	it("carries the unlocker's error codes into the crawl-legs stream for both burnt proxied attempts", async () => {
+	it("carries the unlocker's error codes into the crawl-legs stream for all four burnt proxied attempts", async () => {
 		const lines: string[] = [];
 		let primaryCalls = 0;
 		const blockedThenRefused: typeof fetch = async () => {
@@ -503,6 +503,8 @@ describe("initCrawlFetch", () => {
 				[undefined, "primary", 403, undefined],
 				[undefined, "h2", 403, undefined],
 				[undefined, "curl", 403, undefined],
+				["proxy", "primary", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
+				["proxy", "primary", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
 				["proxy", "primary", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
 				["proxy", "primary", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
 			],

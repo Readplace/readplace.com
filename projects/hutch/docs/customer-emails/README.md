@@ -41,7 +41,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 
 ## 1. Email verification
 
-**Account** · Anyone who creates a Readplace account with an email address and password, on the founding-member (free) plan or the 14-day trial; people who sign up with Google or Apple never get it.
+**Account** · Anyone who creates a Readplace account with an email address and password, on the 14-day trial; people who sign up with Google or Apple never get it.
 
 ### When it is sent
 
@@ -52,10 +52,10 @@ Trigger chain:
 1. The visitor opens the signup form (signed-in visitors are redirected to /queue), which carries an empty honeypot field and a hidden loadedAt timestamp `projects/hutch/src/runtime/web/auth/auth.page.ts:261`
 2. The visitor submits the form to POST /signup, which first passes the per-IP signup rate limit `projects/hutch/src/runtime/web/auth/auth.page.ts:278`
 3. The route runs the bot checks, the email and password rules and the existing-account lookup `projects/hutch/src/runtime/web/auth/auth.page.ts:327`
-4. It reads the user count and picks the founding-member (free) branch under 50 users or the 14-day trial branch at 50 or more `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
+4. It reads the click attribution and the OAuth client the signup came through `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
 5. It creates the unverified account and provisions its Readplace inbox address `projects/hutch/src/runtime/server.ts:1204`
-6. On the trial branch it starts the 14-day trial before creating the unverified session and hutch_sid cookie `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
-7. It calls sendVerificationEmail without waiting for it and redirects with a 303 (founding-member branch here, trial branch at line 427) `projects/hutch/src/runtime/web/auth/auth.page.ts:381`
+6. It starts the 14-day trial before creating the unverified session and hutch_sid cookie `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
+7. It calls sendVerificationEmail without waiting for it and redirects with a 303 `projects/hutch/src/runtime/web/auth/auth.page.ts:381`
 8. sendVerificationEmail stores a single-use 48-hour token, builds the link with UTM tags and sends the message through Resend `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
 
 Sent only when:
@@ -96,8 +96,6 @@ Not sent when:
 - The email goes to the address with the casing the visitor typed, while the account is stored lowercased and trimmed `projects/hutch/src/runtime/web/auth/auth.page.ts:174`
 - When two signups for the same address race, the one that loses the conditional write takes the existing-account path and gets no email `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:180`
 - The reserved-domain filter checks only the `to` address, and only the exact apex domains and the last label, so an address at mail.example.com is still sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
-- If counting users fails, the count is treated as 0, so the signup takes the founding-member (free) branch and the email is still sent `projects/hutch/src/runtime/web/auth/fetch-user-count.ts:14`
-- The user count behind the branch choice is cached for 60 seconds in production `projects/hutch/src/runtime/app.ts:76`
 - Requests on hutch-app.com are redirected with a 301 to readplace.com before the signup route runs `projects/hutch/src/runtime/server.ts:582`
 - Any utm_* query value with characters outside [A-Za-z0-9._~-] gets a 400 before the route runs; the verification link's own UTM values pass this check `src/packages/web-analytics/src/utm-validation.middleware.ts:22`
 - If the rate-limit store errors, the request goes to the error handler as a 500 and no email is sent `projects/hutch/src/runtime/web/middleware/rate-limit.ts:44`
@@ -137,11 +135,11 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | The only content branch: the template has no conditionals, and founding-member (free) and 14-day trial signups get the same message apart from the random token in the link https://readplace.com/verify-email?token={token}&utm_source=verification-email&utm_medium=email&utm_content=verify-email. |
+| default | The only content branch: the template has no conditionals, so every 14-day trial signup gets the same message apart from the random token in the link https://readplace.com/verify-email?token={token}&utm_source=verification-email&utm_medium=email&utm_content=verify-email. |
 
 ### Example
 
-#### `default` — A 14-day trial signup for sam.reader@gmail.com showing the "Verify your email" heading, one line of copy, the "Verify email" button and the "If you didn't create a Readplace account, you can ignore this email." footer; a founding-member (free) signup gets the identical message apart from the random token.
+#### `default` — A 14-day trial signup for sam.reader@gmail.com showing the "Verify your email" heading, one line of copy, the "Verify email" button and the "If you didn't create a Readplace account, you can ignore this email." footer.
 
 Subject: **Verify your email — Readplace** · To: `sam.reader@gmail.com`
 
@@ -157,25 +155,14 @@ Subject: **Verify your email — Readplace** · To: `sam.reader@gmail.com`
     "password": "<8+ chars, redacted>"
   },
   "secondsOnFormBeforeSubmit": 38,
-  "existingUserCount": 113,
-  "foundingMemberLimit": 50,
-  "signupBranch": "founding allocation exhausted -> 14-day trial (startTrial mode 'signup')",
+  "signupBranch": "14-day trial (startTrial mode 'signup')",
   "resultingSubscriptionStatus": "trialing",
   "routeRedirect": "/queue",
   "verificationToken": "669d1635354998dd40ca4c8bd8c60adefe77a7d759cb67d8ee85f8ed5978bbca (randomBytes(32).toString('hex'), 64 hex chars, single-use, valid 48 hours)",
   "env": {
     "APP_ORIGIN": "https://readplace.com",
     "STATIC_BASE_URL": "https://static.readplace.com",
-    "FOUNDING_MEMBER_LIMIT": "50",
     "RATE_LIMIT_SIGNUP": "10/3600"
-  },
-  "alsoVerified": {
-    "foundingMemberBranch": {
-      "existingUserCount": 37,
-      "resultingSubscriptionStatus": "none (free founding-member tier)",
-      "routeRedirect": "/queue",
-      "messageIdenticalExceptToken": true
-    }
   }
 }
 ```
@@ -192,7 +179,7 @@ Exact HTML body: [`html/email-verification--default.html`](html/email-verificati
 ### Source
 
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:167` — sendVerificationEmail: stores the token, builds the link, sends, logs failures
-- `projects/hutch/src/runtime/web/auth/auth.page.ts:278` — POST /signup handler; calls the sender at :381 (founding member) and :427 (trial)
+- `projects/hutch/src/runtime/web/auth/auth.page.ts:278` — POST /signup handler; calls the sender after starting the trial
 - `projects/hutch/src/runtime/web/auth/verification-email.ts:19` — renderer; adds the UTM tags to the link
 - `projects/hutch/src/runtime/web/auth/verification-email.template.html:1` — HTML template
 - `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:52` — token store: 64-hex token, 48-hour expiry, single use
@@ -202,7 +189,7 @@ Exact HTML body: [`html/email-verification--default.html`](html/email-verificati
 
 ## 2. Welcome email
 
-**Account** · Every new Readplace account, founding member or trial, at most once: email+password accounts when their signup verification link is opened, Google and Apple accounts when the sign-in creates them.
+**Account** · Every new Readplace account at most once: email+password accounts when their signup verification link is opened, Google and Apple accounts when the sign-in creates them.
 
 ### When it is sent
 
@@ -211,11 +198,11 @@ A new reader creates a Readplace account, on the web or from the iOS or Android 
 Trigger chain:
 
 1. A new reader submits the email and password signup form at /signup (the iOS and Android apps' Sign up also lands here through /oauth/authorize) `projects/hutch/src/runtime/web/auth/auth.page.ts:278`
-2. Readplace creates the account as a founding member or trial and emails the one 'Verify your email — Readplace' link, valid for 48 hours `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
+2. Readplace creates the account on a 14-day trial and emails the one 'Verify your email — Readplace' link, valid for 48 hours `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
 3. Any client opens the link (GET or HEAD /verify-email?token=..., no sign-in needed) and the single-use token is deleted `projects/hutch/src/runtime/web/auth/auth.page.ts:593`
 4. Readplace marks the account verified and sends the welcome to the address stored with the token `projects/hutch/src/runtime/web/auth/auth.page.ts:607`
-5. Alternatively, a Google sign-in for an email with no Readplace account creates the account and session and sends the welcome before redirecting; a trial account sends from the same callback after its trial starts `projects/hutch/src/runtime/web/auth/google-auth.page.ts:225`
-6. Apple sign-in does the same for a new account, founding member or trial `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:301`
+5. Alternatively, a Google sign-in for an email with no Readplace account creates the account and session and starts its trial and sends the welcome before redirecting `projects/hutch/src/runtime/web/auth/google-auth.page.ts:225`
+6. Apple sign-in does the same for a new account `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:301`
 7. The sender builds the message (install link tagged utm_source=welcome-email, Fayner's avatar) and hands it to the mailer without waiting for the result `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:24`
 8. In production the mailer drops reserved test domains, then sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:524`
 
@@ -259,7 +246,6 @@ Not sent when:
 - Reserved-domain matching is exact for example.com, example.net and example.org, so subdomains such as mail.example.com are still sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - Environments: the local dev server with PERSISTENCE=development logs the full message instead of sending it; with PERSISTENCE=prod it uses the production providers and sends real mail through Resend `projects/hutch/src/runtime/dev-app.ts:15`
 - Native apps: the iOS and Android Sign up and Login screens open /oauth/authorize, which sends a signed-out user to /signup or /login, so app signups follow the same web paths `projects/hutch/src/runtime/web/oauth/oauth.routes.ts:253`
-- Production picks the founding member or trial branch from a user count cached for 60 seconds, falling back to 0 (founding member) if counting fails; the welcome is identical either way `projects/hutch/src/runtime/app.ts:76`
 
 </details>
 
@@ -297,7 +283,7 @@ Resolution rule (`projects/hutch/src/runtime/web/auth/signup-client.ts:10`): the
 
 ### Example
 
-#### `default` — The only welcome body, captured from an email+password trial signup whose verification link was then opened; the same run confirmed that Google and Apple signups, as founding member or trial, send an identical message apart from the recipient.
+#### `default` — The only welcome body, captured from an email+password trial signup whose verification link was then opened; the same run confirmed that Google and Apple signups send an identical message apart from the recipient.
 
 Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
 
@@ -313,8 +299,6 @@ Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
     "loadedAt": "<page load ms, >= 2.5s before submit>"
   },
   "verificationToken": "9c947de1346e8568c6407d025b6b4cb0767ed3ee963e982680ee62ee63227a7f",
-  "usersAtSignup": "1287 (illustrative; any count >= FOUNDING_MEMBER_LIMIT selects the trial branch of POST /signup — the welcome is identical in both branches)",
-  "foundingMemberLimit": 50,
   "env": {
     "APP_ORIGIN": "https://readplace.com",
     "STATIC_BASE_URL": "https://static.readplace.com"
@@ -324,29 +308,12 @@ Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
     "avatarUrl": "https://static.readplace.com/fayner-brack.jpg"
   },
   "alsoVerifiedIdentical": {
-    "emailPasswordFreeFoundingBranch": {
-      "route": "POST /signup + GET /verify-email",
-      "usersAtSignup": 12,
-      "to": "sam.reader@gmail.com"
-    },
-    "googleNewUserFreeFounding": {
-      "route": "GET /auth/google/callback",
-      "usersAtSignup": 12,
-      "to": "sam.reader@gmail.com"
-    },
     "googleNewUserTrial": {
       "route": "GET /auth/google/callback",
-      "usersAtSignup": 1287,
       "to": "sam.reader@gmail.com"
-    },
-    "appleNewUserFreeFoundingHideMyEmail": {
-      "route": "POST /auth/apple/callback",
-      "usersAtSignup": 12,
-      "to": "x7k2m9qp4d@privaterelay.appleid.com"
     },
     "appleNewUserTrialHideMyEmail": {
       "route": "POST /auth/apple/callback",
-      "usersAtSignup": 1287,
       "to": "x7k2m9qp4d@privaterelay.appleid.com"
     }
   }
@@ -420,8 +387,8 @@ Exact HTML body: [`html/welcome--claude.html`](html/welcome--claude.html)
 - `projects/hutch/src/runtime/web/auth/welcome-connector-email.template.html` — the chatgpt and claude template
 - `projects/hutch/src/runtime/web/auth/signup-client.ts:10` — resolves the signup client
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:578` — GET /verify-email handler, sends at line 607
-- `projects/hutch/src/runtime/web/auth/google-auth.page.ts:129` — Google callback, sends at lines 225 (founding member) and 284 (trial)
-- `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:165` — Apple callback, sends at lines 301 (founding member) and 363 (trial)
+- `projects/hutch/src/runtime/web/auth/google-auth.page.ts:129` — Google callback, sends after starting the trial
+- `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:165` — Apple callback, sends after starting the trial
 - `projects/hutch/src/runtime/server.ts:1220` — composition root wiring the auth, Google and Apple routers to the mailer
 - `projects/hutch/src/runtime/providers/prod-providers.ts:524` — production mailer: reserved-domain filter around Resend
 
@@ -796,11 +763,11 @@ Exact HTML body: [`html/trial-ending-digest--pay.html`](html/trial-ending-digest
 
 ### When it is sent
 
-A no-card trial starts when someone signs up after the founding-member allocation is used up, reactivates a cancelled trial before it ends, or gets a trial extension from an admin. At that point Readplace schedules a one-shot reminder for exactly 48 hours before the trial ends. When the reminder fires, the send-trial-feedback-email Lambda reads the reader's subscription again. It sends only if the reader is still trialing, the trial has not ended, and neither this reminder nor this trial's trial-ending digest has gone out. The email asks them to subscribe from their account page and mentions how many articles they have saved. Subscribing at checkout, cancelling or deleting the account removes the schedule before it fires.
+A no-card trial starts when someone signs up, reactivates a cancelled trial before it ends, or gets a trial extension from an admin. At that point Readplace schedules a one-shot reminder for exactly 48 hours before the trial ends. When the reminder fires, the send-trial-feedback-email Lambda reads the reader's subscription again. It sends only if the reader is still trialing, the trial has not ended, and neither this reminder nor this trial's trial-ending digest has gone out. The email asks them to subscribe from their account page and mentions how many articles they have saved. Subscribing at checkout, cancelling or deleting the account removes the schedule before it fires.
 
 Trigger chain:
 
-1. A reader signs up by email after the founding-member allocation is used up, and the signup calls startTrial with a trial ending 14 days later. Google and Apple sign-up do the same `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
+1. A reader signs up by email, and the signup calls startTrial with a trial ending 14 days later. Google and Apple sign-up do the same `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
 2. A trial can also reopen. Reactivating a cancelled trial that has not ended, or an admin extending a trial, calls startTrial in reset mode, which first deletes the old trial-reminder schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:99`
 3. startTrial sets the fire time to the trial end minus 48 hours and creates the schedule only if that time is still ahead `projects/hutch/src/runtime/domain/trial/start-trial.ts:108`
 4. The scheduler creates trial-reminder-<userId>, a one-shot UTC schedule that deletes itself after it runs. When it fires, it puts SendTrialFeedbackEmailCommand {userId, kind: "reminder"} on the hutch event bus `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:226`
@@ -811,7 +778,7 @@ Trigger chain:
 
 Sent only when:
 
-- startTrial opened a no-card trial for the reader. That happens on an email, Google or Apple signup after the founding-member allocation ran out, on reactivating a cancelled trial that has not ended, or on an admin trial extension `projects/hutch/src/runtime/domain/trial/start-trial.ts:70`
+- startTrial opened a no-card trial for the reader. That happens on an email, Google or Apple signup, on reactivating a cancelled trial that has not ended, or on an admin trial extension `projects/hutch/src/runtime/domain/trial/start-trial.ts:70`
 - When the trial opened, its end was more than 48 hours away and the trial-reminder schedule was created `projects/hutch/src/runtime/domain/trial/start-trial.ts:110`
 - At send time the reader's subscription row exists and its status is still trialing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:276`
 - At send time the trial end is still in the future `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:283`
@@ -822,7 +789,7 @@ Sent only when:
 
 Not sent when:
 
-- Founding members never get it. Their signup returns before startTrial, so they have no trial and no subscription row `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
+- Founding members never get it. They have no trial and no subscription row
 - Subscribing during the trial stops it. Completing checkout makes the reader active and deletes the reminder schedule, and the status guard drops any fire that still arrives `projects/hutch/src/runtime/domain/subscription/activate-checkout.ts:120`
 - Cancelling the trial stops it. The cancel job deletes the reminder schedule and the row moves to pending_cancellation `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:94`
 - Deleting the account stops it once the deletion job deletes the reminder schedule `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:136`
@@ -1770,15 +1737,15 @@ Exact HTML body: [`html/payment-failed--default.html`](html/payment-failed--defa
 
 ## 8. Trial feedback request
 
-**Trial & billing** · Readers who signed up after the founding-member spots were gone and whose 14-day trial ended without a membership, almost always because it ran out with no card on file; founding members never receive it.
+**Trial & billing** · Readers whose 14-day trial ended without a membership, almost always because it ran out with no card on file; founding members never receive it.
 
 ### When it is sent
 
-A reader who signs up after the founding-member spots are gone gets a 14-day trial. When the trial ends without a membership, usually because it ran out with no card on file, Readplace makes the cancellation final 1 hour after the trial end date and schedules this founder-signed email for 3 days later. A trialist can also cancel early with a direct POST to /account/cancel, because the account page shows trialists no Cancel button, and the email still waits until 1 hour plus 3 days after the trial end date. When the schedule fires, the email goes out only if the subscription is still cancelled and this email has not already gone out for that trial.
+A reader who signs up gets a 14-day trial. When the trial ends without a membership, usually because it ran out with no card on file, Readplace makes the cancellation final 1 hour after the trial end date and schedules this founder-signed email for 3 days later. A trialist can also cancel early with a direct POST to /account/cancel, because the account page shows trialists no Cancel button, and the email still waits until 1 hour plus 3 days after the trial end date. When the schedule fires, the email goes out only if the subscription is still cancelled and this email has not already gone out for that trial.
 
 Trigger chain:
 
-1. Email, Google or Apple signup, once the founding allocation is used up, starts a 14-day trial and arms a trial-end schedule at trialEndsAt `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
+1. Email, Google or Apple signup starts a 14-day trial and arms a trial-end schedule at trialEndsAt `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
 2. At trialEndsAt the trial-end schedule finds no card on file and publishes SubscriptionChargeFailed with reason no_card_on_file `projects/hutch/src/runtime/subscription-start-request/subscription-start-request-handler.ts:51`
 3. The charge-failed handler publishes CancelSubscriptionCommand with reason trial_expired_no_card `projects/hutch/src/runtime/subscription-charge-failed/subscription-charge-failed-handler.ts:43`
 4. Alternatively, a trialist's direct POST /account/cancel publishes CancelSubscriptionCommand with no reason `projects/hutch/src/runtime/web/pages/account/account.page.ts:590`
@@ -1789,7 +1756,7 @@ Trigger chain:
 
 Sent only when:
 
-- The account was created after the founding allocation filled up (50 accounts in prod), so signup opened a trial instead of a founding membership `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
+- Signup opened a trial for the account, as every signup does `projects/hutch/src/runtime/web/auth/auth.page.ts:372`
 - The trial was cancelled with a trial reason: trial_expired_no_card (trial ran out with no card) or user_initiated_trial (trialist cancelled); trial_expired_charge_failed is also accepted but cannot occur today `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:44`
 - The trial-feedback-<userId> schedule was created and still exists when it fires 3 days later `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:60`
 - A subscription row still exists for the user `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:117`
@@ -1824,7 +1791,7 @@ Not sent when:
 - The cancel reason never changes the content; every trial reason produces the same email `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:46`
 - The recipient is the address stored at signup, lowercased and trimmed with plus-tags kept `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:200`; Gmail uniqueness-claim rows carry ownerUserId instead of userId, so the userId-index lookup never returns a claim key `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:84`
 - The address is not checked for verification before sending `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
-- Staging deploys the same Lambda with its own Resend wiring and a founding allocation of 5 accounts, so staging trial accounts receive this email too `projects/hutch/Pulumi.staging.yaml:80` (prod is 50 at `projects/hutch/Pulumi.prod.yaml:87`)
+- Staging deploys the same Lambda with its own Resend wiring, so staging trial accounts receive this email too
 - Local dev never sends it: the handler is wired only in the Lambda composition root, and dev uses an in-memory trial scheduler that records schedules but never fires them `projects/hutch/src/runtime/providers/dev-providers.ts:171`
 - The command must carry no kind; kind "feedback" is accepted for backward compatibility but no producer emits it, and every other kind selects a different email from the same Lambda `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:97`, `src/packages/infra-components/src/events.ts:836`
 - Any CancelSubscriptionCommand processed while the row is pending_cancellation makes the cancellation final at once: a second POST /account/cancel, a duplicate delivery of the trial_expired_no_card command, or a retry after a cancel-<userId> name conflict; the email then goes out 3 days after that instead of at trialEndsAt + 1 hour + 3 days `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:109`
@@ -1919,7 +1886,7 @@ Subject: **you tried Readplace — what was missing?** · To: `sam.reader@gmail.
     "STATIC_BASE_URL": "https://static.readplace.com",
     "APP_ORIGIN": "https://readplace.com"
   },
-  "signupPrecondition": "signed up after the founding allocation was exhausted (users >= FOUNDING_MEMBER_LIMIT = 50 in prod, Pulumi.prod.yaml), so signup opened a 14-day trial instead of a founding membership",
+  "signupPrecondition": "signup opened a 14-day trial",
   "timeline": [
     "2026-09-18T14:22:08.512Z signup -> trialing, trialEndsAt=2026-10-02T14:22:08.512Z, trial-end schedule 2026-10-02T14:22:08.512Z",
     "2026-09-30T14:22:09.350Z trial-reminder schedule fired -> SendTrialFeedbackEmailCommand {userId,kind:\"reminder\"} (separate email, not this one)",
@@ -1990,7 +1957,7 @@ Subject: **you tried Readplace — what was missing?** · To: `sam.reader@gmail.
     "STATIC_BASE_URL": "https://static.readplace.com",
     "APP_ORIGIN": "https://readplace.com"
   },
-  "signupPrecondition": "signed up after the founding allocation was exhausted (users >= FOUNDING_MEMBER_LIMIT = 50 in prod, Pulumi.prod.yaml), so signup opened a 14-day trial instead of a founding membership",
+  "signupPrecondition": "signup opened a 14-day trial",
   "timeline": [
     "2026-09-18T08:03:51.227Z signup -> trialing, trialEndsAt=2026-10-02T08:03:51.227Z, trial-end schedule 2026-10-02T08:03:51.227Z",
     "2026-09-25T19:40:12.880Z POST /account/cancel -> CancelSubscriptionCommand {userId}",
@@ -2057,7 +2024,7 @@ Subject: **you tried Readplace — what was missing?** · To: `sam.reader@gmail.
     "STATIC_BASE_URL": "https://static.readplace.com",
     "APP_ORIGIN": "https://readplace.com"
   },
-  "signupPrecondition": "signed up after the founding allocation was exhausted (users >= FOUNDING_MEMBER_LIMIT = 50 in prod, Pulumi.prod.yaml), so signup opened a 14-day trial instead of a founding membership",
+  "signupPrecondition": "signup opened a 14-day trial",
   "timeline": [
     "2026-09-18T21:47:30.004Z signup -> trialing, trialEndsAt=2026-10-02T21:47:30.004Z, trial-end schedule 2026-10-02T21:47:30.004Z",
     "2026-09-30T21:47:31.350Z trial-reminder schedule fired -> SendTrialFeedbackEmailCommand {userId,kind:\"reminder\"} (separate email, not this one)",

@@ -1,6 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
-import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
 import type { WebLogger } from "./domain/logger";
@@ -22,8 +21,6 @@ import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
-import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { readNewsletterCatalogSeed } from "./domain/newsletter-catalog/newsletter-catalog-seed";
 import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { getEnv, requireEnv } from "@packages/require-env";
@@ -56,7 +53,6 @@ type AssemblyProvidedKeys =
 	| "keepOfferEndsAt"
 	| "isDailyLimited"
 	| "guestUploadKinds"
-	| "foundingAllocation"
 	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
 
@@ -69,11 +65,6 @@ export function assembleReadplaceApp(input: {
 	const { appOrigin } = input;
 	const providers = input.initProviders({ appOrigin });
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
-	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);
-	assert(
-		Number.isInteger(foundingMemberLimit) && foundingMemberLimit > 0,
-		"FOUNDING_MEMBER_LIMIT must be a positive integer",
-	);
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
 	const salt = requireEnv("ANALYTICS_SALT");
@@ -97,7 +88,6 @@ export function assembleReadplaceApp(input: {
 		hashPassword,
 		fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({ fetch }),
 		...providers,
-		countUsers: initCachedUserCount({ countUsers: providers.countUsers, now: () => Date.now(), ttlMs: 60_000 }),
 		adminEmails,
 		adminMfaAttemptRule: ADMIN_MFA_ATTEMPT_RULE,
 		recrawlServiceToken,
@@ -118,7 +108,6 @@ export function assembleReadplaceApp(input: {
 		signupLogger: Logger.from(consoleLogger),
 		uploadLogger: Logger.from(consoleLogger),
 		salt,
-		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		newsletterCatalogSeed: readNewsletterCatalogSeed(),
 	});
 

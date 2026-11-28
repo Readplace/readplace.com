@@ -137,7 +137,6 @@ import type {
 	SetKeepOfferDismissed,
 	FindHomeReadlist,
 	SetHomeReadlist,
-	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
 	CreateAgeLockDeletionSchedule,
@@ -366,7 +365,6 @@ export interface AuthBundle {
 	destroyUserSessions: DestroyUserSessions;
 	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	markAccountDeleted: MarkAccountDeleted;
-	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
@@ -934,13 +932,6 @@ export interface ConversionsBundle {
 	events: ConversionEvent[];
 }
 
-/** Holds the founding-member cap as a plain number. The application's
- * composition root builds the runtime predicate from this so this package
- * stays free of cross-project imports. */
-export interface FoundingAllocationBundle {
-	foundingMemberLimit: number;
-}
-
 export interface TestAppFixture {
 	engagementStarter: EngagementStarterState & {
 		saveStarterPack: SaveStarterPack;
@@ -1004,5 +995,4 @@ export interface TestAppFixture {
 	stripePublishableKey: string | undefined;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
-	foundingAllocation: FoundingAllocationBundle;
 }

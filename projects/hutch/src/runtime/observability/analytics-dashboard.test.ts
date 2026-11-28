@@ -98,9 +98,9 @@ function collectReferencedEvents(queries: readonly string[]): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 70 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 1 oauth-client-acquisition, 1 save-refusals, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored, 1 logged-out-highlights, 1 highlights-copied) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 69 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 oauth-client-acquisition, 1 save-refusals, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored, 1 logged-out-highlights, 1 highlights-copied) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(70);
+		expect(body.widgets).toHaveLength(69);
 	});
 
 	it.each([
@@ -296,16 +296,6 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		assert(query, "the dashboard must aggregate user_created by OAuth client");
 		expect(query).toContain('coalesce(oauth_client_id, "none") as client');
 		expect(query).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
-	});
-
-	it("the first-article-autosave widget counts the discrete first_article_autosaved event per day — a 1:1 activation signal independent of the utm_source marker — excluding internal visitors, whose single test signup would skew a day at this event's volume", () => {
-		const queries = widgetQueries();
-		const autosave = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`));
-		expect(autosave).toBeDefined();
-		expect(autosave?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
-		expect(autosave).toContain(`stream = "${STREAMS.analytics}"`);
-		expect(autosave).toContain("visitor_id not in");
-		expect(autosave).toContain("stats count(*) as autosaves by bin(1d)");
 	});
 
 	it("the homepage version widget compares versions by distinct visitor_id (the id the conversion also carries), with raw landings alongside", () => {

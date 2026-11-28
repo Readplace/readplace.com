@@ -394,11 +394,6 @@ const dynamodb = new DynamoDBAccess("hutch-dynamodb-access", {
 	],
 });
 
-const webUsersScan = new DynamoDBAccess("hutch-web-users-scan", {
-	tables: [{ arn: storage.usersTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:Scan"],
-});
-
 const oauthConditions = new DynamoDBAccess("hutch-oauth-conditions", {
 	tables: [{ arn: storage.oauthTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:ConditionCheckItem"],
@@ -605,7 +600,6 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		RECRAWL_SERVICE_TOKEN: pulumi.secret(requireEnv("RECRAWL_SERVICE_TOKEN")),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
-		FOUNDING_MEMBER_LIMIT: config.require("foundingMemberLimit"),
 		STRIPE_KEEP_OFFER_COUPON_ID: config.require("stripeKeepOfferCouponId"),
 	},
 	policies: [
@@ -613,7 +607,6 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		...oauthConditions.policies,
 		...webUserArticleConditions.policies,
 		...oauthOutcomesWrite.policies,
-		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
 		...webCanaryReportsRead.policies,
 		...webMediaTranscriptQuota.policies,

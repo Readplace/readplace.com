@@ -75,7 +75,6 @@ function createWriteFakeClient(opts: { fail?: Error; failOnTable?: string } = {}
 			if (opts.fail && (opts.failOnTable === undefined || command.input.TableName === opts.failOnTable)) {
 				throw opts.fail;
 			}
-			if (command.constructor.name === "ScanCommand") return { Count: 3 };
 			return {};
 		}) as DynamoDBDocumentClient["send"],
 	};
@@ -1299,21 +1298,6 @@ describe("initDynamoDbAuth", () => {
 			await initAuth(client).destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT });
 
 			expect(commands.filter((c) => c.name === "DeleteCommand")).toEqual([]);
-		});
-	});
-
-	describe("countUsers", () => {
-		it("counts only delivery rows, filtering out claim items", async () => {
-			const { client, commands } = createWriteFakeClient();
-
-			const count = await initAuth(client).countUsers();
-
-			expect(count).toBe(3);
-			const scan = commands.find((c) => c.name === "ScanCommand");
-			expect(scan?.input).toMatchObject({
-				Select: "COUNT",
-				FilterExpression: "attribute_exists(userId)",
-			});
 		});
 	});
 

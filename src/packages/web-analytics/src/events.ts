@@ -36,7 +36,6 @@ export const ANALYTICS_EVENTS = {
 	viewSaveIntent: "view_save_intent",
 	viewEndCtaShown: "view_end_cta_shown",
 	signupAttempted: "signup_attempted",
-	firstArticleAutosaved: "first_article_autosaved",
 	mcpToolCalled: "mcp_tool_called",
 	oauthTokenIssued: "oauth_token_issued",
 	oauthTokenRefused: "oauth_token_refused",

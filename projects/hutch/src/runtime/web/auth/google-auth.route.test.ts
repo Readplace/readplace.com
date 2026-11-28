@@ -14,12 +14,8 @@ import {
 
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
-import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
-
-const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
@@ -237,40 +233,6 @@ describe("Google auth routes", () => {
 			expect(assertErrorAlert(doc)?.textContent).toContain("not verified");
 		});
 
-		it("creates the user directly and skips Stripe when below the founding limit", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({
-				...fixture,
-				google: {
-					exchangeGoogleCode: stubExchange({ email: "free-google@example.com" }),
-					clientId: "test-google-client-id",
-					clientSecret: "test-google-client-secret",
-				},
-			});
-			const { auth, pendingSignup } = harness;
-			// Only one founding member
-			await auth.createUser({ email: `seed1@test.com`, password: "password123" });
-			const state = signState(freshState());
-
-			const response = await request(harness.server)
-				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=home");
-			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
-
-			const lookup = await auth.findUserByEmail("free-google@example.com");
-			expect(lookup?.emailVerified).toBe(true);
-
-			const claim = await pendingSignup.claimPendingSignup({
-				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
-				activatedBy: "redirect",
-				claimedAt: new Date().toISOString(),
-			});
-			expect(claim).toEqual({ outcome: "not-found" });
-		}, 30000);
-
 		it("sends the welcome email before it answers", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
@@ -293,100 +255,27 @@ describe("Google auth routes", () => {
 			]);
 		});
 
-		describe("first-article autosave", () => {
-			const ARTICLE_URL = "https://example.com/post";
-			const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;
+		it("lands a new Google user with a hutch_lastview cookie and no explicit return on the queue", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "lastview-google@example.com" }),
+					clientId: TEST_CLIENT_ID,
+					clientSecret: TEST_CLIENT_SECRET,
+				},
+			});
+			const state = signState(freshState());
 
-			function newUserHarness() {
-				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-				return useApp({
-					...fixture,
-					google: {
-						exchangeGoogleCode: stubExchange({ email: "autosave-google@example.com" }),
-						clientId: TEST_CLIENT_ID,
-						clientSecret: TEST_CLIENT_SECRET,
-					},
-				});
-			}
+			const response = await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent("https://example.com/post")}`);
 
-			it("auto-saves the last-viewed article for a new Google user with no explicit return", async () => {
-				const harness = newUserHarness();
-				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
-				const state = signState(freshState());
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?scope=home");
+		}, 30000);
 
-				const response = await request(harness.server)
-					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`)
-					.set("User-Agent", BROWSER_USER_AGENT);
-
-				expect(response.status).toBe(303);
-				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
-				expect(cookiesFrom(response).join(";")).toContain("hutch_lastview=;");
-
-				const autosaves = harness.analytics.events.filter(
-					(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
-				);
-				expect(autosaves).toHaveLength(1);
-				expect(autosaves[0]).toMatchObject({
-					event: ANALYTICS_EVENTS.firstArticleAutosaved,
-					article_host: "example.com",
-					user_id: expect.any(String),
-					visitor_hash: expect.any(String),
-					visitor_id: expect.any(String),
-				});
-			}, 30000);
-
-			it("auto-saves through the trial signup branch when the founding allocation is exhausted", async () => {
-				const harness = newUserHarness();
-				for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-					await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-				}
-				const state = signState(freshState());
-
-				const response = await request(harness.server)
-					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`)
-					.set("User-Agent", BROWSER_USER_AGENT);
-
-				expect(response.status).toBe(303);
-				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
-				expect(
-					harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
-				).toHaveLength(1);
-			}, 30000);
-
-			it("lets an explicit return URL win over the autosave", async () => {
-				const harness = newUserHarness();
-				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
-				const state = signState(freshState({ returnUrl: "/oauth/authorize?client_id=test" }));
-
-				const response = await request(harness.server)
-					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`)
-					.set("User-Agent", BROWSER_USER_AGENT);
-
-				expect(response.status).toBe(303);
-				expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
-				expect(
-					harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
-				).toHaveLength(0);
-			}, 30000);
-
-			it("redirects to a plain /queue when no hutch_lastview cookie is present", async () => {
-				const harness = newUserHarness();
-				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
-				const state = signState(freshState());
-
-				const response = await request(harness.server)
-					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
-
-				expect(response.status).toBe(303);
-				expect(response.headers.location).toBe("/queue?scope=home");
-			}, 30000);
-		});
-
-		it("logs in the existing user when a race condition causes createGoogleUser to fail during free signup", async () => {
+		it("logs in the existing user when a race condition causes createGoogleUser to fail during signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
 			const harness = useApp({
@@ -516,7 +405,7 @@ describe("Google auth routes", () => {
 			expect(cookiesFrom(response).join(";")).not.toContain("hutch_sid=");
 		});
 
-		it("creates the Google user with a trialing subscription_providers row when the founding allocation is exhausted", async () => {
+		it("creates the Google user with a trialing subscription_providers row", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -527,9 +416,6 @@ describe("Google auth routes", () => {
 				},
 			});
 			const { auth, subscriptionProviders, conversions, trialScheduler } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const state = signState(freshState());
 
 			const response = await request(harness.server)
@@ -588,7 +474,7 @@ describe("Google auth routes", () => {
 			expect(response.status).toBe(303);
 			const event = harness.conversions.events.find((e) => e.method === "google");
 			assert(event, "Google signup must emit a conversion event");
-			expect(event.tier).toBe("free");
+			expect(event.tier).toBe("trial");
 			expect(event.homepage_variant).toBe("variant-e");
 			expect(event.oauth_client_id).toBe("hutch-chrome-extension");
 			const signedUp = await harness.auth.findUserByEmail("consent-google@example.com");
@@ -649,7 +535,7 @@ describe("Google auth routes", () => {
 			);
 		});
 
-		it("carries the OAuth client id onto the Google trial branch's conversion too, once the founding allocation is exhausted", async () => {
+		it("carries the OAuth client id onto the Google trial branch's conversion too", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -659,9 +545,6 @@ describe("Google auth routes", () => {
 					clientSecret: TEST_CLIENT_SECRET,
 				},
 			});
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const state = signState(
 				freshState({
 					returnUrl:
@@ -689,7 +572,7 @@ describe("Google auth routes", () => {
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
 		}, 30000);
 
-		it("preserves the return URL through Google trial signup when the founding allocation is exhausted", async () => {
+		it("preserves the return URL through Google trial signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -699,10 +582,6 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			const { auth } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));
 
 			const response = await request(harness.server)
@@ -734,9 +613,6 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
 			await fixture.auth.createUser({ email: "race-trial@example.com", password: "existing" });
 			const state = signState(freshState());
 
@@ -819,12 +695,6 @@ describe("Google auth routes", () => {
 			};
 		}
 
-		async function exhaustFoundingAllocation(harness: ReturnType<typeof useApp>): Promise<void> {
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
-		}
-
 		function callback(harness: ReturnType<typeof useApp>, returnUrl?: string) {
 			const state = signState(freshState({ returnUrl }));
 			return request(harness.server)
@@ -855,7 +725,6 @@ describe("Google auth routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, google: googleWith("claude-google@example.com") });
 			const client = await registerAssistant(fixture, "Claude");
-			await exhaustFoundingAllocation(harness);
 
 			await callback(harness, `/oauth/authorize?client_id=${client.id}`);
 
@@ -884,23 +753,7 @@ describe("Google auth routes", () => {
 			expect(contact?.queueDigestOptOutAt).toBeDefined();
 		});
 
-		it("sends the default welcome and records nothing for a free-tier signup from a Claude client", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({ ...fixture, google: googleWith("free-claude-google@example.com") });
-			const client = await registerAssistant(fixture, "Claude");
-
-			await callback(harness, `/oauth/authorize?client_id=${client.id}`);
-
-			const [welcome] = harness.email.getSentEmails();
-			expect(welcome.html).toContain("Thanks for joining");
-			expect(welcome.headers).toBeUndefined();
-			expect(harness.funnelEvents.events).toEqual([]);
-		});
-
-		it.each([
-			["trial", true],
-			["free-tier", false],
-		])("logs a failed client read on a %s signup, sends the default welcome and still records user_created", async (_tier, trial) => {
+		it("logs a failed client read on a signup, sends the default welcome and still records user_created", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const loggedErrors: string[] = [];
 			const harness = useApp({
@@ -921,7 +774,6 @@ describe("Google auth routes", () => {
 				grants: ["authorization_code"],
 				tokenEndpointAuthMethod: "none",
 			});
-			if (trial) await exhaustFoundingAllocation(harness);
 
 			const response = await callback(harness, `/oauth/authorize?client_id=${client.id}`);
 
@@ -934,7 +786,6 @@ describe("Google auth routes", () => {
 		it("records one send for a trial signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, google: googleWith("trial-google@example.com") });
-			await exhaustFoundingAllocation(harness);
 
 			await callback(harness);
 
@@ -952,16 +803,6 @@ describe("Google auth routes", () => {
 			]);
 		});
 
-		it("records nothing for a free-tier signup", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({ ...fixture, google: googleWith("free-google@example.com") });
-
-			await callback(harness);
-
-			expect(harness.email.getSentEmails().map((sent) => sent.subject)).toEqual(["Welcome to Readplace"]);
-			expect(harness.funnelEvents.events).toEqual([]);
-		});
-
 		it("records nothing and logs when the welcome email fails, and the signup still succeeds", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const loggedErrors: string[] = [];
@@ -977,7 +818,6 @@ describe("Google auth routes", () => {
 					logError: (message) => { loggedErrors.push(message); },
 				},
 			});
-			await exhaustFoundingAllocation(harness);
 
 			const response = await callback(harness);
 
