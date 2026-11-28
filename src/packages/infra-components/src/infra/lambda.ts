@@ -10,6 +10,7 @@ import {
 } from "../forward-analytics-lambda";
 import { CRAWL_SETTLED_METRIC } from "../crawl-settled";
 import { buildObservabilityFilterPattern } from "../observability-filter";
+import { copyAssetFiles } from "./copy-asset-files";
 import { assertLambdaEnvironmentFits, LAMBDA_ENVIRONMENT_SIZE_QUOTA_CODE } from "./lambda-environment-size";
 
 let environmentQuotaKilobytes: pulumi.Output<number> | undefined;
@@ -23,21 +24,6 @@ function lambdaEnvironmentQuotaKilobytes(): pulumi.Output<number> {
 }
 
 const esbuildLoaders: Record<string, Loader> = { ".ts": "ts" };
-const bundledExtensions = Object.keys(esbuildLoaders);
-
-function copyAssetFiles(dirs: { src: string; dest: string }) {
-	for (const entry of readdirSync(dirs.src, { withFileTypes: true })) {
-		const srcPath = join(dirs.src, entry.name);
-		if (entry.isDirectory()) {
-			const destSubdir = join(dirs.dest, entry.name);
-			mkdirSync(destSubdir, { recursive: true });
-			copyAssetFiles({ src: srcPath, dest: destSubdir });
-		} else if (!bundledExtensions.some((ext) => entry.name.endsWith(ext))) {
-			copyFileSync(srcPath, join(dirs.dest, entry.name));
-		}
-	}
-}
-
 /**
  * pnpm uses symlinks in node_modules; Lambda zips dereference them but the
  * contents inside a symlinked package directory (which itself may contain
