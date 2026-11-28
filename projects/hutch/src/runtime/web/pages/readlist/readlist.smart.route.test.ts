@@ -282,18 +282,30 @@ describe("Smart Readlist preferences", () => {
 });
 
 describe("Smart Readlist marks", () => {
-	it("shows the sparkle, the Smart Readlist label and the accessible name for a smart readlist only", async () => {
+	it("marks a smart readlist's folder with the sparkle and names it a Smart Readlist, with no visible badge", async () => {
 		const { agent } = await setUp();
 		const smart = await createReadlist(agent, { label: "Research", smart: "1", purpose: PURPOSE });
 		const manual = await createReadlist(agent, { label: "Work" });
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/paxos" });
 		const doc = parse((await agent.get(`/queue?queue=${smart}`)).text);
 
-		const marked = Array.from(doc.querySelectorAll("[data-test-readlist-smart]"));
+		const marked = Array.from(doc.querySelectorAll(`[data-test-readlist="${smart}"], [data-test-readlist-more-entry="${smart}"]`));
 		expect(marked.length).toBeGreaterThan(0);
-		expect(marked.every((element) => element.getAttribute("aria-label") === "Research, Smart Readlist")).toBe(true);
-		expect(doc.querySelector("[data-test-readlist-smart-label]")?.textContent).toBe("Smart Readlist");
-		expect(doc.querySelectorAll(".readlist-nav__smart svg").length).toBeGreaterThan(0);
+		for (const link of marked) {
+			expect(link.getAttribute("aria-label")).toBe("Research, Smart Readlist");
+			expect(link.querySelectorAll(":scope > .readlist-nav__icon > svg")).toHaveLength(1);
+			expect(link.querySelectorAll(":scope > .readlist-nav__icon > .readlist-nav__smart > svg")).toHaveLength(1);
+			expect(link.textContent).toBe("Research");
+		}
+		const toggles = Array.from(doc.querySelectorAll(".readlist-nav__switcher-toggle"));
+		expect(toggles.length).toBeGreaterThan(0);
+		for (const toggle of toggles) {
+			expect(toggle.querySelector(".readlist-nav__icon > .readlist-nav__smart > svg")).not.toBeNull();
+			expect(toggle.querySelector(".readlist-row__main")?.textContent).toContain("Smart Readlist");
+		}
+		const work = Array.from(doc.querySelectorAll(`[data-test-readlist="${manual}"], [data-test-readlist-more-entry="${manual}"]`));
+		expect(work.length).toBeGreaterThan(0);
+		expect(work.every((link) => link.querySelector(".readlist-nav__smart") === null && !link.hasAttribute("aria-label"))).toBe(true);
 		expect(doc.querySelector(`[aria-label="Work, Smart Readlist"]`)).toBeNull();
 		expect(manual).not.toBe(smart);
 
@@ -302,6 +314,26 @@ describe("Smart Readlist marks", () => {
 		assert(destination, "the move dialog must offer the smart readlist");
 		expect(destination.querySelector(".readlist-row__smart svg")).not.toBeNull();
 		expect(all.querySelector(`[data-test-move-destination="${manual}"] .readlist-row__smart`)).toBeNull();
+	});
+
+	it("keeps the sparkle and announces a Smart Readlist set as Home by its name, its kind and Home", async () => {
+		const { agent } = await setUp();
+		const smart = await createReadlist(agent, { label: "AI Coding / LLM", smart: "1", purpose: PURPOSE });
+		const listing = parse((await agent.get("/queue?queue=default")).text);
+		const form = listing.querySelector<HTMLFormElement>(`[data-test-readlist-menu="${smart}"] form:has([data-test-action="readlist-set-home"])`);
+		assert(form, "the smart readlist's menu must offer set-home");
+		const saved = await agent.post(form.getAttribute("action") ?? "").type("form").send({
+			returnTo: form.querySelector<HTMLInputElement>('[name="returnTo"]')?.value,
+		});
+		expect(saved.status).toBe(303);
+		const doc = parse((await agent.get(`/queue?queue=${smart}`)).text);
+
+		const link = doc.querySelector(`[data-test-readlist="${smart}"]`);
+		assert(link, "the rail must list the smart readlist");
+		expect(link.getAttribute("aria-label")).toBe("AI Coding / LLM, Smart Readlist, Home");
+		expect(link.getAttribute("aria-current")).toBe("page");
+		expect(link.querySelector(".readlist-nav__icon > .readlist-nav__smart > svg")).not.toBeNull();
+		expect(link.nextElementSibling?.classList.contains("readlist-nav__home")).toBe(true);
 	});
 
 	it.each([

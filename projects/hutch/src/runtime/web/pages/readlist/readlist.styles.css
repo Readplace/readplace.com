@@ -160,18 +160,6 @@
   outline-offset: 2px;
 }
 
-.readlist-nav__smart {
-  display: inline-flex;
-  flex-shrink: 0;
-  margin-inline-start: 4px;
-  color: var(--primary-text);
-}
-
-.readlist-nav__smart-label {
-  flex-shrink: 0;
-  margin-inline-start: 6px;
-}
-
 .readlist-nav__switcher-chevron {
   display: inline-flex;
   justify-content: center;
@@ -312,14 +300,6 @@
 .readlist-nav__link,
 .readlist-nav__link .readlist-row__label {
   min-width: 0;
-}
-
-.readlist-nav__link:has(> .readlist-nav__smart-label) {
-  flex-wrap: wrap;
-}
-
-.readlist-nav__link:has(> .readlist-nav__smart-label) .readlist-row__label {
-  max-width: calc(100% - 3rem - 20px);
 }
 
 .readlist-nav--pinned .readlist-nav__link .readlist-row__label {
@@ -1675,4 +1655,24 @@
 .readlist__source-menu:not(.menu--floating) .menu__panel {
   left: 0;
   right: auto;
+}
+
+.readlist-nav__icon {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.readlist-nav__smart {
+  position: absolute;
+  inset-block-start: -25%;
+  inset-inline-end: -25%;
+  display: flex;
+  width: 66.667%;
+  height: 66.667%;
+}
+
+.readlist-nav__icon .readlist-nav__smart svg {
+  width: 100%;
+  height: 100%;
 }
