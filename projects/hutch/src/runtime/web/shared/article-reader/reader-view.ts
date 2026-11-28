@@ -1,6 +1,5 @@
 import type { ReaderFailedVariant } from "@packages/article-state-types";
-import type { ArticleBody, ItemMedia } from "@packages/domain/article";
-import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { ItemMedia } from "@packages/domain/article";
 import { NOT_AN_ARTICLE } from "./article-reader";
 
 export type ReaderView =
@@ -29,8 +28,4 @@ const TRANSCRIPT_NOTICES = {
 export function transcriptNoticeOf(media: ItemMedia | undefined): ReaderFailedVariant | undefined {
 	const transcript = media?.transcript;
 	return transcript === undefined ? undefined : TRANSCRIPT_NOTICES[transcript];
-}
-
-export function isReaderViewShareable(input: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined }): boolean {
-	return input.content !== undefined && (input.crawl === undefined || input.crawl.status === "ready");
 }

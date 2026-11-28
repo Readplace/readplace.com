@@ -10,7 +10,7 @@ const TEMPLATE = readFileSync(join(__dirname, "readlist-counts.template.html"), 
 
 const PAGE_WINDOW = 1;
 
-export interface ReadlistPageLink {
+interface ReadlistPageLink {
 	number: number;
 	label: string;
 	href?: string;

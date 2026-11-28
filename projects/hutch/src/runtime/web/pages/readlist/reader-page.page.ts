@@ -202,7 +202,7 @@ export function initReaderPageRoutes(deps: Pick<
 	> & { buildArticleEpub: BuildArticleEpub }, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
 	const readerHighlightOptions = initReaderHighlightOptions(deps);
-	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
+	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const resolveReaderPermalinkIn = (readlist: ReadlistSlug) =>
 		initReaderPermalink({
@@ -630,7 +630,7 @@ export function initReaderPageRoutes(deps: Pick<
 				readlistFiling,
 				provenance,
 				exitConfirmScopes: [EXIT_CONFIRM_SCOPE.nextReadCard],
-				readerPathFor: readerPathFor(req),
+				readerPathFor: readerPathForReadlist(req),
 				markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
 				readerNotice: readerNoticeOf(state.readerView) ?? transcriptNoticeOf(ownedArticle.media),
 				epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
@@ -722,7 +722,7 @@ export function initReaderPageRoutes(deps: Pick<
 						EXIT_CONFIRM_SCOPE.articleBody,
 						EXIT_CONFIRM_SCOPE.nextReadCard,
 					],
-					readerPathFor: readerPathFor(req),
+					readerPathFor: readerPathForReadlist(req),
 					readerNotice: readerNoticeOf(state.readerView) ?? transcriptNoticeOf(ownedArticle.media),
 					epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 					epubDownloadGuide: epubGuideFor(req, ownedArticle),

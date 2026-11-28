@@ -1,7 +1,6 @@
-import assert from "node:assert";
 import { isChapterSectionId, isPrivateItemUrl } from "@packages/domain/article";
 import { withInternalTracking } from "@packages/web-shell";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 import { z } from "zod";
 
 export const READER_SECTION_PAGE_THRESHOLD_BYTES = 5_380_000;
@@ -81,18 +80,14 @@ export function pageReaderSections(input: {
 	split: ReaderSectionSplit;
 }): SectionPage {
 	if (Buffer.byteLength(input.html) <= input.section.thresholdBytes) return { kind: "whole", html: input.html };
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="reader-section-pages-root">${input.html}</div></body></html>`,
-	);
-	const wrapper = document.querySelector("div#reader-section-pages-root");
-	assert(wrapper, "parseHTML must produce the reader-section-pages wrapper div");
+	const wrapper = parseFragmentRoot(input.html);
 	const root = withoutLoneWrappers(wrapper);
-	const pages: Element[] = [document.createElement("div")];
+	const pages: Element[] = [wrapper.ownerDocument.createElement("div")];
 	const pageStarts = pageStartsIn({ root, split: input.split });
 	let firstHeadingSeen = false;
 	for (const node of Array.from(root.childNodes)) {
 		if (pageStarts.has(node)) {
-			if (firstHeadingSeen) pages.push(document.createElement("div"));
+			if (firstHeadingSeen) pages.push(wrapper.ownerDocument.createElement("div"));
 			firstHeadingSeen = true;
 		}
 		pages[pages.length - 1].appendChild(node);

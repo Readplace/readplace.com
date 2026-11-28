@@ -259,13 +259,6 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		Object.assign(state, { started: true, done: progress.kept, total: progress.total, status: resumeStatus(progress) });
 	}
 
-	async function freshMatch(cache: DownloadCache, key: string): Promise<DownloadResponse | undefined> {
-		const copy = await cache.match(key, { ignoreVary: true });
-		if (copy === undefined || isFreshOfflineCopy(copy, deps.now())) return copy;
-		await cache.delete(key);
-		return undefined;
-	}
-
 	function keep(cache: DownloadCache, key: string, copy: DownloadResponse): Promise<void> {
 		return cache.put(key, deps.stampCopy(copy, deps.now()));
 	}
@@ -458,7 +451,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 	async function keepImage(cache: DownloadCache, input: { source: string; article: URL }): Promise<void> {
 		try {
 			const image = new URL(input.source, input.article).href;
-			const held = await freshMatch(cache, image);
+			const held = await ownership.freshCopy(cache, image);
 			const response = held ?? (await deps.fetchFn(image, IMAGE_REQUEST));
 			if (response.ok) await keep(cache, image, response);
 		} catch {
@@ -468,7 +461,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 
 	async function currentCopy(cache: DownloadCache, listed: ListedArticle): Promise<Document | undefined> {
 		const { article } = listed;
-		const stored = await freshMatch(cache, offlineCacheKey(article));
+		const stored = await ownership.freshCopy(cache, offlineCacheKey(article));
 		if (stored === undefined || !isCurrentCopy(stored, article)) return undefined;
 		const copy = stored.clone();
 		const readerPage = deps.parseHtml(await stored.text());

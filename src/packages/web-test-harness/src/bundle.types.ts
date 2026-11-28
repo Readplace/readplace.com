@@ -349,10 +349,6 @@ export type MarkSubscriptionCancelledByUserId = (input: {
 	userId: UserId;
 }) => Promise<void>;
 
-export type HttpErrorMessageMapping = (
-	query: Record<string, unknown>,
-) => string | undefined;
-
 export interface AuthBundle {
 	hashPassword: (password: string) => Promise<string>;
 	createUser: CreateUser;
@@ -875,7 +871,6 @@ export interface SharedBundle {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
-	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: LogError;
 	now: () => Date;
 }
@@ -941,9 +936,7 @@ export interface ConversionsBundle {
 
 /** Holds the founding-member cap as a plain number. The application's
  * composition root builds the runtime predicate from this so this package
- * stays free of cross-project imports — same reason `httpErrorMessageMapping`
- * is a structural type defined here rather than an import of any
- * application's own declaration. */
+ * stays free of cross-project imports. */
 export interface FoundingAllocationBundle {
 	foundingMemberLimit: number;
 }

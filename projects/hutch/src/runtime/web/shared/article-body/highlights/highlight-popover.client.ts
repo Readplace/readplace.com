@@ -20,7 +20,7 @@ interface PanelViewport extends PlacementViewport {
 	addEventListener(type: "resize", listener: () => void): void;
 }
 
-export interface HighlightPanelDeps {
+interface HighlightPanelDeps {
 	document: Document;
 	window: { readonly visualViewport: PanelViewport };
 	rectsOf: (range: Range) => readonly PassageRect[];

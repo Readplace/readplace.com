@@ -1,5 +1,6 @@
 import { initResumeAcceptedGmailEmail } from "./domain/inbox/resume-accepted-gmail-email";
 import { S3Client } from "@aws-sdk/client-s3";
+import { initS3DeleteContentObjects } from "@packages/article-store";
 import {
 	assertCurlImpersonateAvailable,
 	CRAWL_PERSONAS,
@@ -20,7 +21,6 @@ import {
 	initDynamoDbGmailHistoryImport,
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
-	initS3DeleteObjects,
 	initS3ReadRawEmail,
 	initS3WriteEmailContent,
 } from "@packages/inbox-store";
@@ -51,6 +51,10 @@ const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 const logger = Logger.from(consoleLogger);
 const now = () => new Date();
+const { deleteContentObjects: deleteRawEmailObjects } = initS3DeleteContentObjects({
+	client: s3Client,
+	bucketName: rawEmailBucketName,
+});
 
 const inboxEmailStore = initDynamoDbInboxEmail({
 	client: dynamoClient,
@@ -98,7 +102,7 @@ export const handler = initIngestGmailImportHandler({
 		client: s3Client,
 		bucketName: rawEmailBucketName,
 	}),
-	deleteRawEmail: (s3Key) => initS3DeleteObjects({ client: s3Client, bucketName: rawEmailBucketName })([s3Key]),
+	deleteRawEmail: (s3Key) => deleteRawEmailObjects([s3Key]),
 	parseEmail,
 	findByAddress: initDynamoDbInboxAddress({
 		client: dynamoClient,

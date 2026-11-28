@@ -1,11 +1,10 @@
-import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { locateQuote, type QuoteLocation, viewerFor } from "@packages/domain/article";
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { UserId } from "@packages/domain/user";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
-import { parseHTML } from "linkedom";
+import { parseFragmentRoot } from "../parse-fragment-root";
 import { prepareReaderContent, WHOLE_DOCUMENT_SECTION } from "../reader-slot/reader-content";
 import { servedContentHash } from "../reader-slot/served-content-hash";
 import type { CreateReaderHighlight, CreateReaderHighlightOutcome } from "./create-reader-highlight";
@@ -32,11 +31,7 @@ function hasVisibleText(value: string): boolean {
 const NOT_FOUND: QuoteLocation = { status: "not-found" };
 
 function decodedFragmentText(fragment: string): string {
-	const { document } = parseHTML(
-		`<!DOCTYPE html><html><body><div id="mcp-quote-root">${fragment}</div></body></html>`,
-	);
-	const root = document.querySelector("div#mcp-quote-root");
-	assert(root, "parseHTML must produce the quote wrapper div");
+	const root = parseFragmentRoot(fragment);
 	return normaliseText(collectTextChunks<Node>(root)).text;
 }
 

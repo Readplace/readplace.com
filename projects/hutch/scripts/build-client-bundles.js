@@ -21,6 +21,7 @@ const esbuild = require("esbuild");
 const fs = require("node:fs");
 const path = require("node:path");
 const { SHARED_CLIENT_BUNDLES, buildOptions } = require("@packages/web-shell/client-bundles");
+const { PAGE_EXIT_KINDS } = require("@packages/web-analytics");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
@@ -266,7 +267,7 @@ const BUNDLES = [
       "    documentHeight: function () { return window.document.documentElement.scrollHeight; },",
       "    sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
       "    beaconUrl: el.getAttribute('data-page-depth-beacon'),",
-      "    exitKinds: { leftSite: 'left_site', navigatedOnward: 'navigated_onward' }",
+      "    exitKinds: " + JSON.stringify(PAGE_EXIT_KINDS),
       "  });",
       "});",
     ].join("\n"),

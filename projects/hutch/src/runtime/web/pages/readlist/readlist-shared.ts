@@ -69,7 +69,6 @@ import {
 	type ReadlistContext,
 	initResolveReadlistContext,
 	mainlineReadlistContext,
-	readerReadlists,
 	sessionIdOf,
 } from "./readlist-context";
 import { composeReadlistNav } from "./readlist-nav-layout";
@@ -79,6 +78,7 @@ import {
 	type ReadlistSlug,
 	type ReadlistRef,
 	readlistsHoldingArticle,
+	readerReadlists,
 	DEFAULT_READLIST_SLUG,
 } from "@packages/domain/readlist";
 import {
@@ -446,15 +446,6 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			thresholdBytes: deps.readerSectionThresholdBytes,
 		};
 	};
-
-	const readerPathFor =
-		(req: Request) =>
-		(articleId: string): string => {
-			const surface = nativeSurfaceQuery(req);
-			return surface === ""
-				? `${READLIST_PATH}/${articleId}/view`
-				: `${READLIST_PATH}/${articleId}/view?${surface}`;
-		};
 
 	// A past-read match opens where the reader owns it: the destination readlist
 	// (resolved server-side, absent for the default list) rides the `queue` param
@@ -876,7 +867,6 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		reader,
 		pollUrlBuilderFor,
 		ownerReaderSection,
-		readerPathFor,
 		readerPathForReadlist,
 		readerReturnPath,
 		epubGuideFor,

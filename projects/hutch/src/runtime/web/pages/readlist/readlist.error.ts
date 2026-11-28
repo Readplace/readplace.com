@@ -113,7 +113,7 @@ export const READLIST_RENAME_REJECTIONS: Record<ReadlistRenameRejection, { messa
 
 export const READLIST_UNKNOWN_ARTICLE_MESSAGE = "That article isn't in this readlist.";
 
-export type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;
+type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;
 
 export const httpErrorMessageMapping: HttpErrorMessageMapping = (query) => {
 	const errorCode = typeof query.error_code === "string" ? query.error_code : undefined;

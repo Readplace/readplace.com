@@ -493,7 +493,6 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		validateSaveableUrl: e2eValidateSaveableUrl,
 		appOrigin: fixture.shared.appOrigin,
 		staticBaseUrl: fixture.shared.staticBaseUrl,
-		httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 		logError,
 		/** 1. The Gmail stores' clock runs ahead of Date.now() when it is called
 		 * twice in one millisecond. On the wall clock, a new import job's createdAt

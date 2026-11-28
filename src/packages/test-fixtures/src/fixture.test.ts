@@ -154,16 +154,6 @@ describe("createDefaultTestAppFixture", () => {
 		expect(fixture.botDefense.events).toHaveLength(4);
 	});
 
-	it("shared.httpErrorMessageMapping returns a friendly message for known error codes", () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-
-		expect(fixture.shared.httpErrorMessageMapping({ error_code: "save_failed" }))
-			.toBe("Couldn't save this article. Try again.");
-		expect(fixture.shared.httpErrorMessageMapping({})).toBeUndefined();
-		expect(fixture.shared.httpErrorMessageMapping({ error_code: "unknown_thing" }))
-			.toBeUndefined();
-	});
-
 	it("auth uses a fast hash: createUser and verifyCredentials round-trip correctly", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 

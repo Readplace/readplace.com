@@ -12,7 +12,6 @@ import {
 	type ReaderSource,
 	type ReaderSourceMessage,
 	type ReaderVersionMessage,
-	isFreshOfflineCopy,
 	offlineCacheKey,
 	offlinePageKind,
 } from "./offline-cache";
@@ -121,25 +120,18 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 		markOwner: deps.markOwner,
 	});
 
-	async function freshCopy(cache: WorkerCache, key: string): Promise<WorkerResponse | undefined> {
-		const copy = await cache.match(key, { ignoreVary: true });
-		if (copy === undefined || isFreshOfflineCopy(copy, deps.now())) return copy;
-		await cache.delete(key);
-		return undefined;
-	}
-
 	async function storedPage(key: string): Promise<WorkerResponse | undefined> {
 		const cache = await caches.open(OFFLINE_CACHE_NAME);
 		const owner = await ownership.confirmedOwner(cache);
 		if (owner === undefined) return undefined;
-		const copy = await freshCopy(cache, key);
+		const copy = await ownership.freshCopy(cache, key);
 		return copy !== undefined && ownership.isOwnedBy(copy, owner) ? copy : undefined;
 	}
 
 	async function storedImage(key: string): Promise<WorkerResponse | undefined> {
 		const cache = await caches.open(OFFLINE_CACHE_NAME);
 		if ((await ownership.confirmedOwner(cache)) === undefined) return undefined;
-		return freshCopy(cache, key);
+		return ownership.freshCopy(cache, key);
 	}
 
 	async function keep(key: string, copy: WorkerResponse): Promise<void> {
@@ -159,7 +151,7 @@ export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {
 	async function sweepExpiredCopies(): Promise<void> {
 		const cache = await caches.open(OFFLINE_CACHE_NAME);
 		await ownership.confirmedOwner(cache);
-		for (const entry of await cache.keys()) await freshCopy(cache, entry.url);
+		for (const entry of await cache.keys()) await ownership.freshCopy(cache, entry.url);
 	}
 
 	function isFullPage(response: WorkerResponse): boolean {

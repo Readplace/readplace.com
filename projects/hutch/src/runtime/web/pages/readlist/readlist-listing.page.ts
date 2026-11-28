@@ -40,7 +40,7 @@ import { READLIST_SORT_OPTIONS } from "./readlist-sort";
 import { readlistTotalLabel } from "./readlist-tab-total.component";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
-import { READLIST_ERROR_UNKNOWN_READLIST, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, } from "./readlist.error";
+import { READLIST_ERROR_UNKNOWN_READLIST, collectStatusFlashParams, httpErrorMessageMapping, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, } from "./readlist.error";
 import { HAND_PICKED_SCOPE, withHandPicked } from "./built-in-readlists";
 import { initRequireGmailConnectionAccess } from "../integrations/require-gmail-connection-access";
 import {
@@ -81,7 +81,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
+		"resolveCanonicalIdentity" | "now" | "recordNativeAppAnyActivity" | "resolveReaderProvenances" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed" | "findHomeReadlist" | "setHomeReadlist" | "listReadlistDefinitions"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -229,7 +229,7 @@ export function initReadlistListingRoutes(deps: Pick<
 		const saveErrorCode = saveableUrlErrorCodeMapping(req.query);
 		const saveError = saveErrorCode
 			? saveFormRejectionMessage(saveErrorCode)
-			: deps.httpErrorMessageMapping(req.query);
+			: httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const moveFlash = moveFlashMapping(req.query, withHandPicked(context.readlists));
