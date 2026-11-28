@@ -27,7 +27,7 @@
   {{#if menu}}
   <div class="article-body__more-slot" data-test-more-slot>
     <details class="menu article-body__more" data-test-reader-menu>
-      <summary class="btn btn--neutral btn--icon article-body__more-toggle" data-test-action="reader-menu">{{icon "ellipsis"}}<span class="sr-only">More options</span></summary>
+      <summary class="btn btn--neutral btn--icon article-body__more-toggle" id="reader-article-menu" data-test-action="reader-menu">{{icon "ellipsis"}}<span class="sr-only">More options</span></summary>
       <div class="menu__panel article-body__more-panel" data-test-reader-menu-panel>
         {{{menu.shareHtml}}}
         {{{menu.downloadsHtml}}}

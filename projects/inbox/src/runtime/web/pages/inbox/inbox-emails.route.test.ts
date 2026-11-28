@@ -201,11 +201,11 @@ describe("Inbox emails list route", () => {
 			rows[0].querySelector("[data-test-inbox-empty-address-name]")?.textContent,
 		).toBe("inbox");
 		expect(rows[0].querySelector("input")?.getAttribute("value")).toBe(created.address);
-		const copy = rows[0].querySelector("[data-inbox-copy]");
+		const copy = rows[0].querySelector("[data-clipboard-copy]");
 		assert(copy, "copy button must render alongside the address");
-		expect(copy.getAttribute("data-inbox-address")).toBe(created.address);
+		expect(copy.getAttribute("data-clipboard-text")).toBe(created.address);
 		expect(
-			doc.querySelector('script[src="/client-dist/inbox.client.js"]'),
+			doc.querySelector('script[src="/client-dist/clipboard-copy.client.js"]'),
 		).not.toBeNull();
 	});
 
@@ -461,6 +461,12 @@ describe("Inbox emails list route", () => {
 			]);
 			expect(first.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 			expect(menu.querySelector('button[aria-current="true"]')?.textContent).toBe("weekly@news.test");
+			expect(menu.querySelector("summary")?.textContent?.trim()).toBe("Senderweekly@news.test");
+			const unfiltered = new JSDOM((await agent.get("/inbox")).text).window.document;
+			const unfilteredMenu = unfiltered.querySelector("details.menu[data-test-sender-filter]");
+			assert(unfilteredMenu);
+			expect(unfilteredMenu.querySelector("summary")?.textContent?.trim()).toBe("Filter senders");
+			expect(unfilteredMenu.querySelector('button[name=sender][value=""]')?.hasAttribute("aria-current")).toBe(false);
 			const older = first.querySelector('[data-test-pagination-link="older"]')?.getAttribute("href");
 			assert(older);
 			const last = new JSDOM((await agent.get(older)).text).window.document;

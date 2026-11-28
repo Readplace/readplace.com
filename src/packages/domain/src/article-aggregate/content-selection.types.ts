@@ -34,5 +34,5 @@ export interface CanonicalCommit {
 
 export interface SelectionExpected {
 	snapshot: ContentSelectionSnapshot | undefined;
-	scope?: "whole-selection" | "canonical-content";
+	scope?: "canonical-content";
 }

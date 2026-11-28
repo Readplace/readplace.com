@@ -28,7 +28,7 @@ function withAccountState(service: IntegrationRowViewModel) {
 	return { ...service, accountState, accountClass: ACCOUNT_CLASSES[accountState] };
 }
 
-const INTEGRATIONS_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
+const INTEGRATIONS_COPY_SCRIPT = `<script src="/client-dist/clipboard-copy.client.js" defer></script>`;
 
 export function IntegrationsIndexPage(vm: IntegrationsIndexViewModel): PageBody {
 	return {

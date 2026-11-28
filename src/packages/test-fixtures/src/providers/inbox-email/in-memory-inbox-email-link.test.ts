@@ -292,7 +292,7 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.resolvedUrl).toBe("https://www.telegraph.test/news/the-actual-article");
 	});
 
-	describe("deleteLinksByEmail", () => {
+	describe("deleteAllLinksByUserId for one email", () => {
 		it("removes every link and the meta row for one email, leaving another email untouched", async () => {
 			const store = initInMemoryInboxEmailLink();
 			const otherRam = "2026-06-24T00:00:00.000Z#<m-2@example.com>";
@@ -312,10 +312,7 @@ describe("initInMemoryInboxEmailLink", () => {
 			});
 			await store.putLink(makeLink({ receivedAtMessageId: otherRam }));
 
-			await store.deleteLinksByEmail({
-				userId: owner,
-				receivedAtMessageId: RAM,
-			});
+			await store.deleteAllLinksByUserId(owner, [RAM]);
 
 			const cleared = await store.listLinksByEmail({
 				userId: owner,
@@ -406,7 +403,7 @@ it("keeps Gmail list results independent, preserves the first selection, and rem
 		selectedReadlists: [{ readlist: WORK, label: "Work" }],
 		readlistOutcomes: [outcome],
 	});
-	await store.deleteLinksByEmail(key);
+	await store.deleteAllLinksByUserId(key.userId, [key.receivedAtMessageId]);
 	await store.putLinksMeta({
 		...key,
 		meta: {

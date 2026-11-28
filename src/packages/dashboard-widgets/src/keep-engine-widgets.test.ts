@@ -10,7 +10,7 @@ const IDENTITIES: ExcludedIdentities = {
 
 const EXCLUDE = excludeNonAudienceClauses(IDENTITIES).join(" ");
 
-const widgets = keepEngineWidgets({ analyticsLogGroupName: ANALYTICS_LOG_GROUP, identities: IDENTITIES });
+const widgets = keepEngineWidgets({ identities: IDENTITIES });
 
 describe("keepEngineWidgets", () => {
 	it("reads only the analytics group, as tables, and drops operator accounts, operator visitors and bots from every query", () => {

@@ -44,9 +44,6 @@ export interface HighlightAnchorWrite<H extends ReanchorableHighlight> {
 }
 
 export interface ReanchorCounts {
-	anchored: number;
-	moved: number;
-	orphaned: number;
 	diffed: number;
 	edited: number;
 	gone: number;
@@ -133,9 +130,6 @@ function contextOf(params: {
 
 function emptyCounts(): ReanchorCounts {
 	return {
-		anchored: 0,
-		moved: 0,
-		orphaned: 0,
 		diffed: 0,
 		edited: 0,
 		gone: 0,
@@ -152,7 +146,6 @@ function countPlacing(params: {
 	placing: HighlightPlacing;
 }): void {
 	const { counts, placing } = params;
-	counts[placing.anchorState]++;
 	if (placing.level === "diff") counts.diffed++;
 	if (placing.level === "missing") counts.basisMissing++;
 	if (placing.granted) counts.basisGranted++;

@@ -1,5 +1,5 @@
 import { parseCrawlFailureReason, SummaryFailureReasonSchema } from "@packages/article-state-types";
-import type { CanaryReportRow } from "@packages/provider-contracts/canary-report";
+import { type CanaryReportRow, countByName } from "@packages/provider-contracts/canary-report";
 import type { FailedAxis, FailedRow } from "./collect-failed-rows";
 
 const HISTORY_GROUP_LABELS = {
@@ -51,12 +51,6 @@ const REASON_KEYS: Record<FailedAxis, (raw: string | undefined) => string> = {
 	"crawl-failed": crawlReasonKey,
 	"summary-failed": summaryReasonKey,
 };
-
-function countByName(names: readonly string[]): [string, number][] {
-	const counts = new Map<string, number>();
-	for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
-	return Array.from(counts).sort(([nameA, countA], [nameB, countB]) => countB - countA || (nameA < nameB ? -1 : 1));
-}
 
 export function toCanaryReportRow(row: FailedRow & Partial<Pick<FailedArticlesIssueRow, "historyGroup" | "readerRoutes">>): CanaryReportRow {
 	const reasons = row.axes.flatMap((axis) => {

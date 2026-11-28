@@ -51,7 +51,7 @@ function setup(target: string) {
 	};
 	const crawlFetch = initCrawlFetch({ fetch: fetchOrigin, personas: [{ name: "synthetic", headers: { ...DEFAULT_CRAWL_HEADERS } }], isBlocked: () => false, logInfo: () => {}, egress: { kind: "direct" }, fetchCurl: async () => { throw new Error("unexpected curl fallback"); }, fetchH2: async () => { throw new Error("unexpected h2 fallback"); } });
 	const cheap = initCrawlArticle({ crawlFetch, rejectDocumentLandingPage, siteRules: [], logInfo: () => {}, logError: () => {}, logThumbnailNotDelivered: () => {} });
-	const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: cheap, siteRules: [], readabilityAdditions, logError: () => {} });
+	const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: () => {} });
 	const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, fetched: candidates, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://images.example.test" });
 	const prepareArticleIdentity = initPrepareArticleIdentity({ findIdentityRow: async () => ({ kind: "article", originalUrl: pinned ?? SOURCE }), resolveWrapperTarget: async () => undefined, repairWrapperIdentity: async () => false });
 	const resolveOriginalUrl = async () => { const identity = await prepareArticleIdentity(SOURCE); assert(identity.status === "resolved"); return identity.originalUrl; };

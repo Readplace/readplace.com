@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { parseHttpUrl } from "../inbox/parse-http-url";
 
 export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot" | "archive-outbound" | "share-intent";
 
@@ -22,6 +23,8 @@ const TWEET_INTENT_HOSTS: ReadonlySet<string> = new Set(["twitter.com", "www.twi
 const LINKEDIN_SHARE_HOSTS: ReadonlySet<string> = new Set(["linkedin.com", "www.linkedin.com"]);
 const REDDIT_MEDIA_VIEWER_HOSTS: ReadonlySet<string> = new Set(["reddit.com", "www.reddit.com"]);
 const REDDIT_IMAGE_HOST = "i.redd.it";
+const SPRINGER_LINK_ORIGIN = "https://link.springer.com";
+const SPRINGER_LINK_HOST = "link.springer.com";
 const SUBSTACK_HOSTS: ReadonlySet<string> = new Set(["substack.com", "open.substack.com"]);
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -38,6 +41,7 @@ const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
 const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
 const LINKEDIN_SHARE_ARTICLE_PATH = /^\/shareArticle$/;
 const REDDIT_MEDIA_VIEWER_PATH = /^\/media$/;
+const SPRINGER_PDF_VIEWER_PATH = /^\/epdf\/(10\.\d+\/[^/].*)$/;
 const SEMAFOR_SHORT_LINK_PATH = /^\/s\/[A-Za-z0-9]+$/;
 const BEEHIIV_LINK_PATH = /^\/ss\/c\/.+/;
 const HUBSPOT_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.hubspotlinks\.com$/;
@@ -95,17 +99,6 @@ const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: HUBSPOT_HOST, path: HUBSPOT_TRACK_PATH, newSavesOnly: true },
 	{ host: "www.quora.com", path: QUORA_CLICK_PATH, newSavesOnly: true },
 ];
-
-function parseHttpUrl(value: string): URL | undefined {
-	let parsed: URL;
-	try {
-		parsed = new URL(value);
-	} catch {
-		return undefined;
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
-	return parsed;
-}
 
 function hostnameOf(parsed: URL): string {
 	return parsed.hostname.endsWith(".") ? parsed.hostname.slice(0, -1) : parsed.hostname;
@@ -220,6 +213,12 @@ function redditViewedImageOf(parsed: URL): URL | undefined {
 	return image !== undefined && hostnameOf(image) === REDDIT_IMAGE_HOST ? image : undefined;
 }
 
+function springerViewedArticleOf(parsed: URL): URL | undefined {
+	if (hostnameOf(parsed) !== SPRINGER_LINK_HOST) return undefined;
+	const viewed = SPRINGER_PDF_VIEWER_PATH.exec(parsed.pathname);
+	return viewed === null ? undefined : new URL(`/article/${viewed[1]}`, SPRINGER_LINK_ORIGIN);
+}
+
 const MAX_USER_ARTICLE_KEY_BYTES = 1024;
 
 function outgrowsUserArticleKey(url: string): boolean {
@@ -236,7 +235,12 @@ function trackerRuleOf(url: string): TrackerRule | undefined {
 function shapeFamilyOf(parsed: URL): WrapperFamily | undefined {
 	const host = hostnameOf(parsed);
 	if (archiveTodayOutbound(parsed) !== null) return "archive-outbound";
-	if (isTweetIntent(parsed) || linkedInSharedArticleOf(parsed) !== undefined || redditViewedImageOf(parsed) !== undefined)
+	if (
+		isTweetIntent(parsed) ||
+		linkedInSharedArticleOf(parsed) !== undefined ||
+		redditViewedImageOf(parsed) !== undefined ||
+		springerViewedArticleOf(parsed) !== undefined
+	)
 		return "share-intent";
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
@@ -297,6 +301,8 @@ export function unwrapWrapperUrl(url: string): UnwrappedUrl {
 	if (linkedInShared !== undefined) return { url: linkedInShared.href };
 	const redditViewedImage = redditViewedImageOf(parsed);
 	if (redditViewedImage !== undefined) return { url: redditViewedImage.href };
+	const springerViewedArticle = springerViewedArticleOf(parsed);
+	if (springerViewedArticle !== undefined) return { url: springerViewedArticle.href };
 	return { url };
 }
 

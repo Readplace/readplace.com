@@ -1,12 +1,9 @@
 import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { findUntrackedCtas } from "@packages/web-test-harness";
+import { findUntrackedCtas, type ParseArticle } from "@packages/web-test-harness";
 import request from "supertest";
-import type {
-	ParseArticle,
-	ParseArticleResult,
-} from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";

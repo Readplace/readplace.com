@@ -3,7 +3,6 @@ export type {
 	ArticleFreshness,
 	ArticleMetadata,
 	CrawlState,
-	SummaryAutoHealState,
 	SummaryState,
 } from "./article.types";
 export { isCanonicalCandidateRevoked, summaryMatchesCanonical } from "./content-selection.types";
@@ -17,15 +16,7 @@ export {
 	CanonicalPublishedOnSchema,
 	type CanonicalPublishedOn,
 } from "./canonical-published-on";
-export {
-	SUMMARY_AUTO_HEAL_MAX_ATTEMPTS,
-	SUMMARY_AUTO_HEAL_TTL_MS,
-} from "./auto-heal-constants";
-export {
-	decideSummaryAutoHeal,
-	type SummaryAutoHealDecision,
-} from "./decide-summary-auto-heal";
-export { stampReaderAvailability } from "./reader-availability";
+export { decideSummaryAutoHeal } from "./decide-summary-auto-heal";
 export type { Effect } from "./effects.types";
 export type {
 	AggregateField,
@@ -94,10 +85,6 @@ export {
 	type RecrawlPromoteTierInput,
 } from "./transitions/recrawl-promote-tier";
 export {
-	submitLink,
-	type SubmitLinkInput,
-} from "./transitions/submit-link";
-export {
 	requestRecrawl,
 	type RequestRecrawlInput,
 } from "./transitions/request-recrawl";
@@ -106,6 +93,4 @@ export {
 	type LogCrawlSettled,
 	type Transition,
 	type TransitionAndPersist,
-	type UpsertTransition,
-	type UpsertAndPersist,
 } from "./transition-and-persist";

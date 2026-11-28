@@ -10,7 +10,6 @@ type Command = { constructor: { name: string }; input: Record<string, unknown> }
 type TransactPut = { Put: { Item: Record<string, unknown>; ConditionExpression: string; ExpressionAttributeValues?: Record<string, unknown> } };
 
 const TABLE = "test-rate-limits";
-const RULE = { limit: 98, windowSeconds: 86_400 };
 const USER = UserIdSchema.parse("reader-1");
 const NOW_MS = 1_800_000_000_000;
 const HOUR_START = 1_800_000_000 - (1_800_000_000 % 3600);
@@ -52,7 +51,7 @@ function transactItems(commands: Command[]): TransactPut[] {
 }
 
 function charge(client: DynamoDBDocumentClient, delay: (milliseconds: number) => Promise<void> = noDelay) {
-	return initDynamoDbOcrPageQuota({ client, tableName: TABLE, rule: RULE, now, delay }).chargeOcrPagesFor({
+	return initDynamoDbOcrPageQuota({ client, tableName: TABLE, now, delay }).chargeOcrPagesFor({
 		userId: USER,
 		claimId: "msg-1",
 	});

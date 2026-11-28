@@ -1,11 +1,13 @@
 import type { IconName } from "@packages/ui-icons";
 import type {
+	CollectionReadlist,
 	CollectionTotal,
 	SortDescriptor,
 	SortOrder,
 } from "../reading-list/reading-list.types";
 
 export interface ListHeaderView {
+	readonly readlistLabel: string | null;
 	readonly countLabel: string | null;
 	readonly sort: {
 		readonly label: string;
@@ -21,11 +23,13 @@ const ICON_BY_ORDER: Record<SortOrder, IconName> = {
 
 export function buildListHeaderView(page: {
 	total: CollectionTotal | undefined;
+	readlist: CollectionReadlist | undefined;
 	sort: SortDescriptor[];
 }): ListHeaderView {
 	const current = page.sort.find((entry) => entry.rel === "current");
 	const toggleIndex = page.sort.findIndex((entry) => entry.rel !== "current");
 	return {
+		readlistLabel: page.readlist?.label ?? null,
 		countLabel: page.total?.label ?? null,
 		sort:
 			current && toggleIndex !== -1

@@ -8,6 +8,9 @@ interface CopyNavigator {
 
 type CopyTimerId = ReturnType<typeof setTimeout>;
 
+export const CLIPBOARD_COPY_SELECTOR = "[data-clipboard-copy]";
+export const CLIPBOARD_TEXT_ATTR = "data-clipboard-text";
+
 interface ClipboardCopyDeps {
 	document: Document;
 	navigator: CopyNavigator;

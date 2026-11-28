@@ -1,4 +1,4 @@
-import { HAND_PICKED_SCOPE, withHandPicked } from "./built-in-readlists";
+import { HAND_PICKED_SCOPE, withHandPicked, withHandPickedHolding } from "./built-in-readlists";
 import { generatedContentOf } from "../../generated-content-of";
 import { toArticleSubEntity } from "../../api/article-siren";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
@@ -35,7 +35,7 @@ import {
 	readlistToFileInto,
 } from "./readlist-context";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
-import { DELETE_ACK_NEVER, } from "./readlist-card/delete-confirm.component";
+import { DELETE_ACK_NEVER, renderRetiredDeletionDecisionsOob } from "./readlist-card/delete-confirm.component";
 import {
 	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
@@ -73,6 +73,7 @@ import { readerMarkStatusConfirm } from "../reader/reader.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import {
 	isNativeClient,
+	isNativeSurface,
 	isNativeSurfaceMarked,
 	APP_SHELL_QUERY,
 	PLATFORM_QUERY,
@@ -80,8 +81,8 @@ import {
 } from "../../onboarding/native-client";
 import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, SaveArticleReadlistsSchema, isAppPlatform, readerReadlistFilingFrom, } from "./readlist-shared";
-import { ReadlistDestinationsSchema, ReadlistSlugsSchema } from "./readlist-slugs";
+import { type ReadlistShared, SaveArticleReadlistsSchema, readerReadlistFilingFrom, } from "./readlist-shared";
+import { ReadlistDestinationSchema, ReadlistDestinationsSchema, ReadlistSlugsSchema } from "./readlist-slugs";
 
 /** Minute-precision UTC id as recorded in the crawl-version log, e.g.
  * "2026-07-10T09:41Z" — the value the reader's remove-version form submits. */
@@ -91,7 +92,7 @@ const CrawlVersionMinuteIdSchema = z
 
 const ArticleMoveBodySchema = z.union([
 	z
-		.object({ from: ReadlistSlugSchema, to: ReadlistDestinationsSchema })
+		.object({ from: ReadlistDestinationSchema, to: ReadlistDestinationsSchema })
 		.refine((body) => body.to.length === 1 || body.from === DEFAULT_READLIST_SLUG),
 	z.object({ from: ReadlistSlugSchema, label: z.string() }),
 ]);
@@ -306,7 +307,6 @@ export function initReadlistCardRoutes(
 			readerProvenance,
 			filters,
 			pollCount: requestedPoll + 1,
-			maxPolls: MAX_POLLS,
 			confirmReadlists: confirmReadlistsByUrl?.get(article.url),
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 			filing: {
@@ -315,8 +315,9 @@ export function initReadlistCardRoutes(
 			},
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };
-		const html = renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
-		res.status(200).type("html").send(html);
+		const card = renderReadlistCard(toReadlistCardDisplayModel(articleVm, cardOptions));
+		const retired = articleVm.deletion.confirm === undefined ? renderRetiredDeletionDecisionsOob(articleVm.id) : "";
+		res.status(200).type("html").send(card + retired);
 	});
 
 	router.post("/:id/status", async (req: Request<{ id: string }>, res: Response) => {
@@ -386,7 +387,7 @@ export function initReadlistCardRoutes(
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
-		if (isAppPlatform(req) && !parsedId.success) {
+		if (isNativeSurface(req) && !parsedId.success) {
 			res.status(404).type("html").send("");
 			return;
 		}
@@ -402,7 +403,7 @@ export function initReadlistCardRoutes(
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 
-		if (isAppPlatform(req)) {
+		if (isNativeSurface(req)) {
 			closeAppReader(req, res);
 			return;
 		}
@@ -644,8 +645,9 @@ export function initReadlistCardRoutes(
 				land(quietLanding);
 				return;
 			}
-			const saves = await deps.listUserSavesForUrl({ userId, url });
-			const holders = readlistsHoldingArticle({ saves, readlists: context.readlists });
+			const picked = (await storeFor(HAND_PICKED_SCOPE).findArticleById(articleId, userId)) !== null;
+			const saves = withHandPickedHolding(await deps.listUserSavesForUrl({ userId, url }), picked);
+			const holders = readlistsHoldingArticle({ saves, readlists: withHandPicked(context.readlists) });
 			if (!holders.some((readlist) => readlist.slug === from)) {
 				land(quietLanding);
 				return;
@@ -674,9 +676,11 @@ export function initReadlistCardRoutes(
 					if (decision.copyInto === HAND_PICKED_SCOPE) {
 						await deps.changePersonalPick({ userId, url, picked: true, request: pickRequest() });
 					} else if (decision.copyInto !== undefined) {
-						await deps.addArticleToReadlist({ userId, readlist: decision.copyInto, from, url });
+						await deps.addArticleToReadlist({ userId, readlist: decision.copyInto, from: from === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : from, url });
 					}
-					if (decision.removeFrom !== undefined) {
+					if (decision.removeFrom === HAND_PICKED_SCOPE) {
+						await deps.changePersonalPick({ userId, url, picked: false, request: pickRequest() });
+					} else if (decision.removeFrom !== undefined) {
 						await deleteArticleFromReadlistFor(decision.removeFrom)({ articleId, userId });
 					}
 				}
@@ -691,7 +695,7 @@ export function initReadlistCardRoutes(
 				});
 			};
 			if (!("label" in body)) {
-				await moveInto({ to: body.to, readlists: from === DEFAULT_READLIST_SLUG ? withHandPicked(context.readlists) : context.readlists });
+				await moveInto({ to: body.to, readlists: withHandPicked(context.readlists) });
 				return;
 			}
 			const refuse = (reason: ReadlistCreateDialogRejection): void =>
@@ -716,7 +720,7 @@ export function initReadlistCardRoutes(
 						refuse("name-taken");
 						return;
 					}
-					await moveInto({ to: [outcome.readlist.slug], readlists: [...context.readlists, outcome.readlist] });
+					await moveInto({ to: [outcome.readlist.slug], readlists: withHandPicked([...context.readlists, outcome.readlist]) });
 					return;
 				case "invalid-name":
 				case "reserved-name":

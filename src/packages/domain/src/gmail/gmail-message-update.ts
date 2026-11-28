@@ -47,7 +47,7 @@ export const GmailMessageUpdateFailureReasonSchema = z.enum([
 ]);
 export type GmailMessageUpdateFailureReason = z.infer<typeof GmailMessageUpdateFailureReasonSchema>;
 
-export type GmailMessageUpdate =
+export type GmailMessageUpdate = { supplemental?: true } & (
 	| { status: "pending"; userId: UserId; receivedAtMessageId: string; origin: GmailMessageOrigin; requestedAt: string }
 	| { status: "completed"; userId: UserId; receivedAtMessageId: string; origin: GmailMessageOrigin; requestedAt: string; completedAt: string; alreadyRead?: boolean }
 	| {
@@ -58,25 +58,27 @@ export type GmailMessageUpdate =
 			requestedAt: string;
 			failedAt: string;
 			failureReason: GmailMessageUpdateFailureReason;
-	};
+	});
 
 export interface GmailMessageUpdateStore {
-	claimPending: (input: { userId: UserId; origin: GmailMessageOrigin; now: Date }) => Promise<string | undefined>;
-	releaseClaim: (input: { userId: UserId; origin: GmailMessageOrigin; claimUntil: string }) => Promise<void>;
+	claimPending: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date }) => Promise<string | undefined>;
+	releaseClaim: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; claimUntil: string }) => Promise<void>;
 	recordPending: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
 		origin: GmailMessageOrigin;
+		supplemental?: true;
 		now: Date;
 	}) => Promise<GmailMessageUpdate>;
-	find: (input: { userId: UserId; origin: GmailMessageOrigin }) => Promise<GmailMessageUpdate | undefined>;
-	markCompleted: (input: { userId: UserId; origin: GmailMessageOrigin; now: Date; alreadyRead?: boolean }) => Promise<void>;
+	find: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true }) => Promise<GmailMessageUpdate | undefined>;
+	markCompleted: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true; now: Date; alreadyRead?: boolean }) => Promise<void>;
 	markFailed: (input: {
 		userId: UserId;
 		origin: GmailMessageOrigin;
+		supplemental?: true;
 		reason: GmailMessageUpdateFailureReason;
 		now: Date;
 	}) => Promise<"failed" | "unchanged">;
 	listPendingByAccount: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<GmailMessageUpdate[]>;
-	discardPending: (input: { userId: UserId; origin: GmailMessageOrigin }) => Promise<"discarded" | "unchanged">;
+	discardPending: (input: { userId: UserId; origin: GmailMessageOrigin; supplemental?: true }) => Promise<"discarded" | "unchanged">;
 }

@@ -1,4 +1,5 @@
-import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata, ANONYMOUS_VIEWER } from "@packages/domain/article";
+import assert from "node:assert/strict";
+import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, articleDestinationUrl, articleDisplayMetadata, ANONYMOUS_VIEWER, validateSaveableUrl, type SaveableUrl } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SaveTrigger, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -8,15 +9,21 @@ import {
 	type SaveArticleFromUrlDependencies,
 } from "./save-article-from-url";
 
+function saveable(value: string): SaveableUrl {
+	const result = validateSaveableUrl(value);
+	assert(result.status === "SUCCESS");
+	return result.url;
+}
+
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
-const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const exampleUrl = saveable("https://example.com/post");
 const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 const provenance: SaveProvenance = { kind: "web" };
 const saveTrigger: SaveTrigger = "manual";
 const saveAttemptId = SaveAttemptIdSchema.parse("save-attempt");
 const operationSavedAt = new Date("2026-08-01T10:00:00.000Z");
-const gmailUrl = SaveableUrlSchema.parse("https://mail.google.com/mail/u/0/");
+const gmailUrl = saveable("https://mail.google.com/mail/u/0/");
 const ownIdentity = { status: "resolved" as const, url: exampleUrl, originalUrl: exampleUrl };
 const canonicalIdentity = { status: "resolved" as const, url: "https://example.com/canonical", originalUrl: "https://example.com/canonical" };
 

@@ -64,7 +64,7 @@ export function renderGmailSenderResultsHtml(results: GmailSenderResultsView): s
 	return render(GMAIL_SENDER_RESULTS_TEMPLATE, results);
 }
 
-export function renderGmailSenderSelectionHtml(vm: GmailSenderWidgetViewModel & { autoDiscoverHtml: string }): string {
+export function renderGmailSenderSelectionHtml(vm: GmailSenderWidgetViewModel & { autoDiscoverHtml?: string }): string {
 	return render(GMAIL_SENDER_SELECTION_TEMPLATE, {
 		...vm,
 		loadButton: renderLoadButton({ label: vm.status.loadButtonLabel, outOfBand: false }),

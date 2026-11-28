@@ -18,7 +18,7 @@ import {
 	ReadlistSlugSchema,
 	parseReadlistPurpose,
 	type ReadlistSlug,
-	decideReadlistDelete,
+	decideOwnedCustomReadlist,
 	decideReadlistMigration,
 	decideReadlistPin,
 	decideReadlistRename,
@@ -219,7 +219,7 @@ export function initReadlistQueueRoutes(
 				unknownReadlist();
 				return;
 			}
-			const decision = decideReadlistDelete({
+			const decision = decideOwnedCustomReadlist({
 				slug: requested.data,
 				readlists: context.readlists,
 			});

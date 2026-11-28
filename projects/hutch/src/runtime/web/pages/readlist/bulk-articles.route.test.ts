@@ -8,7 +8,7 @@ import { initInMemoryBulkSelections } from "../../../bulk-articles/selection-sto
 
 const store = initInMemoryBulkSelections();
 const dispatch = jest.fn(async () => {});
-const useApp = useTestServer({ bulkArticles: { store, dispatch } });
+const useApp = useTestServer({ bulkArticles: { store, dispatch, readEverywhere: true } });
 
 it("previews the visible owned identities and only requests work after an explicit confirmation", async () => {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

@@ -244,7 +244,7 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 				const block = item.classList.item(0);
 				return item.classList.contains(`${block}--hidden`) ? `${block} (hidden)` : block;
 			}),
-			["article-body__menu-slot", "article-body__menu-slot", "article-delete__form", "menu__item"],
+			["article-body__menu-slot", "article-body__menu-slot", "menu__item", "menu__item"],
 		);
 		assert.deepEqual(
 			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (popover) =>

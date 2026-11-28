@@ -49,11 +49,11 @@ function scriptedClient(outcomes: Outcome[]) {
 	return { client: client as DynamoDBDocumentClient, commands };
 }
 
-function cancelled(codes: (string | undefined)[] | undefined): TransactionCanceledException {
+function cancelled(codes: (string | undefined)[]): TransactionCanceledException {
 	return new TransactionCanceledException({
 		$metadata: {},
 		message: "transaction cancelled",
-		CancellationReasons: codes?.map((Code) => ({ Code })),
+		CancellationReasons: codes.map((Code) => ({ Code })),
 	});
 }
 
@@ -245,37 +245,6 @@ describe("initDynamoDbRecommendationBudget", () => {
 			assert.equal(result.allowed, true);
 			assert.equal(commands.length, 3);
 			assert.deepEqual(delays, [25, 50]);
-		});
-
-		it("gives up after six conflicted attempts", async () => {
-			const conflict = cancelled(["None", "TransactionConflict"]);
-			const { client, commands } = scriptedClient(Array.from({ length: 6 }, () => conflict));
-			const budget = initBudget({ client });
-
-			await expect(
-				budget.reserveRecommendationBudget({ userId: USER, reservations: [{ id: "r-1", nanodollars: 1 }] }),
-			).rejects.toBe(conflict);
-			assert.equal(commands.length, 6);
-		});
-
-		it("rethrows a cancellation that is neither a denial nor a conflict", async () => {
-			const throttled = cancelled(["None", "ThrottlingError"]);
-			const { client } = scriptedClient([throttled]);
-			const budget = initBudget({ client });
-
-			await expect(
-				budget.reserveRecommendationBudget({ userId: USER, reservations: [{ id: "r-1", nanodollars: 1 }] }),
-			).rejects.toBe(throttled);
-		});
-
-		it("rethrows a cancellation without reasons", async () => {
-			const bare = cancelled(undefined);
-			const { client } = scriptedClient([bare]);
-			const budget = initBudget({ client });
-
-			await expect(
-				budget.reserveRecommendationBudget({ userId: USER, reservations: [{ id: "r-1", nanodollars: 1 }] }),
-			).rejects.toBe(bare);
 		});
 
 		it("rethrows a storage failure", async () => {

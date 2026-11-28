@@ -10,12 +10,14 @@ import {
 	parseForwardableSender,
 } from "@packages/domain/gmail";
 import {
+	type EmailImportCompletionStore,
 	InboxAddressSchema,
 	type InboxAddressStore,
 	normalizeMessageId,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
 import {
+	EmailReceivedEvent,
 	type GmailHistoryImportMessageFetchedDetail,
 	GmailHistoryImportMessageFetchedEvent,
 	type GmailHistoryImportMessageIngestedDetail,
@@ -48,6 +50,7 @@ export function initIngestGmailImportHandler(deps: {
 	resolveIdentity: ResolveEmailIdentity;
 	ingest: IngestParsedEmail;
 	resumeAcceptedGmailEmail: ResumeAcceptedGmailEmail;
+	claimSupplementalImport: EmailImportCompletionStore["claimSupplementalImport"];
 	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
 	publishEvent: PublishEvent;
 	maxEmailBytes: number;
@@ -63,6 +66,7 @@ export function initIngestGmailImportHandler(deps: {
 		resolveIdentity,
 		ingest,
 		resumeAcceptedGmailEmail,
+		claimSupplementalImport,
 		recordDuplicateGmailOrigin,
 		publishEvent,
 		logger,
@@ -155,8 +159,35 @@ export function initIngestGmailImportHandler(deps: {
 			},
 		});
 		if (!resolution.proceed) {
-			await recordDuplicateGmailOrigin({ userId, receivedAtMessageId: resolution.receivedAtMessageId, origin: gmailOrigin });
-			return { outcome: "already-imported", receivedAtMessageId: undefined, rawDisposable: true };
+			const receivedAtMessageId = resolution.receivedAtMessageId;
+			const work = await claimSupplementalImport({
+				userId,
+				receivedAtMessageId,
+				requested: detail.deliveryMode,
+				work: {
+					destinationAddresses: [destinationAddress, ...additionalAddresses],
+					rawEmailS3Key: detail.rawEmailS3Key,
+					senderName: parsed.email.fromName,
+					origin: gmailOrigin,
+				},
+			});
+			if (work === undefined) {
+				await recordDuplicateGmailOrigin({ userId, receivedAtMessageId, origin: gmailOrigin });
+				return { outcome: "already-imported", receivedAtMessageId: undefined, rawDisposable: true };
+			}
+			await publishEvent(EmailReceivedEvent, {
+				userId,
+				receivedAtMessageId,
+				recipientAddress: work.destinationAddresses[0],
+				origin: "gmail-import",
+				routing: {
+					kind: "gmail",
+					destinationAddresses: work.destinationAddresses,
+					deliveryMode: work.deliveryMode,
+				},
+				supplemental: true,
+			});
+			return { outcome: "imported", receivedAtMessageId, rawDisposable: false };
 		}
 
 		await ingest({

@@ -1371,7 +1371,7 @@ describe("initRenderCrawlHandler", () => {
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const article = `<p>${"A readable publisher paragraph with plenty of words in it. ".repeat(20)}<a href="/next">Next</a></p><img src="/photo.jpg">`;
 			const html = `<html><head><title>Story</title></head><body><article>${article}</article></body></html>`;
-			const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: unusedCrawl, siteRules: [], readabilityAdditions, logError: () => {} });
+			const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules: [], readabilityAdditions, logError: () => {} });
 			const finalizeArticle = initFinalizeArticle({
 				parseHtml,
 				downloadMedia: async () => [],

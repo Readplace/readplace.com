@@ -110,15 +110,6 @@ function createRoutingFetch(routes: Record<string, RouteHandler>): {
 	return { fetchFn, calls };
 }
 
-function withEntryPoint(
-	routes: Record<string, RouteHandler>,
-): Record<string, RouteHandler> {
-	const readlistRoute = routes["GET http://localhost:3000/queue"];
-	if (!readlistRoute)
-		throw new Error("withEntryPoint requires a GET /queue route");
-	return { "GET http://localhost:3000/": readlistRoute, ...routes };
-}
-
 function createDeps(
 	fetchFn: ExtensionDeps["fetchFn"],
 	onUnauthorized: ExtensionDeps["onUnauthorized"] = async () => {},
@@ -141,9 +132,91 @@ function createUnderstandings() {
 
 describe("initExtension", () => {
 	describe("start navigation", () => {
+		it("enters at the \"All\" readlist without asking for the reader's home", async () => {
+			let declared: string | null = "unset";
+			const { calls, fetchFn } = createRoutingFetch({
+				"GET http://localhost:3000/queue": (init) => {
+					declared = new Headers(init?.headers).get("X-Readplace-Home-Readlist");
+					return { status: 200, body: collectionResponse() };
+				},
+			});
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			await start();
+
+			assert.deepEqual(calls, ["GET http://localhost:3000/queue"]);
+			assert.equal(declared, null);
+		});
+
+		it("names the readlist the server marks current", async () => {
+			const { fetchFn } = createRoutingFetch(
+				{
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: {
+								browseReadlists: [
+									{ rel: "readlist", label: "Hand Picked", href: "/queue?scope=hand-picked" },
+									{ rel: "current", label: "Reading", href: "/queue?readlist=reading" },
+								],
+							},
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+				},
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			assert.deepEqual(result.readlist, { label: "Reading" });
+		});
+
+		it("names no readlist when none is marked current", async () => {
+			const { fetchFn } = createRoutingFetch(
+				{
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: {
+								browseReadlists: [{ rel: "readlist", label: "Hand Picked", href: "/queue?scope=hand-picked" }],
+							},
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+				},
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			assert.equal(result.readlist, undefined);
+		});
+
+		it("names no readlist when the server sends no readlist list", async () => {
+			const { fetchFn } = createRoutingFetch(
+				{
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							properties: { browseReadlists: "Hand Picked" },
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: COLLECTION_ACTIONS,
+						}),
+					},
+				},
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			assert.equal(result.readlist, undefined);
+		});
+
 		it("should return items with per-entity actions from collection", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -155,7 +228,7 @@ describe("initExtension", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -169,12 +242,12 @@ describe("initExtension", () => {
 
 		it("should bind collection-level actions", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -184,27 +257,25 @@ describe("initExtension", () => {
 
 		it("should use resolved URL for subsequent calls", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			await start();
 			await start();
-			expect(
-				calls.filter((c) => c === "GET http://localhost:3000/"),
-			).toHaveLength(1);
-			expect(
-				calls.filter((c) => c === "GET http://localhost:3000/queue"),
-			).toHaveLength(1);
+			expect(calls).toEqual([
+				"GET http://localhost:3000/queue",
+				"GET http://localhost:3000/queue",
+			]);
 		});
 
 		it("should validate ETag on second navigation", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": (init) => {
 						const ifNoneMatch = new Headers(init?.headers).get("If-None-Match");
 						if (ifNoneMatch === '"v1"') return { status: 304 };
@@ -214,23 +285,50 @@ describe("initExtension", () => {
 							headers: { etag: '"v1"' },
 						};
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const first = await start();
 			const second = await start();
 			expect(calls).toEqual([
-				"GET http://localhost:3000/",
+				"GET http://localhost:3000/queue",
 				"GET http://localhost:3000/queue",
 			]);
 			expect(second.actions["save-article"]).toBeDefined();
 			expect(first.items).toEqual(second.items);
 		});
 
+		it("should revalidate under the self link when it differs from the entry point", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				{
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							actions: COLLECTION_ACTIONS,
+							links: [{ rel: ["self"], href: "/queue?readlist=all" }],
+						}),
+						headers: { etag: '"v1"' },
+					},
+					"GET http://localhost:3000/queue?readlist=all": (init) => {
+						const ifNoneMatch = new Headers(init?.headers).get("If-None-Match");
+						return ifNoneMatch === '"v1"' ? { status: 304 } : { status: 500 };
+					},
+				},
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			await start();
+			const second = await start();
+			expect(calls).toEqual([
+				"GET http://localhost:3000/queue",
+				"GET http://localhost:3000/queue?readlist=all",
+			]);
+			expect(second.actions["save-article"]).toBeDefined();
+		});
+
 		it("should update cache when ETag validation returns new data", async () => {
 			let callCount = 0;
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": () => {
 						callCount++;
 						if (callCount <= 1)
@@ -252,7 +350,7 @@ describe("initExtension", () => {
 							headers: { etag: '"v2"' },
 						};
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const first = await start();
@@ -264,12 +362,12 @@ describe("initExtension", () => {
 
 		it("should return empty items when collection has no entities", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -278,7 +376,7 @@ describe("initExtension", () => {
 
 		it("should handle items without read link", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -291,7 +389,7 @@ describe("initExtension", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -300,7 +398,7 @@ describe("initExtension", () => {
 
 		it("serializes semantic links symmetrically with actions and excludes structural rels", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -317,7 +415,7 @@ describe("initExtension", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -333,7 +431,7 @@ describe("initExtension", () => {
 
 		it("drops a semantic link whose href scheme is unactionable", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -349,7 +447,7 @@ describe("initExtension", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -360,7 +458,7 @@ describe("initExtension", () => {
 
 		it("should handle absolute URL in self link", async () => {
 			const { fetchFn, calls } = createRoutingFetch({
-				"GET http://localhost:3000/": {
+				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
 						actions: COLLECTION_ACTIONS,
@@ -372,10 +470,6 @@ describe("initExtension", () => {
 						],
 					}),
 				},
-				"GET http://localhost:3000/queue": {
-					status: 200,
-					body: collectionResponse(),
-				},
 			});
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			await start();
@@ -385,7 +479,7 @@ describe("initExtension", () => {
 
 		it("should throw when server returns an error", async () => {
 			const { fetchFn } = createRoutingFetch({
-				"GET http://localhost:3000/": { status: 500 },
+				"GET http://localhost:3000/queue": { status: 500 },
 			});
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			await expect(start()).rejects.toThrow(
@@ -395,7 +489,7 @@ describe("initExtension", () => {
 
 		it("should throw when collection has no self link", async () => {
 			const { fetchFn } = createRoutingFetch({
-				"GET http://localhost:3000/": {
+				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({ actions: COLLECTION_ACTIONS }),
 				},
@@ -408,7 +502,7 @@ describe("initExtension", () => {
 
 		it("should throw when access token is null", async () => {
 			const { fetchFn } = createRoutingFetch({
-				"GET http://localhost:3000/": {
+				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse(),
 				},
@@ -444,6 +538,7 @@ describe("initExtension", () => {
 						descriptors: {},
 						pages: [],
 						total: undefined,
+						readlist: undefined,
 						sorts: [],
 						followPage: async () => {
 							throw new Error("this handler advertises no pages");
@@ -454,7 +549,7 @@ describe("initExtension", () => {
 			});
 			const handlers = groupOf(expandHandler);
 			const { fetchFn } = createRoutingFetch({
-				"GET http://localhost:3000/": {
+				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
 						entities: [
@@ -487,7 +582,7 @@ describe("initExtension", () => {
 
 		it("should handle entities without actions property", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -501,7 +596,7 @@ describe("initExtension", () => {
 							},
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -510,7 +605,7 @@ describe("initExtension", () => {
 
 		it("binds an entity action without a bespoke handler through the generic invoker", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -531,7 +626,7 @@ describe("initExtension", () => {
 							},
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -540,7 +635,7 @@ describe("initExtension", () => {
 
 		it("should skip collection actions without matching understanding", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -551,7 +646,7 @@ describe("initExtension", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
@@ -563,7 +658,7 @@ describe("initExtension", () => {
 		it("should POST to save action href and return saved item", async () => {
 			const savedAt = "2026-01-15T10:00:00.000Z";
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -587,7 +682,7 @@ describe("initExtension", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -604,7 +699,7 @@ describe("initExtension", () => {
 
 		it("includes the read link descriptor when the save response has a read link", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -631,7 +726,7 @@ describe("initExtension", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -645,13 +740,13 @@ describe("initExtension", () => {
 
 		it("should throw when save fails", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					"POST http://localhost:3000/queue": { status: 422 },
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -663,7 +758,7 @@ describe("initExtension", () => {
 		it("sends Prefer: return=representation on save (RFC 7240)", async () => {
 			let capturedPrefer: string | null = null;
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -683,7 +778,7 @@ describe("initExtension", () => {
 							}),
 						};
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -695,12 +790,12 @@ describe("initExtension", () => {
 
 		it("should assert when url field is missing", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -720,7 +815,7 @@ describe("initExtension", () => {
 				COLLECTION_ACTIONS[1],
 			];
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -747,7 +842,7 @@ describe("initExtension", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -761,7 +856,7 @@ describe("initExtension", () => {
 	describe("generic entity action invoker", () => {
 		function withMarkReadEntity(markRead: RouteHandler) {
 			return createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -785,7 +880,7 @@ describe("initExtension", () => {
 						]),
 					},
 					"POST http://localhost:3000/queue/article-1/read": markRead,
-				}),
+				},
 			);
 		}
 
@@ -831,7 +926,7 @@ describe("initExtension", () => {
 		it("coerces a numeric field value to its string form when building the body", async () => {
 			let observedBody = "";
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -856,7 +951,7 @@ describe("initExtension", () => {
 						observedBody = String(init?.body);
 						return { status: 200, body: collectionResponse() };
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -869,7 +964,7 @@ describe("initExtension", () => {
 		it("posts an empty body for an action that declares no fields", async () => {
 			let observedBody: unknown = null;
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -892,7 +987,7 @@ describe("initExtension", () => {
 						observedBody = JSON.parse(String(init?.body));
 						return { status: 200, body: collectionResponse() };
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -911,7 +1006,7 @@ describe("initExtension", () => {
 
 		it("does not invoke an action whose href scheme is unactionable", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -930,7 +1025,7 @@ describe("initExtension", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -943,7 +1038,7 @@ describe("initExtension", () => {
 	describe("search action", () => {
 		it("should GET with url filter param", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -960,7 +1055,7 @@ describe("initExtension", () => {
 								}),
 							]),
 						},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -976,7 +1071,7 @@ describe("initExtension", () => {
 
 		it("should return empty items when no match", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -986,7 +1081,7 @@ describe("initExtension", () => {
 							status: 200,
 							body: collectionResponse(),
 						},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -998,14 +1093,14 @@ describe("initExtension", () => {
 
 		it("should throw UnauthorizedError and call onUnauthorized on 401", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle":
 						{ status: 401 },
-				}),
+				},
 			);
 			let onUnauthorizedCallCount = 0;
 			const start = initExtension(
@@ -1027,13 +1122,13 @@ describe("initExtension", () => {
 			const SEARCH_ROUTE =
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					[SEARCH_ROUTE]: { status: 401 },
-				}),
+				},
 			);
 			const refusedTokens: string[] = [];
 			const start = initExtension(createUnderstandings(), {
@@ -1058,7 +1153,7 @@ describe("initExtension", () => {
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
 			let token = "stale-token";
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1077,7 +1172,7 @@ describe("initExtension", () => {
 									]),
 								}
 							: { status: 401 },
-				}),
+				},
 			);
 			let onUnauthorizedCallCount = 0;
 			const start = initExtension(createUnderstandings(), {
@@ -1107,13 +1202,13 @@ describe("initExtension", () => {
 			const SEARCH_ROUTE =
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					[SEARCH_ROUTE]: { status: 401 },
-				}),
+				},
 			);
 			let onUnauthorizedCallCount = 0;
 			let refreshCallCount = 0;
@@ -1141,13 +1236,13 @@ describe("initExtension", () => {
 			const SEARCH_ROUTE =
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					[SEARCH_ROUTE]: { status: 401 },
-				}),
+				},
 			);
 			let onUnauthorizedCallCount = 0;
 			const start = initExtension(createUnderstandings(), {
@@ -1171,14 +1266,14 @@ describe("initExtension", () => {
 
 		it("should return empty items on non-401 server error", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle":
 						{ status: 500 },
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -1190,7 +1285,7 @@ describe("initExtension", () => {
 
 		it("should filter with status param", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1199,7 +1294,7 @@ describe("initExtension", () => {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -1211,7 +1306,7 @@ describe("initExtension", () => {
 
 		it("should return empty items when filter response has no entities key", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1223,7 +1318,7 @@ describe("initExtension", () => {
 								links: [{ rel: ["self"], href: "/queue" }],
 							}),
 						},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
@@ -1235,12 +1330,12 @@ describe("initExtension", () => {
 
 		it("should call with no params when fields is undefined", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();

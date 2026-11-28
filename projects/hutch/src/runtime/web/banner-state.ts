@@ -4,9 +4,9 @@ import type { BannerState, BannerStateSource } from "@packages/web-shell";
 import type { FindUserById, FindUserByIdResult } from "@packages/provider-contracts/auth";
 import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { Request } from "express";
+import type { SubscribePlansSource } from "@packages/provider-contracts/hosted-checkout";
 import {
 	SUBSCRIBE_PLANS_STYLES,
-	type SubscribePlansSource,
 	renderSubscribePlansPopover,
 } from "./shared/subscribe-plans/subscribe-plans.component";
 import { type UpgradeOffer, upgradeOfferFor } from "./shared/upgrade-offer/upgrade-offer";

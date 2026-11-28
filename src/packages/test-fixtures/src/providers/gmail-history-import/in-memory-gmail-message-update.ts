@@ -10,7 +10,7 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 } {
 	const records = new Map<string, GmailMessageUpdate>();
 	const claims = new Map<string, string>();
-	const keyOf = (input: { userId: string; origin: GmailMessageUpdate["origin"] }) => `${input.userId}#${gmailMessageOriginKey(input.origin)}`;
+	const keyOf = (input: { userId: string; origin: GmailMessageUpdate["origin"]; supplemental?: true }) => `${input.userId}#${input.supplemental ? "SUPPLEMENTAL#" : ""}${gmailMessageOriginKey(input.origin)}`;
 
 	return {
 		claimPending: async (input) => {
@@ -25,34 +25,36 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 			const key = keyOf(input);
 			if (claims.get(key) === input.claimUntil) claims.delete(key);
 		},
-		recordPending: async ({ userId, receivedAtMessageId, origin, now }) => {
-			const key = keyOf({ userId, origin });
-			const current = records.get(key) ?? { status: "pending", userId, receivedAtMessageId, origin, requestedAt: now.toISOString() };
+		recordPending: async ({ userId, receivedAtMessageId, origin, supplemental, now }) => {
+			const key = keyOf({ userId, origin, supplemental });
+			const current = records.get(key) ?? { status: "pending", userId, receivedAtMessageId, origin, ...(supplemental ? { supplemental } : {}), requestedAt: now.toISOString() };
 			records.set(key, current);
 			return current;
 		},
 		find: async (input) => records.get(keyOf(input)),
-		markCompleted: async ({ userId, origin, now, alreadyRead }) => {
-			const current = records.get(keyOf({ userId, origin }));
+		markCompleted: async ({ userId, origin, supplemental, now, alreadyRead }) => {
+			const current = records.get(keyOf({ userId, origin, supplemental }));
 			if (current === undefined) return;
-			records.set(keyOf({ userId, origin }), {
+			records.set(keyOf({ userId, origin, supplemental }), {
 				status: "completed",
 				userId,
 				receivedAtMessageId: current.receivedAtMessageId,
 				origin,
+				...(supplemental ? { supplemental } : {}),
 				requestedAt: current.requestedAt,
 				completedAt: now.toISOString(),
 				alreadyRead,
 			});
 		},
-		markFailed: async ({ userId, origin, reason, now }) => {
-			const current = records.get(keyOf({ userId, origin }));
+		markFailed: async ({ userId, origin, supplemental, reason, now }) => {
+			const current = records.get(keyOf({ userId, origin, supplemental }));
 			if (current?.status !== "pending") return "unchanged";
-			records.set(keyOf({ userId, origin }), {
+			records.set(keyOf({ userId, origin, supplemental }), {
 				status: "failed",
 				userId,
 				receivedAtMessageId: current.receivedAtMessageId,
 				origin,
+				...(supplemental ? { supplemental } : {}),
 				requestedAt: current.requestedAt,
 				failedAt: now.toISOString(),
 				failureReason: reason,

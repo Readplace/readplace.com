@@ -17,6 +17,8 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 		("download-resume", .dark),
 		("offline-list", .light),
 		("offline-empty", .light),
+		("readlist-header", .light),
+		("readlist-header-long-name", .light),
 	]
 
 	func testARowWithoutAStoredCopyLooksRight() {
@@ -96,6 +98,27 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 		assertMatchesBaseline(view, checkpoint: "offline-empty", style: .light)
 	}
 
+	func testTheReadlistNameHeadsTheListOnTheCardGutter() throws {
+		let hint = ReadlistHint(
+			text: "Older saves stay elsewhere.",
+			linkLabel: "Open on the web",
+			url: try XCTUnwrap(URL(string: "https://example.com/queue"))
+		)
+		let view = mount(
+			headedList(label: "Hand Picked", description: "Articles picked by hand from the newsletters.", hint: hint)
+		)
+
+		assertHostIsNeutral()
+		assertMatchesBaseline(view, checkpoint: "readlist-header", style: .light)
+	}
+
+	func testALongReadlistNameWrapsOntoASecondLine() {
+		let view = mount(headedList(label: "Weekend Long Reads Queue", description: nil, hint: nil))
+
+		assertHostIsNeutral()
+		assertMatchesBaseline(view, checkpoint: "readlist-header-long-name", style: .light)
+	}
+
 	func testEveryCheckpointHasABaselineForEveryRuntimeAlreadyCovered() {
 		let directory = CardCheckpoint.baselineDirectory(for: #filePath)
 		let committed = Set(CardCheckpoint.committedNames(in: directory))
@@ -145,6 +168,20 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 			processing: nil,
 			notice: nil
 		)
+	}
+
+	private func headedList(label: String, description: String?, hint: ReadlistHint?) -> some View {
+		VStack(spacing: 0) {
+			ReadlistHeader(label: label, description: description, hint: hint) { _ in }
+			Picker("Filter", selection: .constant("unread")) {
+				Text("Unread").tag("unread")
+				Text("Read").tag("read")
+			}
+			.pickerStyle(.segmented)
+			.padding(.horizontal, ListingPanelEdge.gutter)
+			.padding(.bottom, 8)
+			rows([article(id: "a1", title: "A long read about tides")], offline: [])
+		}
 	}
 
 	private func rows(_ articles: [Article], offline: Set<String>) -> some View {

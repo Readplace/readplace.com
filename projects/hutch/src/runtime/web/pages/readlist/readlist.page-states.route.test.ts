@@ -372,9 +372,12 @@ describe("empty states", () => {
 		expect(emptyActionKeys(empty)).toEqual(["preferences"]);
 		const form = empty.querySelector('[data-test-empty-action="preferences"]')?.closest("form");
 		assert(form, "the preferences CTA must submit a form");
-		const preferences = await agent.get(form.getAttribute("action") ?? "");
+		const action = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");
+		expect(action.hash).toBe("#readlist-smart");
+		const preferences = await agent.get(action.pathname);
 		expect(preferences.status).toBe(200);
-		expect(parse(preferences.text).querySelector("[data-test-readlist-preferences]")).not.toBeNull();
+		const addPurpose = parse(preferences.text).querySelector('#readlist-smart [data-test-form="smart-convert"]');
+		assert(addPurpose, "the empty state's preferences link must land on the Smart section's add-purpose form");
 	});
 });
 

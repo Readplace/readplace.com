@@ -1,4 +1,4 @@
-import type { UserId } from "../user/user.types";
+import type { UserId } from "../user/user.schema";
 import type { ImportSessionId } from "./import-session.schema";
 
 export interface ImportLinksResult {

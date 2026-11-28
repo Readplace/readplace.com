@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
 	READLIST_LABEL_MAX_LENGTH,
 	type ReadlistSlug,
+	type ReadlistRef,
 } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
@@ -13,7 +14,6 @@ import { render, withInternalTracking } from "@packages/web-shell";
 
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
-import type { Readlist } from "./readlist.nav";
 import type { ReadlistRailViewModel } from "./readlist-rail";
 import { setHomeReadlistPath } from "./readlist-home";
 import { composeReadlistNav } from "./readlist-nav-layout";
@@ -241,7 +241,7 @@ function limitFormsOf(input: {
 
 interface ReadlistNavInput {
 	home?: ReadlistRailViewModel["home"];
-	readlists: readonly Readlist[];
+	readlists: readonly ReadlistRef[];
 	pinnedReadlists: readonly ReadlistSlug[];
 	activeSlug: ReadlistSlug;
 	newReadlistAction: string;
@@ -251,7 +251,7 @@ interface ReadlistNavInput {
 
 function navItem(input: {
 	nav: ReadlistNavInput;
-	readlist: Readlist;
+	readlist: ReadlistRef;
 	placement: ReadlistNavPlacement;
 	pinState: ReadlistPinState;
 	autofocus: boolean;
@@ -302,7 +302,7 @@ export function buildReadlistNav(
 		pinned: input.pinnedReadlists,
 		currentSlug: input.activeSlug,
 	});
-	const pinStateOf = (readlist: Readlist): ReadlistPinState => {
+	const pinStateOf = (readlist: ReadlistRef): ReadlistPinState => {
 		if (layout.mode === "today") return "unpinnable";
 		return input.pinnedReadlists.includes(readlist.slug)
 			? "pinned"

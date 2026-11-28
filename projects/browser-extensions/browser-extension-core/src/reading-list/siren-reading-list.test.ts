@@ -177,15 +177,6 @@ function createRoutingFetch(routes: Record<string, RouteHandler>): {
 	return { fetchFn, calls };
 }
 
-function withEntryPoint(
-	routes: Record<string, RouteHandler>,
-): Record<string, RouteHandler> {
-	const readlistRoute = routes["GET http://localhost:3000/queue"];
-	if (!readlistRoute)
-		throw new Error("withEntryPoint requires a GET /queue route");
-	return { "GET http://localhost:3000/": readlistRoute, ...routes };
-}
-
 function createDeps(
 	fetchFn: ExtensionDeps["fetchFn"],
 	onUnauthorized: ExtensionDeps["onUnauthorized"] = async () => {},
@@ -244,7 +235,7 @@ describe("initSirenReadingList capability negotiation", () => {
 
 	it("falls back to save-article when the server advertises no save-content", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse(),
@@ -253,7 +244,7 @@ describe("initSirenReadingList capability negotiation", () => {
 					status: 201,
 					body: articleResponseFor("/queue/article-1"),
 				},
-			}),
+			},
 		);
 		const list = initSirenReadingList(createAdapterDeps(fetchFn));
 		const result = await list.saveUrl({
@@ -284,7 +275,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		];
 		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
@@ -298,7 +289,7 @@ describe("initSirenReadingList capability negotiation", () => {
 					capturedBody = init?.body instanceof FormData ? init.body : undefined;
 					return { status: 201, body: articleResponseFor("/queue/article-1") };
 				},
-			}),
+			},
 		);
 		const list = initSirenReadingList(createAdapterDeps(fetchFn));
 		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
@@ -333,7 +324,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		];
 		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
@@ -347,7 +338,7 @@ describe("initSirenReadingList capability negotiation", () => {
 					capturedBody = init?.body instanceof FormData ? init.body : undefined;
 					return { status: 201, body: articleResponseFor("/queue/article-1") };
 				},
-			}),
+			},
 		);
 		const list = initSirenReadingList(createAdapterDeps(fetchFn));
 		const result = await list.saveUrl({
@@ -380,7 +371,7 @@ describe("initSirenReadingList capability negotiation", () => {
 			COLLECTION_ACTIONS[1],
 		];
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
@@ -394,7 +385,7 @@ describe("initSirenReadingList capability negotiation", () => {
 					status: 201,
 					body: articleResponseFor("/queue/article-1"),
 				},
-			}),
+			},
 		);
 		const list = initSirenReadingList(createAdapterDeps(fetchFn));
 		const result = await list.saveUrl({
@@ -411,7 +402,7 @@ describe("httpCacheable", () => {
 	it("should add ETag caching to understanding handler fetches", async () => {
 		let filterCallCount = 0;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse(),
@@ -433,7 +424,7 @@ describe("httpCacheable", () => {
 							headers: { etag: '"f1"' },
 						};
 					},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const collection = await start();
@@ -450,7 +441,7 @@ describe("httpCacheable", () => {
 
 	it("should not cache POST requests", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse(),
@@ -474,7 +465,7 @@ describe("httpCacheable", () => {
 						],
 					}),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const collection = await start();
@@ -489,7 +480,7 @@ describe("httpCacheable", () => {
 
 	it("should not cache when response has no ETag", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse(),
@@ -499,7 +490,7 @@ describe("httpCacheable", () => {
 						status: 200,
 						body: collectionResponse(),
 					},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const collection = await start();
@@ -516,12 +507,12 @@ describe("httpCacheable", () => {
 describe("toReadingListItem error handling", () => {
 	it("throws when server response entity has no properties", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([{}]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		await expect(start()).rejects.toThrow(
@@ -531,14 +522,14 @@ describe("toReadingListItem error handling", () => {
 
 	it("degrades an entity missing non-identity fields to a renderable item instead of failing the collection", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
 						{ properties: { id: "1", url: "https://example.com" } },
 					]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -568,12 +559,12 @@ describe("initSirenReadingList", () => {
 	describe("advertised actions", () => {
 		it("reports the collection's advertised action names on every walk", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const reported: string[][] = [];
 			const list = initSirenReadingList({
@@ -591,7 +582,7 @@ describe("initSirenReadingList", () => {
 		it("should discover collection via entry point, then POST to save-article action", async () => {
 			const savedAt = "2026-01-15T10:00:00.000Z";
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -616,7 +607,7 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -629,12 +620,12 @@ describe("initSirenReadingList", () => {
 			expect(item.title).toBe("Article from example.com");
 			expect(item.id).toBe("article-1");
 			expect(item.savedAt).toEqual(new Date(savedAt));
-			expect(calls[0]).toBe("GET http://localhost:3000/");
+			expect(calls[0]).toBe("GET http://localhost:3000/queue");
 		});
 
 		it("includes the read link descriptor when the server returns a read link", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -661,7 +652,7 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -676,13 +667,13 @@ describe("initSirenReadingList", () => {
 
 		it("should throw when server returns an error on save", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					"POST http://localhost:3000/queue": { status: 422 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
@@ -692,7 +683,7 @@ describe("initSirenReadingList", () => {
 
 		it("returns the server's messages when a save is refused", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -701,7 +692,7 @@ describe("initSirenReadingList", () => {
 						status: 403,
 						body: messageRefusalBody(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -719,7 +710,7 @@ describe("initSirenReadingList", () => {
 
 		it("accepts a refusal whose media type it can't render rather than failing", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -735,7 +726,7 @@ describe("initSirenReadingList", () => {
 							},
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			/** The envelope still parses (liberal accept) so the refusal surfaces as
@@ -751,7 +742,7 @@ describe("initSirenReadingList", () => {
 
 		it("returns the server's daily-limit message as escaped HTML when a save is refused with daily_save_limit", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -763,7 +754,7 @@ describe("initSirenReadingList", () => {
 							properties: { code: "daily_save_limit", message: "You've reached today's limit for new saves. <b>Links</b> still open." },
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({ url: "https://example.com/article", title: "Ignored" });
@@ -780,7 +771,7 @@ describe("initSirenReadingList", () => {
 
 		it("still fails generically on a 429 that is not the daily save limit", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -789,7 +780,7 @@ describe("initSirenReadingList", () => {
 						status: 429,
 						body: JSON.stringify({ class: ["error"], properties: { code: "ocr-page-quota", message: "No PDF pages left." } }),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(list.saveUrl({ url: "https://example.com/article", title: "Ignored" })).rejects.toThrow("Save failed: 429");
@@ -797,7 +788,7 @@ describe("initSirenReadingList", () => {
 
 		it("shows the daily-limit message without following the fallback when save-content is refused with daily_save_limit", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -819,7 +810,7 @@ describe("initSirenReadingList", () => {
 							actions: [{ name: "save-article", href: "/queue", method: "POST", type: "application/json", fields: [{ name: "url", type: "url" }] }],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -842,7 +833,7 @@ describe("initSirenReadingList", () => {
 				savedAt: "2026-01-15T10:00:00.000Z",
 			});
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -851,7 +842,7 @@ describe("initSirenReadingList", () => {
 						status: 422,
 						body: collectionResponse([existing]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -879,7 +870,7 @@ describe("initSirenReadingList", () => {
 				actions: COLLECTION_ACTIONS,
 			});
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -888,7 +879,7 @@ describe("initSirenReadingList", () => {
 						status: 422,
 						body: collectionBody,
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -907,7 +898,7 @@ describe("initSirenReadingList", () => {
 
 		it("omits the warning when the collection body has no warning property", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -916,7 +907,7 @@ describe("initSirenReadingList", () => {
 						status: 422,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -941,7 +932,7 @@ describe("initSirenReadingList", () => {
 				actions: COLLECTION_ACTIONS,
 			});
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -950,7 +941,7 @@ describe("initSirenReadingList", () => {
 						status: 422,
 						body: collectionBody,
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.saveUrl({
@@ -966,9 +957,9 @@ describe("initSirenReadingList", () => {
 
 		it("should throw when collection fetch fails during action discovery", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 500 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
@@ -977,17 +968,17 @@ describe("initSirenReadingList", () => {
 		});
 
 		it("renders the queued notice a wrapper save is refused with, without inventing an article card", async () => {
-			const { fetchFn } = createRoutingFetch(withEntryPoint({
+			const { fetchFn } = createRoutingFetch({
 				"GET http://localhost:3000/queue": { status: 200, body: collectionResponse() },
 				"POST http://localhost:3000/queue": { status: 409, body: JSON.stringify({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "Resolving original" } }] } }) },
-			}));
+			});
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			expect(await list.saveUrl({ url: "https://archive.ph/abc", title: "Archive" })).toEqual({ ok: false, messages: [{ type: "warning", content: { type: "text/html", body: "Resolving original" } }] });
 		});
 
 		it("should track a per-item action from a save response for later invocation", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1015,7 +1006,7 @@ describe("initSirenReadingList", () => {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.saveUrl({ url: "https://example.com/a", title: "A" });
@@ -1032,7 +1023,7 @@ describe("initSirenReadingList", () => {
 
 		it("should validate cached ETag on second save", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": (init) => {
 						const ifNoneMatch = new Headers(init?.headers).get(
 							"If-None-Match",
@@ -1063,14 +1054,14 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.saveUrl({ url: "https://example.com/a", title: "A" });
 			await list.saveUrl({ url: "https://example.com/b", title: "B" });
 			expect(
-				calls.filter((c) => c === "GET http://localhost:3000/"),
-			).toHaveLength(1);
+				calls.filter((c) => c === "GET http://localhost:3000/queue"),
+			).toHaveLength(2);
 		});
 	});
 
@@ -1083,7 +1074,7 @@ describe("initSirenReadingList", () => {
 				savedAt: "2026-01-15T11:00:00.000Z",
 			});
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1100,7 +1091,7 @@ describe("initSirenReadingList", () => {
 						status: 200,
 						body: collectionResponse([remaining]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -1119,7 +1110,7 @@ describe("initSirenReadingList", () => {
 
 		it("should fall back to fetching collection when the action is not tracked", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1135,7 +1126,7 @@ describe("initSirenReadingList", () => {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
@@ -1150,7 +1141,7 @@ describe("initSirenReadingList", () => {
 
 		it("should return not-found when server responds with 404", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1165,7 +1156,7 @@ describe("initSirenReadingList", () => {
 					"POST http://localhost:3000/queue/article-1/status": {
 						status: 404,
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
@@ -1177,7 +1168,7 @@ describe("initSirenReadingList", () => {
 
 		it("should propagate server errors other than 404", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1192,7 +1183,7 @@ describe("initSirenReadingList", () => {
 					"POST http://localhost:3000/queue/article-1/status": {
 						status: 500,
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
@@ -1234,7 +1225,7 @@ describe("initSirenReadingList", () => {
 
 		it("returns not-found when the entity advertises no per-item action", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1247,7 +1238,7 @@ describe("initSirenReadingList", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" });
@@ -1256,9 +1247,9 @@ describe("initSirenReadingList", () => {
 
 		it("should throw when fallback collection fetch fails", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 500 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
@@ -1268,7 +1259,7 @@ describe("initSirenReadingList", () => {
 
 		it("returns not-found when the fallback collection has no matching entity", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -1276,7 +1267,7 @@ describe("initSirenReadingList", () => {
 							links: [{ rel: ["self"], href: "/queue" }],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({ id: ReadingListItemIdSchema.parse("article-1"), name: "update-status" });
@@ -1291,7 +1282,7 @@ describe("initSirenReadingList", () => {
 				savedAt: "2026-01-15T11:00:00.000Z",
 			});
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1315,7 +1306,7 @@ describe("initSirenReadingList", () => {
 						status: 200,
 						body: collectionResponse([remaining]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -1341,7 +1332,7 @@ describe("initSirenReadingList", () => {
 				savedAt: "2026-01-15T11:00:00.000Z",
 			});
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1370,7 +1361,7 @@ describe("initSirenReadingList", () => {
 						observedContentType = new Headers(init?.headers).get("Content-Type");
 						return { status: 200, body: collectionResponse([remaining]) };
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -1388,12 +1379,12 @@ describe("initSirenReadingList", () => {
 
 		it("invokeAction returns not-found for an item the server does not advertise", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
@@ -1407,7 +1398,7 @@ describe("initSirenReadingList", () => {
 	describe("findByUrl", () => {
 		it("should use filter action to find by URL", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1425,7 +1416,7 @@ describe("initSirenReadingList", () => {
 								}),
 							]),
 						},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const found = await list.findByUrl("https://example.com/article");
@@ -1435,7 +1426,7 @@ describe("initSirenReadingList", () => {
 
 		it("uses the advertised account-wide lookup for previously saved articles", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([], [...COLLECTION_ACTIONS, {
@@ -1455,7 +1446,7 @@ describe("initSirenReadingList", () => {
 								}),
 							]),
 						},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const found = await list.findByUrl("https://example.com/article");
@@ -1471,7 +1462,7 @@ describe("initSirenReadingList", () => {
 				savedAt: "2026-01-15T10:00:00.000Z",
 			});
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1489,7 +1480,7 @@ describe("initSirenReadingList", () => {
 								},
 							]),
 						},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1500,7 +1491,7 @@ describe("initSirenReadingList", () => {
 
 		it("should need no browser capture when the server describes none", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1517,7 +1508,7 @@ describe("initSirenReadingList", () => {
 								}),
 							]),
 						},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1528,7 +1519,7 @@ describe("initSirenReadingList", () => {
 
 		it("should return null when no entities match", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
@@ -1538,7 +1529,7 @@ describe("initSirenReadingList", () => {
 							status: 200,
 							body: collectionResponse(),
 						},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			expect(
@@ -1548,14 +1539,14 @@ describe("initSirenReadingList", () => {
 
 		it("should throw UnauthorizedError and call onUnauthorized on 401 during findByUrl", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle":
 						{ status: 401 },
-				}),
+				},
 			);
 			let onUnauthorizedCallCount = 0;
 			const list = initSirenReadingList(
@@ -1571,14 +1562,14 @@ describe("initSirenReadingList", () => {
 
 		it("should return null when server returns a non-401 error on filter", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
 					"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle":
 						{ status: 500 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			expect(
@@ -1588,21 +1579,29 @@ describe("initSirenReadingList", () => {
 	});
 
 	describe("getItems", () => {
-		it("follows the advertised home for a neutral list load", async () => {
+		it("lists the \"All\" readlist even when the collection links a home", async () => {
 			const root = JSON.parse(collectionResponse());
 			root.links.push({ rel: ["home"], href: "/my-home" });
-			const { calls, fetchFn } = createRoutingFetch(withEntryPoint({
+			root.properties = {
+				browseReadlists: [
+					{ rel: "readlist", label: "Hand Picked", href: "/queue?scope=hand-picked" },
+					{ rel: "current", label: "All", href: "/queue" },
+				],
+			};
+			const { calls, fetchFn } = createRoutingFetch({
 				"GET http://localhost:3000/queue": { status: 200, body: JSON.stringify(root) },
-				"GET http://localhost:3000/my-home": { status: 200, body: collectionResponse() },
-			}));
+			});
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await list.getItems();
-			expect(calls.at(-1)).toBe("GET http://localhost:3000/my-home");
+
+			const page = await list.getItems();
+
+			expect(page.readlist).toEqual({ label: "All" });
+			expect(calls).toEqual(["GET http://localhost:3000/queue"]);
 		});
 
 		it("should return all items from the collection", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1620,7 +1619,7 @@ describe("initSirenReadingList", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const { items } = await list.getItems();
@@ -1632,12 +1631,12 @@ describe("initSirenReadingList", () => {
 
 		it("should return empty array when collection is empty", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			expect((await list.getItems()).items).toEqual([]);
@@ -1645,9 +1644,9 @@ describe("initSirenReadingList", () => {
 
 		it("should throw when server returns an error", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 500 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(list.getItems()).rejects.toThrow(
@@ -1657,7 +1656,7 @@ describe("initSirenReadingList", () => {
 
 		it("publishes the page list without fetching those pages, and serves one when the reader picks it", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1694,7 +1693,7 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1717,7 +1716,7 @@ describe("initSirenReadingList", () => {
 
 		it("keeps every page the server advertised, in order, however its states repeat", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1732,7 +1731,7 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1749,7 +1748,7 @@ describe("initSirenReadingList", () => {
 
 		it("drops a malformed or unactionable page entry and keeps its siblings", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1771,7 +1770,7 @@ describe("initSirenReadingList", () => {
 							pages: [{ label: "4", rel: "current", href: "/queue?page=4" }],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1787,7 +1786,7 @@ describe("initSirenReadingList", () => {
 
 		it("has no pager for a collection the server advertised no pages for", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([
@@ -1799,7 +1798,7 @@ describe("initSirenReadingList", () => {
 							}),
 						]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1812,7 +1811,7 @@ describe("initSirenReadingList", () => {
 
 		it("keeps the reader on the page they have when loading another one fails", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1832,7 +1831,7 @@ describe("initSirenReadingList", () => {
 						}),
 					},
 					"GET http://localhost:3000/queue?page=2": { status: 500 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1848,7 +1847,7 @@ describe("initSirenReadingList", () => {
 
 		it("surfaces an expired session while loading a page rather than swallowing it", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1861,7 +1860,7 @@ describe("initSirenReadingList", () => {
 						}),
 					},
 					"GET http://localhost:3000/queue?page=2": { status: 401 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -1871,12 +1870,12 @@ describe("initSirenReadingList", () => {
 
 		it("reports a lost page list when it holds none, rather than an empty list", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -1888,7 +1887,7 @@ describe("initSirenReadingList", () => {
 
 		it("fetches one page at most once when asked for it twice at once", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1918,7 +1917,7 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -1973,7 +1972,7 @@ describe("initSirenReadingList", () => {
 				releasePageTwo = resolve;
 			});
 			const { fetchFn: routed } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: pagedCollection({
@@ -1988,7 +1987,7 @@ describe("initSirenReadingList", () => {
 					},
 					"GET http://localhost:3000/queue?page=2": { status: 200, body: pageTwo },
 					"GET http://localhost:3000/queue?page=3": { status: 200, body: pageThree },
-				}),
+				},
 			);
 			const fetchFn: SirenReadingListDeps["fetchFn"] = async (input, init) => {
 				if (requestInfoToUrl(input).includes("page=2")) await pageTwoArrives;
@@ -2059,7 +2058,7 @@ describe("initSirenReadingList", () => {
 				],
 			});
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 200, body: beforeMutation },
 					"POST http://localhost:3000/queue/article-1/status": {
 						status: 200,
@@ -2069,7 +2068,7 @@ describe("initSirenReadingList", () => {
 						status: 200,
 						body: freshSecondPage,
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -2138,7 +2137,7 @@ describe("initSirenReadingList", () => {
 				releaseStalePage = resolve;
 			});
 			const { fetchFn: routed } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 200, body: beforeMutation },
 					"GET http://localhost:3000/queue?page=stale": {
 						status: 200,
@@ -2148,7 +2147,7 @@ describe("initSirenReadingList", () => {
 						status: 200,
 						body: afterMutation,
 					},
-				}),
+				},
 			);
 			const fetchFn: SirenReadingListDeps["fetchFn"] = async (input, init) => {
 				if (requestInfoToUrl(input).includes("page=stale")) await stalePageArrives;
@@ -2196,7 +2195,7 @@ describe("initSirenReadingList", () => {
 			});
 			const sentIfNoneMatch: (string | undefined)[] = [];
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 200, body: firstPageBody },
 					"GET http://localhost:3000/queue?page=2": (init) => {
 						const headers = init?.headers as Record<string, string> | undefined;
@@ -2204,7 +2203,7 @@ describe("initSirenReadingList", () => {
 						if (headers?.["If-None-Match"] === '"page-2"') return { status: 304 };
 						return { status: 200, body: pageTwoBody, headers: { ETag: '"page-2"' } };
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2220,7 +2219,7 @@ describe("initSirenReadingList", () => {
 
 		it("should throw when save-article action is missing from collection", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -2228,7 +2227,7 @@ describe("initSirenReadingList", () => {
 							links: [{ rel: ["self"], href: "/queue" }],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -2241,7 +2240,7 @@ describe("initSirenReadingList", () => {
 
 		it("should throw when search action is missing from collection", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -2250,7 +2249,7 @@ describe("initSirenReadingList", () => {
 							links: [{ rel: ["self"], href: "/queue" }],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
@@ -2277,7 +2276,7 @@ describe("initSirenReadingList", () => {
 
 		it("hands the popup the server's count label and each order's label, relation and order, but no href", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: sortedCollection({
@@ -2287,7 +2286,7 @@ describe("initSirenReadingList", () => {
 							sort: NEWEST_FIRST_SORT,
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2302,7 +2301,7 @@ describe("initSirenReadingList", () => {
 
 		it("drops a malformed or unactionable sort entry and a malformed count, keeping the rest", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: sortedCollection({
@@ -2318,7 +2317,7 @@ describe("initSirenReadingList", () => {
 							],
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2333,12 +2332,12 @@ describe("initSirenReadingList", () => {
 
 		it("reads a collection that carries neither as no count and no sort", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse([newest]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2350,7 +2349,7 @@ describe("initSirenReadingList", () => {
 
 		it("follows the server's href for the other order and adopts its answer, count and sort included", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: sortedCollection({
@@ -2378,7 +2377,7 @@ describe("initSirenReadingList", () => {
 							sort: NEWEST_FIRST_SORT,
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -2393,7 +2392,7 @@ describe("initSirenReadingList", () => {
 			]);
 			expect(newestFirst.items.map((item) => item.id)).toEqual(["article-new", "article-old"]);
 			expect(calls).toEqual([
-				"GET http://localhost:3000/",
+				"GET http://localhost:3000/queue",
 				"GET http://localhost:3000/queue?status=unread&order=asc",
 				"GET http://localhost:3000/queue?status=unread&order=desc",
 			]);
@@ -2401,7 +2400,7 @@ describe("initSirenReadingList", () => {
 
 		it("reports a lost list for a sort when it holds no list, or no entry at that position", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: sortedCollection({
@@ -2411,19 +2410,19 @@ describe("initSirenReadingList", () => {
 							sort: NEWEST_FIRST_SORT,
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
 			expect(await list.loadSort({ index: 1 })).toEqual({ pageList: "lost" });
 			await list.getItems();
 			expect(await list.loadSort({ index: 2 })).toEqual({ pageList: "lost" });
-			expect(calls).toEqual(["GET http://localhost:3000/"]);
+			expect(calls).toEqual(["GET http://localhost:3000/queue"]);
 		});
 
 		it("fetches a page and a sort at the same position, rather than answering one with the other", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: JSON.stringify({
@@ -2461,7 +2460,7 @@ describe("initSirenReadingList", () => {
 							sort: OLDEST_FIRST_SORT,
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
@@ -2491,7 +2490,7 @@ describe("initSirenReadingList", () => {
 				releaseSort = resolve;
 			});
 			const { fetchFn: routed } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: sortedCollection({
@@ -2519,7 +2518,7 @@ describe("initSirenReadingList", () => {
 							sort: NEWEST_FIRST_SORT,
 						}),
 					},
-				}),
+				},
 			);
 			const fetchFn: SirenReadingListDeps["fetchFn"] = async (input, init) => {
 				if (requestInfoToUrl(input).includes("order=asc")) await sortArrives;
@@ -2538,6 +2537,7 @@ describe("initSirenReadingList", () => {
 			const page = collectionPage(await pendingSort);
 
 			expect(invoked.total).toEqual({ label: "1 Saved Article" });
+			expect(invoked.readlist).toBeUndefined();
 			expect(invoked.sort).toEqual([
 				{ label: "Newest first", rel: "current", order: "desc" },
 				{ label: "Oldest first", rel: "sort", order: "asc" },
@@ -2548,7 +2548,7 @@ describe("initSirenReadingList", () => {
 
 		it("hands back the refusal's count and sort with a not-saveable save, which the server sends neither of", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: sortedCollection({
@@ -2562,7 +2562,7 @@ describe("initSirenReadingList", () => {
 						status: 422,
 						body: collectionResponse([newest]),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2570,6 +2570,7 @@ describe("initSirenReadingList", () => {
 
 			assert(!result.ok && "reason" in result && result.reason === "not-saveable", "the save should be refused as not saveable");
 			expect(result.total).toBeUndefined();
+			expect(result.readlist).toBeUndefined();
 			expect(result.sort).toEqual([]);
 		});
 	});
@@ -2602,7 +2603,7 @@ describe("initSirenReadingList", () => {
 		it("discovers the collection, encodes the pages into a multipart body, and returns the bulk summary", async () => {
 			let capturedBody: FormData | undefined;
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionWithSaveArticles(),
@@ -2623,7 +2624,7 @@ describe("initSirenReadingList", () => {
 							}),
 						};
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.savePages({
@@ -2659,12 +2660,12 @@ describe("initSirenReadingList", () => {
 
 		it("asserts when the collection has no save-articles action", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionResponse(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
@@ -2674,12 +2675,12 @@ describe("initSirenReadingList", () => {
 
 		it("returns a zero summary without touching the network when the window is empty", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionWithSaveArticles(),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2727,7 +2728,7 @@ describe("initSirenReadingList", () => {
 		}
 
 		function bulkRoutes(collection: string, onRequest: (body: FormData) => void) {
-			return withEntryPoint({
+			return {
 				"GET http://localhost:3000/queue": { status: 200, body: collection },
 				"POST http://localhost:3000/queue/save-articles": (init?: RequestInit) => {
 					const body = init?.body;
@@ -2748,7 +2749,7 @@ describe("initSirenReadingList", () => {
 						}),
 					};
 				},
-			});
+			};
 		}
 
 		function manifestsOf(requests: FormData[]): unknown[][] {
@@ -2926,7 +2927,7 @@ describe("initSirenReadingList", () => {
 		it("folds a failing request into the failed count and keeps saving the rest", async () => {
 			let call = 0;
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 2 }),
@@ -2942,7 +2943,7 @@ describe("initSirenReadingList", () => {
 							}),
 						};
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -2961,7 +2962,7 @@ describe("initSirenReadingList", () => {
 		it("resolves the partial summary when the session dies mid-run, naming every unsent page", async () => {
 			let call = 0;
 			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 2 }),
@@ -2979,7 +2980,7 @@ describe("initSirenReadingList", () => {
 						}
 						return { status: 401 };
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3009,9 +3010,9 @@ describe("initSirenReadingList", () => {
 
 		it("still rejects a 401 from the entry point, where nothing was attempted", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": { status: 401 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3022,7 +3023,7 @@ describe("initSirenReadingList", () => {
 
 		it("folds a server count shortfall into the failed count and names the chunk's pages", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 20 }),
@@ -3034,7 +3035,7 @@ describe("initSirenReadingList", () => {
 							properties: { saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] },
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3051,10 +3052,10 @@ describe("initSirenReadingList", () => {
 		});
 
 		it("accounts for queued wrappers over multiple chunks without counting them saved or failed", async () => {
-			const { fetchFn } = createRoutingFetch(withEntryPoint({
+			const { fetchFn } = createRoutingFetch({
 				"GET http://localhost:3000/queue": { status: 200, body: collectionAdvertising({ maxItems: 1 }) },
 				"POST http://localhost:3000/queue/save-articles": { status: 200, body: JSON.stringify({ class: ["save-articles-result"], properties: { saved: 1, queued: 1, skipped: 0, failed: 0, tooBig: [], skippedUrls: [], results: [{ url: "https://archive.ph/abc", outcome: "created", code: "queued" }] } }) },
-			}));
+			});
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.savePages({ pages: [{ url: "https://archive.ph/abc" }, { url: "https://archive.ph/def" }] });
 			expect(result).toMatchObject({ saved: 0, queued: 2, failed: 0, pendingRetry: 0, failedUrls: [] });
@@ -3062,7 +3063,7 @@ describe("initSirenReadingList", () => {
 
 		it("counts pages the server reports as merged in alreadySaved", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 20 }),
@@ -3084,7 +3085,7 @@ describe("initSirenReadingList", () => {
 							},
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3099,7 +3100,7 @@ describe("initSirenReadingList", () => {
 
 		it("names the pages the server itself reports as failed", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 20 }),
@@ -3121,7 +3122,7 @@ describe("initSirenReadingList", () => {
 							},
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3135,7 +3136,7 @@ describe("initSirenReadingList", () => {
 
 		it("names only the unaccounted pages when a shortfall arrives alongside per-entry results", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 20 }),
@@ -3154,7 +3155,7 @@ describe("initSirenReadingList", () => {
 							},
 						}),
 					},
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3168,13 +3169,13 @@ describe("initSirenReadingList", () => {
 
 		it("rejects a 401 on the first save request, where nothing was attempted", async () => {
 			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
+				{
 					"GET http://localhost:3000/queue": {
 						status: 200,
 						body: collectionAdvertising({ maxItems: 2 }),
 					},
 					"POST http://localhost:3000/queue/save-articles": { status: 401 },
-				}),
+				},
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
@@ -3281,7 +3282,7 @@ describe("initSirenReadingList", () => {
 		}
 
 		function routes(collection: string) {
-			return withEntryPoint({
+			return {
 				"GET http://localhost:3000/queue": { status: 200, body: collection },
 				"POST http://localhost:3000/queue/save-content": {
 					status: 201,
@@ -3291,7 +3292,7 @@ describe("initSirenReadingList", () => {
 					status: 201,
 					body: savedArticleResponse(),
 				},
-			});
+			};
 		}
 
 		it("uploads a capture that fits the advertised ceiling", async () => {
@@ -3407,7 +3408,7 @@ describe("initSirenReadingList", () => {
 
 		function slotRoutes(overrides: { put?: Route; completion?: Route; slot?: Route } = {}) {
 			const captured: { putInit?: RequestInit; slotInit?: RequestInit; completionInit?: RequestInit } = {};
-			const routes = withEntryPoint({
+			const routes: Record<string, RouteHandler> = {
 				"GET http://localhost:3000/queue": { status: 200, body: collectionAdvertisingSlot() },
 				"POST http://localhost:3000/queue/save-content": (init) => {
 					const body = init?.body;
@@ -3423,7 +3424,7 @@ describe("initSirenReadingList", () => {
 					return overrides.put ?? { status: 200 };
 				},
 				"POST http://localhost:3000/queue": { status: 201, body: savedArticleResponse() },
-			});
+			};
 			return { routes, captured };
 		}
 
@@ -3440,7 +3441,7 @@ describe("initSirenReadingList", () => {
 
 			assert.equal(result.ok, true);
 			expect(calls).toEqual([
-				"GET http://localhost:3000/",
+				"GET http://localhost:3000/queue",
 				"POST http://localhost:3000/queue/save-content",
 				`PUT ${UPLOAD_URL}`,
 				"POST http://localhost:3000/queue/save-content",
@@ -3542,7 +3543,7 @@ describe("initSirenReadingList", () => {
 	describe("authHeaders error handling", () => {
 		it("throws when access token is null", async () => {
 			const { fetchFn } = createRoutingFetch({
-				"GET http://localhost:3000/": {
+				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse(),
 				},
@@ -3567,7 +3568,7 @@ describe("initSirenReadingList", () => {
 describe("hypermedia conformance", () => {
 	it("renders an unsupported-media-type failure instead of blind-decoding a non-Siren response", async () => {
 		const { fetchFn } = createRoutingFetch({
-			"GET http://localhost:3000/": {
+			"GET http://localhost:3000/queue": {
 				status: 200,
 				body: "<html>a proxy login page</html>",
 				headers: { "Content-Type": "text/html" },
@@ -3586,7 +3587,7 @@ describe("hypermedia conformance", () => {
 
 	it("treats a non-http(s) read href as no read URL (unactionable scheme)", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
@@ -3599,7 +3600,7 @@ describe("hypermedia conformance", () => {
 						}),
 					]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -3608,7 +3609,7 @@ describe("hypermedia conformance", () => {
 
 	it("uses an absolute read href verbatim rather than concatenating it onto the base", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
@@ -3621,7 +3622,7 @@ describe("hypermedia conformance", () => {
 						}),
 					]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -3632,12 +3633,12 @@ describe("hypermedia conformance", () => {
 
 	it("degrades an entity whose properties omit url, title and savedAt", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([{ properties: { id: "stub" } }]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -3649,7 +3650,7 @@ describe("hypermedia conformance", () => {
 
 	it("serializes no action descriptors for an entity with no actions", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
@@ -3662,7 +3663,7 @@ describe("hypermedia conformance", () => {
 						}),
 					]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -3671,7 +3672,7 @@ describe("hypermedia conformance", () => {
 
 	it("serializes each advertised action as a {name, title} descriptor on the item", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
@@ -3692,7 +3693,7 @@ describe("hypermedia conformance", () => {
 						}),
 					]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -3704,7 +3705,7 @@ describe("hypermedia conformance", () => {
 
 	it("drops a malformed (hrefless) entity action but keeps the valid ones", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
@@ -3720,7 +3721,7 @@ describe("hypermedia conformance", () => {
 						}),
 					]),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
@@ -3767,7 +3768,6 @@ describe("hypermedia conformance", () => {
 			actions: COLLECTION_ACTIONS,
 		});
 		const { fetchFn, calls } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: page1 },
 			"GET http://localhost:3000/queue": { status: 200, body: page1 },
 			"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
 		});
@@ -3802,7 +3802,6 @@ describe("hypermedia conformance", () => {
 			actions: COLLECTION_ACTIONS,
 		});
 		const { fetchFn } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: page1 },
 			"GET http://localhost:3000/queue": { status: 200, body: page1 },
 			"GET http://localhost:3000/queue?page=2": { status: 500 },
 		});
@@ -3835,7 +3834,6 @@ describe("hypermedia conformance", () => {
 			actions: COLLECTION_ACTIONS,
 		});
 		const { fetchFn, calls } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: collectionResponse() },
 			"GET http://localhost:3000/queue": { status: 200, body: collectionResponse() },
 			"GET http://localhost:3000/queue?url=x": { status: 200, body: searchPage },
 		});
@@ -3856,7 +3854,6 @@ describe("hypermedia conformance", () => {
 
 	it("answers an empty search when the server refuses it", async () => {
 		const { fetchFn } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: collectionResponse() },
 			"GET http://localhost:3000/queue": { status: 200, body: collectionResponse() },
 			"GET http://localhost:3000/queue?url=x": { status: 500 },
 		});
@@ -3876,7 +3873,7 @@ describe("hypermedia conformance", () => {
 			{ name: "search", href: "/queue", method: "GET" },
 		];
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
@@ -3886,7 +3883,7 @@ describe("hypermedia conformance", () => {
 						actions: fieldlessSearch,
 					}),
 				},
-			}),
+			},
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const collection = await start();
@@ -3966,7 +3963,7 @@ describe("initSirenReadingList deferred content upload", () => {
 	it("posts the captured bytes as a multipart part, never a base64 field", async () => {
 		let uploaded: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(INLINE_FIELDS),
@@ -3975,7 +3972,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					uploaded = init?.body instanceof FormData ? init.body : undefined;
 					return { status: 201 };
 				},
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -3987,7 +3984,7 @@ describe("initSirenReadingList deferred content upload", () => {
 		});
 
 		expect(result).toEqual({ ok: true });
-		expect(calls[0]).toBe("GET http://localhost:3000/");
+		expect(calls[0]).toBe("GET http://localhost:3000/queue");
 		assert(uploaded, "save-content must carry a multipart body");
 		expect(uploaded.get("url")).toBe("https://example.com/a");
 		expect(uploaded.get("mediaType")).toBe("text/html");
@@ -4001,7 +3998,7 @@ describe("initSirenReadingList deferred content upload", () => {
 	it("labels an automatic capture on the inline form and a tap capture manual", async () => {
 		const uploaded: FormData[] = [];
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(INLINE_FIELDS),
@@ -4011,7 +4008,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					uploaded.push(init.body);
 					return { status: 201 };
 				},
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4032,7 +4029,7 @@ describe("initSirenReadingList deferred content upload", () => {
 	it("labels the slot completion request with the trigger and leaves the slot request unlabelled", async () => {
 		const forms: { slot?: FormData; completion?: FormData } = {};
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(SLOT_FIELDS),
@@ -4048,7 +4045,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					return { status: 200, body: uploadSlotResponse() };
 				},
 				[`PUT ${SLOT_UPLOAD_URL}`]: { status: 200 },
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4067,7 +4064,7 @@ describe("initSirenReadingList deferred content upload", () => {
 	it("omits the title part when the tab had none", async () => {
 		let uploaded: FormData | undefined;
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(INLINE_FIELDS),
@@ -4076,7 +4073,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					uploaded = init?.body instanceof FormData ? init.body : undefined;
 					return { status: 201 };
 				},
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4092,7 +4089,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("uploads whatever it captured when the server advertises no ceiling", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising([
@@ -4101,7 +4098,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					]),
 				},
 				"POST http://localhost:3000/queue/save-content": { status: 201 },
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4118,7 +4115,7 @@ describe("initSirenReadingList deferred content upload", () => {
 	it("takes the presigned slot when the capture is over the advertised ceiling", async () => {
 		const captured: { putInit?: RequestInit } = {};
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(SLOT_FIELDS),
@@ -4132,7 +4129,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					captured.putInit = init;
 					return { status: 200 };
 				},
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4144,7 +4141,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 		expect(result).toEqual({ ok: true });
 		expect(calls).toEqual([
-			"GET http://localhost:3000/",
+			"GET http://localhost:3000/queue",
 			"POST http://localhost:3000/queue/save-content",
 			`PUT ${SLOT_UPLOAD_URL}`,
 			"POST http://localhost:3000/queue/save-content",
@@ -4154,13 +4151,13 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("reports a refused slot request as rejected rather than degrading to a URL-only save", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(SLOT_FIELDS),
 				},
 				"POST http://localhost:3000/queue/save-content": { status: 422, body: "too big" },
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4176,7 +4173,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("reports a failed presigned PUT as retryable", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(SLOT_FIELDS),
@@ -4186,7 +4183,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					body: uploadSlotResponse(),
 				},
 				[`PUT ${SLOT_UPLOAD_URL}`]: { status: 503 },
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4201,7 +4198,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("names the leg that ended a failed exchange and carries the store's own explanation", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(SLOT_FIELDS),
@@ -4215,7 +4212,7 @@ describe("initSirenReadingList deferred content upload", () => {
 					body: "<Error><Code>SlowDown</Code></Error>",
 					headers: { "Content-Type": "application/xml" },
 				},
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4230,9 +4227,9 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("reports unsupported when the server advertises no save-content action", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": { status: 200, body: collectionAdvertising() },
-			}),
+			},
 		);
 		const warnings: string[] = [];
 		const { uploadContent } = initSirenReadingList(
@@ -4253,12 +4250,12 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("reports unsupported when the capture is over the ceiling and no slot is advertised", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(INLINE_FIELDS),
 				},
-			}),
+			},
 		);
 		const warnings: string[] = [];
 		const { uploadContent } = initSirenReadingList(
@@ -4279,13 +4276,13 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("reports a 4xx refusal as rejected", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(INLINE_FIELDS),
 				},
 				"POST http://localhost:3000/queue/save-content": { status: 415, body: "nope" },
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4300,13 +4297,13 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("throws on a server-side failure so the caller can back off", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionAdvertising(INLINE_FIELDS),
 				},
 				"POST http://localhost:3000/queue/save-content": { status: 500 },
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4321,7 +4318,7 @@ describe("initSirenReadingList deferred content upload", () => {
 
 	it("asserts when the advertised save-content href is not actionable", async () => {
 		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: JSON.stringify({
@@ -4339,7 +4336,7 @@ describe("initSirenReadingList deferred content upload", () => {
 						],
 					}),
 				},
-			}),
+			},
 		);
 		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
 
@@ -4375,7 +4372,7 @@ describe("initSirenReadingList request budget", () => {
 
 	it("spends one entry-point walk and the save itself, and never reads the readlist", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: collectionResponse([
@@ -4398,7 +4395,7 @@ describe("initSirenReadingList request budget", () => {
 						}),
 					),
 				},
-			}),
+			},
 		);
 		const { saveUrl } = initSirenReadingList(budgetDeps(fetchFn));
 
@@ -4406,14 +4403,14 @@ describe("initSirenReadingList request budget", () => {
 
 		expect(result.ok).toBe(true);
 		expect(calls).toEqual([
-			"GET http://localhost:3000/",
+			"GET http://localhost:3000/queue",
 			"POST http://localhost:3000/queue",
 		]);
 	});
 
 	it("reads one page to show the list, and one more only when asked for another", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
+			{
 				"GET http://localhost:3000/queue": {
 					status: 200,
 					body: pagedCollection({
@@ -4443,18 +4440,18 @@ describe("initSirenReadingList request budget", () => {
 						}),
 					]),
 				},
-			}),
+			},
 		);
 		const { getItems, loadPage } = initSirenReadingList(budgetDeps(fetchFn));
 
 		const first = await getItems();
 		expect(first.items).toHaveLength(1);
-		expect(calls).toEqual(["GET http://localhost:3000/"]);
+		expect(calls).toEqual(["GET http://localhost:3000/queue"]);
 
 		const second = collectionPage(await loadPage({ index: 1 }));
 		expect(second.items).toHaveLength(1);
 		expect(calls).toEqual([
-			"GET http://localhost:3000/",
+			"GET http://localhost:3000/queue",
 			"GET http://localhost:3000/queue?page=2",
 		]);
 	});

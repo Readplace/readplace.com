@@ -14,9 +14,12 @@ import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { findRosterAssistant } from "../../shared/assistant-roster";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../shared/client-surface-phrases";
 import { buildConnectedAppDisconnectUrl } from "./account.url";
-import { DEFAULT_LOCALE } from "@packages/translations/locale";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchAccount } from "@packages/translations/hutch-account";
 
 const ACCOUNT_SOURCE = "account";
+
+const { t, tPlural } = translator(hutchAccount, DEFAULT_LOCALE);
 
 export type ConnectedAppLogo = ClientName | "plug";
 
@@ -58,11 +61,14 @@ export interface ConnectedAppDialog {
 	body: string;
 }
 
-export interface ConnectedAppsSectionViewModel {
-	state: "listed" | "empty";
-	rows: ConnectedAppRow[];
-	dialogs: ConnectedAppDialog[];
+export interface ConnectedAppsSummary {
+	title: string;
+	description: string;
 }
+
+export type ConnectedAppsSectionViewModel =
+	| { state: "listed"; summary: ConnectedAppsSummary; rows: ConnectedAppRow[]; dialogs: ConnectedAppDialog[] }
+	| { state: "empty"; rows: ConnectedAppRow[]; dialogs: ConnectedAppDialog[] };
 
 const BUILT_IN_APP_COPY = {
 	firefox: { title: "Firefox extension", description: "Save any page to Readplace with one click." },
@@ -250,5 +256,11 @@ export function buildConnectedAppsSection(input: {
 		};
 		return { row, dialog };
 	});
-	return { state: "listed", rows: listed.map((entry) => entry.row), dialogs: listed.map((entry) => entry.dialog) };
+	return {
+		state: "listed",
+		summary: {
+			title: tPlural("connectedApps.summary.title", { count: listed.length }),
+			description: t("connectedApps.summary.description"),
+		},
+		rows: listed.map((entry) => entry.row), dialogs: listed.map((entry) => entry.dialog) };
 }

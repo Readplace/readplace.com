@@ -18,6 +18,7 @@ const InsertedRow = z.object({
 			savedAt: z.object({ S: z.iso.datetime() }),
 			highlightOf: z.undefined().optional(),
 			restoredAt: z.undefined().optional(),
+			provenance: z.object({ M: z.looseObject({ kind: z.object({ S: z.string() }) }) }).optional(),
 		}),
 	}),
 });
@@ -28,6 +29,7 @@ function newSaveInAll(record: DynamoDBRecord) {
 	const image = parsed.data.dynamodb.NewImage;
 	if (image.userId.S.includes("#")) return undefined;
 	if (image.url.S.startsWith(DEFINITION_ROW_PREFIX)) return undefined;
+	if (image.provenance?.M.kind.S === "email") return undefined;
 	return {
 		sequenceNumber: parsed.data.dynamodb.SequenceNumber,
 		userId: UserIdSchema.parse(image.userId.S),

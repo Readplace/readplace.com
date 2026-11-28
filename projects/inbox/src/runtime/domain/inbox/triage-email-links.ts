@@ -84,30 +84,6 @@ export function initTriageEmailLinks(deps: {
 						}),
 					},
 				],
-				output_config: {
-					format: {
-						type: "json_schema",
-						schema: {
-							type: "object",
-							properties: {
-								links: {
-									type: "array",
-									items: {
-										type: "object",
-										properties: {
-											ordinal: { type: "string" },
-											category: { type: "string", enum: [...EMAIL_LINK_TRIAGE_CATEGORIES] },
-										},
-										required: ["ordinal", "category"],
-										additionalProperties: false,
-									},
-								},
-							},
-							required: ["links"],
-							additionalProperties: false,
-						},
-					},
-				},
 		});
 		const answer = parseModelJson(TriagePayload, response);
 		if (answer.kind === "no-text") {

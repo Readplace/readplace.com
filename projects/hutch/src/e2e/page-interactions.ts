@@ -108,7 +108,7 @@ export async function deleteArticleWithConfirmation(page: Page, trigger: Locator
 	// an unactionable trigger would hang to the whole test's budget.
 	await trigger.click({ timeout: 15000 })
 	await expect(confirm).toBeVisible()
-	await expect(confirm).toBeFocused()
+	await expect(page.locator(`[id="${popoverId}"] [data-test-action="delete-cancel"]`)).toBeFocused()
 	await clickAndWaitForPageReload(page, confirm)
 	await expect(page.locator(`[id="${popoverId}"]`)).toHaveCount(0, { timeout: 15000 })
 }

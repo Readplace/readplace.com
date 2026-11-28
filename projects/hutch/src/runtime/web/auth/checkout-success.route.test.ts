@@ -217,7 +217,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
+		expect(successResponse.headers.location).toBe("/queue?scope=home");
 
 		const lookup = await auth.findUserByEmail("buyer@example.com");
 		assert(lookup, "expected the pre-existing user to remain after checkout");
@@ -372,7 +372,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
+		expect(successResponse.headers.location).toBe("/queue?scope=home");
 		const lookup = await auth.findUserByEmail("schedule-delete-down@example.com");
 		assert(lookup, "user must exist after paid signup");
 		const row = await subscriptionProviders.findByUserId(lookup.userId);
@@ -401,7 +401,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
+		expect(successResponse.headers.location).toBe("/queue?scope=home");
 		expect(harness.subscriptionEvents.events[0].event).toBe("checkout_completed");
 	});
 
@@ -528,7 +528,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
+		expect(successResponse.headers.location).toBe("/queue?scope=home");
 		const lookup = await auth.findUserByEmail("plan-monthly@example.com");
 		assert(lookup, "user must exist after paid checkout");
 		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
@@ -550,7 +550,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
+		expect(successResponse.headers.location).toBe("/queue?scope=home");
 		const lookup = await auth.findUserByEmail("plan-grandfathered@example.com");
 		assert(lookup, "user must exist after paid checkout");
 		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
@@ -651,7 +651,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(successResponse.headers.location).toBe("/queue?scope=hand-picked");
+		expect(successResponse.headers.location).toBe("/queue?scope=home");
 		const lookup = await auth.findUserByEmail("schedule-down@example.com");
 		assert(lookup, "user must exist after paid signup");
 		const row = await subscriptionProviders.findByUserId(lookup.userId);

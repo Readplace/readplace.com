@@ -57,7 +57,7 @@ describe("initLocalHighlights", () => {
 		const outcome = store.add({ url: ARTICLE_URL, text: ARTICLE_TEXT, ...rangeOf("A second sentence") });
 
 		assert.equal(outcome.status, "kept");
-		assert.deepEqual(store.list(ARTICLE_URL), [
+		assert.deepEqual(store.all(), [
 			{
 				id: "local-1",
 				url: ARTICLE_URL,

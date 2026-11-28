@@ -415,7 +415,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
-		crawlArticle,
 		siteRules,
 		readabilityAdditions,
 		logError,		coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
@@ -759,7 +758,6 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		recordNativeAppAnyActivity: onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: onboardingSignals.recordNativeAppSavedArticle,
 		recordSmartReadlistMinimumReached: onboardingSignals.recordSmartReadlistMinimumReached,
-		recordSmartReadlistStepDismissed: onboardingSignals.recordSmartReadlistStepDismissed,
 		recordNextReadMinimumReached: onboardingSignals.recordNextReadMinimumReached,
 		recordEmailStepMarkedDone: onboardingSignals.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: onboardingSignals.recordGmailStepDismissed,

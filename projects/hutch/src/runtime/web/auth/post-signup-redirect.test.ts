@@ -12,7 +12,7 @@ describe("resolvePostSignupRedirect", () => {
 
 	it("falls back to /queue when there is neither a returnUrl nor a lastViewUrl", () => {
 		expect(resolvePostSignupRedirect({ returnUrl: undefined, lastViewUrl: undefined })).toEqual({
-			location: "/queue?scope=hand-picked",
+			location: "/queue?scope=home",
 		});
 	});
 
@@ -36,7 +36,7 @@ describe("resolvePostSignupRedirect", () => {
 		["a loopback address", "http://localhost"],
 	])("ignores %s lastViewUrl and falls back to /queue without an autosave url", (_label, tampered) => {
 		expect(resolvePostSignupRedirect({ returnUrl: undefined, lastViewUrl: tampered })).toEqual({
-			location: "/queue?scope=hand-picked",
+			location: "/queue?scope=home",
 		});
 	});
 });

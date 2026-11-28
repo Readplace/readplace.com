@@ -98,7 +98,7 @@ describe("renderReadlistPurpose", () => {
 
 	it("points the inline form's Cancel at the tab the edit came from", () => {
 		const inline = renderReadlistPurposeWizard({
-			readlist: { slug: WORK, purpose: "Shipping essays." },
+			readlist: { slug: WORK },
 			values: { purpose: "Shipping essays." },
 			from: "done",
 		}).inlineHtml;

@@ -1,8 +1,7 @@
 import {
-	assertExcludedUserIds,
-	assertExcludedVisitorIds,
 	excludeNonAudienceClauses,
 	parseExcludedIdentities,
+	validateExcludedIdentities,
 } from "./excluded-identities";
 
 const VALID_VISITOR_ID = "293b32c4-898e-485d-8a92-3f2f32f53289";
@@ -18,10 +17,10 @@ const NONE = {
 	excludedUserIds: [],
 };
 
-describe("assertExcludedVisitorIds", () => {
-	it("accepts an empty list and lowercase UUID entries", () => {
-		expect(() => assertExcludedVisitorIds([])).not.toThrow();
-		expect(() => assertExcludedVisitorIds([VALID_VISITOR_ID])).not.toThrow();
+describe("validateExcludedIdentities", () => {
+	it("accepts empty lists, lowercase UUID visitor ids and 32-character lowercase hex user ids", () => {
+		expect(validateExcludedIdentities(NONE)).toEqual(NONE);
+		expect(validateExcludedIdentities(BOTH)).toEqual(BOTH);
 	});
 
 	it.each([
@@ -30,15 +29,10 @@ describe("assertExcludedVisitorIds", () => {
 		{ name: "a truncated UUID", value: VALID_VISITOR_ID.slice(0, -1) },
 		{ name: "a UUID with a trailing character", value: `${VALID_VISITOR_ID}0` },
 		{ name: "an empty string", value: "" },
-	])("rejects $name", ({ value }) => {
-		expect(() => assertExcludedVisitorIds([value])).toThrow("excludedVisitorIds");
-	});
-});
-
-describe("assertExcludedUserIds", () => {
-	it("accepts an empty list and 32-character lowercase hex entries", () => {
-		expect(() => assertExcludedUserIds([])).not.toThrow();
-		expect(() => assertExcludedUserIds([VALID_USER_ID])).not.toThrow();
+	])("rejects a visitor id that is $name", ({ value }) => {
+		expect(() => validateExcludedIdentities({ excludedVisitorIds: [value], excludedUserIds: [] })).toThrow(
+			"excludedVisitorIds",
+		);
 	});
 
 	it.each([
@@ -48,8 +42,10 @@ describe("assertExcludedUserIds", () => {
 		{ name: "a user id with a trailing character", value: `${VALID_USER_ID}0` },
 		{ name: "non-hex characters", value: `${VALID_USER_ID.slice(0, -1)}z` },
 		{ name: "an empty string", value: "" },
-	])("rejects $name", ({ value }) => {
-		expect(() => assertExcludedUserIds([value])).toThrow("excludedUserIds");
+	])("rejects a user id that is $name", ({ value }) => {
+		expect(() => validateExcludedIdentities({ excludedVisitorIds: [], excludedUserIds: [value] })).toThrow(
+			"excludedUserIds",
+		);
 	});
 });
 

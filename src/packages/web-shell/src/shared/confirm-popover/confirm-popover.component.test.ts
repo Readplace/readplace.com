@@ -222,6 +222,15 @@ describe("renderConfirmPopover", () => {
 			"thing-confirm-42-subheading thing-confirm-42-body",
 		);
 		expect(CONFIRM_POPOVER_STYLES).toContain(`.${subheading.className} {`);
+		expect(subheading.hasAttribute("data-text-from")).toBe(false);
+	});
+
+	it("names the element a subheading mirrors, so a poll that renames it can keep the panel in step", () => {
+		const doc = renderPanel({ subheading: "example.com", subheadingFrom: "reader-article-title" });
+
+		const subheading = doc.querySelector(".confirm-popover__subheading");
+		assert(subheading, "the subheading must be rendered");
+		expect(subheading.getAttribute("data-text-from")).toBe("reader-article-title");
 	});
 
 	it("renders no subheading when the title asks the question itself", () => {

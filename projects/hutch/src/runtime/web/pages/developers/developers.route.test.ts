@@ -543,7 +543,7 @@ describe("/developers copy", () => {
 			"article-original":
 				"An article whose source is public also carries an original link of type text/html, with no title: the page it came from, to open in a browser without the token. An uploaded file or other private item has none, even though its url is set. An upload Readplace couldn't use carries an untitled upload-again link of type text/html to the signed-in upload page, until the next version of the article drops it. Show each only while it's present.",
 			"hand-picked":
-				"Every article a reader saves themselves joins Hand Picked, including each page sent through save-articles. Imports and newsletter links stay in “All” only. The home link opens Hand Picked, and properties.browseReadlists lists it first, then “All” and each named readlist. The add-to-hand-picked and remove-from-hand-picked actions are gone: a reader adds an older article with “Add to readlist” on the web and removes one from the Hand Picked readlist there.",
+				"Every article a reader saves themselves joins Hand Picked, including each page sent through save-articles. Imports and newsletter links stay in “All” only. The home link opens Hand Picked, or the readlist the reader chose as home when the request sends X-Readplace-Home-Readlist: 1. properties.browseReadlists lists Hand Picked first, then “All” and each named readlist. The add-to-hand-picked and remove-from-hand-picked actions are gone: a reader adds an older article with “Add to readlist” on the web and removes one from the Hand Picked readlist there.",
 			storefront:
 				"A client installed from an app store may send its storefront's three-letter code in an X-Readplace-Storefront header, or in a readplace_storefront cookie from a web view. For China mainland (CHN), responses leave out text a model wrote: summaries, Next read and Already read.",
 			"markdown-layout":
@@ -578,7 +578,9 @@ describe("/developers copy", () => {
 				"Each action also states its limits in its fields, as maxItems, maxBytes and maxRequestBytes, Readplace's own additions to Siren's fields. Read them from the answer rather than hard-coding these numbers.",
 			"find-articles":
 				"find-articles searches and filters the readlist and tab you're on. Send every hidden field with its value, and fill in these:",
-			vary: "A collection, and the 303 that moves an older collection href to its current form, answer Vary: Accept, Authorization, User-Agent, X-Readplace-Client, X-Readplace-Save-Continuity. Key any copy you keep on the token and the Accept header too, so one reader's collection is never served for another's token.",
+			"home-readlist":
+				"Send X-Readplace-Home-Readlist: 1 on every request to follow the reader's chosen home through the home link. The set-home-readlist action is for Readplace's own apps, so integrators skip it.",
+			vary: "A collection, and the 303 that moves an older collection href to its current form, answer Vary: Accept, Authorization, User-Agent, X-Readplace-Client, X-Readplace-Save-Continuity, X-Readplace-Home-Readlist. Key any copy you keep on the token and the Accept header too, so one reader's collection is never served for another's token.",
 			delete:
 				"Deleting an article stays in the Readplace app. The API advertises no delete action, and remove-from-readlist takes nothing out of All.",
 			"walkthrough-entry": "Request / with the token and the Siren media type. It answers with the collection.",

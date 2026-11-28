@@ -22,7 +22,6 @@ export interface SummarySlotInput {
 	crawl?: ArticleCrawl;
 	summary: GeneratedSummary | undefined;
 	summaryPollUrl?: string;
-	summaryOpen?: boolean;
 	/* Tracking URL forwarded to the ready summary's `<details>` so the
 	 * summary-toggle beacon can bind. Present only on the internal reader. */
 	summaryToggleUrl?: string;
@@ -60,7 +59,6 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 			return renderSummaryReady({
 				summary: summary.summary,
 				excerpt: summary.excerpt,
-				open: input.summaryOpen === true,
 				summaryToggleUrl: input.summaryToggleUrl,
 				oob,
 			});

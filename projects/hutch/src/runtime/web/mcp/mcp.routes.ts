@@ -20,7 +20,7 @@ import {
 	SAVE_REFUSAL_CODES,
 } from "@packages/web-analytics";
 import type { McpServer } from "./mcp-server";
-import { MCP_PROTOCOL_VERSION, MCP_RESOURCE_METADATA_PATH } from "./protocol";
+import { MCP_PROTOCOL_VERSION, MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./protocol";
 
 interface McpRoutesDeps {
 	validateAccessToken: ValidateAccessToken;
@@ -165,7 +165,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 							{ now: deps.now, salt: deps.salt },
 							{
 								req,
-								path: "/mcp",
+								path: MCP_RESOURCE_PATH,
 								status: 200,
 								code: SAVE_REFUSAL_CODES.dailySaveLimit,
 								client: SAVE_CLIENTS.mcp,

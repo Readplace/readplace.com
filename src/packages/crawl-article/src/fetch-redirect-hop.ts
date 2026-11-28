@@ -1,8 +1,7 @@
 import assert from "node:assert";
 import { defaultResolveAll, type IsBlockedAddress, type ResolveAll } from "./blocked-address-lookup";
+import { ALLOWED_PROTOCOLS } from "./follow-redirects";
 import { createGuardedDispatcher } from "./guarded-dispatcher";
-
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 
 export type FetchRedirectHop = (
 	url: string,

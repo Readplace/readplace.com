@@ -405,7 +405,14 @@ describe("atomic starter insertion", () => {
 		const transaction = z
 			.object({ TransactItems: z.array(z.record(z.string(), z.unknown())) })
 			.parse(app.commands[0]?.input);
-		expect(transaction.TransactItems).toHaveLength(23);
+		expect(transaction.TransactItems).toHaveLength(24);
+		expect(transaction.TransactItems).toContainEqual({
+			Update: expect.objectContaining({
+				TableName: "library",
+				Key: { userId, url: "readplace:queue-revision" },
+				UpdateExpression: "SET #revision = if_not_exists(#revision, :zero) + :one",
+			}),
+		});
 		const tables = transaction.TransactItems.map(
 			(item) => z.object({ TableName: z.string() }).parse(Object.values(item)[0]).TableName,
 		);

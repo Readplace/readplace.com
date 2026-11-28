@@ -1,4 +1,4 @@
-import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
+import { HAND_PICKED, HAND_PICKED_SCOPE, withHandPicked, withHandPickedHolding } from "./built-in-readlists";
 import {
 	ABSENT_ENCLOSURE,
 	type CrawlRemainingEstimate,
@@ -249,7 +249,7 @@ function toStatusActions(
 
 interface ArticleFiling {
 	readlists: readonly ReadlistRef[];
-	saves: readonly { readlist?: ReadlistSlug }[] | undefined;
+	saves: readonly { readlist?: ReadlistSlug; picked?: true }[] | undefined;
 }
 
 function articleMoveOf(input: {
@@ -257,21 +257,22 @@ function articleMoveOf(input: {
 	from: ReadlistSlug;
 	returnQuery: string;
 	filing: ArticleFiling;
-	handPicked: boolean;
+	personallyPicked: boolean;
 }): ArticleMoveViewModel | undefined {
 	const { filing } = input;
+	const saves = filing.saves ?? [];
+	const picked = input.personallyPicked || saves.some((save) => save.picked === true);
 	const custom = filing.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const holders = new Set(
-		readlistsHoldingArticle({ saves: filing.saves ?? [], readlists: filing.readlists }).map(
-			(readlist) => readlist.slug,
-		),
+		readlistsHoldingArticle({
+			saves: withHandPickedHolding(saves, picked),
+			readlists: withHandPicked(filing.readlists),
+		}).map((readlist) => readlist.slug),
 	);
-	const destinations = [
-		...(input.handPicked ? [{ slug: HAND_PICKED.slug, label: HAND_PICKED.label }] : []),
-		...custom
-			.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
-			.map((readlist) => ({ slug: readlist.slug, label: readlist.label, smart: readlist.smart })),
-	];
+	const candidates: readonly ReadlistRef[] = [HAND_PICKED, ...custom];
+	const destinations = candidates
+		.filter((readlist) => readlist.slug !== input.from && !holders.has(readlist.slug))
+		.map((readlist) => ({ slug: readlist.slug, label: readlist.label, smart: readlist.smart }));
 	const create =
 		custom.length < READLIST_MAX_PER_USER ? { popoverId: moveCreatePopoverId(input.articleId) } : undefined;
 	const popoverId = moveDialogPopoverId(input.articleId);
@@ -287,20 +288,6 @@ function articleMoveOf(input: {
 		...(create === undefined ? {} : { create }),
 		opens,
 	};
-}
-
-interface ArticleMoveInput {
-	articleId: string;
-	from: ReadlistSlug;
-	returnQuery: string;
-	filing: ArticleFiling | undefined;
-	handPicked: boolean;
-}
-
-function toArticleMove(input: ArticleMoveInput): ArticleMoveViewModel | undefined {
-	const { filing } = input;
-	if (filing === undefined) return undefined;
-	return articleMoveOf({ ...input, filing });
 }
 
 function versionedReaderHref(input: {
@@ -321,22 +308,18 @@ export function toReadlistArticleViewModel(params: {
 	readerProvenance: ReaderProvenance | undefined;
 	filters: ReadlistUrlState;
 	pollCount?: number;
-	maxPolls: number;
 	confirmReadlists?: readonly ReadlistRef[];
-	/** Absent means the reader has not chosen to skip the delete confirmation —
-	 * including on render paths that never read the signal, so an unknown answer
-	 * still asks before deleting. */
-	deleteAcknowledged?: boolean;
-	filing?: ArticleFiling;
+	deleteAcknowledged: boolean;
+	filing: ArticleFiling;
 	enclosure: EnclosureRead;
 }): ReadlistArticleViewModel {
-	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
+	const { article, now, returnQuery, summary, crawl, filters } = params;
 	const pollCount = params.pollCount ?? 1;
 	const id = article.id.value;
-	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
+	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls: MAX_POLLS });
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
-	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing, handPicked: filters.readlist === DEFAULT_READLIST_SLUG && article.personalPickedAt === undefined };
+	const moveInput = { articleId: id, from: filters.readlist === HAND_PICKED_SCOPE ? DEFAULT_READLIST_SLUG : filters.readlist, returnQuery, filing: params.filing, personallyPicked: article.personalPickedAt !== undefined };
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged, removePick: filters.readlist === HAND_PICKED_SCOPE });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
@@ -366,7 +349,7 @@ export function toReadlistArticleViewModel(params: {
 		actions: toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
 		deletion,
 		markStatusConfirm,
-		move: toArticleMove(moveInput),
+		move: articleMoveOf(moveInput),
 		cardPollUrl: isProcessing ? buildCardPollUrl({ articleId: id, pollCount: phase.pollCursor, filters }) : undefined,
 		contentState: processing.contentState,
 		readerHref: versionedReaderHref({
@@ -422,12 +405,12 @@ export function toReadlistViewModel(
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
-		effectiveAccess?: EffectiveAccess;
+		effectiveAccess: EffectiveAccess;
 		upgradeOffer?: UpgradeOffer;
 		freePlanBannerDismissed?: boolean;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
-		deleteAcknowledged?: boolean;
-		readlists?: readonly ReadlistRef[];
+		deleteAcknowledged: boolean;
+		readlists: readonly ReadlistRef[];
 		savesByUrl?: ReadonlyMap<string, readonly { readlist?: ReadlistSlug }[]>;
 		moveFlash?: MoveFlash;
 	},
@@ -435,15 +418,7 @@ export function toReadlistViewModel(
 	const now = options.now;
 	const returnQuery = readlistReturnQuery(filters);
 
-	/** When effectiveAccess is omitted the caller is a server-side render path
-	 * that has no authenticated user (Siren API, public reader permalink, etc.)
-	 * — those code paths never reach the banner-rendering template, so we treat
-	 * "no info" as founding/full-access for view-model purposes. The
-	 * authenticated GET /queue handler always passes effectiveAccess. */
-	const access: EffectiveAccess = options.effectiveAccess ?? {
-		tier: "founding",
-		banner: "none",
-	};
+	const access = options.effectiveAccess;
 
 	return {
 		articles: result.articles.map((a) =>
@@ -456,16 +431,12 @@ export function toReadlistViewModel(
 				enclosure: options.enclosureByUrl?.get(a.url) ?? ABSENT_ENCLOSURE,
 				readerProvenance: options.readerProvenanceByUrl?.get(a.url),
 				filters,
-				maxPolls: MAX_POLLS,
 				confirmReadlists: options.confirmReadlistsByUrl?.get(a.url),
 				deleteAcknowledged: options.deleteAcknowledged,
-				filing:
-					options.readlists === undefined
-						? undefined
-						: {
-								readlists: options.readlists,
-								saves: options.savesByUrl?.get(a.url),
-							},
+				filing: {
+					readlists: options.readlists,
+					saves: options.savesByUrl?.get(a.url),
+				},
 			}),
 		),
 		filters,

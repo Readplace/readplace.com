@@ -21,7 +21,6 @@ export function initInMemoryGmailSender(deps: { now: () => Date }): GmailSenderS
 				lastSubject: subject,
 			});
 		},
-		findSender: async ({ userId, senderEmail }) => rows.get(rowKey(userId, senderEmail)),
 		listSendersByUserId: async (userId) =>
 			[...rows.values()]
 				.filter((row) => row.userId === userId)

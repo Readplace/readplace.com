@@ -15,10 +15,8 @@ import {
 // summaries never need more, and clamping keeps output cost bounded.
 const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
-// DeepSeek does not support output_config (structured output) or document
-// content blocks, so the adapter extracts plain text from document blocks and
-// asks DeepSeek to emit a JSON object via response_format. The raw JSON string
-// is passed through to the caller, which validates it against its own schema.
+// The raw JSON string is passed through to the caller, which validates it
+// against its own schema.
 function initCreateDeepseekChatMessage(deps: {
 	client: DeepseekClient;
 	model: DeepseekModel;

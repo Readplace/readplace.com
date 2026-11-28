@@ -51,6 +51,4 @@ export const CaptureTriggerSchema = z.enum(["automatic", "manual"]);
 
 export type CaptureTrigger = z.infer<typeof CaptureTriggerSchema>;
 
-export const SaveTriggerSchema = z.enum(["automatic", "manual"]);
-
-export type SaveTrigger = z.infer<typeof SaveTriggerSchema>;
+export type SaveTrigger = "automatic" | "manual";

@@ -228,6 +228,7 @@ function makeHarness(opts?: {
 		},
 		putLink: linkStore.putLink,
 		getLink: linkStore.getLink,
+		listLinksByEmail: linkStore.listLinksByEmail,
 		findLinksMeta: linkStore.findLinksMeta,
 		markWindowDispatched: linkStore.markWindowDispatched,
 		putLinksMeta: async (input) => {
@@ -347,7 +348,12 @@ function makeHarness(opts?: {
 }
 
 describe("initExtractEmailLinksHandler", () => {
-	const preferred = { slug: WORK, label: "Work", createdAt: new Date(NOW), purpose: "Keep articles about compilers" };
+	const preferred: ReadlistDefinitionData = {
+		slug: WORK,
+		label: "Work",
+		createdAt: new Date(NOW),
+		filing: { mode: "smart", purpose: "Keep articles about compilers", revision: 1, effectiveAt: new Date(NOW) },
+	};
 	const compiler = { ordinal: "0000", url: "https://a.test/compiler", anchorText: "Building a compiler" };
 
 	it("matches an article from an inbox with no explicit route against saved preferences", async () => {
@@ -357,6 +363,23 @@ describe("initExtractEmailLinksHandler", () => {
 		});
 		expect(await harness.run(eventBody())).toEqual({ batchItemFailures: [] });
 		expect(harness.triaged).toMatchObject([{ readlist: WORK, links: [compiler] }]);
+	});
+
+	it("a paid reader's manual readlist and readlist with no filing mode are not selected", async () => {
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a>',
+			readlistDefinitions: [
+				preferred,
+				{ slug: ReadlistSlugSchema.parse("science"), label: "Science", createdAt: new Date(NOW), filing: { mode: "manual" } },
+				{ slug: ReadlistSlugSchema.parse("travel"), label: "Travel", createdAt: new Date(NOW) },
+			],
+		});
+		expect(await harness.run(eventBody())).toEqual({ batchItemFailures: [] });
+		expect(harness.triaged).toMatchObject([{ readlist: WORK, links: [compiler] }]);
+		expect(harness.triaged).toHaveLength(1);
+		expect((await harness.linkStore.findLinksMeta({ userId: USER, receivedAtMessageId: RAM }))?.selectedReadlists).toEqual([
+			{ readlist: WORK, label: "Work", qualification: "preferences" },
+		]);
 	});
 
 	it("matches an article from an enabled Gmail sender delivering the issue itself", async () => {
@@ -377,7 +400,12 @@ describe("initExtractEmailLinksHandler", () => {
 		const harness = makeHarness({
 			derivedHtml: '<a href="https://a.test/compiler">Building a compiler</a> <a href="https://a.test/ad">An ad</a>',
 			inboxAddress: makeInboxAddress({ readlist: WORK }),
-			readlistDefinitions: [preferred, { slug: science, label: "Science", createdAt: new Date(NOW), purpose: "New research" }],
+			readlistDefinitions: [preferred, {
+				slug: science,
+				label: "Science",
+				createdAt: new Date(NOW),
+				filing: { mode: "smart", purpose: "New research", revision: 1, effectiveAt: new Date(NOW) },
+			}],
 			triageEmailLinks: async () => ({
 				status: "triaged",
 				categories: new Map([[formatEmailLinkOrdinal(0), "article"], [formatEmailLinkOrdinal(1), "ad"]]),

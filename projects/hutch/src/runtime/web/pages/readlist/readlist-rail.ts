@@ -1,10 +1,9 @@
 import { HAND_PICKED, HAND_PICKED_SCOPE } from "./built-in-readlists";
-import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug, type ReadlistRef } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import type { ReadlistContext } from "./readlist-context";
-import type { Readlist } from "./readlist.nav";
 import { READLIST_ERROR_LIMIT } from "./readlist.error";
 import { HOME_READLIST_SAVED } from "./readlist-home";
 import { READLIST_PATH, READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
@@ -12,8 +11,8 @@ import { READLIST_PATH, READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQu
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export interface ReadlistRailViewModel {
-	readlists: readonly Readlist[];
-	activeReadlist: Readlist;
+	readlists: readonly ReadlistRef[];
+	activeReadlist: ReadlistRef;
 	newReadlistAction: string;
 	limitAlertHref: string;
 	canCreate: boolean;
@@ -34,15 +33,21 @@ export function buildReadlistRail(input: {
 	const landing = new URL(input.originalUrl ?? buildReadlistUrl(input.context.state), "https://readlist.invalid");
 	const saved = landing.searchParams.get(HOME_READLIST_SAVED);
 	landing.searchParams.delete(HOME_READLIST_SAVED);
-	if (input.context.state.readlist !== HAND_PICKED_SCOPE && (landing.pathname === READLIST_PATH || landing.pathname === `${READLIST_PATH}/`)) {
+	if (landing.pathname === READLIST_PATH || landing.pathname === `${READLIST_PATH}/`) {
 		landing.pathname = READLIST_PATH;
 		landing.searchParams.delete("readlist");
-		landing.searchParams.set("queue", input.context.state.readlist);
+		if (input.context.state.readlist === HAND_PICKED_SCOPE) {
+			landing.searchParams.delete("queue");
+			landing.searchParams.set("scope", "hand-picked");
+		} else {
+			landing.searchParams.set("queue", input.context.state.readlist);
+		}
 	}
-	const label = saved === home?.slug ? input.context.readlists.find(({ slug }) => slug === saved)?.label : undefined;
+	const readlists = [HAND_PICKED, ...input.context.readlists];
+	const label = saved === home?.slug ? readlists.find(({ slug }) => slug === saved)?.label : undefined;
 	return {
 		home: home && { ...home, returnTo: landing.pathname + landing.search, status: label && t("readlistNav.home.saved", { label }) },
-		readlists: [HAND_PICKED, ...input.context.readlists],
+		readlists,
 		activeReadlist: input.context.activeReadlist,
 		newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(input.context.state)}`,
 		limitAlertHref: buildReadlistUrl(input.context.state, [["queue_error", READLIST_ERROR_LIMIT]]),

@@ -3,8 +3,9 @@ import { type Viewer, articleDestinationUrl, isNonArticleHost, mayReadItem, stub
 import {
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
+	writeIfCondition,
 } from "@packages/storage-client";
-import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
+import type { MarkRelatedArticlesOutcome, RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { dynamoField } from "@packages/storage-client";
 import { z } from "zod";
@@ -26,6 +27,12 @@ export const ArticleRelatedRow = z.object({
 });
 
 const LooseArticleRelatedRow = z.looseObject({ url: z.string() });
+
+export async function outcomeOf(write: () => Promise<unknown>): Promise<MarkRelatedArticlesOutcome> {
+	const outcome = await writeIfCondition(write);
+	if (outcome.kind === "condition-failed") return "superseded";
+	return "stored";
+}
 
 export const ARTICLE_FIELDS = ArticleRelatedRow.keyof().options;
 

@@ -14,7 +14,6 @@ const SAMPLES_PER_SCENARIO = perfSetting("PERF_SAMPLES_PER_SCENARIO");
 const TABS_PER_SAVE_ALL = perfSetting("PERF_TABS_PER_SAVE_ALL");
 const SERVER_URL = "http://localhost:3000";
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
-const ENTRY_POINT_CALL = `GET ${SERVER_URL}/`;
 const COLLECTION_CALL = `GET ${SERVER_URL}/queue`;
 const SAVE_CALL = `POST ${SERVER_URL}/queue`;
 const BULK_SAVE_CALL = `POST ${SERVER_URL}/queue/save-articles`;
@@ -175,11 +174,11 @@ function initReadingList(input: {
 function warmSave(): SaveLatencyScenario {
 	return {
 		name: "a warm save",
-		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL],
+		expectedCalls: [COLLECTION_CALL, SAVE_CALL],
 		measure: async () => {
 			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
 			const { fetchFn, calls } = initRecordingFetch({
-				[ENTRY_POINT_CALL]: entryPointRoute(),
+				[COLLECTION_CALL]: entryPointRoute(),
 				[SAVE_CALL]: saveRoute(),
 			});
 			const readingList = initReadingList({
@@ -201,11 +200,11 @@ function warmSave(): SaveLatencyScenario {
 function coldBootSave(): SaveLatencyScenario {
 	return {
 		name: "a save on a cold background boot",
-		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL],
+		expectedCalls: [COLLECTION_CALL, SAVE_CALL],
 		measure: async () => {
 			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
 			const { fetchFn, calls } = initRecordingFetch({
-				[ENTRY_POINT_CALL]: entryPointRoute(),
+				[COLLECTION_CALL]: entryPointRoute(),
 				[SAVE_CALL]: saveRoute(),
 			});
 			const chargedFetch = network.chargeRoundTrips(fetchFn);
@@ -252,17 +251,14 @@ function coldBootSave(): SaveLatencyScenario {
 function repeatSave(): SaveLatencyScenario {
 	return {
 		name: "a repeat save revalidating the entry point",
-		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL, COLLECTION_CALL, SAVE_CALL],
+		expectedCalls: [COLLECTION_CALL, SAVE_CALL, COLLECTION_CALL, SAVE_CALL],
 		measure: async () => {
 			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
 			const { fetchFn, calls } = initRecordingFetch({
-				[ENTRY_POINT_CALL]: entryPointRoute(),
 				[COLLECTION_CALL]: (init) => {
-					assert.equal(
-						new Headers(init.headers).get("If-None-Match"),
-						READLIST_ETAG,
-						"a repeat walk must revalidate the entry point it already holds",
-					);
+					const etag = new Headers(init.headers).get("If-None-Match");
+					if (etag === null) return entryPointRoute();
+					assert.equal(etag, READLIST_ETAG, "a repeat walk must revalidate the entry point it already holds");
 					return { status: 304 };
 				},
 				[SAVE_CALL]: saveRoute(),
@@ -293,18 +289,15 @@ function repeatSave(): SaveLatencyScenario {
 function saveThenViewReadlist(): SaveLatencyScenario {
 	return {
 		name: "a list opened from the saved view",
-		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL, COLLECTION_CALL],
+		expectedCalls: [COLLECTION_CALL, SAVE_CALL, COLLECTION_CALL],
 		measure: async () => {
 			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
 			const { fetchFn, calls } = initRecordingFetch({
-				[ENTRY_POINT_CALL]: entryPointRoute(),
 				[SAVE_CALL]: saveRoute(),
 				[COLLECTION_CALL]: (init) => {
-					assert.equal(
-						new Headers(init.headers).get("If-None-Match"),
-						READLIST_ETAG,
-						"opening the list must revalidate the entry point the save already holds",
-					);
+					const etag = new Headers(init.headers).get("If-None-Match");
+					if (etag === null) return entryPointRoute();
+					assert.equal(etag, READLIST_ETAG, "opening the list must revalidate the entry point the save already holds");
 					return {
 						status: 200,
 						body: readlistCollectionBody([savedArticleEntity()]),
@@ -346,11 +339,11 @@ function saveThenViewReadlist(): SaveLatencyScenario {
 function saveAllTabs(): SaveLatencyScenario {
 	return {
 		name: `a save of ${TABS_PER_SAVE_ALL} tabs`,
-		expectedCalls: [ENTRY_POINT_CALL, ...bulkRequestCalls()],
+		expectedCalls: [COLLECTION_CALL, ...bulkRequestCalls()],
 		measure: async () => {
 			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
 			const { fetchFn, calls } = initRecordingFetch({
-				[ENTRY_POINT_CALL]: entryPointRoute(),
+				[COLLECTION_CALL]: entryPointRoute(),
 				[BULK_SAVE_CALL]: bulkSaveRoute(),
 			});
 			const readingList = initReadingList({

@@ -92,7 +92,6 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 			const page = await notices.query(query({ userId, prefix: "NOTICE#", pageToken }));
 			return { notices: page.items, nextPageToken: token(page.lastEvaluatedKey) };
 		},
-		findNotice: async ({ userId, senderEmail }) => notices.get({ userId, key: `NOTICE#${senderEmail}` }, { consistentRead: true }),
 		claimNotice: async ({ notice, message }) => {
 			const acquired = (await writeIfCondition(() => notices.update({
 				Key: { userId: notice.userId, key: `NOTICE#${notice.senderEmail}` },

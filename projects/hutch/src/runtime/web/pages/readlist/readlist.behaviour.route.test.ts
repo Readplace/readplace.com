@@ -168,7 +168,7 @@ describe("`/queue` behaviour", () => {
 		const doc = parse((await agent.get("/queue")).text);
 		expect(panels(doc, "delete")).toHaveLength(2);
 		for (const panel of panels(doc, "delete")) {
-			expect(panel.parentElement?.tagName).toBe("MAIN");
+			expect(panel.parentElement?.parentElement?.tagName).toBe("MAIN");
 			expect(panel.closest("[data-test-article]")).toBeNull();
 		}
 

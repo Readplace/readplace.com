@@ -59,7 +59,7 @@ import { initRemoveSavedLinks } from "./saved-links-job/remove-saved-links";
 import { initCountSavedLinks } from "./saved-links-job/count-saved-links";
 import { initRestoreSavedLinks } from "./saved-links-job/restore-saved-links";
 import { initSavedLinksJobHandler } from "./saved-links-job/saved-links-job-handler";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbGmailHeldMail, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
@@ -71,6 +71,7 @@ import {
 	initDynamoDbSavedLinksJob,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
+	initS3DeleteObjectsByPrefix,
 	initS3ListContentKeys,
 	initTombstoneArticle,
 } from "@packages/article-store";
@@ -354,7 +355,8 @@ const bulkWorker = initBulkWorker({
 			resolveCanonicalIdentity: initResolveCanonicalIdentity(initCanonicalAliasStore({ client: dynamoClient, tableName: env.DYNAMODB_ARTICLES_TABLE })),
 		}),
 		execute: initBulkExecution({ client: dynamoClient, userArticlesTable: env.DYNAMODB_USER_ARTICLES_TABLE, articlesTable: env.DYNAMODB_ARTICLES_TABLE,
-			usersTable: env.DYNAMODB_USERS_TABLE, findUserById: auth.findUserById, listUserSavesForUrl: articleStore.listUserSavesForUrl, publishEvent, now,
+			usersTable: env.DYNAMODB_USERS_TABLE, findUserById: auth.findUserById, listUserSavesForUrl: articleStore.listUserSavesForUrl,
+			listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions, publishEvent, now,
 			schedulePrivateRelease: initScheduleHeldUpload({ client: schedulerClient, group: env.TRIAL_SCHEDULER_GROUP_NAME,
 				roleArn: env.TRIAL_SCHEDULER_ROLE_ARN, eventBusArn: env.EVENT_BUS_ARN, now, publishEvent }),
 		}),

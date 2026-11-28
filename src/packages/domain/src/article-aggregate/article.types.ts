@@ -47,7 +47,7 @@ export type SummaryState =
 	| { kind: "failed"; reason: SummaryFailureReason }
 	| { kind: "skipped"; reason?: string };
 
-export interface SummaryAutoHealState {
+interface SummaryAutoHealState {
 	attempts: number;
 	lastAttemptAt?: string;
 }

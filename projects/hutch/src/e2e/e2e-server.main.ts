@@ -59,6 +59,8 @@ import {
 import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
+import { initLocalBulkOperations } from '../runtime/bulk-articles/local-operations'
+import type { BulkArticleOperations } from '../runtime/web/pages/readlist/bulk-articles.page'
 import { initRequestStaleCheck } from '../runtime/domain/stale-check/request-stale-check'
 import { initGetEffectiveAccess } from '@packages/subscription-access'
 import { initMultipartUpload } from '../runtime/web/pages/import/multipart-upload'
@@ -71,11 +73,12 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createFakeSummaryProvider,
+	initCrawlThenParse,
 } from '@packages/test-fixtures'
 import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initFinalizeArticle, initRefreshArticleIfStale } from '@packages/finalize-article'
-import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
+import { initResolveCanonicalIdentity, initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
 import type { ChargeOcrPages, CrawlArticle, ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
@@ -144,13 +147,13 @@ const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().w
 const crawlWithoutSaver = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const chargeSaverOcrPages: ChargeOcrPages = async () => ({ allowed: true })
 const crawlArticle: CrawlArticle = (params) => crawlWithoutSaver({ ...params, chargeOcrPages: chargeSaverOcrPages })
-const { parseArticle, parseHtml } = initReadabilityParser({
-	crawlArticle,
+const { parseHtml } = initReadabilityParser({
 	siteRules,
 	readabilityAdditions,
 	logError,
 	coverageRules: activateCoverageRules({ rules: initArticleCoverageRules(), modes: ALL_COVERAGE_RULES_OFF }),
 })
+const parseArticle = initCrawlThenParse({ crawlArticle, parseHtml })
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
 	parseHtml,
@@ -418,6 +421,21 @@ const e2eHostedCheckout: typeof e2eStripe = {
 	},
 }
 
+const localBulkArticles = initLocalBulkOperations({ articles: fixture.articleStore, findArticleById: fixture.articleStore.findArticleById,
+	findUserById: fixture.auth.findUserById, listSenderIssues: fixture.inboxEmail.inboxEmailStore.listEmailsByUserId,
+	listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
+	resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: fixture.articleStore.findIdentityRow }),
+	publishLinkQueued: fixture.events.publishLinkQueued, publishLinkDequeued: fixture.events.publishLinkDequeued, now: fixture.shared.now })
+const holdNextBulkRunFor = new Set<UserId>()
+const heldBulkRuns = new Map<UserId, () => Promise<void>>()
+const bulkArticles: BulkArticleOperations = {
+	...localBulkArticles,
+	dispatch: async (detail) => {
+		if (detail.intent !== 'confirm' || !holdNextBulkRunFor.delete(detail.userId)) return localBulkArticles.dispatch(detail)
+		heldBulkRuns.set(detail.userId, () => localBulkArticles.dispatch({ userId: detail.userId, id: detail.id, generation: detail.generation + 1 }))
+	},
+}
+
 let e2eAdminTotpStep = 0
 const markEveryE2eAdminChallengeOnAFreshStep: MarkSessionAdminMfaVerified = (input) => {
 	e2eAdminTotpStep += 1
@@ -487,7 +505,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		 * (20x repeat) without it. */
 		now: gmailNow, /* 1 */
 	},
-}, { keepOfferEndsAt: new Date('2099-01-01T00:00:00.000Z') })
+}, { keepOfferEndsAt: new Date('2099-01-01T00:00:00.000Z'), bulkArticles })
 
 const server = express().use(images.router)
 
@@ -536,6 +554,24 @@ server.post('/e2e/lock-account', async (req, res) => {
 	const { userId } = LockAccountBody.parse(req.body)
 	const pastWindow = new Date(Date.now() - VERIFICATION_WINDOW_MS - 24 * 60 * 60 * 1000)
 	await fixture.auth.backdateRegistration({ userId, registeredAt: pastWindow.toISOString() })
+	res.status(204).end()
+})
+
+const BulkRunBody = z.object({ email: z.email() })
+
+server.post('/e2e/hold-next-bulk-run', async (req, res) => {
+	const user = await fixture.auth.findUserByEmail(BulkRunBody.parse(req.body).email)
+	assert(user, 'a held bulk run belongs to a registered reader')
+	holdNextBulkRunFor.add(user.userId)
+	res.status(204).end()
+})
+
+server.post('/e2e/release-bulk-run', async (req, res) => {
+	const user = await fixture.auth.findUserByEmail(BulkRunBody.parse(req.body).email)
+	const run = user && heldBulkRuns.get(user.userId)
+	assert(user && run, 'only a held bulk run can be released')
+	heldBulkRuns.delete(user.userId)
+	await run()
 	res.status(204).end()
 })
 

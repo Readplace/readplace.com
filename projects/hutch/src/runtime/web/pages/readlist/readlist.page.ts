@@ -152,10 +152,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistPreferencesRoutes({
 			findHomeReadlist: deps.findHomeReadlist,
 			listReadlistDefinitions: deps.listReadlistDefinitions,
-			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 			setSmartReadlistRule: deps.setSmartReadlistRule,
 			turnOffSmartReadlistMatching: deps.turnOffSmartReadlistMatching,
-			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
 			listInboxAddresses: deps.listInboxAddresses,
@@ -193,7 +191,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				getEffectiveAccess: deps.getEffectiveAccess,
 				recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
 				recordGmailStepDismissed: deps.recordGmailStepDismissed,
-				recordSmartReadlistStepDismissed: deps.recordSmartReadlistStepDismissed,
 				secureCookies: deps.secureCookies,
 			},
 			shared,

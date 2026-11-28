@@ -125,7 +125,7 @@ async function harness(
 		},
 		now: () => NOW,
 	});
-	return { updates, connections, fake, opened, gateChecks, mark: (origin: GmailMessageOrigin = HISTORY) => mark({ userId: USER, receivedAtMessageId: RAM, origin }) };
+	return { updates, connections, fake, opened, gateChecks, mark: (origin: GmailMessageOrigin = HISTORY, supplemental?: true) => mark({ userId: USER, receivedAtMessageId: RAM, origin, ...(supplemental ? { supplemental } : {}) }) };
 }
 
 describe("initMarkGmailEmailImported", () => {
@@ -145,7 +145,33 @@ describe("initMarkGmailEmailImported", () => {
 		assert.deepEqual({ records: h.updates.all(), opened: h.opened, calls: h.fake.calls }, { records: [], opened: [], calls: [] });
 	});
 
-	it("discards a pending update left from before the sender was removed", async () => {
+	it("marks the same Gmail message after a second import and ignores old and new redeliveries", async () => {
+		const h = await harness();
+		assert.deepEqual(await h.mark(), { kind: "marked" });
+		const original = h.fake.messages.get(MESSAGE);
+		assert(original);
+		original.labelIds.push("UNREAD");
+
+		assert.deepEqual(await h.mark(), { kind: "already-marked" });
+		assert.ok(original.labelIds.includes("UNREAD"));
+		assert.deepEqual(await h.mark(HISTORY, true), { kind: "marked" });
+		assert.equal(original.labelIds.includes("UNREAD"), false);
+		original.labelIds.push("UNREAD");
+
+		assert.deepEqual(await h.mark(HISTORY, true), { kind: "already-marked" });
+		assert.ok(original.labelIds.includes("UNREAD"));
+		assert.equal(h.fake.calls.filter((call) => call.startsWith("modify:")).length, 2);
+	});
+
+	it("leaves Gmail unread when the sender is no longer configured for the second import", async () => {
+		const h = await harness({ mapped: false });
+		assert.deepEqual(await h.mark(HISTORY, true), { kind: "skipped" });
+		assert.ok(h.fake.messages.get(MESSAGE)?.labelIds.includes("UNREAD"));
+		assert.deepEqual(h.fake.calls, []);
+		assert.deepEqual(h.updates.all(), []);
+	});
+
+		it("discards a pending update left from before the sender was removed", async () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.recordPending({ userId: USER, receivedAtMessageId: RAM, origin: HISTORY, now: NOW });
 		const mark = initMarkGmailEmailImported({

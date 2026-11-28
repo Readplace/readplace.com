@@ -970,6 +970,21 @@ describe("toArticleCollectionEntity", () => {
 
 			expect(entity.properties?.hint).toBeUndefined();
 		});
+
+		it("offers to set Hand Picked as home, returning to Hand Picked", () => {
+			const entity = toArticleCollectionEntity(
+				emptyResult,
+				{ readlistKey: "readlist", readlist: HAND_PICKED_SCOPE },
+				{ tabs, readlists, pinnedReadlists: [], addToReadlist: "advertised", now: NOW, surfacePlatform: "ios", setHome: { target: { slug: HAND_PICKED_SCOPE }, label: "Hand Picked" } },
+			);
+
+			expect(entity.actions).toContainEqual(expect.objectContaining({
+				name: "set-home-readlist",
+				title: "Set Hand Picked as home",
+				method: "POST",
+				href: `/queue/queues/~hand-picked/home?returnTo=${encodeURIComponent("/queue?scope=hand-picked")}`,
+			}));
+		});
 	});
 
 	it("attaches the iOS save-in-progress notice to properties for a native-app request", () => {

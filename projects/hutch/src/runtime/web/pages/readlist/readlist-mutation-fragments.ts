@@ -1,4 +1,5 @@
 import { render, renderToast, withInternalTracking } from "@packages/web-shell";
+import { renderRetiredDeletionDecisionsOob } from "./readlist-card/delete-confirm.component";
 import type { StatusFlash } from "./readlist.error";
 import type { ReadlistUrlState } from "./readlist.url";
 import { buildReadlistCountsUrl, readlistReturnQuery } from "./readlist.url";
@@ -106,8 +107,8 @@ export function renderReadlistCountsTrigger(input: { countsUrl: string; oob?: bo
 
 /** The out-of-band body a card status change answers with: a re-armed counts
  * span plus the confirmation toast swapped into the stable `#status-toast`
- * mount. The primary body is left empty so the card form's `outerHTML` swap
- * removes the card. `statusFlash` is required — this fragment is reached only
+ * mount, and the removed card's emptied delete decisions. The primary body is
+ * left empty so the card form's `outerHTML` swap removes the card. `statusFlash` is required — this fragment is reached only
  * once the change applied, so a card mutation always carries its toast. */
 export function renderReadlistMutationFragment(input: {
 	filters: ReadlistUrlState;
@@ -123,5 +124,5 @@ export function renderReadlistMutationFragment(input: {
 		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${returnQuery}`,
 		undoStatus: input.statusFlash.undoStatus,
 	});
-	return `${renderStatusToastMountOob(toast)}${counts}`;
+	return `${renderStatusToastMountOob(toast)}${counts}${renderRetiredDeletionDecisionsOob(input.statusFlash.undoArticleId)}`;
 }

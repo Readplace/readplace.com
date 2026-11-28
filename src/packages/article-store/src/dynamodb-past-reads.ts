@@ -16,28 +16,25 @@ import {
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
-	writeIfCondition,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
-	forEachQueryPage,
 } from "@packages/storage-client";
 import type {
 	FindPastReads,
 	FindReadCandidatesAcrossReadlists,
 	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
-	MarkRelatedArticlesOutcome,
 	PastReadDisplay,
 	PastReads,
 	ReadPastReadsState,
 	ReadlistReadCandidate,
 } from "@packages/provider-contracts/related-articles";
 import { z } from "zod";
-import { ARTICLE_FIELDS, LinkableArticle, initArticleReads, readableBy, usable } from "./related-articles-rows";
+import { ARTICLE_FIELDS, LinkableArticle, initArticleReads, outcomeOf, readableBy, usable } from "./related-articles-rows";
+import { listOwnedReadlistSlugs } from "./readlist-definition-rows";
 import {
-	READLIST_DEFINITION_KEY_PREFIX,
 	decodeUserArticlePartition,
 	partitionFor,
 } from "./user-readlist-partition";
@@ -61,11 +58,6 @@ const UserArticlePastReadsRow = z.object({
 	pastReadsBudgetBlockedUntil: dynamoField(z.string()),
 });
 
-const ReadlistDefinitionRow = z.object({
-	queueSlug: ReadlistSlugSchema,
-	createdAt: z.string(),
-});
-
 const SavedStatusRow = z.looseObject({
 	userId: z.string(),
 	url: z.string(),
@@ -77,12 +69,6 @@ const SavedStatusRow = z.looseObject({
  * order (source list, default, then owned in creation order) has no repeats. */
 function unique(slugs: readonly ReadlistSlug[]): ReadlistSlug[] {
 	return [...new Set(slugs)];
-}
-
-async function outcomeOf(write: Promise<unknown>): Promise<MarkRelatedArticlesOutcome> {
-	const outcome = await writeIfCondition(() => write);
-	if (outcome.kind === "condition-failed") return "superseded";
-	return "stored";
 }
 
 function notYetComputed(budgetBlockedUntil: string | undefined): PastReads {
@@ -155,44 +141,14 @@ export function initDynamoDbPastReads(deps: {
 		tableName: userArticlesTableName,
 		schema: UserArticlePastReadsRow,
 	});
-	const readlistDefinitionRows = defineDynamoTable({
-		client,
-		tableName: userArticlesTableName,
-		schema: ReadlistDefinitionRow,
-	});
 
 	const { readArticles, hydrateCandidates } = initArticleReads({
 		client,
 		tableName,
 	});
 
-	const ownedReadlistSlugsInCreationOrder = async (
-		userId: UserId,
-	): Promise<ReadlistSlug[]> => {
-		const rows: { slug: ReadlistSlug; createdAt: string }[] = [];
-		await forEachQueryPage(
-			readlistDefinitionRows,
-			{
-				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: {
-					":userId": userId,
-					":prefix": READLIST_DEFINITION_KEY_PREFIX,
-				},
-				ConsistentRead: true,
-			},
-			async (items) => {
-				for (const item of items) rows.push({ slug: item.queueSlug, createdAt: item.createdAt });
-			},
-		);
-		return rows
-			.sort(
-				(a, b) =>
-					new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
-					a.slug.localeCompare(b.slug),
-			)
-			.map((row) => row.slug);
-	};
+	const ownedReadlistSlugsInCreationOrder = (userId: UserId): Promise<ReadlistSlug[]> =>
+		listOwnedReadlistSlugs({ client, tableName: userArticlesTableName, userId });
 
 	/** Read one partition's most-recent reads (newest first), stopping once we
 	 * have `limit` — a url in the global most-recent `limit` is within each
@@ -286,7 +242,7 @@ export function initDynamoDbPastReads(deps: {
 	};
 
 	const markPastReadsReady: MarkPastReadsReady = (params) =>
-		outcomeOf(userArticles.update(readyUpdate(params)));
+		outcomeOf(() => userArticles.update(readyUpdate(params)));
 
 	const findPastReads: FindPastReads = (params) =>
 		params.generatedContent === "withheld"
@@ -294,10 +250,10 @@ export function initDynamoDbPastReads(deps: {
 			: findStoredPastReads(params);
 
 	const markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked = (params) =>
-		/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
-		outcomeOf(userArticles.update(budgetBlockedUpdate(params)));
+		outcomeOf(() => userArticles.update(budgetBlockedUpdate(params)));
 
 	const findStoredPastReads: FindPastReads = async (params) => {
+		/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const row = await userArticles.get({
 			userId: params.userId,

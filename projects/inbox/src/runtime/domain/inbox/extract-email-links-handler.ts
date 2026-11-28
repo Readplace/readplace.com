@@ -96,6 +96,7 @@ export function initExtractEmailLinksHandler(deps: {
 	}) => string;
 	putLink: InboxEmailLinkStore["putLink"];
 	getLink: InboxEmailLinkStore["getLink"];
+	listLinksByEmail: InboxEmailLinkStore["listLinksByEmail"];
 	putLinksMeta: InboxEmailLinkStore["putLinksMeta"];
 	findLinksMeta: InboxEmailLinkStore["findLinksMeta"];
 	markWindowDispatched: InboxEmailLinkStore["markWindowDispatched"];
@@ -145,6 +146,7 @@ export function initExtractEmailLinksHandler(deps: {
 		userId: UserId;
 		receivedAtMessageId: string;
 		outputCount: number;
+		supplemental?: true;
 	}) => Promise<void>;
 	enqueueContinuation: (detail: EmailReceivedDetail) => Promise<void>;
 	publishExtraction: (detail: EmailReceivedDetail) => Promise<void>;
@@ -174,6 +176,7 @@ export function initExtractEmailLinksHandler(deps: {
 		deriveSanitizedBody,
 		putLink,
 		getLink,
+		listLinksByEmail,
 		putLinksMeta,
 		setEmailLinkCounts,
 		publishCrawlPreview,
@@ -230,8 +233,8 @@ export function initExtractEmailLinksHandler(deps: {
 			(fanOut.links ? explicit : []).map((destination) => [destination.readlist, destination]),
 		);
 		if (paid) {
-			for (const { slug, label, purpose } of definitions) {
-				if (slug === DEFAULT_READLIST_SLUG || !purpose?.trim()) continue;
+			for (const { slug, label, filing } of definitions) {
+				if (slug === DEFAULT_READLIST_SLUG || filing?.mode !== "smart") continue;
 				articles.set(slug, { readlist: slug, label, qualification: articles.has(slug) ? "route-and-preferences" : "preferences" });
 			}
 		}
@@ -255,7 +258,7 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 				const userId = parsed.data.userId;
-				const { receivedAtMessageId, origin, recipientAddress, routing } =
+				const { receivedAtMessageId, origin, recipientAddress, routing, supplemental } =
 					parsed.data;
 
 				const key = { userId, receivedAtMessageId };
@@ -270,7 +273,7 @@ export function initExtractEmailLinksHandler(deps: {
 					await deps.publishExtraction(parsed.data);
 					continue;
 				}
-				if (window && (window.start > start || (window.start === start && prior?.dispatchedThrough === window.end))) continue;
+				if (!supplemental && window && (window.start > start || (window.start === start && prior?.dispatchedThrough === window.end))) continue;
 				if (start > 0 && window?.end !== start && window?.start !== start) continue;
 				if (start > 0 && maxLinks <= start) {
 					await enqueueContinuation(parsed.data);
@@ -288,68 +291,74 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 
-				const raw = await readRawEmail(email.rawEmailS3Key);
-				if (raw === undefined) {
-					// S3 can be eventually consistent at receipt; retry.
-					logger.warn(
-						"[extract-email-links] raw .eml not yet readable, retrying",
-						{
+				const acceptedWork = supplemental ? await findCompletion(key) : undefined;
+				const work = acceptedWork?.supplementalImport;
+				if (supplemental) assert(work, "supplemental imports are recorded before dispatch");
+
+				const previous = supplemental ? await listLinksByEmail(key) : undefined;
+				const cached = previous?.meta?.extractionFailed === false
+					? { links: previous.links, meta: previous.meta }
+					: undefined;
+				let links: { url: string; ordinal: EmailLinkOrdinal; classification: ReturnType<typeof classifyEmailLink> }[];
+				let anchors: ReadonlyMap<string, string | undefined>;
+				let senderName: string;
+				let truncated: boolean;
+				let end: number;
+				let extractionWindow: { start: number; end: number } | undefined;
+				let truncatedLinkCount: number | undefined;
+				if (cached !== undefined) {
+					assert(work, "only supplemental imports reuse existing extraction");
+					links = cached.links
+						.filter((link) => link.status !== "skipped")
+						.map(({ url, ordinal }) => ({ url, ordinal, classification: { action: "crawl" } }));
+					anchors = new Map(cached.links.map((link) => [link.url, link.anchorText]));
+					senderName = work.senderName;
+					truncated = cached.meta.truncated;
+					end = cached.links.length;
+					extractionWindow = undefined;
+				} else {
+					const raw = await readRawEmail(email.rawEmailS3Key) ??
+						(work && await readRawEmail(work.rawEmailS3Key));
+					if (raw === undefined) {
+						logger.warn("[extract-email-links] raw .eml not yet readable, retrying", {
 							s3Key: email.rawEmailS3Key,
-						},
-					);
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-					continue;
-				}
+						});
+						batchItemFailures.push({ itemIdentifier: record.messageId });
+						continue;
+					}
+					const parsedEmail = await parseEmail({ raw, receivedAt: email.receivedAt });
+					if (!parsedEmail.ok) {
+						logger.warn("[extract-email-links] raw no longer parseable", { receivedAtMessageId });
+						continue;
+					}
 
-				const parsedEmail = await parseEmail({
-					raw,
-					receivedAt: email.receivedAt,
-				});
-				if (!parsedEmail.ok) {
-					// A body that does not parse has no links to extract.
-					logger.warn("[extract-email-links] raw no longer parseable", {
-						receivedAtMessageId,
+					const sanitizedHtml = deriveSanitizedBody({
+						html: parsedEmail.email.html,
+						inlineImages: parsedEmail.email.inlineImages,
+						rehostedRemoteImages: {},
 					});
-					continue;
+					const batchLimit = window?.start === start ? window.end : Math.min(maxLinks, start + LINKS_PER_EXTRACTION);
+					const extracted = extractUrls(Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"), batchLimit);
+					const capped = capEmailLinks(extracted, { maxLinks: batchLimit });
+					end = capped.urls.length;
+					const classifyLink =
+						origin === "receive" && routing.kind === "inbox" && userId !== UNROUTED_USER_ID
+							? classifyForwardedEmailLink
+							: classifyEmailLink;
+					links = capped.urls.slice(start).map((url, index) => ({
+						url,
+						ordinal: formatEmailLinkOrdinal(start + index),
+						classification: classifyLink({ url, listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls }),
+					}));
+					anchors = collectEmailAnchors(sanitizedHtml);
+					senderName = parsedEmail.email.fromName;
+					truncated = capped.truncated;
+					extractionWindow = truncated || start > 0 ? { start, end } : undefined;
+					if (truncated) truncatedLinkCount = extracted.totalFound;
 				}
 
-				// Extraction reads only <a href>s, so no remote-image rehost map: CDN
-				// image URLs in the derived body would surface as phantom article links,
-				// and building the map would re-download every image on every run.
-				const sanitizedHtml = deriveSanitizedBody({
-					html: parsedEmail.email.html,
-					inlineImages: parsedEmail.email.inlineImages,
-					rehostedRemoteImages: {},
-				});
-				// Decode before extracting so the stored, classified, and crawled URL is
-				// the href as parsed, not its serialized form (`?a=1&amp;b=2`).
-				const batchLimit = window?.start === start ? window.end : Math.min(maxLinks, start + LINKS_PER_EXTRACTION);
-				const extracted = extractUrls(
-					Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"),
-					batchLimit,
-				);
-				const capped = capEmailLinks(extracted, { maxLinks: batchLimit });
-				const end = capped.urls.length;
-				const urls = capped.urls.slice(start);
-				const truncated = capped.truncated;
-				const extractionWindow = truncated || start > 0 ? { start, end } : undefined;
-
-				const classifyLink =
-					origin === "receive" && routing.kind === "inbox" && userId !== UNROUTED_USER_ID
-						? classifyForwardedEmailLink
-						: classifyEmailLink;
-				const links = urls.map((url, index) => ({
-					url,
-					ordinal: formatEmailLinkOrdinal(start + index),
-					classification: classifyLink({
-						url,
-						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
-					}),
-				}));
-				const crawlCandidates = links.filter(
-					(link) => link.classification.action === "crawl",
-				);
-				const anchors = collectEmailAnchors(sanitizedHtml);
+				const crawlCandidates = links.filter((link) => link.classification.action === "crawl");
+				const linkStatuses = new Map(cached?.links.map((link) => [link.ordinal, link.status]));
 				const canSubmit =
 					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
 				const paidFeatures = canSubmit
@@ -358,16 +367,19 @@ export function initExtractEmailLinksHandler(deps: {
 				const savesHeld = paidFeatures === false;
 				const tracksImport = routing.kind === "gmail" && paidFeatures === true;
 				const completion = paidFeatures === true
-					? await findCompletion({ userId, receivedAtMessageId })
+					? acceptedWork ?? await findCompletion(key)
 					: undefined;
-				const frozenSelection = tracksImport && (start === 0 || completion?.selection?.nextLinkIndex !== start)
-					? completion?.selection : undefined;
+				const frozenSelection = tracksImport
+					? supplemental
+						? completion?.supplementalSelection
+						: start === 0 || completion?.selection?.nextLinkIndex !== start ? completion?.selection : undefined
+					: undefined;
 				const alreadySaved = (outputKey: EmailOutputKey) =>
 					completion?.savedOutputs.has(outputKey) === true;
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
-				if (crawlCandidates.length > 0 && frozenSelection === undefined && !savesHeld) {
+				if (crawlCandidates.length > 0 && frozenSelection === undefined && !savesHeld && cached === undefined) {
 					triage = await triageEmailLinks({
 						userId,
 						receivedAtMessageId,
@@ -384,6 +396,8 @@ export function initExtractEmailLinksHandler(deps: {
 				const storedLinkStatus = async (
 					row: InboxEmailLinkEntry,
 				): Promise<EmailLinkStatus> => {
+					const previousStatus = linkStatuses.get(row.ordinal);
+					if (previousStatus !== undefined) return previousStatus;
 					const putResult = await putLink(row);
 					if (putResult === "stored") return row.status;
 					const existing = await getLink({
@@ -399,7 +413,7 @@ export function initExtractEmailLinksHandler(deps: {
 				};
 
 				const fanOut = resolveEmailFanOut({ routing });
-				const destinations = prior && !prior.extractionFailed
+				const destinations = !supplemental && prior && !prior.extractionFailed
 					? { articles: prior.selectedReadlists ?? [], issue: prior.issueSave?.readlists ?? [] }
 					: canSubmit ? await destinationsFor(parsed.data, paidFeatures === true) : { articles: [], issue: [] };
 				let selectedReadlists = destinations.articles;
@@ -424,7 +438,7 @@ export function initExtractEmailLinksHandler(deps: {
 						receivedAtMessageId,
 						subject: email.subject,
 						senderEmail: email.senderEmail,
-						senderName: parsedEmail.email.fromName,
+						senderName,
 						issueUrl: `${appOrigin}${inboxEmailPath(receivedAtMessageId)}`,
 						readlists: issueReadlists.map(({ readlist }) => readlist),
 						emailOutput,
@@ -532,6 +546,7 @@ export function initExtractEmailLinksHandler(deps: {
 					// previous delivery terminally skipped must never be crawled by a
 					// later delivery that judged the same URL an article.
 					if (status !== "pending") continue;
+					if (cached !== undefined) continue;
 					// Submit BEFORE the preview publish: the preview consumer flips this
 					// row terminal, so a crash after the preview went out would make the
 					// retry's pending-gate skip a submit that never happened.
@@ -586,21 +601,22 @@ export function initExtractEmailLinksHandler(deps: {
 					}
 				};
 
+				const continues = truncated && !supplemental;
 				let selectedOutputs: EmailOutputSelection | undefined;
 				const dispatchOutputs = async () => {
 					if (!tracksImport) return;
-					const waitingForMatches = !fanOut.links && triagedLinks.length > 0 && selectedReadlists.length > 0;
+					const waitingForMatches = !supplemental && !fanOut.links && triagedLinks.length > 0 && selectedReadlists.length > 0;
 					const page: EmailOutputSelection = {
 						outputs: [
 							...(start === 0 && fanOut.issue ? [ISSUE_OUTPUT_KEY] : []),
 							...(fanOut.links ? triagedLinks.map((link) => linkOutputKey(link.ordinal)) : []),
 						],
-						truncated,
+						truncated: truncated && (!supplemental || fanOut.links),
 						selectedAt: now().toISOString(),
-						...(truncated && { nextLinkIndex: end }),
+						...(continues && { nextLinkIndex: end }),
 						...(waitingForMatches && { matches: Object.fromEntries(selectedReadlists.map(({ readlist }) => [emailMatchBatch(readlist, start), null])) }),
 					};
-					selectedOutputs = frozenSelection ?? (start === 0 ? await selectOutputs({ ...key, selection: page })
+					selectedOutputs = frozenSelection ?? (start === 0 ? await selectOutputs({ ...key, ...(supplemental ? { supplemental } : {}), selection: page })
 						: await deps.amendSelection({ ...key, change: { kind: "continue", start, page } }));
 					for (const outputKey of selectedOutputs.outputs) {
 						if (alreadySaved(outputKey)) continue;
@@ -618,7 +634,7 @@ export function initExtractEmailLinksHandler(deps: {
 				};
 				if (fanOut.links) await dispatchOutputs();
 
-				await setEmailLinkCounts({
+				if (cached === undefined) await setEmailLinkCounts({
 					userId,
 					receivedAtMessageId,
 					linkCounts: { kept, skipped, truncated },
@@ -644,8 +660,10 @@ export function initExtractEmailLinksHandler(deps: {
 				// Concurrent deliveries use the winning snapshot even if settings changed mid-run.
 				const snapshot = await deps.findLinksMeta(key);
 				assert(snapshot, "the extraction snapshot was just persisted");
-				selectedReadlists = snapshot.selectedReadlists ?? [];
-				issueReadlists = snapshot.issueSave?.readlists ?? [];
+				if (!supplemental) {
+					selectedReadlists = snapshot.selectedReadlists ?? [];
+					issueReadlists = snapshot.issueSave?.readlists ?? [];
+				}
 				if (!fanOut.links) await dispatchOutputs();
 
 				await publishReadlistSelections();
@@ -654,21 +672,22 @@ export function initExtractEmailLinksHandler(deps: {
 						userId,
 						receivedAtMessageId,
 						outputCount: selectedOutputs.outputs.length,
+						...(supplemental ? { supplemental } : {}),
 					});
 				}
 
-				if (truncated) {
+				if (continues) {
 					await enqueueContinuation({ ...parsed.data, startIndex: end });
 					logger.error("[extract-email-links] link cap hit, truncated", {
 						receivedAtMessageId,
-						found: extracted.totalFound,
-						capped: urls.length,
+						found: truncatedLinkCount,
+						capped: links.length,
 					});
 				}
 				if (extractionWindow) await deps.markWindowDispatched({ ...key, end });
 				logger.info("[extract-email-links] extracted", {
 					receivedAtMessageId,
-					links: urls.length,
+					links: links.length,
 					kept,
 					skipped,
 				});

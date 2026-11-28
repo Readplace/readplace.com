@@ -1,7 +1,9 @@
 import {
 	type Anchor,
 	anchorHighlight,
+	cleanHighlightNote,
 	describeRange,
+	joinNotesNewestFirst,
 	mergeRanges,
 	VIEW_HIGHLIGHT_LIMIT,
 	VIEW_HIGHLIGHT_MAX_TEXT_LENGTH,
@@ -69,16 +71,6 @@ function parseStored(raw: string | null): LocalHighlight[] {
 	if (!isRecord(parsed) || parsed.version !== STORED_VERSION || !Array.isArray(parsed.items)) return [];
 	const items: unknown[] = parsed.items;
 	return items.every(isLocalHighlight) ? items.filter(isLocalHighlight) : [];
-}
-
-function cleanNote(note: string | undefined): string | undefined {
-	const trimmed = (note ?? "").replace(/\r\n/g, "\n").trim();
-	return trimmed === "" ? undefined : trimmed;
-}
-
-function joinNotes(notes: readonly (string | undefined)[]): string | undefined {
-	const parts = notes.filter((note) => note !== undefined);
-	return parts.length === 0 ? undefined : parts.join("\n\n");
 }
 
 export function initLocalHighlights(deps: {
@@ -150,9 +142,10 @@ export function initLocalHighlights(deps: {
 		);
 		const described = describeRange({ text: input.text, start: range.start, end: range.end });
 		const newestFirst = [...merged].sort((a, b) => b.highlight.createdAt.localeCompare(a.highlight.createdAt));
-		const note = joinNotes([cleanNote(input.note), ...newestFirst.map(({ highlight }) => highlight.note)]);
+		const joined = joinNotesNewestFirst([cleanHighlightNote(input.note), ...newestFirst.map(({ highlight }) => highlight.note)]);
 		if (described.exact.length > VIEW_HIGHLIGHT_MAX_TEXT_LENGTH) return { status: "too-long" };
-		if (note !== undefined && note.length > VIEW_HIGHLIGHT_MAX_TEXT_LENGTH) return { status: "too-long" };
+		if (!joined.ok || (joined.note !== undefined && joined.note.length > VIEW_HIGHLIGHT_MAX_TEXT_LENGTH)) return { status: "too-long" };
+		const { note } = joined;
 		const replaced = new Set(merged.map(({ highlight }) => highlight.id));
 		const remaining = kept.filter((item) => !replaced.has(item.id));
 		if (remaining.length >= VIEW_HIGHLIGHT_LIMIT) return { status: "limit-reached" };
@@ -170,7 +163,7 @@ export function initLocalHighlights(deps: {
 		const kept = all();
 		const target = kept.find((item) => item.id === input.id);
 		if (target === undefined) return { status: "missing" };
-		const note = cleanNote(input.note);
+		const note = cleanHighlightNote(input.note);
 		if (note !== undefined && note.length > VIEW_HIGHLIGHT_MAX_TEXT_LENGTH) return { status: "too-long" };
 		const { note: _previous, ...rest } = target;
 		const updated: LocalHighlight = note === undefined ? rest : { ...rest, note };
@@ -181,5 +174,5 @@ export function initLocalHighlights(deps: {
 
 	const remove = (id: string): boolean => write(all().filter((item) => item.id !== id));
 
-	return { all, list, anchorsOn, isAvailable, add, setNote, remove };
+	return { all, anchorsOn, isAvailable, add, setNote, remove };
 }

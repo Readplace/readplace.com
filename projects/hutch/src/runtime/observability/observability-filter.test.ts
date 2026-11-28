@@ -1,5 +1,6 @@
 import {
 	ANALYTICS_FILTER_STREAMS,
+	CRAWL_OUTCOME_STREAM,
 	buildObservabilityFilterPattern,
 	ERROR_STREAMS,
 	RUNTIME_FAILURE_MARKERS,
@@ -78,6 +79,6 @@ describe("observability filter", () => {
 	});
 
 	it("does not forward the operational streams that stay in their source group", () => {
-		expect(matchesPattern(`{"stream":"${STREAMS.crawlOutcomes}","outcome":"ok"}`)).toBe(false);
+		expect(matchesPattern(`{"stream":"${CRAWL_OUTCOME_STREAM}","outcome":"ok"}`)).toBe(false);
 	});
 });

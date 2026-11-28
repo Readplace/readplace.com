@@ -20,6 +20,7 @@ export type MarkGmailEmailImported = (input: {
 	userId: UserId;
 	receivedAtMessageId: string;
 	origin: GmailMessageOrigin;
+	supplemental?: true;
 }) => Promise<MarkGmailEmailImportedOutcome>;
 
 function belongsToOrigin(connection: GmailConnection | undefined, origin: GmailMessageOrigin): connection is GmailConnection {
@@ -37,26 +38,27 @@ export function initMarkGmailEmailImported(deps: {
 }): MarkGmailEmailImported {
 	const { updates } = deps;
 
-	return async ({ userId, receivedAtMessageId, origin }) => {
+	return async ({ userId, receivedAtMessageId, origin, supplemental }) => {
+		const updateKey = { userId, origin, ...(supplemental ? { supplemental } : {}) };
 		if (!(await deps.isSenderMapped({ userId, accountEmail: origin.accountEmail, senderEmail: origin.senderEmail }))) {
-			await updates.discardPending({ userId, origin });
+			await updates.discardPending(updateKey);
 			return { kind: "skipped" };
 		}
 		if (!belongsToOrigin(await deps.connections.findConnectionByUserId(userId), origin)) {
 			return { kind: "deferred", reason: "account-unavailable" };
 		}
 
-		const recorded = await updates.recordPending({ userId, receivedAtMessageId, origin, now: deps.now() });
+		const recorded = await updates.recordPending({ ...updateKey, receivedAtMessageId, now: deps.now() });
 		if (recorded.status === "completed") return { kind: recorded.alreadyRead ? "already-read" : "already-marked" };
 		if (recorded.status === "failed") return { kind: "already-failed", reason: recorded.failureReason };
 
-		const claimUntil = await updates.claimPending({ userId, origin, now: deps.now() });
+		const claimUntil = await updates.claimPending({ ...updateKey, now: deps.now() });
 		if (claimUntil === undefined) throw new GmailUnavailableError("another worker is processing this Gmail update");
 		try {
 			// Record pending work before rechecking the grant so a concurrent reconnect can resume it.
 			const connection = await deps.connections.findConnectionByUserId(userId);
 			if (!belongsToOrigin(connection, origin)) {
-				await updates.discardPending({ userId, origin });
+				await updates.discardPending(updateKey);
 				return { kind: "deferred", reason: "account-unavailable" };
 			}
 			if (connection.revokedAt !== undefined) return { kind: "deferred", reason: "account-unavailable" };
@@ -71,14 +73,14 @@ export function initMarkGmailEmailImported(deps: {
 			const outcome = await markOriginal({ mailbox, origin });
 			if (outcome.kind === "reauth-required") return { kind: "deferred", reason: "account-unavailable" };
 			if (outcome.kind === "failed") {
-				const marked = await updates.markFailed({ userId, origin, reason: outcome.reason, now: deps.now() });
+				const marked = await updates.markFailed({ ...updateKey, reason: outcome.reason, now: deps.now() });
 				return marked === "failed" ? outcome : { kind: "already-failed", reason: outcome.reason };
 			}
 
-			await updates.markCompleted({ userId, origin, now: deps.now(), alreadyRead: outcome.kind === "already-read" });
+			await updates.markCompleted({ ...updateKey, now: deps.now(), alreadyRead: outcome.kind === "already-read" });
 			return outcome;
 		} finally {
-			await updates.releaseClaim({ userId, origin, claimUntil });
+			await updates.releaseClaim({ ...updateKey, claimUntil });
 		}
 	};
 }

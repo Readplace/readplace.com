@@ -62,10 +62,7 @@ import {
 	type RemoveCard,
 	type SetPrimaryCard,
 } from "@packages/provider-contracts/payment-methods";
-import type {
-	CreateChargeReminderSchedule,
-	DeleteDeferredCancellationSchedule,
-} from "@packages/provider-contracts/trial-scheduler";
+import type { CreateChargeReminderSchedule } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import {
 	chargeReminderFiresAt,
@@ -174,9 +171,9 @@ interface AccountDependencies {
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 	stripePublishableKey: string | undefined;
-	trialScheduler: TrialSchedulerPort;
-	createChargeReminderSchedule: CreateChargeReminderSchedule;
-	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+	trialScheduler: TrialSchedulerPort & {
+		createChargeReminderSchedule: CreateChargeReminderSchedule;
+	};
 	storePendingSignup: StorePendingSignup;
 	resolvePriceId: ResolvePriceId;
 	buildCheckoutSuccessUrl: (sessionIdPlaceholder: string) => string;
@@ -738,7 +735,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				// dispatches CancelSubscriptionCommand against the now-active row and
 				// re-cancels the user. (The trial path below deletes it via
 				// startTrial, so each branch owns its own schedule hygiene.)
-				await deps.deleteDeferredCancellationSchedule({ userId });
+				await deps.trialScheduler.deleteDeferredCancellationSchedule({ userId });
 				const reversed = await deps.reverseScheduledCancellation({
 					subscriptionId: row.subscriptionId,
 				});
@@ -749,7 +746,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				});
 				if (reversed.trialEndsAt) {
 					try {
-						await deps.createChargeReminderSchedule({
+						await deps.trialScheduler.createChargeReminderSchedule({
 							userId,
 							firesAt: chargeReminderFiresAt({
 								chargeAt: reversed.trialEndsAt,
@@ -988,7 +985,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 			const { subscriptionId } = charge;
-			await deps.deleteDeferredCancellationSchedule({ userId });
+			await deps.trialScheduler.deleteDeferredCancellationSchedule({ userId });
 			await deps.upsertActiveSubscription({
 				userId,
 				subscriptionId,

@@ -55,7 +55,7 @@ describe("Readlist settings destinations for the native apps (GET /queue, Siren)
 		assert(current?.preferences);
 		const page = await agent.get(current.preferences.href);
 		expect(page.status).toBe(200);
-		expect(page.text).toContain("data-test-readlist-preferences");
+		expect(page.text).toContain("data-test-smart-filing");
 	});
 
 	it("advertises Integrations on the \"All\" readlist, and the href opens the signed-in integrations index", async () => {

@@ -104,6 +104,21 @@ describe("GlobalNav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
+	it("sends the Readlist item to the reader's home readlist", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				paidFeaturesLocked: false,
+			}),
+		);
+
+		const queue = doc.querySelector('button[data-test-nav-item="queue"]');
+		const form = queue?.closest("form");
+		assert(form, "Readlist must render inside its form");
+		expect(form.querySelector('input[name="scope"]')?.getAttribute("value")).toBe("home");
+	});
+
 	it("splits the authenticated nav into a Library section (queue, install, inbox, integrations) and an Account section (account, blog, privacy, terms, sign out)", () => {
 		const doc = parse(
 			GlobalNav({

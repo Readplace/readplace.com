@@ -86,12 +86,7 @@ export function initLinkSummariser(deps: {
 			system: SUMMARIZE_PROMPT,
 			messages: [{
 				role: "user",
-				content: [{
-					type: "document",
-					source: { type: "text", media_type: "text/plain", data: deps.fitSummaryInput({ html: params.textContent, maxChars: MAX_SUMMARY_INPUT_CHARS }) },
-					title: "Article to summarize",
-					citations: { enabled: true },
-				}],
+				content: deps.fitSummaryInput({ html: params.textContent, maxChars: MAX_SUMMARY_INPUT_CHARS }),
 			}],
 		});
 

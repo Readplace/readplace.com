@@ -6,7 +6,7 @@ import {
 	InboxAddressSchema,
 	InboxTokenSchema,
 } from "@packages/domain/inbox";
-import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema, type ReadlistSlug, DEFAULT_READLIST } from "@packages/domain/readlist";
 import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
@@ -20,8 +20,9 @@ import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
-import { DEFAULT_READLIST } from "./readlist.nav";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
+import type { ReadlistFilingMode } from "./readlist-smart-filing.component";
+import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";
 
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("a1b2c3d4");
 const LATER: ReadlistSlug = ReadlistSlugSchema.parse("e5f6a7b8");
@@ -40,6 +41,8 @@ function page(overrides: {
 	offer?: UpgradeOffer;
 	subscriptionBanner?: SubscriptionBannerState;
 	query?: Record<string, unknown>;
+	filing?: ReadlistFilingMode;
+	gmailSenders?: ReadlistGmailSendersViewModel;
 }) {
 	return ReadlistPreferencesPage({
 		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose },
@@ -56,8 +59,7 @@ function page(overrides: {
 		values: { purpose: overrides.purpose },
 		wizardOpen: overrides.wizardOpen ?? false,
 		purposeError: overrides.purposeError,
-		filing: "legacy",
-		smartPurpose: undefined,
+		filing: overrides.filing ?? "legacy",
 		smartError: undefined,
 		inboxes: overrides.inboxes ?? [],
 		choices: overrides.choices ?? [],
@@ -65,7 +67,7 @@ function page(overrides: {
 		saved: false,
 		inboxCreate: { submittedName: undefined, error: undefined },
 		inboxCreated: undefined,
-		gmailSenders: undefined,
+		gmailSenders: overrides.gmailSenders,
 		paidFeaturesLocked: overrides.paidFeaturesLocked ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },
 		onboarding: {
@@ -241,12 +243,11 @@ describe("ReadlistPreferencesPage", () => {
 		const panel = doc.querySelector("[data-test-readlist-preferences]");
 		assert(panel, "the preferences panel must render in every state");
 
-		expect(panel.className).toContain("readlist-preferences--set");
 		expect(panel.className).toContain("readlist-preferences--wizard-open");
 	});
 
 	it("tags both wizard surfaces and the cancel link so every click is attributable", () => {
-		const doc = documentOf(page({}).content.html);
+		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
 		const hrefs = Array.from(doc.querySelectorAll("[data-test-wizard-surface] a[href]"), (link) =>
 			link.getAttribute("href"),
 		);
@@ -263,31 +264,6 @@ describe("ReadlistPreferencesPage", () => {
 		]);
 	});
 
-	it("offers to set the readlist up while it has no purpose, with no options to show", () => {
-		const panel = purposePanel(documentOf(page({}).content.html));
-		const empty = panel.querySelector("[data-test-preferences-empty]");
-		assert(empty, "the unset state must show the set-up card");
-
-		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
-		expect(empty.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Readplace checks new article links from your Readplace inboxes and enabled Gmail newsletters against these preferences.",
-		);
-		expect(
-			Array.from(empty.querySelectorAll('[data-test-action="readlist-preferences-setup"]'), (cta) => ({
-				label: cta.textContent,
-				opens: cta.getAttribute("popovertarget"),
-				className: cta.className,
-			})),
-		).toEqual([
-			{
-				label: "Set up readlist",
-				opens: "readlist-preferences-wizard",
-				className: "btn btn--neutral readlist-empty__cta",
-			},
-		]);
-		expect(panel.querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
-	});
-
 	it("shows a set purpose in the Purpose card above the tabs, opening the edit dialog", () => {
 		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
 		const card = doc.querySelector('.readlist__browse > [data-test-action="readlist-purpose-edit"]');
@@ -299,8 +275,14 @@ describe("ReadlistPreferencesPage", () => {
 		expect(purposePanel(doc).querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
 	});
 
-	it("shows no Purpose card while the purpose is unset", () => {
-		expect(documentOf(page({}).content.html).querySelectorAll("[data-test-readlist-purpose]")).toHaveLength(0);
+	it("shows no Purpose card and no wizard while the purpose is unset", () => {
+		const doc = documentOf(page({}).content.html);
+		const tabs = doc.querySelector(".readlist__browse > [data-test-filters]");
+		assert(tabs, "the tabs must render in every state");
+
+		expect(
+			doc.querySelectorAll("[data-test-readlist-purpose], #readlist-preferences-wizard, [data-test-readlist-preferences]"),
+		).toHaveLength(0);
 	});
 
 	it("posts the purpose from Preferences without naming an origin, so the save lands back on Preferences", () => {
@@ -328,15 +310,6 @@ describe("ReadlistPreferencesPage", () => {
 		const docs = [page({}), page({ purpose: "Shipping essays." })].map((rendered) => documentOf(rendered.content.html));
 
 		expect(docs.map((doc) => doc.querySelectorAll('[data-test-confirm-popover="readlist-purpose-delete"]').length)).toEqual([0, 0]);
-	});
-
-	it("asks the setup question in the dialog's title while the purpose is unset", () => {
-		const doc = documentOf(page({}).content.html);
-		const dialog = doc.querySelector('[data-test-confirm-popover="readlist-preferences"]');
-		assert(dialog, "the wizard's dialog must render");
-
-		expect(dialog.querySelector(".confirm-popover__title")?.textContent).toBe("What's this readlist for?");
-		expect(dialog.querySelectorAll(".confirm-popover__subheading")).toHaveLength(0);
 	});
 
 	it("titles the dialog with the edit and asks the question under it once the purpose is set", () => {
@@ -370,49 +343,11 @@ describe("ReadlistPreferencesPage", () => {
 				purposeError: "Say what this readlist is for, in up to 10,000 characters.",
 			}).content.html,
 		);
-		const panel = purposePanel(doc);
 
-		expect(panel.className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--set readlist-preferences--paid-locked",
-		);
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-purpose-edit"], [data-test-wizard], .readlist-preferences__fallback, [data-test-confirm-popover="readlist-preferences"]',
-			),
-		).toHaveLength(0);
-	});
-
-	it("shows a free-plan reader the unset card, with no way to set it up", () => {
-		const panel = purposePanel(documentOf(page({ paidFeaturesLocked: true }).content.html));
-
-		expect(panel.className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--paid-locked",
-		);
-		expect(panel.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
-		expect(panel.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
-	});
-
-	it("locks Set up readlist for a free-plan reader who can upgrade, with no wizard behind it", () => {
-		const doc = documentOf(page({ paidFeaturesLocked: true, offer: OFFER }).content.html);
-		const panel = purposePanel(doc);
-
-		expect(panel.className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--paid-locked",
-		);
-		const lock = panel.querySelector('.readlist-preferences__unset [data-test-action="upgrade-open"]');
-		assert(lock, "the unset card must carry the lock");
-		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("set-up-readlist");
-		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
-		expect(lock.querySelector(".needs-upgrade__label")?.textContent).toBe("Set up readlist");
-		expect(lock.classList.contains("readlist-empty__cta")).toBe(true);
-		const fallback = panel.querySelector('.readlist-preferences__unset [data-test-action="upgrade-fallback"]');
-		expect(fallback?.getAttribute("href")).toBe(
-			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-set-up-readlist",
-		);
-		expect(
-			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-wizard], .readlist-preferences__fallback',
+				'[data-test-readlist-preferences], [data-test-action="readlist-purpose-edit"], [data-test-wizard], .readlist-preferences__fallback, [data-test-confirm-popover="readlist-preferences"]',
 			),
 		).toHaveLength(0);
 	});
@@ -443,12 +378,49 @@ describe("ReadlistPreferencesPage", () => {
 		["an unset purpose", undefined],
 		["a set purpose", "Shipping essays."],
 	])("shows no lock on %s when the reader can write, even with an offer", (_case, purpose) => {
-		const panel = purposePanel(documentOf(page({ purpose, offer: OFFER }).content.html));
+		const doc = documentOf(page({ purpose, offer: OFFER }).content.html);
+		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
+		assert(inboxes, "the inboxes section renders in every state");
 
-		expect(panel.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
+		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
 	});
 
-	it("stacks the readlist's inboxes under its purpose panel", () => {
+	it.each([
+		["unset", undefined, ["filters", "inboxes"]],
+		["set", "Shipping essays.", ["filters", "preferences", "inboxes"]],
+	])("stacks the readlist's inboxes under its tabs and wizard host while the purpose is %s", (_state, purpose, order) => {
+		const browse = documentOf(page({ purpose }).content.html).querySelector(".readlist__browse");
+		assert(browse, "the preferences page must render its browse column");
+		const sections = Array.from(browse.children, (child) =>
+			["filters", "preferences", "inboxes"].find((name) =>
+				child.hasAttribute(name === "filters" ? "data-test-filters" : `data-test-readlist-${name}`),
+			),
+		).filter((name) => name !== undefined);
+
+		expect(sections).toEqual(order);
+	});
+
+	it("shows a Smart Readlist its Purpose card, wizard, inboxes and Gmail senders", () => {
+		const gmailSenders: ReadlistGmailSendersViewModel = {
+			sectionClass: "",
+			state: "connect",
+			lede: "Choose newsletters.",
+			notes: [],
+			prompt: undefined,
+			connect: undefined,
+			links: [],
+			picker: undefined,
+			pageUrl: "/gmail",
+		};
+		const doc = documentOf(page({ purpose: "Shipping essays.", filing: "smart", gmailSenders }).content.html);
+
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
+		expect(doc.querySelector("#readlist-preferences-wizard")).toBeTruthy();
+		expect(doc.querySelector("[data-test-readlist-inboxes]")).toBeTruthy();
+		expect(doc.querySelector("[data-test-readlist-gmail-senders]")).toBeTruthy();
+	});
+
+	it("names the destination of an inbox routed to another readlist", () => {
 		const news: InboxAddressEntry = {
 			address: InboxAddressSchema.parse("news-a7b2c9@read.place"),
 			userId: UserIdSchema.parse("reader-1"),
@@ -460,10 +432,7 @@ describe("ReadlistPreferencesPage", () => {
 			readlist: LATER,
 		};
 		const doc = documentOf(page({ inboxes: [news] }).content.html);
-		const purposePanel = doc.querySelector("[data-test-readlist-preferences]");
-		assert(purposePanel, "the preferences panel must render in every state");
 
-		expect(purposePanel.nextElementSibling?.hasAttribute("data-test-readlist-inboxes")).toBe(true);
 		expect(
 			doc.querySelector(
 				'[data-test-preferences-inbox="news-a7b2c9@read.place"] [data-test-inbox-destination]',

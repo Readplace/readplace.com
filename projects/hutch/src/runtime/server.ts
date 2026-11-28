@@ -119,7 +119,6 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
-	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
@@ -156,10 +155,8 @@ import type {
 	RenameReadlistDefinition,
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
-	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	PurgeReadlistFitOverrides,
@@ -429,7 +426,6 @@ import { initListConnectedOAuthClients } from "./domain/oauth/connected-oauth-cl
 import {
 	type NewsletterCatalogSeed,
 	initCatalogNewsletterDetector,
-	initNewsletterDetectorChain,
 } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { FindCanaryReport } from "@packages/provider-contracts/canary-report";
@@ -552,10 +548,8 @@ export interface AppDependencies {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
@@ -640,7 +634,6 @@ export interface AppDependencies {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
-	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;
@@ -869,9 +862,7 @@ export function createApp(dependencies: AppDependencies): Express {
 						now: deps.now,
 					}),
 				},
-				detectNewsletters: initNewsletterDetectorChain({
-					detectors: [initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog })],
-				}),
+				detectNewsletters: initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog }),
 				upsertReadlist,
 				listReadlistDefinitions: deps.listReadlistDefinitions,
 			};
@@ -1223,7 +1214,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const extensionCors = cors({
 		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
 		methods: ["GET", "POST", "PUT", "DELETE"],
-		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer", "DPoP", "X-Readplace-Auth-Attempt-Id", "X-Readplace-Auth-Context-Id", "X-Readplace-Client-Version", "X-Readplace-Installation-Id"],
+		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer", "DPoP", "X-Readplace-Auth-Attempt-Id", "X-Readplace-Auth-Context-Id", "X-Readplace-Client-Version", "X-Readplace-Home-Readlist", "X-Readplace-Installation-Id"],
 		exposedHeaders: ["DPoP-Nonce", "X-Readplace-Refresh-Attempt"],
 		maxAge: 86400,
 	});

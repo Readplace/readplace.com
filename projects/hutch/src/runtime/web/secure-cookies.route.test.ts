@@ -97,7 +97,7 @@ describe("Cookie Secure attribute", () => {
 			const response = await postLogin(harness);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?scope=hand-picked");
+			expect(response.headers.location).toBe("/queue?scope=home");
 			const cookie = findCookie(response.headers, SESSION_COOKIE_NAME);
 			expect(cookie).not.toContain("; Secure");
 			expect(cookie).toContain("; HttpOnly");

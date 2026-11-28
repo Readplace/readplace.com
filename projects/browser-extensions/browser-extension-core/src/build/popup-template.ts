@@ -1,4 +1,6 @@
 import assert from "node:assert";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { browserExtension } from "@packages/translations/browser-extension";
 import { iconSvg } from "@packages/ui-icons";
 import { renderIllustration } from "@packages/web-shell";
 import { SYSTEM_THEME_VARIABLES } from "@packages/web-shell/design-system.styles";
@@ -6,6 +8,17 @@ import { SYSTEM_THEME_VARIABLES } from "@packages/web-shell/design-system.styles
 export type PopupUtmSource = "chrome-extension" | "firefox-extension";
 
 const APP_ORIGIN = "https://readplace.com";
+
+const { t } = translator(browserExtension, DEFAULT_LOCALE);
+
+function escapedText(text: string): string {
+	return text
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#x27;");
+}
 
 function trackedHref(input: { path: string; utmSource: PopupUtmSource; utmContent: string }): string {
 	const url = new URL(input.path, APP_ORIGIN);
@@ -27,6 +40,8 @@ export function renderPopupTemplate(input: { template: string; utmSource: PopupU
 		errorIcon: iconSvg("x-circle"),
 		warningIcon: iconSvg("alert-triangle"),
 		searchIcon: iconSvg("search"),
+		searchLabel: escapedText(t("popup.search.label")),
+		noMatchesText: escapedText(t("popup.search.noMatches")),
 		emptyArt: renderIllustration("book-lightbulb"),
 		themeTokens: SYSTEM_THEME_VARIABLES,
 	};

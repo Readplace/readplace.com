@@ -41,7 +41,7 @@ describe("GET / (authenticated)", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const response = await agent.get("/");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?scope=hand-picked");
+		expect(response.headers.location).toBe("/queue?scope=home");
 	});
 });
 
@@ -686,7 +686,7 @@ describe("GET / metadata", () => {
 		);
 	});
 
-	it("should not include twitter:site when no handle is configured", async () => {
+	it("should render the twitter card, title, description, image and creator meta", async () => {
 		const { doc } = await loadHomepage();
 
 		const twitterMetaNames = Array.from(doc.querySelectorAll('meta[name^="twitter:"]')).map(

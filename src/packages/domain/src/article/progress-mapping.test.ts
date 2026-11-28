@@ -1,12 +1,12 @@
 import {
 	CRAWL_STAGES,
 	CRAWL_STAGE_TO_PCT,
-	SUMMARY_STAGES,
 	SUMMARY_STAGE_TO_PCT,
 	crawlProgressPct,
-	crawlStagePct,
 	summaryStagePct,
 } from "./progress-mapping";
+
+const summaryStagePcts = Object.values(SUMMARY_STAGE_TO_PCT);
 
 describe("progress-mapping", () => {
 	it("orders crawl stages monotonically", () => {
@@ -16,13 +16,12 @@ describe("progress-mapping", () => {
 	});
 
 	it("orders summary stages monotonically", () => {
-		const pcts = SUMMARY_STAGES.map((s) => SUMMARY_STAGE_TO_PCT[s]);
-		const sorted = [...pcts].sort((a, b) => a - b);
-		expect(pcts).toEqual(sorted);
+		const sorted = [...summaryStagePcts].sort((a, b) => a - b);
+		expect(summaryStagePcts).toEqual(sorted);
 	});
 
 	it("starts the reader axis above 0 so the bar is visible immediately on crawl-fetching", () => {
-		expect(crawlStagePct("crawl-fetching")).toBeGreaterThan(0);
+		expect(crawlProgressPct({ stage: "crawl-fetching" })).toBeGreaterThan(0);
 	});
 
 	it("starts the summary axis above 0 so the bar is visible immediately on summary-started", () => {
@@ -31,29 +30,29 @@ describe("progress-mapping", () => {
 
 	it("keeps every crawl stage below 100 so the label never reads 100% before the reader view lands", () => {
 		for (const stage of CRAWL_STAGES) {
-			expect(crawlStagePct(stage)).toBeLessThan(100);
+			expect(crawlProgressPct({ stage })).toBeLessThan(100);
 		}
 	});
 
 	it("keeps every summary stage below 100 so the label never reads 100% before the summary lands", () => {
-		for (const stage of SUMMARY_STAGES) {
-			expect(summaryStagePct(stage)).toBeLessThan(100);
+		for (const pct of summaryStagePcts) {
+			expect(pct).toBeLessThan(100);
 		}
 	});
 
 	it("ends each axis at exactly 90 on its last observable stage", () => {
 		expect(Math.max(...CRAWL_STAGES.map((s) => CRAWL_STAGE_TO_PCT[s]))).toBe(90);
-		expect(Math.max(...SUMMARY_STAGES.map((s) => SUMMARY_STAGE_TO_PCT[s]))).toBe(90);
-		expect(crawlStagePct("crawl-content-uploaded")).toBe(90);
+		expect(Math.max(...summaryStagePcts)).toBe(90);
+		expect(crawlProgressPct({ stage: "crawl-content-uploaded" })).toBe(90);
 		expect(summaryStagePct("summary-generating")).toBe(90);
 	});
 
 	it("slots comprehensive-* stages between crawl-fetched and crawl-parsed so a PDF fallthrough never regresses the bar", () => {
-		const fetched = crawlStagePct("crawl-fetched");
-		const compFetching = crawlStagePct("comprehensive-fetching");
-		const compExtracting = crawlStagePct("comprehensive-extracting");
-		const compCleaning = crawlStagePct("comprehensive-cleaning");
-		const parsed = crawlStagePct("crawl-parsed");
+		const fetched = crawlProgressPct({ stage: "crawl-fetched" });
+		const compFetching = crawlProgressPct({ stage: "comprehensive-fetching" });
+		const compExtracting = crawlProgressPct({ stage: "comprehensive-extracting" });
+		const compCleaning = crawlProgressPct({ stage: "comprehensive-cleaning" });
+		const parsed = crawlProgressPct({ stage: "crawl-parsed" });
 		expect(compFetching).toBeGreaterThan(fetched);
 		expect(compExtracting).toBeGreaterThan(compFetching);
 		expect(compCleaning).toBeGreaterThan(compExtracting);

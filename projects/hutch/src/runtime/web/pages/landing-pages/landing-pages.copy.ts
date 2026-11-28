@@ -1,11 +1,13 @@
 import { OCR_SCRIPT_PACKS, type OcrScriptPack } from "@packages/crawl-article";
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 
+import { FIRST_DAYS_STATEMENT } from "../../price-statement";
 import type {
 	IsoDay,
 	LandingPageAction,
 	LandingPageActionInput,
 	LandingPageContent,
+	LandingPageFaqEntry,
 	LandingPageSlug,
 } from "./landing-pages.types";
 
@@ -51,6 +53,17 @@ export function founderLine(slug: LandingPageSlug): string {
 	});
 	return `Fayner Brack, Founder & CEO of Readplace, wrote js-cookie, which browsers download about 22 billion times a year, and ran her own reading pipeline for ten years before it became Readplace. <a href="${href}">Why Readplace exists</a>.`;
 }
+
+export function bodyLink(slug: LandingPageSlug, path: string, content: string): string {
+	return withInternalTracking(path, { source: `lp-${slug}-body`, content });
+}
+
+export const SIGNUP_NOTE = "Google, Apple, or an email address. No card unless you upgrade.";
+
+export const CREDIT_CARD_FAQ: LandingPageFaqEntry = {
+	question: "Do I need a credit card to start?",
+	answer: `No. An account is free, within daily limits on new saves, and no card is asked for. ${FIRST_DAYS_STATEMENT} If you never upgrade, nothing is charged.`,
+};
 
 export const PLAN_CHOICES = `${PRICING_PLANS.monthly.billedNote} or ${PRICING_PLANS.yearly.billedNote}`;
 

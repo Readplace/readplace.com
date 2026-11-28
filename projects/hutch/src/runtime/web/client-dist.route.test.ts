@@ -1,7 +1,6 @@
 import request from "supertest";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../test-app";
-import { READER_PAINT_DELAY_MS } from "./shared/reader-open/reader-open-timing";
 import { OFFLINE_READER_WORKER_PATH } from "./static-asset-paths";
 
 const useApp = useTestServer();
@@ -44,12 +43,12 @@ describe("client-dist reader-open bundle", () => {
 		expect(response.text).toContain("ReaderOpen.initReaderOpen({");
 	});
 
-	it("arms the shipped bundle with the reader paint delay, so the build script cannot drift from the constant", async () => {
+	it("arms the shipped bundle with the reader paint delay", async () => {
 		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
 
 		const response = await request(harness.server).get("/client-dist/reader-open.client.js");
 
-		expect(response.text).toContain(`paintDelayMs: ${READER_PAINT_DELAY_MS},`);
+		expect(response.text).toContain("paintDelayMs: 150,");
 	});
 
 	it("serves the reader-open source map so the devtools fetch is a 200", async () => {

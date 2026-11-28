@@ -8,7 +8,7 @@ import type { UserId } from "@packages/domain/user";
 
 export type StartAnonymousCrawl = (params: { identity: ResolvedSaveIdentity; userId: UserId | undefined }) => Promise<void>;
 
-export interface StartAnonymousCrawlDependencies {
+interface StartAnonymousCrawlDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
 	pinContentSource: PinContentSource;
 	markCrawlPending: MarkCrawlPending;

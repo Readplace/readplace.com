@@ -11,7 +11,6 @@ export const enUS = {
 		file: "Save articles that fit its purpose and Readplace adds them to your Smart Readlist. You can also open the “All” readlist and use Add to file one yourself.",
 		progress: "{count}/10 articles saved to Smart Readlists",
 		unavailable: "Progress unavailable",
-		dismiss: "I don't want to do this",
 	},
 	manage: {
 		title: "Manage articles",
@@ -30,8 +29,10 @@ export const enUS = {
 		action: {
 			file: "Add to readlist",
 			read: "Mark as read in “All”",
+			"read-everywhere": "Mark as read in every readlist",
 			remove: "Remove from “All”",
 		},
+		staleForm: "This form is out of date. Refresh the page and choose the action again.",
 		confirmBy: "Confirm by",
 		restoreBy: "Restore by",
 		retry: "Retry unfinished work",
@@ -45,6 +46,7 @@ export const enUS = {
 			completed: "Completed",
 			skipped: "Skipped",
 			failed: "Failed",
+			unfinished: "Unfinished articles",
 			restorable: "Restorable",
 			restoredCount: "Restored",
 		},
@@ -100,6 +102,23 @@ export const enUS = {
 			},
 		},
 	},
+	readlistSearch: {
+		label: "Search this readlist tab by title or site",
+		allSources: "Submit to search all sources in this tab by title or site",
+		shownFrom: "Results shown from {source}.",
+		sourceEmpty: {
+			title: "No articles from {source} in {tab}",
+			text: "A search looks in all sources in this tab.",
+			noSender: "No sender selected",
+			noSenderText: "Choose a newsletter sender to see its articles in {tab}.",
+		},
+		sourceNoMatches: {
+			search: "Nothing from {source} in {tab} matches your search. {action} also returns to all sources.",
+			filters: "Nothing from {source} in {tab} matches your filters: ",
+			searchAndFilters: "Nothing from {source} in {tab} matches your search and filters: ",
+			tail: ". Your filters stay on as you browse until you clear them. {action} also returns to all sources.",
+		},
+	},
 	readlistOffline: {
 		banner: {
 			processing: "Some of these articles weren't downloaded with their content. Open them when you're back online to read them.",
@@ -107,11 +126,7 @@ export const enUS = {
 		},
 	},
 	readlistPreferences: {
-		saved: "Preferences saved",
-		matching: "Readplace will check article links from every Readplace inbox you own and every Gmail newsletter sender you’ve enabled. Articles that match your preferences will appear in {readlist}.",
-		linkLimit: "Readplace checks the first {limit} unique links in each email for articles.",
-		dismiss: "Got it",
-		setup: "Readplace checks new article links from your Readplace inboxes and enabled Gmail newsletters against these preferences.",
+		save: "Save",
 	},
 	readlistGmail: {
 		enabled: "Enable senders here to receive new issues in Inbox. Your delivery choice controls what is saved to All and {readlist}. Readplace checks linked articles from every enabled sender against all your saved readlist preferences.",
@@ -180,10 +195,10 @@ export const enUS = {
 	readlistDelete: {
 		label: "Delete from this readlist",
 		confirm: {
-			title: "Delete this article?",
-			body: "This article will be removed from this readlist. You can save it again later.",
-			lead: "Article: {title}",
-			never: "Delete and don't ask again",
+			title: "Remove this article from this readlist?",
+			body: "Removing your last saved copy can permanently delete its highlights and notes. Saving the article again won't restore them.",
+			never: "Delete and skip future confirmations",
+			neverHelp: "This also skips the question when you delete other articles from a readlist or the reader.",
 		},
 	},
 	readlistSaveLimit: {
@@ -222,10 +237,8 @@ export const enUS = {
 			submit: "Make this a Smart Readlist",
 		},
 		rule: {
-			title: "Matching instructions",
-			body: "Readplace checks each new save from all your sources against these instructions.",
-			purposeLabel: "What should this readlist collect?",
-			submit: "Save instructions",
+			title: "Smart matching",
+			body: "Readplace checks each new save from all your sources against this readlist’s purpose.",
 		},
 		sources: {
 			title: "Sources",
@@ -234,13 +247,13 @@ export const enUS = {
 			gmail: "Gmail",
 		},
 		turnOff: {
-			title: "Turn off smart matching",
-			body: "The articles already in this readlist and their read status stay. New articles arrive only when you file them yourself.",
-			submit: "Turn off smart matching",
+			title: "Remove purpose",
+			body: "This becomes a regular readlist. The articles already in it and their read status stay. Readplace stops checking new saves and emails against it.",
+			submit: "Remove purpose",
 		},
 		paused: {
 			title: "Smart matching is paused",
-			body: "Smart Readlists are part of a paid plan. Upgrade to match new saves again, or turn off smart matching.",
+			body: "Smart Readlists are part of a paid plan. Upgrade to match new saves again, or remove the purpose.",
 		},
 	},
 } as const;

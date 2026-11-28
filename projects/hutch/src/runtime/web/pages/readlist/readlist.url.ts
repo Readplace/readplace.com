@@ -2,8 +2,6 @@ import { HAND_PICKED_SCOPE } from "./built-in-readlists";
 import { z } from "zod";
 import {
 	readlistFilterOf,
-	resolveArticleDiscovery,
-	type ArticleDiscoveryQuery,
 	type ReadlistFilter,
 } from "@packages/domain/article";
 import {
@@ -103,10 +101,6 @@ export function discoveryParams(discovery: ReadlistDiscovery | undefined): LinkP
 	];
 }
 
-export function toArticleDiscoveryQuery(discovery: ReadlistDiscovery, now: Date): ArticleDiscoveryQuery {
-	return resolveArticleDiscovery({ ...discovery, now });
-}
-
 function readlistQueryString(state: Partial<ReadlistUrlState>, extraParams: LinkParams = []): string {
 	const params = new URLSearchParams();
 	const tab = state.tab ?? "queue";
@@ -165,8 +159,6 @@ export const READLIST_GMAIL_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/gma
 
 export const READLIST_SMART_SECTION_ID = "readlist-smart";
 
-export const READLIST_SMART_READLIST_STEP_DISMISS_PATH = `${READLIST_PATH}/onboarding/smart-readlist/dismiss`;
-
 export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }
@@ -186,12 +178,6 @@ export function readlistPreferencesPath(readlist: ReadlistSlug): string {
 export const PURPOSE_ORIGINS = [...TAB_IDS, "preferences"] as const;
 
 export type PurposeOrigin = (typeof PURPOSE_ORIGINS)[number];
-
-export function readlistPreferencesSetupPath(readlist: ReadlistSlug, from: TabId): string {
-	return `${readlistPreferencesPath(readlist)}?setup_from=${from}`;
-}
-
-export const PREFERENCES_SETUP_SAVED = "preferences_setup_saved";
 
 export function readlistPurposeActionPath(input: { readlist: ReadlistSlug; from: PurposeOrigin }): string {
 	const path = readlistPreferencesPath(input.readlist);

@@ -11,7 +11,7 @@ function staysOnOrigin(returnUrl: string): boolean {
 	return target.origin === RETURN_URL_BASE && !target.pathname.startsWith("//");
 }
 
-function validatedReturnUrl(query: unknown): string | undefined {
+export function extractReturnUrl(query: unknown): string | undefined {
 	const parsed = ReturnQuerySchema.safeParse(query);
 	const returnUrl = parsed.success ? parsed.data.return : undefined;
 	if (returnUrl?.startsWith("/") && staysOnOrigin(returnUrl)) {
@@ -21,9 +21,5 @@ function validatedReturnUrl(query: unknown): string | undefined {
 }
 
 export function parseReturnUrl(query: unknown): string {
-	return validatedReturnUrl(query) ?? READER_HOME_HREF;
-}
-
-export function extractReturnUrl(query: unknown): string | undefined {
-	return validatedReturnUrl(query);
+	return extractReturnUrl(query) ?? READER_HOME_HREF;
 }

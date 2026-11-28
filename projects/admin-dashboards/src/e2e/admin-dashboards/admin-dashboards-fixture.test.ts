@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
-import { ADMIN_DASHBOARD_SLUGS, ANALYTICS_LOG_GROUP, AUTH_DIAGNOSTICS_LOG_GROUP, buildAdminDashboards } from "@packages/dashboard-widgets";
+import { ADMIN_DASHBOARD_SLUGS, buildAdminDashboards } from "@packages/dashboard-widgets";
 import { e2eDashboardAnswers } from "./admin-dashboards-fixture";
 
 describe("e2eDashboardAnswers", () => {
-	const dashboards = buildAdminDashboards({
-		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-		authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-	});
+	const dashboards = buildAdminDashboards();
 	const widgetQueries = new Set(
 		ADMIN_DASHBOARD_SLUGS.flatMap((slug) =>
 			dashboards[slug].widgets({ excludedVisitorIds: [], excludedUserIds: [] }).map((widget) => widget.query),

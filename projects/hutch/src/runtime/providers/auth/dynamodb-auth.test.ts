@@ -5,7 +5,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
 } from "@packages/storage-client";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { HomeReadlistSlugSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema, hashPassword } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
@@ -1853,6 +1853,22 @@ describe("initDynamoDbAuth", () => {
 				ExpressionAttributeValues: { ":userId": USER, ":preference": preference },
 			});
 			expect(commands.find(({ name }) => name === "GetCommand")?.input).toMatchObject({ ConsistentRead: true });
+		});
+
+		it.each([
+			{ slug: HomeReadlistSlugSchema.parse("~hand-picked") },
+			{ slug: HomeReadlistSlugSchema.parse("default") },
+			preference,
+		])("reads back a stored %o", async (stored) => {
+			const row = { email: "user@example.com", userId: USER, homeReadlist: stored };
+			const { client } = createQueryFakeClient({ row });
+			const query = client.send;
+			client.send = (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+				if (command.constructor.name === "GetCommand") return { Item: row };
+				return Reflect.apply(query, client, [command]);
+			}) as DynamoDBDocumentClient["send"];
+
+			expect(await initAuth(client).findHomeReadlist(USER)).toEqual(stored);
 		});
 
 		it("has no preference to read or write when the account is missing", async () => {

@@ -18,13 +18,13 @@
         {{#if senderFilter}}
         <details class="menu inbox-emails__sender-menu" data-test-sender-filter>
           <summary class="menu__toggle btn btn--neutral">
-            <span>{{senderFilter.label}}</span><span class="inbox-emails__sender-choice">{{senderFilter.currentLabel}}</span>{{icon "chevron-down"}}
+            <span>{{senderFilter.label}}</span>{{#if senderFilter.currentLabel}}<span class="inbox-emails__sender-choice">{{senderFilter.currentLabel}}</span>{{/if}}{{icon "chevron-down"}}
           </summary>
           <form class="menu__panel" action="{{senderFilter.action}}" method="get" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML">
             <input type="hidden" name="utm_source" value="inbox-emails">
             <input type="hidden" name="utm_medium" value="internal">
             <input type="hidden" name="utm_content" value="filter-sender">
-            <button class="menu__item" type="submit" name="sender" value="" {{#if senderFilter.allSelected}}aria-current="true"{{/if}}>{{senderFilter.all}}</button>
+            <button class="menu__item" type="submit" name="sender" value="">{{senderFilter.all}}</button>
             {{#each senderFilter.options}}
             <button class="menu__item" type="submit" name="sender" value="{{address}}" {{#if selected}}aria-current="true"{{/if}}>{{address}}</button>
             {{/each}}

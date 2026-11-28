@@ -413,49 +413,6 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 			initStore(client).markReaderReadyEmailSent({ userId: USER, url: URL, at: new Date() }),
 		).rejects.toThrow("throttled");
 	});
-
-	it("findUserArticlesByUrl queries the url-index (never a Scan) and maps savers with their viewedAt", async () => {
-		const { client, commands } = createFakeClient({
-			QueryCommand: {
-				default: {
-					Items: [
-						{ userId: "abc123", url: "x", status: "unread", savedAt: "2026-05-30T09:00:00.000Z", viewedAt: "2026-05-30T09:30:00.000Z" },
-						{ userId: "def456", url: "x", status: "unread", savedAt: "2026-05-30T09:00:00.000Z" },
-					],
-					Count: 2,
-				},
-			},
-		});
-
-		const savers = await initStore(client).findUserArticlesByUrl(URL);
-
-		const query = commands.find((c) => c.name === "QueryCommand");
-		expect(query?.input.IndexName).toBe("url-index");
-		expect(commands.some((c) => c.name === "ScanCommand")).toBe(false);
-		expect(savers).toEqual([
-			{ userId: "abc123", viewedAt: new Date("2026-05-30T09:30:00.000Z") },
-			{ userId: "def456", viewedAt: undefined },
-		]);
-	});
-
-	it("findUserArticlesByUrl follows LastEvaluatedKey across pages before returning every saver", async () => {
-		const { client, commands } = createFakeClient({
-			QueryCommand: {
-				readlist: [
-					{ Items: [{ userId: "abc123", url: "x", status: "unread", savedAt: "2026-05-30T09:00:00.000Z" }], Count: 1, LastEvaluatedKey: { url: "x", userId: "abc123" } },
-					{ Items: [{ userId: "def456", url: "x", status: "unread", savedAt: "2026-05-30T09:00:00.000Z" }], Count: 1 },
-				],
-			},
-		});
-
-		const savers = await initStore(client).findUserArticlesByUrl(URL);
-
-		expect(commands.filter((c) => c.name === "QueryCommand")).toHaveLength(2);
-		expect(savers).toEqual([
-			{ userId: "abc123", viewedAt: undefined },
-			{ userId: "def456", viewedAt: undefined },
-		]);
-	});
 });
 
 describe("initDynamoDbSavedArticleStore global writes", () => {
@@ -543,43 +500,6 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 		expect(row).toMatchObject({ ...durable, contentSelectionRevision: 10, title: "New save", imageUrl: null, publishedOn: null });
 		expect(Object.keys(row).sort()).toEqual(["contentSelectionRevision", "estimatedReadTime", "excerpt", "imageUrl", "originalUrl", "publishedOn", "revokedCandidateIds", "routeId", "savedAt", "siteName", "title", "url", "wordCount"]);
-	});
-
-	it("bumpArticleSavedAt writes savedAt guarded by attribute_exists", async () => {
-		const { client, commands } = createFakeClient();
-		await initStore(client).bumpArticleSavedAt({ url: URL, savedAt: new Date("2026-05-30T10:00:00.000Z") });
-
-		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET savedAt = :savedAt");
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(#url)");
-	});
-
-	it("bumpArticleSavedAt is a no-op when the row no longer exists", async () => {
-		const { client } = createFakeClient({
-			UpdateCommand: {
-				default: () => {
-					throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
-				},
-			},
-		});
-
-		await expect(
-			initStore(client).bumpArticleSavedAt({ url: URL, savedAt: new Date() }),
-		).resolves.toBeUndefined();
-	});
-
-	it("bumpArticleSavedAt rethrows a non-conditional update error", async () => {
-		const { client } = createFakeClient({
-			UpdateCommand: {
-				default: () => {
-					throw new Error("throttled");
-				},
-			},
-		});
-
-		await expect(
-			initStore(client).bumpArticleSavedAt({ url: URL, savedAt: new Date() }),
-		).rejects.toThrow("throttled");
 	});
 
 	it("saveArticle inserts the global row, upserts the user row, and returns the saved article", async () => {
@@ -740,6 +660,61 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(reads).toHaveLength(2);
 		expect(reads.every((c) => c.input.ConsistentRead === true)).toBe(true);
 		expect(saved.readAt).toBeUndefined();
+	});
+
+	it("saveArticle completes when the global row vanishes before its savedAt bump", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: (input) => {
+					if (input.TableName === "articles") {
+						throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
+					}
+					return {};
+				},
+			},
+			GetCommand: {
+				default: (input) => ({ Item: input.TableName === "articles" ? articleItem() : userArticleItem() }),
+			},
+		});
+
+		const { saved } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
+		});
+
+		expect(saved.url).toBe(URL);
+	});
+
+	it("saveArticle rethrows a non-conditional error from its savedAt bump", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: (input) => {
+					if (input.TableName !== "articles") return {};
+					if (input.UpdateExpression === "SET savedAt = :savedAt") throw new Error("throttled");
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+				},
+			},
+			GetCommand: {
+				default: (input) => ({ Item: input.TableName === "articles" ? articleItem() : userArticleItem() }),
+			},
+		});
+
+		await expect(
+			initStore(client).saveArticle({
+				userId: USER,
+				url: URL,
+				metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+				estimatedReadTime: TWO_MINUTES,
+				provenance,
+				savedAt: OPERATION_SAVED_AT,
+				saveTrigger: "manual",
+			}),
+		).rejects.toThrow("throttled");
 	});
 
 	it("saveArticle stamps the user row with the caller's savedAt and the global row with its own clock", async () => {
@@ -2159,6 +2134,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 			{ userId: USER, url: "a" },
 			{ userId: USER, url: "b" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
@@ -2181,6 +2157,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			canonicalRemovalKey(USER, RESOURCE_ID),
 			{ userId: USER, url: overrideUrl },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
@@ -2195,6 +2172,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});
@@ -2223,6 +2201,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 			{ userId: `${USER}#removed`, url: heldKey },
 			{ userId: USER, url: bulkKey },
@@ -3170,26 +3149,6 @@ describe("initDynamoDbSavedArticleStore readlist-scoped reads", () => {
 });
 
 describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
-	it("findUserArticlesByUrl reports the savers of the default readlist and skips readlist copies", async () => {
-		const { client } = createFakeClient({
-			QueryCommand: {
-				default: {
-					Items: [
-						userArticleItem({ viewedAt: "2026-05-30T09:30:00.000Z" }),
-						userArticleItem({ userId: WORK_PARTITION }),
-						userArticleItem({ userId: "other-user" }),
-					],
-					Count: 3,
-				},
-			},
-		});
-
-		expect(await initStore(client).findUserArticlesByUrl(URL)).toEqual([
-			{ userId: USER, viewedAt: new Date("2026-05-30T09:30:00.000Z") },
-			{ userId: "other-user", viewedAt: undefined },
-		]);
-	});
-
 	it("assignSavedArticleToReadlist copies the default row's state into the readlist partition at the given savedAt", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
@@ -3493,6 +3452,26 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 		]);
 	});
 
+	it("listUserSavesForUrls marks the All save of a picked URL as picked", async () => {
+		const { client, commands } = createFakeClient({
+			BatchGetCommand: {
+				default: { Responses: { "user-articles": [
+					{ userId: USER, url: RESOURCE_ID, personalPickedAt: "2026-11-20T00:00:00.000Z" },
+					{ userId: WORK_PARTITION, url: RESOURCE_ID },
+				] } },
+			},
+		});
+
+		const saves = await initStore(client).listUserSavesForUrls({
+			userId: USER,
+			urls: [URL],
+			readlists: [DEFAULT_READLIST_SLUG, WORK],
+		});
+
+		expect(saves.get(URL)).toEqual([{ picked: true }, { readlist: WORK }]);
+		expect(commands[0].input.RequestItems?.["user-articles"]?.ProjectionExpression).toContain("personalPickedAt");
+	});
+
 	it("reads committed memberships consistently across batches and unprocessed-key retries", async () => {
 		const urls = Array.from({ length: 51 }, (_, index) => `https://example.com/article-${index}`);
 		const pendingKeys = [
@@ -3571,6 +3550,7 @@ describe("initDynamoDbSavedArticleStore cross-readlist bookkeeping", () => {
 			{ userId: WORK_PARTITION, url: "b" },
 			{ userId: USER, url: "readplace:queue-def/work" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: "readplace:queue-revision" },
 			{ userId: USER, url: `readplace:saved-links-job/${USER}` },
 		]);
 	});

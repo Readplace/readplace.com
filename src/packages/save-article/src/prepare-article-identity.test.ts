@@ -81,6 +81,14 @@ it("fetches the image a row pinned to the Reddit media viewer shows under the ro
 	assert.deepEqual(h.repairs, [{ articleUrl: viewer, expectedOriginalUrl: viewer, originalUrl: image, contentSourceUrl: undefined }]);
 });
 
+it("fetches the article page of a row pinned to the Springer PDF viewer under the row's own key", async () => {
+	const viewer = "https://link.springer.com/epdf/10.1007/s00000-026-00001-x?sharing_token=invented-token";
+	const article = "https://link.springer.com/article/10.1007/s00000-026-00001-x";
+	const h = harness({ kind: "article", originalUrl: viewer });
+	assert.deepEqual(await h.prepare(viewer), { status: "resolved", url: viewer, originalUrl: article });
+	assert.deepEqual(h.repairs, [{ articleUrl: viewer, expectedOriginalUrl: viewer, originalUrl: article, contentSourceUrl: undefined }]);
+});
+
 it("fetches a stored plain article original unchanged", async () => {
 	const identity = await harness({ kind: "article", originalUrl: ORIGINAL }).prepare(ORIGINAL);
 	assert.deepEqual(identity, { status: "resolved", url: ORIGINAL, originalUrl: ORIGINAL });

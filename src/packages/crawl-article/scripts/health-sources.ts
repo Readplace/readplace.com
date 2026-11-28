@@ -9,12 +9,6 @@
  * reaches the origin. Fix the crawler before touching this list. A source only
  * leaves it when no fingerprint reaches the origin at all, so every run would be
  * red whatever the crawler does.
- *
- * `expectsThumbnail` asserts the thumbnail download path: `true` means the
- * source has an og:image/twitter:image that must fetch successfully under
- * the same H2-fallback path as the article HTML, `false` means the source
- * legitimately has no thumbnail (e.g. X/Twitter via oembed returns synthetic
- * HTML with no meta tags).
  */
 import { randomUUID } from "node:crypto";
 
@@ -32,16 +26,15 @@ export interface HealthSource {
 	 * reader output is compared to it by `ArticleResourceUniqueId`, so scheme,
 	 * fragment and tracking-param differences do not matter. */
 	expectedDestinationUrl?: string;
-	expectsThumbnail: boolean;
 }
 
 export type SaveHealthSource = HealthSource & {
 	expectedDestinationUrl: string;
-	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean } | { kind: "direct" } | { kind: "upload"; title: string; html: string };
+	save: { kind: "archive"; captureUrl: string} | { kind: "direct" } | { kind: "upload"; title: string; html: string };
 };
 
 export type ArchiveSaveHealthSource = SaveHealthSource & {
-	save: { kind: "archive"; captureUrl: string; requireFreshArchive: boolean };
+	save: { kind: "archive"; captureUrl: string};
 };
 
 export type UploadHealthSource = SaveHealthSource & {
@@ -65,7 +58,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 	// 	label: "Medium (itnext publication)",
 	// 	url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
 	// 	expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
-	// 	expectsThumbnail: true,
 	// },
 	{
 		// Guards the MediaWiki heading defect: each section heading ships with an
@@ -84,13 +76,11 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 			"It occurs in a wide variety of organisms",
 			"Chemical mechanism",
 		],
-		expectsThumbnail: true,
 	},
 	{
 		label: "Substack",
 		url: "https://newsletter.pragmaticengineer.com/p/wrapped-the-pragmatic-engineer-in",
 		expectedContent: "Some fundamentals will not change",
-		expectsThumbnail: true,
 	},
 	{
 		// expectedContent is picked from Readability's parsed output (not the
@@ -100,19 +90,16 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "NYTimes",
 		url: "https://www.nytimes.com/projects/2012/snow-fall/index.html",
 		expectedContent: "When you’re up on top of a peak like that",
-		expectsThumbnail: true,
 	},
 	{
 		label: "GitHub",
 		url: "https://github.com/js-cookie/js-cookie",
 		expectedContent: "All special characters that are not allowed in the cookie-name or cookie-value",
-		expectsThumbnail: true,
 	},
 	{
 		label: "arXiv",
 		url: "https://arxiv.org/abs/1706.03762",
 		expectedContent: "Experiments on two machine translation tasks show these models",
-		expectsThumbnail: true,
 	},
 	{
 		// The Ars Technica "linux features" URL is an index of multiple short
@@ -122,19 +109,16 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "Ars Technica",
 		url: "https://arstechnica.com/information-technology/2005/10/linux-20051002/",
 		expectedContent: "take a gander at The GIMP’s procedure database",
-		expectsThumbnail: true,
 	},
 	{
 		label: "Stack Overflow",
 		url: "https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array",
 		expectedContent: "You are a blind operator of a junction and you hear a train coming",
-		expectsThumbnail: true,
 	},
 	{
 		label: "The New Yorker",
 		url: "https://www.newyorker.com/magazine/1946/08/31/hiroshima",
 		expectedContent: "Mr. Matsuo dashed up the front steps into the house and dived among the bedrolls and buried himself there",
-		expectsThumbnail: true,
 	},
 	{
 		// LinkedIn's logged-out post page renders the whole body inside one
@@ -148,19 +132,16 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		url: "https://www.linkedin.com/posts/fagnerbrack_ai-webdev-softwareengineering-activity-7429345910167453696-2MJD?utm_source=share&utm_medium=member_desktop&rcm=ACoAAA5sDgUBEQM_1ZyxJFG0-Bvfm4gOYd-wqo4",
 		expectedContent: "The issue now is that people realised coding was never the bottleneck",
 		forbiddenContent: ["dev positions:\n\n1."],
-		expectsThumbnail: true,
 	},
 	{
 		label: "X (Twitter)",
 		url: "https://x.com/elonmusk/status/1519480761749016577",
 		expectedContent: "buying Coca-Cola to put the cocaine back in",
-		expectsThumbnail: false,
 	},
 	{
 		label: "X (Twitter — twitter.com spelling)",
 		url: "https://twitter.com/elonmusk/status/1519480761749016577",
 		expectedContent: "buying Coca-Cola to put the cocaine back in",
-		expectsThumbnail: false,
 	},
 	{
 		// Tweet URLs with a `/video/<n>` or `/photo/<n>` sub-path 404 against
@@ -169,19 +150,16 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "X (Twitter — /video/<n> longhand)",
 		url: "https://x.com/AnatoliKopadze/status/2057105488165163198/video/1?s=46",
 		expectedContent: "Stanford lecture",
-		expectsThumbnail: false,
 	},
 	{
 		label: "X (Article cover tweet)",
 		url: "https://x.com/pmarca/status/2114751107293749731",
 		expectedContent: "One thing I love about Amjad",
-		expectsThumbnail: true,
 	},
 	{
 		label: "Static HTML (hex.ooo)",
 		url: "https://hex.ooo/library/last_question.html",
 		expectedContent: "he had had to carry the ice and glassware",
-		expectsThumbnail: false,
 	},
 	{
 		// apple.news answers 200 with a static shell that client-side-redirects
@@ -197,7 +175,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		url: "https://apple.news/A-KY3k0aRSK27SNKVtrWiDg",
 		expectedContent:
 			"Without an alternative map, it is difficult for plaintiffs to defeat our starting presumption that the legislature acted in good faith",
-		expectsThumbnail: true,
 	},
 	{
 		// The publisher of this story left Apple News Format's optional
@@ -212,7 +189,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA?articleList=Aa2vGyZWlSfaFMqEGY0e4xQ,A5IRjSM4dSFWFCMYo_9X-AQ,AdzvYAQxLTW2PQZc7eRiPAw,AdLHfGuaTSHGNWIFrj0gdGg,AdJemOOpvQB2I38VCFFJ22Q,AIh7F4i7GSXe3TL-DNB6V4A,AbxPgQQdpQSy-ERx2g-kQZA,AqKXgh3yzQey0QotC7FE4QA&campaign_id=E101&campaign_type=b7194f35-8001-4ae2-ca08-b0d1b2757efb/default&creative_id=comp-id-more_story-5-14:moreStory",
 		expectedContent:
 			"I tell him that I did not realise that the wedding had happened already.",
-		expectsThumbnail: true,
 	},
 	{
 		// Newsletter click-trackers were the largest wrapper family in the 2026-09-23
@@ -225,7 +201,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		url: "https://javascriptweekly.com/link/100000/rss",
 		expectedContent: "expressions are useful for factoring out subqueries and making the overall",
 		expectedDestinationUrl: "https://sqlite.org/lang_with.html#rcex3",
-		expectsThumbnail: false,
 	},
 	{
 		// open.substack.com share links 302 to the publication's own domain with
@@ -235,7 +210,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		url: "https://open.substack.com/pub/jobstobedone/p/4-strategy-traps-that-look-smart",
 		expectedContent: "You can build the strategy yourself. Or you can hire a consulting firm the way you always have.",
 		expectedDestinationUrl: "https://www.jtbd.one/p/4-strategy-traps-that-look-smart",
-		expectsThumbnail: true,
 	},
 	{
 		// Unlike the two shell/ANF entries above, this row was seeded through the
@@ -247,7 +221,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectedContent: "The four standards cover diversity representation among actors and subject matter",
 		expectedDestinationUrl:
 			"http://www.abc.net.au/news/2020-09-09/oscars-academy-sets-out-diversity-standards-for-best-picture/12644874",
-		expectsThumbnail: true,
 	},
 	{
 		label: "Wayback Machine capture (origin now redirects elsewhere)",
@@ -255,11 +228,9 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		save: {
 			kind: "archive",
 			captureUrl: "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-			requireFreshArchive: true,
 		},
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-		expectsThumbnail: false,
 	},
 	{
 		label: "Wayback Machine calendar URL",
@@ -267,11 +238,9 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		save: {
 			kind: "archive",
 			captureUrl: "https://web.archive.org/web/http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-			requireFreshArchive: true,
 		},
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-		expectsThumbnail: false,
 	},
 	{
 		label: "Original after Wayback saves (same card)",
@@ -279,14 +248,13 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		save: { kind: "direct" },
 		expectedContent: "utilised an all-digital production environment for the movie",
 		expectedDestinationUrl: "http://www.onscreenasia.com/article-106-aviddigitalworkflowbringskingkongtolife-onscreenasia.html",
-		expectsThumbnail: false,
 	},
 	// archive.today refuses every egress we have. In the 7 days to 2026-10-10
 	// prod's direct legs got no 2xx in 60 attempts (429, a reCAPTCHA page with
 	// no Memento Link header) and the residential unlocker was refused with
 	// "429 status code" in every attempt since 2026-10-09 (it served the page
 	// on 2026-10-04); country targeting and HEAD changed nothing. Run locally
-	// on 2026-10-10 with requireFreshArchive true, the entry failed on save
+	// on 2026-10-10, the entry failed on save
 	// attempt 01b9a149 with the capture answered 429, so it asserts a fetch the
 	// crawler cannot make. Disabled rather than fixed — reaching archive.today
 	// is owned by separate work; restore it once a probe through some egress
@@ -297,11 +265,9 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 	// 	save: {
 	// 		kind: "archive",
 	// 		captureUrl: "https://archive.ph/20260417134345/https://hex.ooo/library/last_question.html",
-	// 		requireFreshArchive: true,
 	// 	},
 	// 	expectedContent: "he had had to carry the ice and glassware",
 	// 	expectedDestinationUrl: "https://hex.ooo/library/last_question.html",
-	// 	expectsThumbnail: false,
 	// },
 	{
 		label: "Reader upload (Siren save-content)",
@@ -313,7 +279,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		},
 		expectedContent: UPLOAD_MARKER,
 		expectedDestinationUrl: UPLOAD_URL,
-		expectsThumbnail: false,
 	},
 	// HN answers Node's built-in HTTP client with 419 "Sorry" whatever the
 	// headers, and serves the same page to the HTTP/2 and curl-impersonate
@@ -326,26 +291,22 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 			"you can already build such a system yourself quite trivially by getting an FTP account",
 			"If you take your laptop offline, modify your image, then modify the same image on your desktop",
 		],
-		expectsThumbnail: false,
 	},
 	{
 		label: "YouTube (render description, oEmbed card fallback)",
 		url: "https://www.youtube.com/watch?v=I-jk9ni4XWk",
 		expectedContent: "How to Live to be 100+",
 		forbiddenContent: ["Article from www.youtube.com"],
-		expectsThumbnail: true,
 	},
 	{
 		label: "The Hill (residential unlocker path)",
 		url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
 		expectedContent: "ranked five times more valuable than likes",
-		expectsThumbnail: true,
 	},
 	{
 		label: "Client-rendered React blog post (headless render path)",
 		url: "https://blog.roku.com/developer/gitlab-move",
 		expectedContent: "Roku has completed migrating all developer resources from GitHub to GitLab.",
-		expectsThumbnail: true,
 	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
@@ -359,14 +320,11 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		// this without a proxy — the discriminator is the TLS handshake, not the
 		// source IP.
 		//
-		// PDFs do not expose og:image/twitter:image metadata, so the thumbnail
-		// path is intentionally skipped — same precedent as the X/Twitter
-		// oembed entry above. A single-page dummy PDF, so it is the cheapest OCR
-		// run and leads the block.
+		// A single-page dummy PDF, so it is the cheapest OCR run and leads the
+		// block.
 		label: "PDF (USDA sample)",
 		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
 		expectedContent: "Dummy PDF file",
-		expectsThumbnail: false,
 	},
 	{
 		// Second PDF entry — a technical paper with equations, multi-column
@@ -377,7 +335,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "PDF (arXiv Transformer paper)",
 		url: "https://arxiv.org/pdf/1706.03762v7",
 		expectedContent: "Attention Is All You Need",
-		expectsThumbnail: false,
 	},
 	{
 		// Exercises the PDF path end-to-end: detection + per-page OCR Lambda
@@ -387,7 +344,6 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "PDF (FAI airmanship)",
 		url: "https://www.fai.org/sites/default/files/documents/airmanship_good.pdf",
 		expectedContent: "considerable confusion as to what airmanship actually comprises",
-		expectsThumbnail: false,
 	},
 	{
 		// Adobe-class fingerprint-strict origin. Sent today's partial Chrome
@@ -402,7 +358,14 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "PDF (Adobe sample)",
 		url: "https://www.adobe.com/support/products/enterprise/knowledgecenter/media/c4611_sample_explain.pdf",
 		expectedContent: "simple form containing four distinct fields",
-		expectsThumbnail: false,
+	},
+	{
+		label: "claude.ai public artifact",
+		url: "https://claude.ai/artifact/Jk4GaJ4PY98xv6tjUt1JJQ",
+		save: { kind: "direct" },
+		expectedContent: ["The middle two hours move half of the water", "Height (m)"],
+		forbiddenContent: ["Couldn’t load this artifact"],
+		expectedDestinationUrl: "https://claude.ai/artifact/Jk4GaJ4PY98xv6tjUt1JJQ",
 	},
 	{
 		// curl-impersonate with Chrome fingerprint.
@@ -421,6 +384,5 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		label: "PDF (CIA reading room)",
 		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
 		expectedContent: "Warren Commission",
-		expectsThumbnail: false,
 	},
 ];

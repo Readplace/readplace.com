@@ -1,4 +1,4 @@
-import { HAND_PICKED, HAND_PICKED_SCOPE, builtInCaption, READER_HOME_HREF } from "../pages/readlist/built-in-readlists";
+import { HAND_PICKED, HAND_PICKED_SCOPE, builtInCaption, HAND_PICKED_HREF } from "../pages/readlist/built-in-readlists";
 import assert from "node:assert";
 import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -122,7 +122,7 @@ export function toArticleCollectionEntity(
 	const accountHref = surfacePlatform
 		? `/account?${PLATFORM_QUERY}=${surfacePlatform}`
 		: "/account";
-	const homeHref = options.homeHref ?? READER_HOME_HREF;
+	const homeHref = options.homeHref ?? HAND_PICKED_HREF;
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
 		{ rel: homeHref === "/queue" ? ["root", "home"] : ["root"], href: "/queue" },
@@ -171,7 +171,7 @@ export function toArticleCollectionEntity(
 	const properties: CollectionProperties = {
 		browseReadlists: [
 			{
-				label: HAND_PICKED.label, href: READER_HOME_HREF, description: builtInCaption(HAND_PICKED_SCOPE),
+				label: HAND_PICKED.label, href: HAND_PICKED_HREF, description: builtInCaption(HAND_PICKED_SCOPE),
 				rel: queryParams.readlist === HAND_PICKED_SCOPE ? "current" : "readlist",
 			},
 			...filingReadlists.map((entry, index) => ({

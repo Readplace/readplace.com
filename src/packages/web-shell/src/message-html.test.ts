@@ -7,6 +7,10 @@ describe("messageHtml", () => {
 		assert.equal(messageHtml(`Tom & Jerry's <"show"> — it’s on`, {}).toHTML(), "Tom &amp; Jerry&#x27;s &lt;&quot;show&quot;&gt; — it’s on");
 	});
 
+	it("escapes a literal = the way {{value}} would", () => {
+		assert.equal(messageHtml("a = b", {}).toHTML(), "a &#x3D; b");
+	});
+
 	it("escapes a param the way {{value}} would", () => {
 		assert.equal(messageHtml("Hello, {name}", { name: "<b>'Ada'</b>" }).toHTML(), "Hello, &lt;b&gt;&#x27;Ada&#x27;&lt;/b&gt;");
 		assert.equal(messageHtml("{count} left", { count: 3 }).toHTML(), "3 left");

@@ -6,14 +6,17 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { SavedArticle } from "@packages/domain/article";
 
 import { BULK_ARTICLE_JOB_PREFIX as BULK_PREFIX } from "@packages/article-store";
-export { BULK_PREFIX };
 export const BULK_CHUNK_SIZE = 32;
 export const BULK_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 export const BulkAction = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("file"), destination: ReadlistSlugSchema.refine(slug => slug !== DEFAULT_READLIST_SLUG), label: z.string().min(1), createdAt: z.iso.datetime() }),
 	z.object({ kind: z.literal("read") }),
+	z.object({ kind: z.literal("read-everywhere") }),
 	z.object({ kind: z.literal("remove") }),
 ]);
+export type BulkAction = z.infer<typeof BulkAction>;
+const PREVIEW_RENEWAL_SECONDS = 3600;
+const CONFIRMATION_WINDOW_SECONDS = 24 * 60 * 60;
 export const SelectionSpec = z.object({
 	discovery: z.object({ q: z.string().max(200).optional(), time: z.array(z.string()), saved: z.array(z.string()) }).optional(),
 	source: z.enum(["all", "picked", "sender", "bulk", "unknown"]),
@@ -71,9 +74,30 @@ export function selectionTarget(article: SavedArticle): SelectionTarget {
 	return { key, url: article.url, version };
 }
 
+function confirmationDeadline(selection: Pick<BulkSelection, "spec" | "createdAt">): number | undefined {
+	if (selection.spec.action.kind !== "read-everywhere") return undefined;
+	return Math.floor(Date.parse(selection.createdAt) / 1000) + CONFIRMATION_WINDOW_SECONDS;
+}
+
+export function previewExpiry(selection: Pick<BulkSelection, "spec" | "createdAt">, now: Date): number {
+	const renewed = Math.floor(now.getTime() / 1000) + PREVIEW_RENEWAL_SECONDS;
+	const deadline = confirmationDeadline(selection);
+	return deadline === undefined ? renewed : Math.min(renewed, deadline);
+}
+
+export function targetExpiry(selection: BulkSelection): number {
+	const deadline = confirmationDeadline(selection);
+	return (deadline ?? selection.expiresAt) + BULK_RETENTION_SECONDS;
+}
+
+export function headerExpiry(selection: BulkSelection): number {
+	return Math.max(selection.expiresAt + BULK_RETENTION_SECONDS, targetExpiry(selection));
+}
+
 export function newSelection(userId: UserId, spec: SelectionSpec, now: Date): BulkSelection {
+	const createdAt = now.toISOString();
 	return {
-		userId, id: randomUUID(), spec, createdAt: now.toISOString(), expiresAt: Math.floor(now.getTime() / 1000) + 3600,
+		userId, id: randomUUID(), spec, createdAt, expiresAt: previewExpiry({ spec, createdAt }, now),
 		generation: 0, state: "preparing", selected: 0, completed: 0, skipped: 0, failed: 0, restorable: 0, restoredCount: 0,
 	};
 }

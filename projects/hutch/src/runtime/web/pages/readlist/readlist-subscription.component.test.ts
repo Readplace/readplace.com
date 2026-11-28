@@ -21,7 +21,7 @@ const TRIAL_BANNER: SubscriptionBannerState = {
 	state: "trial-countdown",
 	daysLeft: 3,
 	daysLeftWord: "days",
-	remaining: { days: 3, hours: 4, minutes: 5, seconds: 6, totalMs: 271_506_000 },
+	remaining: { days: 3, hours: 4, minutes: 5 },
 	upgradeOffer: OFFER,
 };
 const TRIAL_STATUS_BANNER: SubscriptionBannerState = {

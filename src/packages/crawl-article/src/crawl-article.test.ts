@@ -14,7 +14,7 @@ import type { LogThumbnailNotDelivered } from "./extract-thumbnail";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
 import { redirectable, type RedirectableFetch } from "./follow-redirects";
-import type { fetchH2 } from "./h2-fetch";
+import type { FetchH2 } from "./h2-fetch";
 import type { ChargeOcrPages, ExtractPdf, ParsedPdfScope } from "./pdf-extract.types";
 import { UserIdSchema } from "@packages/article-state-types";
 import { MAX_HTML_BYTES } from "./html-body-limit";
@@ -59,7 +59,7 @@ function followingFallback(respond: () => Response): RedirectableFetch {
 const stubFetchCurl: CurlFetch = async () => {
 	throw new Error("stub fetchCurl: not invoked");
 };
-const stubFetchH2: typeof fetchH2 = async () => {
+const stubFetchH2: FetchH2 = async () => {
 	throw new Error("stub fetchH2: not invoked");
 };
 
@@ -68,7 +68,7 @@ const stubFetchH2: typeof fetchH2 = async () => {
 function buildCrawlFetch(overrides: {
 	fetch: typeof fetch;
 	fetchCurl?: CurlFetch;
-	fetchH2?: typeof fetchH2;
+	fetchH2?: FetchH2;
 	personas?: ReadonlyArray<Persona>;
 	rateLimitRetryDelaysMs?: readonly number[];
 	egress?: CrawlEgress;
@@ -91,7 +91,7 @@ function initCrawl(overrides: {
 	logError?: (message: string, error?: Error) => void;
 	logInfo?: (message: string) => void;
 	fetchCurl?: CurlFetch;
-	fetchH2?: typeof fetchH2;
+	fetchH2?: FetchH2;
 	personas?: ReadonlyArray<Persona>;
 	siteRules?: readonly SiteRules[];
 	fetchTimeouts?: { headersMs: number; bodyMs: number };
@@ -642,7 +642,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
 			new Response(null, { status: 401 }),
 		);
-		const blockedH2 = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+		const blockedH2 = jest.fn<ReturnType<FetchH2>, Parameters<FetchH2>>(async () =>
 			new Response(null, { status: 401 }),
 		);
 		const blockedCurl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
@@ -696,7 +696,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
 			new Response(null, { status: 402 }),
 		);
-		const blockedH2 = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+		const blockedH2 = jest.fn<ReturnType<FetchH2>, Parameters<FetchH2>>(async () =>
 			new Response(null, { status: 402 }),
 		);
 		const blockedCurl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
@@ -730,7 +730,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const refusedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
 			new Response("Sorry\n", { status: 419 }),
 		);
-		const refusedH2 = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+		const refusedH2 = jest.fn<ReturnType<FetchH2>, Parameters<FetchH2>>(async () =>
 			new Response("Sorry\n", { status: 419 }),
 		);
 		const refusedCurl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
@@ -761,7 +761,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 	});
 
 	it("fetches the article when a pay-per-crawl 402 gives way to a disclosed-bot persona", async () => {
-		const blockedH2: typeof fetchH2 = async () => new Response(null, { status: 402 });
+		const blockedH2: FetchH2 = async () => new Response(null, { status: 402 });
 		const blockedCurl: CurlFetch = async () => new Response(null, { status: 402 });
 		const perPersona: typeof fetch = async (_input, init) =>
 			plainHeaders(init)["user-agent"] === "TestBot/1.0"

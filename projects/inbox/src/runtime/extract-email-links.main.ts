@@ -122,6 +122,7 @@ export const handler = initExtractEmailLinksHandler({
 	deriveSanitizedBody,
 	putLink: inboxEmailLinkStore.putLink,
 	getLink: inboxEmailLinkStore.getLink,
+	listLinksByEmail: inboxEmailLinkStore.listLinksByEmail,
 	putLinksMeta: inboxEmailLinkStore.putLinksMeta,
 	findLinksMeta: inboxEmailLinkStore.findLinksMeta,
 	markWindowDispatched: inboxEmailLinkStore.markWindowDispatched,

@@ -481,7 +481,7 @@ class ReadingListViewModel(
 			// no new mutation-error policy).
 			if (tabUnchanged(generation)) {
 				if (action.name == "set-home-readlist" && page != null) {
-					val label = page.readlists.find { it.isCurrent && it.href == page.homeHref }?.label
+					val label = page.browseReadlists.find { it.isCurrent && it.href == page.homeHref }?.label
 					if (label != null) mutate { it.copy(homeStatus = "$label is now your home readlist.") }
 				}
 				adopt(page, read)

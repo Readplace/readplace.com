@@ -64,4 +64,40 @@ describe("checkTerminalState", () => {
 		});
 		assert.deepStrictEqual(result, { terminal: true });
 	});
+
+	it("returns the crawl-pending reason when only crawlStatus=pending", () => {
+		const result = checkTerminalState({
+			summaryStatus: "ready",
+			crawlStatus: "pending",
+		});
+		assert.deepStrictEqual(result, {
+			terminal: false,
+			message: "crawlStatus is 'pending' — crawl worker never produced a terminal outcome",
+			reasons: ["crawl-pending"],
+		});
+	});
+
+	it("returns both reasons, summary first, when both axes are pending", () => {
+		const result = checkTerminalState({
+			summaryStatus: "pending",
+			crawlStatus: "pending",
+		});
+		assert.deepStrictEqual(result.terminal === false ? result.reasons : [], ["summary-pending", "crawl-pending"]);
+	});
+
+	it("returns terminal:true when the summary failed", () => {
+		const result = checkTerminalState({
+			summaryStatus: "failed",
+			crawlStatus: "ready",
+		});
+		assert.deepStrictEqual(result, { terminal: true });
+	});
+
+	it("returns terminal:true when both axes failed", () => {
+		const result = checkTerminalState({
+			summaryStatus: "failed",
+			crawlStatus: "failed",
+		});
+		assert.deepStrictEqual(result, { terminal: true });
+	});
 });

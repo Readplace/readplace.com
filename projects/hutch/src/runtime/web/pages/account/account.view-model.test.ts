@@ -100,6 +100,26 @@ describe("toAccountViewModel — state", () => {
 		});
 		assert.equal(vm.statusDateTail, " — 1 day left.");
 	});
+
+	it("rounds a part day up, so 5 days and 1 hour shows 6 days", () => {
+		const now = new Date("2026-05-23T00:00:00.000Z");
+		const trialEndsAt = new Date("2026-05-28T01:00:00.000Z").toISOString();
+		const vm = accountVm({
+			access: { tier: "trial", banner: "trial-countdown", trialEndsAt },
+			now,
+		});
+		assert.equal(vm.statusDateTail, " — 6 days left.");
+	});
+
+	it("shows 1 day when the trial end has already passed", () => {
+		const now = new Date("2026-05-23T00:00:00.000Z");
+		const trialEndsAt = new Date("2026-05-22T00:00:00.000Z").toISOString();
+		const vm = accountVm({
+			access: { tier: "trial", banner: "trial-countdown", trialEndsAt },
+			now,
+		});
+		assert.equal(vm.statusDateTail, " — 1 day left.");
+	});
 });
 
 describe("toAccountViewModel — next charge", () => {

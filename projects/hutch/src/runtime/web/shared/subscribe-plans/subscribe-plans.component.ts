@@ -16,10 +16,6 @@ import {
 import { ACCOUNT_SUBSCRIBE_URL } from "../../pages/account/account.url";
 import { SAVES_STAY_STATEMENT } from "../../price-statement";
 
-export {
-	SUBSCRIBE_PLANS_SOURCES,
-	type SubscribePlansSource,
-} from "@packages/provider-contracts/hosted-checkout";
 export { SUBSCRIBE_PLANS_STYLES } from "./subscribe-plans.styles";
 
 export const SUBSCRIBE_PLANS_POPOVER_ID = "subscribe-plans";

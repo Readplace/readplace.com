@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, DEFAULT_READLIST } from "@packages/domain/readlist";
 import { composeReadlistNav } from "./readlist-nav-layout";
-import { DEFAULT_READLIST } from "./readlist.nav";
 
 const slug = (value: string) => ReadlistSlugSchema.parse(value);
 

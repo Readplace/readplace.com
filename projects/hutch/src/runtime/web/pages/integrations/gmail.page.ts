@@ -109,7 +109,7 @@ export function registerGmailPageRoutes(
 			gmail.findInboxAddress(connection.gatewayAddress),
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
 			gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId),
-			gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId),
+			gmail.gmailCredentialsStore.findCredentialsByUserId(userId).then((credentials) => credentials?.grantedScope),
 			gmail.listReadlistDefinitions(userId),
 			gmail.gmailHistoryImportStore.listJobsByUserId(userId),
 			connection.accountEmail === undefined ? [] : gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail: connection.accountEmail }),

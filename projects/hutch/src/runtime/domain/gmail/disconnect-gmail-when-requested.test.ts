@@ -87,7 +87,7 @@ async function makeHarness(options: {
 
 	const snapshot = async () => ({
 		connection: await store.findConnectionByUserId(USER),
-		refreshToken: await credentials.findRefreshTokenByUserId(USER),
+		refreshToken: (await credentials.findCredentialsByUserId(USER))?.refreshToken,
 		gateway: await addresses.findByAddress(gateway),
 		senders: await senders.listSendersByUserId(USER),
 		filters: [...gmail.store.values()],
@@ -167,7 +167,7 @@ describe("initDisconnectGmailWhenRequested", () => {
 			revokedReason: undefined,
 			disconnectRequestedAt: undefined,
 		});
-		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), "refresh-1");
+		assert.equal((await harness.credentials.findCredentialsByUserId(USER))?.refreshToken, "refresh-1");
 		assert.deepEqual(harness.revokes, []);
 		assert.deepEqual([harness.gmail.created, harness.gmail.deleted], [[], []]);
 	});

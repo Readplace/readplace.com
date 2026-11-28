@@ -48,6 +48,7 @@ for (const javaScriptEnabled of [true, false]) {
 			await menu.locator("summary").press("Space");
 			await menu.getByRole("button", { name: "All senders" }).press("Enter");
 			await expect(page.locator("[data-test-inbox-emails-row]")).toHaveCount(2);
+			await expect(menu.locator("summary")).toContainText("Filter senders");
 		});
 	});
 }
@@ -146,7 +147,7 @@ test.describe("Inbox address copy control", () => {
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		await page.goto("/newsletters/custom-emails");
 
-		const copyButton = page.locator("[data-inbox-copy]").first();
+		const copyButton = page.locator("[data-clipboard-copy]").first();
 		await expect(copyButton).toBeVisible();
 		await expect(copyButton).toHaveText("Copy");
 	});

@@ -32,7 +32,7 @@ import type {
 	WithdrawSavedLinksJob,
 } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { CandidateId, NewsletterLinkRow } from "@packages/domain/article";
+import type { CandidateId, NewsletterLinkRow, SavedArticle } from "@packages/domain/article";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -117,11 +117,10 @@ import type {
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import type { ParseArticle } from "@packages/article-parser";
+import type { ParseArticleResult } from "@packages/article-parser";
 import type {
 	ArticleCrawlVersion,
 	BotDefenseEvent,
-	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	ClaimPendingSignup,
@@ -215,13 +214,10 @@ import type {
 	RenameReadlistDefinition,
 	PinReadlistDefinition,
 	UnpinReadlistDefinition,
-	SetReadlistDefinitionPurpose,
 	SetSmartReadlistRule,
 	TurnOffSmartReadlistMatching,
 	FindSmartMatchRevisions,
 	RecordSmartMatchRevision,
-	ClearReadlistDefinitionPurpose,
-	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
 	FindUserPasswordStatus,
@@ -251,8 +247,6 @@ import type {
 	MarkSessionAdminMfaVerified,
 	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelledByUserId,
-	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
 	OnUnpaidFirstInvoice,
@@ -305,7 +299,6 @@ import type {
 	RecordNativeAppAnyActivity,
 	RecordNativeAppSavedArticle,
 	RecordSmartReadlistMinimumReached,
-	RecordSmartReadlistStepDismissed,
 	RecordNextReadMinimumReached,
 	RecordOnboardingOutstandingVersion,
 	RefreshArticleIfStale,
@@ -346,6 +339,15 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
+
+export type MarkSubscriptionPendingCancellation = (input: {
+	userId: UserId;
+	cancellationEffectiveAt: string;
+}) => Promise<void>;
+
+export type MarkSubscriptionCancelledByUserId = (input: {
+	userId: UserId;
+}) => Promise<void>;
 
 export type HttpErrorMessageMapping = (
 	query: Record<string, unknown>,
@@ -509,6 +511,7 @@ export interface SubscriptionBillingBundle {
 
 export interface ArticleStoreBundle {
 	holdBulkArticle(userId: UserId, url: string, now: Date): (() => boolean) | undefined;
+	markReadEverywhereForBulk(params: { userId: UserId; url: string; at: Date; isSelected: (article: SavedArticle) => boolean }): boolean;
 	changePersonalPick: ChangePersonalPick;
 	findPersonalLibrary: FindPersonalLibrary;
 	saveStarterPack: SaveStarterPack;
@@ -548,7 +551,6 @@ export interface ArticleStoreBundle {
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
-	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
 	findQueueRowKeys: FindQueueRowKeys;
 	hasQueueRow: (key: QueueRowKey) => boolean;
@@ -566,7 +568,6 @@ export interface ArticleStoreBundle {
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	markOcrPagesHeld: MarkOcrPagesHeld;
-	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
@@ -596,12 +597,10 @@ export interface ArticleStoreBundle {
 	renameReadlistDefinition: RenameReadlistDefinition;
 	pinReadlistDefinition: PinReadlistDefinition;
 	unpinReadlistDefinition: UnpinReadlistDefinition;
-	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	setSmartReadlistRule: SetSmartReadlistRule;
 	turnOffSmartReadlistMatching: TurnOffSmartReadlistMatching;
 	findSmartMatchRevisions: FindSmartMatchRevisions;
 	recordSmartMatchRevision: RecordSmartMatchRevision;
-	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
 		lastSummaryClosedAt?: Date;
@@ -665,6 +664,8 @@ export interface ArticleCrawlBundle {
 	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
 }
+
+export type ParseArticle = (url: string) => Promise<ParseArticleResult>;
 
 export interface ParserBundle {
 	parseArticle: ParseArticle;
@@ -798,7 +799,6 @@ export interface OnboardingSignalsBundle {
 	recordNativeAppAnyActivity: RecordNativeAppAnyActivity;
 	recordNativeAppSavedArticle: RecordNativeAppSavedArticle;
 	recordSmartReadlistMinimumReached: RecordSmartReadlistMinimumReached;
-	recordSmartReadlistStepDismissed: RecordSmartReadlistStepDismissed;
 	recordNextReadMinimumReached: RecordNextReadMinimumReached;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;

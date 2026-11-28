@@ -13,6 +13,29 @@ export const CONFIRM = '[data-test-confirm-popover="delete"]';
 export const OPEN_CONFIRM = `${CONFIRM}:popover-open`;
 export const CONFIRM_DELETE = `${OPEN_CONFIRM} [data-test-action="delete-confirm"]`;
 export const CONFIRM_NEVER = `${OPEN_CONFIRM} [data-test-action="delete-confirm-never"]`;
+export const CONFIRM_CANCEL = `${OPEN_CONFIRM} [data-test-action="delete-cancel"]`;
+export const MENU_DELETE_FALLBACK = `${MENU_PANEL} [data-test-action="delete-fallback"]`;
+export const FALLBACK = "[data-test-delete-fallback]";
+export const TARGETED_FALLBACK = `${FALLBACK}:target`;
+
+/** Serves every page as an engine without popovers would see it: the same
+ * markup and stylesheet, with the stylesheet's popover capability probe
+ * naming a pseudo-class no engine supports. Disabling JavaScript is not
+ * enough, because current Chromium still opens native popovers without it. */
+export async function withoutPopoverSupport(page: Page): Promise<void> {
+	await page.route(
+		(url) => url.pathname.startsWith("/queue"),
+		async (route) => {
+			if (route.request().resourceType() !== "document" && route.request().headers()["hx-request"] !== "true") {
+				await route.continue();
+				return;
+			}
+			const response = await route.fetch();
+			const body = (await response.text()).replaceAll("selector(:popover-open)", "selector(:no-popover-support)");
+			await route.fulfill({ response, body });
+		},
+	);
+}
 
 const PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";

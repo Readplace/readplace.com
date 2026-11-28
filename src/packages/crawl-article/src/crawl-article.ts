@@ -11,6 +11,7 @@ import type {
 	CrawlArticle,
 	CrawlArticleResult,
 } from "./crawl-article.types";
+import { deadlineReason } from "./crawl-budget";
 import { type CrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
 import { isBufferedFastlyClientChallenge } from "./fastly-client-challenge";
 import { decideFetchFailure, type FetchRetryDecision } from "./fetch-retry-decision";
@@ -89,20 +90,6 @@ async function recoverRefusedTerminal(params: {
 }
 
 type FetchTimeouts = { headersMs: number; bodyMs: number };
-
-/**
- * A plain Error named "TimeoutError": the name is uniform across every fetch
- * deadline in the crawl chain, which is what makes a production log line
- * attributable to the budget that actually ran out. Plain Error rather than
- * DOMException because a platform-constructed DOMException comes from the host
- * realm and fails `instanceof Error` under jest's sandbox, and the crawl logger
- * drops any rejection that is not an Error.
- */
-function fetchTimeoutReason(message: string): Error {
-	const reason = new Error(message);
-	reason.name = "TimeoutError";
-	return reason;
-}
 
 function terminalUrl(response: Response): string | undefined {
 	return response.url || undefined;
@@ -282,7 +269,7 @@ function initConditionalGet(deps: {
 				if (isLocationlessRedirect(response)) {
 					const documentUrl = resolveDocumentUrl({ requestedUrl: params.url, finalUrl });
 					budgetTimer = setTimeout(() => {
-						controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
+						controller.abort(deadlineReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
 					}, fetchTimeouts.bodyMs);
 					const buffer = await readBodyWithCap(response, MAX_HTML_BYTES.bytes).catch(() => undefined);
 					clearTimeout(budgetTimer);
@@ -296,7 +283,7 @@ function initConditionalGet(deps: {
 				return { status: "failed", finalUrl, failure: classifyFailedResponse({ httpStatus: response.status }), decision: undefined };
 			}
 			budgetTimer = setTimeout(() => {
-				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
+				controller.abort(deadlineReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
 			}, fetchTimeouts.bodyMs);
 			const buffer = await readBodyWithCap(response, MAX_PDF_BYTES.bytes);
 			await rejectDocumentLandingPage(params.url, response, buffer);

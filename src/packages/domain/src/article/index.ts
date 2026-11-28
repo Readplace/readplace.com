@@ -10,10 +10,8 @@ export {
 	CRAWL_STAGE_TO_PCT,
 	CRAWL_STAGES,
 	SUMMARY_STAGE_TO_PCT,
-	SUMMARY_STAGES,
 	DEFAULT_CRAWL_STAGE,
 	DEFAULT_SUMMARY_STAGE,
-	crawlStagePct,
 	crawlProgressPct,
 	summaryStagePct,
 	type CrawlStage,
@@ -43,16 +41,13 @@ export {
 	type CandidateId,
 	CaptureTriggerSchema,
 	type CaptureTrigger,
-	SaveTriggerSchema,
 	type SaveTrigger,
 } from "./article.schema";
 export {
 	MAX_SAVEABLE_URL_LENGTH,
 	prepareNewSaveUrl,
-	SaveableUrlSchema,
 	SaveableUrlErrorCodeSchema,
 	validateSaveableUrl,
-	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
 	withNewSavePreparation,
 	type SaveableUrl,
@@ -74,14 +69,11 @@ export { personalDecisionKey, personalReadlistPartition, personalReadlistOrder, 
 export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
 export {
 	REMOVAL_SKIP_REASONS,
-	classifyForRemoval,
-	isHandPicked,
 	isNewsletterLink,
 	summariseNewsletterLinkRows,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
 	type NewsletterLinkSummary,
-	type RemovalClassification,
 	type RemovalSkipReason,
 } from "./newsletter-link";
 export {
@@ -204,7 +196,6 @@ export {
 	decideNextReadSlot,
 	nextReadDismissalOf,
 	type NextReadDismissal,
-	type NextReadSlot,
 } from "./next-read-dismissal";
 export {
 	NEXT_READ_MINIMUM_SAVES,
@@ -232,12 +223,9 @@ export {
 	type AnchorState,
 	type Highlight,
 	type TextQuoteSelector,
-	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightNoteSchema,
-	joinNotes,
-	joinNotesNewestFirst,
-	type JoinedNote,
 } from "./highlight/highlight";
+export { HIGHLIGHT_NOTE_MAX_LENGTH, joinNotesNewestFirst } from "./highlight/highlight-note";
 export {
 	highlightOnPage,
 	type PlaceableHighlight,
@@ -248,9 +236,7 @@ export {
 } from "./highlight/stored-highlight-state";
 export {
 	reanchorArticleHighlights,
-	type ReanchorableHighlight,
 	type HighlightAnchorUpdate,
-	type HighlightAnchorWrite,
 	type ReanchorCounts,
 } from "./highlight/reanchor-article-highlights";
 export {

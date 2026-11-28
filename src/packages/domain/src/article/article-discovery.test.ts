@@ -96,6 +96,14 @@ describe("matchesArticleDiscovery: saved date", () => {
 	});
 });
 
+describe("resolveArticleDiscovery", () => {
+	it("resolves the saved windows against the clock it is given", () => {
+		assert.deepEqual(resolveArticleDiscovery({ time: [], saved: ["today"], now: NOW }).savedAtRanges, [
+			{ from: new Date("2026-10-09T12:00:00.000Z") },
+		]);
+	});
+});
+
 describe("matchesArticleDiscovery: combining facets", () => {
 	it("passes an article that hits any ticked option inside a group", () => {
 		const either = query({ time: ["under-5", "20-plus"] });

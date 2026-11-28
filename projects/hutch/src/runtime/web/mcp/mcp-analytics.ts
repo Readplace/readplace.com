@@ -9,9 +9,8 @@ import {
 	SAVE_OUTCOMES,
 } from "@packages/web-analytics";
 import type { RecordMcpHandshake, RecordMcpToolCall } from "./mcp-ports.types";
+import { MCP_RESOURCE_PATH } from "./protocol";
 import { SAVE_LINK_TOOL } from "./tool-definitions";
-
-const MCP_SAVE_INTENT_PATH = "/mcp";
 
 export function initRecordMcpToolCall(deps: {
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
@@ -44,7 +43,7 @@ export function initRecordMcpToolCall(deps: {
 				{ now: deps.now },
 				{
 					url: record.submittedUrl,
-					path: MCP_SAVE_INTENT_PATH,
+					path: MCP_RESOURCE_PATH,
 					userId: record.userId,
 					outcome:
 						record.outcome === MCP_TOOL_OUTCOMES.ok

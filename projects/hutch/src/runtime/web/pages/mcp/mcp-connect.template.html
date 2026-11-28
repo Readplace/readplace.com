@@ -10,7 +10,7 @@
       <div class="mcp-connect__copy-field mcp-connect__url" data-test-server-url>
         <span class="mcp-connect__copy-label">Server URL</span>
         <code class="mcp-connect__copy-value mcp-connect__url-value">{{serverUrl}}</code>
-        <button type="button" class="btn btn--neutral btn--s mcp-connect__copy" data-mcp-copy data-mcp-text="{{serverUrl}}" aria-label="Copy the Readplace server URL" hidden>Copy</button>
+        <button type="button" class="btn btn--neutral btn--s mcp-connect__copy" data-clipboard-copy data-clipboard-text="{{serverUrl}}" aria-label="Copy the Readplace server URL" hidden>Copy</button>
       </div>
       <p class="mcp-connect__note">Paste that URL into your assistant&rsquo;s connector settings. You sign in once with OAuth &mdash; your assistant never sees your password, and you can sign it out at any time under <a class="mcp-connect__note-link" href="{{track '/account#connected-apps' source='mcp-connect' content='connected-apps'}}">Connected apps</a> in your account, or in the assistant&rsquo;s settings.</p>
 
@@ -22,7 +22,7 @@
           <li class="mcp-connect__copy-field">
             <span class="mcp-connect__copy-label">{{label}}</span>
             <span class="mcp-connect__copy-value mcp-connect__example-text">{{prompt}}</span>
-            <button type="button" class="btn btn--neutral btn--s mcp-connect__copy" data-mcp-copy data-mcp-text="{{prompt}}" aria-label="Copy this prompt" hidden>Copy</button>
+            <button type="button" class="btn btn--neutral btn--s mcp-connect__copy" data-clipboard-copy data-clipboard-text="{{prompt}}" aria-label="Copy this prompt" hidden>Copy</button>
           </li>
           {{/each}}
         </ul>
@@ -35,7 +35,7 @@
           {{#each examples}}
           <li class="mcp-connect__copy-field">
             <span class="mcp-connect__copy-value mcp-connect__example-text">{{this}}</span>
-            <button type="button" class="btn btn--neutral btn--s mcp-connect__copy" data-mcp-copy data-mcp-text="{{this}}" aria-label="Copy this prompt" hidden>Copy</button>
+            <button type="button" class="btn btn--neutral btn--s mcp-connect__copy" data-clipboard-copy data-clipboard-text="{{this}}" aria-label="Copy this prompt" hidden>Copy</button>
           </li>
           {{/each}}
         </ul>

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { READLIST_PURPOSE_MAX_LENGTH } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
 
-import { defineWizardStep, type WizardSteps } from "../../shared/wizard/wizard.types";
+import type { WizardStep } from "../../shared/wizard/wizard.types";
 
 const PURPOSE_STEP_TEMPLATE = readFileSync(
 	join(__dirname, "readlist-purpose-step.template.html"),
@@ -18,30 +18,18 @@ export const READLIST_PREFERENCES_WIZARD_ID = "readlist-preferences-wizard";
 
 export const READLIST_PREFERENCES_WIZARD_KEY = "readlist-preferences";
 
-const step = defineWizardStep<ReadlistPreferencesWizardViewModel>();
-
-function purposeSteps({ required }: { required: boolean }): WizardSteps<ReadlistPreferencesWizardViewModel> {
-	return [
-		step({
-			id: "purpose",
-			title: "What's this readlist for?",
-			description: "Describe what you want to save here. This helps keep your readlist focused.",
-			viewModel: ["purpose"],
-			template: ({ values, field }) =>
-				render(PURPOSE_STEP_TEMPLATE, {
-					purpose: values.purpose ?? "",
-					fieldId: `${field.idPrefix}-purpose`,
-					errorId: field.errorId,
-					invalid: field.invalid,
-					autofocus: field.autofocus,
-					required,
-					maxLength: READLIST_PURPOSE_MAX_LENGTH,
-				}),
+export const READLIST_PREFERENCES_STEP: WizardStep<ReadlistPreferencesWizardViewModel> = {
+	id: "purpose",
+	title: "What's this readlist for?",
+	description: "Describe what you want to save here. This helps keep your readlist focused.",
+	template: ({ values, field }) =>
+		render(PURPOSE_STEP_TEMPLATE, {
+			purpose: values.purpose ?? "",
+			fieldId: `${field.idPrefix}-purpose`,
+			errorId: field.errorId,
+			invalid: field.invalid,
+			autofocus: field.autofocus,
+			required: true,
+			maxLength: READLIST_PURPOSE_MAX_LENGTH,
 		}),
-	];
-}
-
-export const READLIST_PREFERENCES_STEPS: Record<"unset" | "set", WizardSteps<ReadlistPreferencesWizardViewModel>> = {
-	unset: purposeSteps({ required: true }),
-	set: purposeSteps({ required: false }),
 };

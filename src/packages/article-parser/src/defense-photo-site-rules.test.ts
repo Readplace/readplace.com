@@ -28,7 +28,7 @@ describe("government photo detail", () => {
 	it("projects the credited chart and two published original links from an aliased original", () => {
 		const unavailable = () => { throw new Error("Already fetched"); };
 		const { siteRules } = initArticleSiteRules({ crawlFetch: unavailable, logError: unavailable });
-		const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, crawlArticle: unavailable, siteRules, readabilityAdditions, logError: unavailable });
+		const { parseHtml } = initReadabilityParser({ coverageRules: { inspect: () => [] }, siteRules, readabilityAdditions, logError: unavailable });
 
 		const result = parseHtml({ url: savedUrl, documentUrl, html, thumbnailUrl: null });
 

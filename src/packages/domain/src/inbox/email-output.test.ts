@@ -8,6 +8,7 @@ import {
 	emailMatchBatch,
 	isEmailSavedToAll,
 	linkOutputKey,
+	missingEmailDeliveryMode,
 	outputLinkOrdinal,
 	uniqueGmailOrigins,
 } from "./email-output";
@@ -53,6 +54,21 @@ describe("uniqueGmailOrigins", () => {
 	it("collapses origins that name the same Gmail message", () => {
 		const origin = { kind: "history" as const, accountEmail: GmailAccountEmailSchema.parse("a@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 		assert.deepEqual(uniqueGmailOrigins([origin, { ...origin, accountEmail: GmailAccountEmailSchema.parse("A@gmail.com") }]), [{ ...origin, accountEmail: "A@gmail.com" }]);
+	});
+});
+
+describe("missingEmailDeliveryMode", () => {
+	it("uses links by default for records from before delivery options", () => {
+		assert.equal(missingEmailDeliveryMode({ requested: "both", accepted: undefined, selection: selection([]) }), "issue");
+		assert.equal(missingEmailDeliveryMode({ requested: "links", accepted: undefined, selection: undefined }), undefined);
+	});
+
+	it("uses the original delivery and any existing output selection as coverage", () => {
+		assert.equal(missingEmailDeliveryMode({ requested: "both", accepted: "issue", selection: selection([ISSUE_OUTPUT_KEY]) }), "links");
+		assert.equal(missingEmailDeliveryMode({ requested: "both", accepted: "links", selection: selection([ISSUE_OUTPUT_KEY, link]) }), undefined);
+		assert.equal(missingEmailDeliveryMode({ requested: "both", accepted: "issue", selection: selection([ISSUE_OUTPUT_KEY, link]) }), undefined);
+		assert.equal(missingEmailDeliveryMode({ requested: "links", accepted: undefined, selection: selection([ISSUE_OUTPUT_KEY]) }), "links");
+		assert.equal(missingEmailDeliveryMode({ requested: "issue", accepted: "both", selection: undefined }), undefined);
 	});
 });
 

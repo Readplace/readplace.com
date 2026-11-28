@@ -237,7 +237,7 @@ describe("renderReadlistCard", () => {
 		expect(doc.querySelectorAll('[data-test-action="delete-fallback"]')).toHaveLength(0);
 	});
 
-	it("opens a confirmation from the ••• menu and keeps a hidden plain-post fallback behind it", () => {
+	it("opens a confirmation from the ••• menu and keeps an in-page question behind it for browsers without popovers", () => {
 		const doc = parse(
 			renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION }), { isFirst: false })),
 		);
@@ -251,10 +251,17 @@ describe("renderReadlistCard", () => {
 
 		const fallback = doc.querySelector('[data-test-action="delete-fallback"]');
 		assert(fallback, "a no-popover delete fallback must be present");
-		expect(fallback.getAttribute("type")).toBe("submit");
-		const fallbackForm = fallback.closest("form");
-		assert(fallbackForm, "the fallback must submit through a form");
-		expect(fallbackForm.classList.contains("article-delete__form--fallback")).toBe(true);
+		expect(fallback.getAttribute("href")).toBe("#confirm-remove-abc123");
+		expect(fallback.closest("form")).toBeNull();
+	});
+
+	it("gives the menu toggle and title stable ids, so the in-page question can return to one and mirror the other", () => {
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION }), { isFirst: false })),
+		);
+
+		expect(doc.querySelector('[data-test-action="article-menu"]')?.id).toBe("article-menu-abc123");
+		expect(doc.querySelector("[data-test-article-title]")?.id).toBe("readlist-title-abc123");
 	});
 
 	it("lists the move item ahead of Delete when Delete asks first", () => {

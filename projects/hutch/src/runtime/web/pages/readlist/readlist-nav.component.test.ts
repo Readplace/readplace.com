@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import {
 	READLIST_LABEL_MAX_LENGTH,
 	ReadlistSlugSchema,
+	DEFAULT_READLIST,
+	type ReadlistRef,
 } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
-import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
 import {
 	readlistRenameFallbackInputId,
@@ -16,11 +17,11 @@ import {
 import { READLIST_NAME_FIELD } from "./readlist-name-form.component";
 import { READLIST_CREATE_POPOVER_ID } from "./readlist-create.component";
 
-const WORK: Readlist = {
+const WORK: ReadlistRef = {
 	slug: ReadlistSlugSchema.parse("work"),
 	label: "Work Reading",
 };
-const READLISTS: readonly Readlist[] = [DEFAULT_READLIST, WORK];
+const READLISTS: readonly ReadlistRef[] = [DEFAULT_READLIST, WORK];
 
 function renderNav(
 	overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = {},
@@ -420,7 +421,7 @@ describe("buildReadlistNav", () => {
 	});
 });
 
-function namedReadlists(count: number): Readlist[] {
+function namedReadlists(count: number): ReadlistRef[] {
 	return Array.from({ length: count }, (_, index) => ({
 		slug: ReadlistSlugSchema.parse(`r${index + 1}`),
 		label: `Readlist ${index + 1}`,

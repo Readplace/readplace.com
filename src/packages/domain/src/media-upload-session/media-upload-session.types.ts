@@ -1,6 +1,6 @@
 import type { Enclosure, MediaImageFile, MediaKindName, PrivateItemUrl, UploadId } from "@packages/media-contracts";
 import type { SaveAttemptId } from "../article";
-import type { UserId } from "../user/user.types";
+import type { UserId } from "../user/user.schema";
 
 export type MediaUploadSessionState = "staged" | "committed" | "failed";
 

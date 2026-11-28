@@ -16,7 +16,3 @@ Two engines, named by the values a Pulumi config key carries:
 The engine map picks the AI message adapter for an engine, so a caller passes only the SDK's chat-completion call and the package never imports the SDK. A composition root parses the engine value with the package's engine schema at module load, so an unknown value fails the Lambda's init instead of the first call.
 
 The prompt is a TypeScript string constant, not a Markdown file, because a Lambda bundle copies non-TypeScript files only from its own asset directory. It must keep the lowercase word "json", which DeepSeek's JSON output mode requires.
-
-## Prices
-
-The package's per-link price table is an assumption at DeepSeek peak prices, and nothing reads it to bound spend. The figures assume, per call, 600 cached and 450 missed prompt tokens; per link, 150 input and 40 output tokens; and 22.5 links per email. The staging measurement replaces both figures with measured ones by editing the price table, its test and this section.

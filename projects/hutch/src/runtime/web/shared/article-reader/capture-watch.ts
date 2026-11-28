@@ -51,7 +51,6 @@ export function parseCaptureWatch(query: Record<string, unknown>): CaptureWatch 
 	}
 	const noticeRevision = RevisionParam.safeParse(query.captureNotice);
 	if (noticeRevision.success) return { kind: "started", noticeRevision: noticeRevision.data, trigger };
-	if (FlagParam.safeParse(query.capturing).success) return { kind: "watching", since: 0, trigger };
 	return NO_CAPTURE_WATCH;
 }
 

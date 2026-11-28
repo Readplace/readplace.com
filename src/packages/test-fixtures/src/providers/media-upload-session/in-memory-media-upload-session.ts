@@ -21,6 +21,7 @@ import type {
 	RecordMediaInspection,
 	RecordTimedMediaFacts,
 } from "@packages/domain";
+import { stagedObjectKey } from "@packages/media-contracts";
 
 export interface InMemoryMediaUploadSessions {
 	createMediaUploadSession: CreateMediaUploadSession;
@@ -153,7 +154,7 @@ export function initInMemoryMediaPending(deps: { uploadBaseUrl: string }): InMem
 		mintMediaPendingPost: async ({ uploadId, successAction }) => ({
 			url: deps.uploadBaseUrl,
 			fields: {
-				key: `pending/${uploadId}/original`,
+				key: stagedObjectKey(uploadId),
 				...("redirect" in successAction
 					? { success_action_redirect: successAction.redirect }
 					: { success_action_status: successAction.status }),

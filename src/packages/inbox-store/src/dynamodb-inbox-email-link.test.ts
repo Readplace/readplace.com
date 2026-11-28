@@ -924,7 +924,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 		});
 	});
 
-	describe("deleteLinksByEmail", () => {
+	describe("deleteAllLinksByUserId for one email", () => {
 		it("queries the email's partition and deletes every link row and the meta row", async () => {
 			const { client, commands } = createPaginatedClient([
 				{
@@ -943,10 +943,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 			]);
 			const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
 
-			await store.deleteLinksByEmail({
-				userId: USER,
-				receivedAtMessageId: RAM,
-			});
+			await store.deleteAllLinksByUserId(USER, [RAM]);
 
 			const query = commands.find((c) => c.name === "QueryCommand");
 			expect(query?.input.KeyConditionExpression).toBe("userLinkGroup = :g");
@@ -969,10 +966,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 			]);
 			const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
 
-			await store.deleteLinksByEmail({
-				userId: USER,
-				receivedAtMessageId: RAM,
-			});
+			await store.deleteAllLinksByUserId(USER, [RAM]);
 
 			const queries = commands.filter((c) => c.name === "QueryCommand");
 			expect(queries).toHaveLength(2);
@@ -987,7 +981,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 	});
 
 	describe("deleteAllLinksByUserId", () => {
-		it("loops deleteLinksByEmail across every provided email id", async () => {
+		it("deletes the links of every provided email id", async () => {
 			const ramA = "2026-06-23T00:00:00.000Z#<a@x>";
 			const ramB = "2026-06-24T00:00:00.000Z#<b@x>";
 			const { client, commands } = createPaginatedClient([
@@ -1187,7 +1181,7 @@ describe("Gmail readlist outcomes", () => {
 		await initDynamoDbInboxEmailLink({
 			client,
 			tableName: TABLE,
-		}).deleteLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		}).deleteAllLinksByUserId(USER, [RAM]);
 		expect(
 			commands
 				.filter(({ name }) => name === "DeleteCommand")

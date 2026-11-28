@@ -65,7 +65,7 @@ hold_node() {
 
 adb shell am force-stop com.readplace.app
 adb shell am start -n com.readplace.app/com.readplace.android.app.MainActivity >/dev/null
-await_node text "Reading List" 25 >/dev/null || { echo "sign in on the emulator first" >&2; exit 1; }
+await_node text "Sign out" 25 >/dev/null || { echo "sign in on the emulator first" >&2; exit 1; }
 adb shell am force-stop com.readplace.app
 
 adb shell settings put global sysui_demo_allowed 1

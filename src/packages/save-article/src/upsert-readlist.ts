@@ -13,13 +13,13 @@ import type {
 	ListReadlistDefinitions,
 } from "@packages/provider-contracts/article-store";
 
-export type UpsertReadlistOutcome =
+type UpsertReadlistOutcome =
 	| { status: "ok"; readlist: ReadlistRef; created: boolean }
 	| { status: "invalid-name" }
 	| { status: "reserved-name"; readlist: ReadlistRef }
 	| { status: "limit-reached"; limit: number };
 
-export interface UpsertReadlistDependencies {
+interface UpsertReadlistDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	createReadlistDefinition: CreateReadlistDefinition;
 	generateReadlistSlug: () => ReadlistSlug;
