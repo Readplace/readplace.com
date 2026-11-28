@@ -12,7 +12,7 @@ const embeddedDataSchema = z.object({
 			refInfo: z.object({
 				name: z.string().min(1),
 				currentOid: z.string().regex(/^[a-f0-9]{40}$/),
-				refType: z.enum(["branch", "tag"]),
+				refType: z.enum(["branch", "tag", "tree"]),
 			}),
 			blob: z.object({ rawBlobUrl: z.string() }),
 		}),
@@ -49,8 +49,8 @@ function rawPdfTarget(params: { viewer: URL; html: string }): string | undefined
 	const target = new URL(blob.rawBlobUrl);
 	if (!isGitHubHttps(target) || target.search !== "" || target.hash !== "") return undefined;
 	const rawPath = decodeURIComponent(target.pathname);
-	const qualifiedRef = `refs/${refInfo.refType === "branch" ? "heads" : "tags"}/${refInfo.name}`;
-	if (![...refs, qualifiedRef].some((ref) => rawPath === `${root}/raw/${ref}/${path}`)) return undefined;
+	const rawRefs = refInfo.refType === "tree" ? refs : [...refs, `refs/${refInfo.refType === "branch" ? "heads" : "tags"}/${refInfo.name}`];
+	if (!rawRefs.some((ref) => rawPath === `${root}/raw/${ref}/${path}`)) return undefined;
 	return target.href;
 }
 

@@ -1,12 +1,14 @@
 import { initGitHubPdfSiteRules } from "./github-pdf-site-rules";
 import type { CrawlFetch } from "./crawl-fetch";
 
+const commitSha = "a".repeat(40);
+
 function viewerHtml(params: { rawBlobUrl: string; name?: string; path?: string; refType?: string }): string {
 	return `<html><body><p>Loading document…</p><script type="application/json" data-target="react-app.embeddedData">${JSON.stringify({
 		payload: {
 			codeViewBlobLayoutRoute: {
 				path: params.path ?? "guides/paper.pdf",
-				refInfo: { name: params.name ?? "main", currentOid: "a".repeat(40), refType: params.refType ?? "branch" },
+				refInfo: { name: params.name ?? "main", currentOid: commitSha, refType: params.refType ?? "branch" },
 				blob: { rawBlobUrl: params.rawBlobUrl },
 			},
 		},
@@ -41,8 +43,10 @@ describe("GitHub PDF site rules", () => {
 	it.each([
 		{ name: "main", refType: "branch", rawRef: "refs/heads/main" },
 		{ name: "release/next", refType: "branch", rawRef: "refs/heads/release/next" },
+		{ name: "master", refType: "branch", rawRef: "refs/heads/master" },
 		{ name: "v2", refType: "tag", rawRef: "refs/tags/v2" },
-		{ name: "main", refType: "branch", rawRef: "a".repeat(40) },
+		{ name: "v4.0.379", refType: "tag", rawRef: "refs/tags/v4.0.379" },
+		{ name: "main", refType: "branch", rawRef: commitSha },
 		{ name: "main", refType: "branch", rawRef: "main" },
 	])("follows the declared raw file for $rawRef", async ({ name, refType, rawRef }) => {
 		const rawBlobUrl = `https://github.com/sample/docs/raw/${rawRef}/guides/paper.pdf`;
@@ -52,13 +56,20 @@ describe("GitHub PDF site rules", () => {
 		expect(await site.onCrawl({ url })).toEqual({ kind: "redirect", url: rawBlobUrl });
 	});
 
-	it("resolves a commit viewer using its source-declared branch and encoded file path", async () => {
-		const rawBlobUrl = "https://github.com/sample/docs/raw/refs/heads/release/next/guides/a%20paper.pdf";
-		const site = siteFor(viewerHtml({ rawBlobUrl, name: "release/next", path: "guides/a paper.pdf" }));
+	it("resolves a commit permalink viewer to the raw file at that commit", async () => {
+		const rawBlobUrl = `https://github.com/sample/docs/raw/${commitSha}/guides/a%20paper.pdf`;
+		const site = siteFor(viewerHtml({ rawBlobUrl, name: commitSha, refType: "tree", path: "guides/a paper.pdf" }));
 
-		expect(await site.onCrawl({ url: `https://github.com/sample/docs/blob/${"a".repeat(40)}/guides/a%20paper.pdf` })).toEqual({
+		expect(await site.onCrawl({ url: `https://github.com/sample/docs/blob/${commitSha}/guides/a%20paper.pdf` })).toEqual({
 			kind: "redirect", url: rawBlobUrl,
 		});
+	});
+
+	it("fails closed when a commit permalink viewer declares a branch-qualified raw file", async () => {
+		const rawBlobUrl = `https://github.com/sample/docs/raw/refs/heads/${commitSha}/guides/paper.pdf`;
+		const site = siteFor(viewerHtml({ rawBlobUrl, name: commitSha, refType: "tree" }));
+
+		expect(await site.onCrawl({ url: `https://github.com/sample/docs/blob/${commitSha}/guides/paper.pdf` })).toEqual({ kind: "failed" });
 	});
 
 	it.each([
