@@ -17,7 +17,7 @@ import { standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { WIZARD_STYLES } from "../../shared/wizard/wizard.component";
 import { GMAIL_SENDER_WIDGET_STYLES } from "../integrations/gmail.styles";
 import { readlistAlertFor } from "./readlist-alerts";
-import { STATUS_TOAST_DISMISS_MS } from "./readlist-mutation-fragments";
+import { STATUS_TOAST_DISMISS_MS, renderHomeToast } from "./readlist-mutation-fragments";
 import { type ReadlistFitChoices, renderReadlistFitChoices } from "./readlist-fit-choices.component";
 import { READLIST_GMAIL_SENDERS_STYLES, renderReadlistGmailSenders } from "./readlist-gmail-senders.component";
 import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";
@@ -78,7 +78,8 @@ export interface ReadlistPreferencesViewModel {
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
-function statusToastHtml(vm: Pick<ReadlistPreferencesViewModel, "saved" | "inboxCreated">): string {
+function statusToastHtml(vm: Pick<ReadlistPreferencesViewModel, "saved" | "inboxCreated" | "rail">): string {
+	if (vm.rail.home?.status) return renderHomeToast(vm.rail.home.status);
 	if (vm.saved) return renderToast({ message: "Preferences saved", dismissMs: STATUS_TOAST_DISMISS_MS, actions: [] });
 	if (vm.inboxCreated === undefined) return "";
 	return renderToast({

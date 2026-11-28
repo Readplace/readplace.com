@@ -35,6 +35,7 @@ import { renderMoveDialogs } from "./readlist-card/move-dialog.component";
 import { renderReadlistDeleteConfirm } from "./readlist-delete-confirm.component";
 import { sortLabel } from "./readlist-sort";
 import {
+	renderHomeToast,
 	renderMoveToast,
 	renderReadlistCountsTrigger,
 	renderStatusToast,
@@ -457,7 +458,8 @@ function offlineDownloadControl(input: { filters: ReadlistUrlState; isEmpty: boo
 	};
 }
 
-function flashToastHtml(vm: ReadlistViewModel): string {
+function flashToastHtml(vm: ReadlistViewModel, rail: ReadlistRailViewModel): string {
+	if (rail.home?.status) return renderHomeToast(rail.home.status);
 	if (vm.statusFlash) return renderStatusToast(vm.statusFlash);
 	if (vm.moveFlash) return renderMoveToast(vm.moveFlash);
 	return "";
@@ -584,7 +586,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 							},
 						},
 		}),
-		statusToastHtml: flashToastHtml(vm),
+		statusToastHtml: flashToastHtml(vm, options.rail),
 		saveFeedbackHtml: renderReadlistSaveFeedback({
 			errors: vm.errors,
 			saveErrorCode: vm.saveErrorCode,

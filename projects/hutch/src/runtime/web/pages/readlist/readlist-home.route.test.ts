@@ -28,6 +28,15 @@ function view(html: string) {
 	return new JSDOM(html).window.document;
 }
 
+function homeToast(document: Document) {
+	const message = document.querySelector("#status-toast [data-test-toast-message]")?.textContent;
+	assert(message);
+	for (const nav of document.querySelectorAll("[data-test-readlist-nav]")) {
+		expect(nav.textContent).not.toContain(message);
+	}
+	return message;
+}
+
 describe("Home readlist", () => {
 	it("returns to the same web view, publishes the chosen home to any client that asks and offers set-home only to native apps", async () => {
 		const app = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -45,7 +54,7 @@ describe("Home readlist", () => {
 		expect(saved.status).toBe(303);
 		const returned = view((await agent.get(saved.headers.location)).text);
 		expect(returned.querySelector('[data-test-readlist][aria-current="page"]')?.getAttribute("data-test-readlist")).toBe("default");
-		expect(returned.querySelector('[role="status"][autofocus]')?.textContent).toBe("Weekend is now your home readlist.");
+		expect(homeToast(returned)).toBe("Weekend is now your home readlist.");
 		expect(view((await agent.get("/queue")).text).querySelector('[data-test-readlist][aria-current="page"]')?.getAttribute("data-test-readlist")).toBe(slug);
 
 		const user = await app.auth.findUserByEmail("test@example.com");
@@ -78,7 +87,7 @@ describe("Home readlist", () => {
 		expect(reset.status).toBe(303);
 		expect(reset.headers.location).toContain(`queue=${slug}`);
 		const afterReset = view((await agent.get(reset.headers.location)).text);
-		expect(afterReset.querySelector('[role="status"][autofocus]')?.textContent).toBe("All is now your home readlist.");
+		expect(homeToast(afterReset)).toBe("All is now your home readlist.");
 		const badged = Array.from(afterReset.querySelectorAll(".readlist-nav__home"), (badge) => badge.previousElementSibling?.getAttribute("data-test-readlist"));
 		expect(badged.length).toBeGreaterThan(0);
 		expect(new Set(badged)).toEqual(new Set(["default"]));
@@ -197,7 +206,7 @@ describe("Home readlist", () => {
 
 			const returned = view((await agent.get(saved.headers.location)).text);
 			expect(current(returned)).toBe("~hand-picked");
-			expect(returned.querySelector('[role="status"][autofocus]')?.textContent).toBe("Hand Picked is now your home readlist.");
+			expect(homeToast(returned)).toBe("Hand Picked is now your home readlist.");
 			const badged = Array.from(returned.querySelectorAll(".readlist-nav__home"), (badge) =>
 				badge.previousElementSibling?.getAttribute("data-test-readlist") ?? badge.previousElementSibling?.getAttribute("data-test-readlist-more-entry"));
 			expect(new Set(badged)).toEqual(new Set(["~hand-picked"]));
@@ -220,7 +229,7 @@ describe("Home readlist", () => {
 			expect(saved.headers.location).toContain("scope=hand-picked");
 			const returned = view((await agent.get(saved.headers.location)).text);
 			expect(current(returned)).toBe("~hand-picked");
-			expect(returned.querySelector('[role="status"][autofocus]')?.textContent).toBe("Weekend is now your home readlist.");
+			expect(homeToast(returned)).toBe("Weekend is now your home readlist.");
 			expect(current(view((await agent.get("/queue")).text))).toBe("weekend");
 		});
 
@@ -254,11 +263,17 @@ describe("Home readlist", () => {
 			expect(await app.auth.findHomeReadlist(userId)).toBeUndefined();
 		});
 
-		it("offers Hand Picked as Home on a readlist's Preferences page", async () => {
+		it("offers Hand Picked as Home on a readlist's Preferences page and confirms it there in a toast", async () => {
 			const { agent } = await readerWithWeekend();
 			await agent.post(weekendHomeAction).type("form").send({ returnTo: "/queue?queue=default" });
 			const preferences = view((await agent.get("/queue/queues/weekend/preferences")).text);
-			expect(preferences.querySelector(HAND_PICKED_MENU)).not.toBeNull();
+			const form = preferences.querySelector<HTMLFormElement>(HAND_PICKED_MENU);
+			assert(form);
+			const saved = await agent.post(form.getAttribute("action") ?? "").type("form").send({
+				returnTo: form.querySelector<HTMLInputElement>('[name="returnTo"]')?.value,
+			});
+			expect(saved.headers.location).toContain("/queue/queues/weekend/preferences");
+			expect(homeToast(view((await agent.get(saved.headers.location)).text))).toBe("Hand Picked is now your home readlist.");
 		});
 	});
 

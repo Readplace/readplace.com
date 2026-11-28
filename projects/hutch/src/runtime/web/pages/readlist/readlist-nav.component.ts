@@ -149,7 +149,6 @@ export interface ReadlistNavDisplayModel {
 	items: readonly ReadlistNavItem[];
 	popovers: readonly ReadlistNavPopover[];
 	moreCount: number;
-	homeStatus?: string;
 	current: { title: string; iconName: IconName; smart: boolean };
 	createForms: readonly ReadlistCreateForm[];
 	limitForms: readonly ReadlistLimitForm[];
@@ -358,7 +357,6 @@ export function buildReadlistNav(
 					},
 				];
 	return {
-		homeStatus: input.home?.status,
 		mode: layout.mode,
 		items,
 		popovers,
