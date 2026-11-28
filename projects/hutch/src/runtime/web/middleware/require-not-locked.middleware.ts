@@ -1,7 +1,6 @@
 import type { Request, RequestHandler } from "express";
-import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
+import { AccountLockedPage, bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { Base } from "../base.component";
-import { AccountLockedPage } from "../auth/auth.component";
 import { wantsSiren } from "../content-negotiation";
 import { SIREN_MEDIA_TYPE } from "../api/siren";
 import { accountLockedSirenError } from "../api/account-locked-siren";
@@ -33,5 +32,5 @@ export const requireNotLocked: RequestHandler = (req, res, next) => {
 		res.status(403).type(SIREN_MEDIA_TYPE).json(accountLockedSirenError());
 		return;
 	}
-	sendComponent(req, res, Base(AccountLockedPage(), bannerStateFromRequest(req)));
+	sendComponent(req, res, Base(AccountLockedPage({ logoutTrackSource: "account-locked" }), bannerStateFromRequest(req)));
 };

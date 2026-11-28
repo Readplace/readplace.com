@@ -99,7 +99,6 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 	advertisedPlatformOf,
-	type PitchablePlatform,
 } from "../../onboarding/extension-install";
 import {
 	isNativeSurface,
@@ -110,7 +109,8 @@ import type {
 	GetOnboardingSignals,
 	NativeAppPlatform,
 } from "@packages/provider-contracts/onboarding-signals";
-import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
+import type { InstallableClientOnboarding, OnboardingContext } from "../../onboarding/onboarding.types";
+import type { AdvertisedClientNameInCategory } from "@packages/supported-clients";
 import { type EffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { ArticleDiscoveryQuery, GeneratedContentAccess, ReadlistFilter, SavedArticle, ShownSummary, Viewer } from "@packages/domain/article";
 import { generatedContentOf } from "../../generated-content-of";
@@ -325,8 +325,7 @@ const NATIVE_APP_SIGNAL_PLATFORM = {
 	android: "android",
 	firefox: undefined,
 	chrome: undefined,
-	other: undefined,
-} as const satisfies Record<Platform, NativeAppPlatform | undefined>;
+} as const satisfies Record<AdvertisedClientNameInCategory<"contentCapture">, NativeAppPlatform | undefined>;
 
 export const ISSUE_LINK_SAVED_PARAM = "issue_link_saved";
 
@@ -571,7 +570,6 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		definitions: readonly ReadlistDefinitionData[], active: ReadlistSlug,
 	) => {
 		const advertisedPlatform = advertisedPlatformOf(req);
-		const platform: PitchablePlatform = advertisedPlatform ?? "other";
 		const hasClient = advertisedPlatform !== undefined;
 		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
 		const gmailEligible = gmailEligibleFor(req, access);
@@ -598,7 +596,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		} : undefined;
 		const markReadAcrossQueuesAckedAt = signals?.markReadAcrossQueuesAckedAt;
 		const deleteArticleAckedAt = signals?.deleteArticleAckedAt;
-		if (!hasClient) {
+		if (advertisedPlatform === undefined) {
 			const noClientContext = { hasInstallableClient: false, gmail, smartReadlist } satisfies OnboardingContext;
 			return {
 				markReadAcrossQueuesAckedAt,
@@ -611,6 +609,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 				},
 			};
 		}
+		const platform = advertisedPlatform;
 		const nativeAppPlatform = NATIVE_APP_SIGNAL_PLATFORM[platform];
 		const { installed, savedArticle } = nativeAppPlatform
 			? (signals?.nativeApp[nativeAppPlatform] ?? { installed: false, savedArticle: false })

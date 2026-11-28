@@ -7,14 +7,13 @@ import { initDPoP } from "../../oauth-refresh/dpop";
 import { oauthRequestBody } from "../../oauth-refresh/request-body";
 import { initAuthDiagnosticPermits } from "../../auth-diagnostics/permit";
 import { refreshContext } from "../../oauth-refresh/evidence";
+import { clients } from "../../auth-diagnostics/oauth-context";
+import { AuthDiagnosticClient } from "@packages/domain/auth-diagnostics";
 
 const refreshBody = z.object({
 	grant_type: z.literal("refresh_token"), client_id: z.string().min(1), refresh_token: z.string().min(1), scope: z.string().optional(),
 	readplace_refresh_protocol: z.literal("1").optional(), readplace_refresh_operation_id: z.uuid().optional(),
 });
-const firstParty: Record<string, "chrome" | "firefox" | "ios" | "android" | undefined> = {
-	"hutch-chrome-extension": "chrome", "hutch-firefox-extension": "firefox", "ios-app": "ios", "android-app": "android",
-};
 
 export function initTokenExchange(deps: {
 	server: OAuthServer; model: OAuthModel; findClient: FindOAuthClient; baseUrl: string; salt: string; now: () => Date;
@@ -22,7 +21,7 @@ export function initTokenExchange(deps: {
 	const dpop = initDPoP(deps);
 	const permits = initAuthDiagnosticPermits(deps);
 	function permit(req: Request, identity: { clientId: string; userId: string; grantId: string }) {
-		const client = firstParty[identity.clientId];
+		const client = AuthDiagnosticClient.safeParse(clients[identity.clientId]?.client).data;
 		const installation = z.uuid().safeParse(req.get("X-Readplace-Installation-Id"));
 		return client && installation.success ? permits.issue({ ...identity, client, installationId: installation.data }) : undefined;
 	}

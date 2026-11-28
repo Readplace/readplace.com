@@ -1,7 +1,7 @@
 import type { Highlight } from "@packages/domain/article";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { Request } from "express";
-import type { CanSaveContent } from "../../middleware/can-save-content";
+import { isAccountLocked } from "../../middleware/require-not-locked.middleware";
 import { isNativeSurface, nativeSurfaceQuery } from "../../onboarding/native-client";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import { requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
@@ -39,11 +39,10 @@ export function highlightCopiedUrlFor(req: Request, articleId: string): string {
 }
 
 export function initReaderHighlightOptions(deps: {
-	canSaveContent: CanSaveContent;
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
 }): ReaderHighlightOptionsFor {
 	return async (req, { article, rows }) => {
-		const writable = !isNativeSurface(req) || (await deps.canSaveContent(req));
+		const writable = !isNativeSurface(req) || !isAccountLocked(req);
 		return {
 			rows,
 			canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,

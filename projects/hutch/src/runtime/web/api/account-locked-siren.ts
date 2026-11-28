@@ -1,5 +1,5 @@
 import { VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
-import { type SirenEntity, sirenMessages } from "./siren";
+import { type SirenEntity, sirenMessages, sirenWarning } from "./siren";
 
 /**
  * The refusal a locked account receives. The
@@ -10,14 +10,9 @@ import { type SirenEntity, sirenMessages } from "./siren";
  */
 export function accountLockedSirenError(): SirenEntity {
 	return sirenMessages([
-		{
-			type: "warning",
-			content: {
-				type: "text/html",
-				body:
-					"Your account is locked because your email was never verified. " +
-					`Email <a href="mailto:${VERIFICATION_CONTACT_EMAIL}">${VERIFICATION_CONTACT_EMAIL}</a> to restore access.`,
-			},
-		},
+		sirenWarning(
+			"Your account is locked because your email was never verified. " +
+				`Email <a href="mailto:${VERIFICATION_CONTACT_EMAIL}">${VERIFICATION_CONTACT_EMAIL}</a> to restore access.`,
+		),
 	]);
 }

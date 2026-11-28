@@ -9,5 +9,3 @@ export const sessionCookie = defineCookie({
 	httpOnly: true,
 	schema: z.string(),
 });
-
-export const persistentSessionCookieOptions = sessionCookie.options;

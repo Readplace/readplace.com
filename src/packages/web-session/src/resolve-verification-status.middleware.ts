@@ -1,10 +1,16 @@
-import type { RequestHandler } from "express";
 import type {
 	FindUserById,
 	MarkSessionEmailVerified,
 } from "@packages/provider-contracts/auth";
-import { computeVerificationStatus } from "@packages/domain/user";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { computeVerificationStatus, type UserId, type VerificationStatus } from "@packages/domain/user";
+import { SESSION_COOKIE_NAME } from "./session-cookie";
+
+export interface VerificationStatusRequest {
+	userId?: UserId;
+	emailVerified?: boolean;
+	verificationStatus?: VerificationStatus;
+	cookies?: Record<string, string | undefined>;
+}
 
 /**
  * Resolves the verification countdown/lockout standing for the current request
@@ -29,7 +35,7 @@ export function initResolveVerificationStatus(deps: {
 	findUserById: FindUserById;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	now: () => Date;
-}): RequestHandler {
+}): (req: VerificationStatusRequest, _res: unknown, next: () => void) => Promise<void> {
 	return async (req, _res, next) => {
 		if (!req.userId || req.emailVerified === true || req.verificationStatus) {
 			next();

@@ -179,7 +179,6 @@ export const SAVE_SURFACES = {
 	readlistSaveBar: "queue_save_bar",
 	extension: "extension",
 	mcp: "mcp",
-	oauthConsentSeed: "oauth_consent_seed",
 } as const;
 
 export const SAVE_SURFACE_QUERY = "save_surface";

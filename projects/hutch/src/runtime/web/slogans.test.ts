@@ -1,4 +1,6 @@
-import { CANONICAL_SLOGAN, MAX_SLOGAN_LENGTH, SLOGANS } from "./slogans";
+import { CANONICAL_SLOGAN, SLOGANS } from "./slogans";
+
+const MAX_SLOGAN_LENGTH = 48;
 
 describe("SLOGANS", () => {
 	it("leads with the warm slogan the OG image alt already carries", () => {

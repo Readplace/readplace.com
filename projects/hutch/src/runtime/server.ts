@@ -267,14 +267,14 @@ import { initAuthRoutes } from "./web/auth/auth.page";
 import { initResolveSignupClient } from "./web/auth/signup-client";
 import { initSlideSession } from "./web/middleware/slide-session.middleware";
 import { stampOfflineOwner } from "./web/middleware/stamp-offline-owner.middleware";
-import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, OFFLINE_READER_WORKER_FILE, isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
-import { initResolveLogin } from "@packages/web-session";
+import { initResolveLogin, initResolveVerificationStatus } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
 import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
@@ -433,8 +433,6 @@ import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
 import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
-import { initCanSaveContent } from "./web/middleware/can-save-content";
-import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotAgeLocked } from "./web/middleware/require-not-age-locked.middleware";
 import { initAgeLockAccount } from "./web/pages/age-lock/age-lock-account";
 import { AGE_UNLOCK_PATH } from "./web/pages/age-lock/age-lock.url";
@@ -1009,7 +1007,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(markExtensionInstalled);
 
 	const requirePaidFeatures = initRequirePaidFeatures({ getEffectiveAccess });
-	const canSaveContent = initCanSaveContent();
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		findUserById: deps.findUserById,
@@ -1641,7 +1638,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requirePaidFeatures,
-		canSaveContent,
 		getEffectiveAccess,
 		claimDailySaves,
 		hasNoOcrPagesLeft,

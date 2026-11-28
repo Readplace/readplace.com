@@ -16,7 +16,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { MAX_POLLS, POLL_INTERVAL_SECONDS, withInternalTracking } from "@packages/web-shell";
 import { computeArticleContentVersion } from "../shared/article-content-version";
-import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
+import { type SirenEntity, type SirenLink, type SirenMessage, type SirenSubEntity, sirenWarning } from "./siren";
 import { type CollectionQueryParams, type ReadlistQueryKey, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
@@ -76,42 +76,25 @@ function itemMessages(params: { article: SavedArticle; phase: CardPhase; crawl: 
 	const stale: SirenMessage[] =
 		phase.kind === "stale"
 			? [
-					{
-						type: "warning",
-						content: {
-							type: "text/html",
-							body: staleNoticeHtml({
-								url: article.destinationUrl,
-								siteName: article.metadata.siteName,
-								hasOrigin: !isPrivateItemUrl(article.url),
-								kindNoun: cardKindOf(article)?.kind.noun,
-							}),
-						},
-					},
+					sirenWarning(
+						staleNoticeHtml({
+							url: article.destinationUrl,
+							siteName: article.metadata.siteName,
+							hasOrigin: !isPrivateItemUrl(article.url),
+							kindNoun: cardKindOf(article)?.kind.noun,
+						}),
+					),
 				]
 			: [];
 	const upload: SirenMessage[] =
 		article.processingNotice === undefined
 			? []
-			: [
-					{
-						type: "warning",
-						content: { type: "text/html", body: Handlebars.Utils.escapeExpression(article.processingNotice) },
-					},
-				];
+			: [sirenWarning(Handlebars.Utils.escapeExpression(article.processingNotice))];
 	const hold = shownOcrPagesHold({ hold: article.ocrPagesHold, crawl: params.crawl });
 	const held: SirenMessage[] =
 		hold === undefined
 			? []
-			: [
-					{
-						type: "warning",
-						content: {
-							type: "text/html",
-							body: Handlebars.Utils.escapeExpression(t("ocrPagesHeld.warning", { pages: hold.pages })),
-						},
-					},
-				];
+			: [sirenWarning(Handlebars.Utils.escapeExpression(t("ocrPagesHeld.warning", { pages: hold.pages })))];
 	return [...stale, ...upload, ...held];
 }
 

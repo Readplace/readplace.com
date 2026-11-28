@@ -25,6 +25,7 @@ import type { UserId } from "@packages/domain/user";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ResolveLogin } from "@packages/web-session";
+import { initResolveVerificationStatus } from "@packages/web-session";
 import type { Logger, LogError } from "@packages/logger";
 import {
 	type AnalyticsEvent,
@@ -39,7 +40,6 @@ import { initBuildBannerState } from "./web/banner-state";
 import { requireAuth } from "./web/middleware/require-auth";
 import { initRequireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
-import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { initCustomEmailsRoutes } from "./web/pages/inbox/custom-emails.page";
 import type { FindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
 import { type InboxReadlistFitDependencies, initInboxRoutes } from "./web/pages/inbox/inbox.page";

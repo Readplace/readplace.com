@@ -77,6 +77,7 @@ export type {
 	RenderChromelessPage,
 } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
+export { AccountLockedPage } from "./shared/account-locked/account-locked.component";
 export {
 	IN_FLIGHT_DOTS_STYLES,
 	renderInFlightDots,

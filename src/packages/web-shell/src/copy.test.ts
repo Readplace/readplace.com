@@ -3,7 +3,7 @@ import { DEFAULT_LOCALE } from "@packages/translations";
 import { collectTemplates, findCopyViolations, helperKeyOf } from "@packages/translations/copy-checker";
 import { WEB_CATALOG } from "@packages/translations/web-catalog";
 
-const MIGRATED_DIRECTORIES: readonly string[] = [];
+const MIGRATED_DIRECTORIES: readonly string[] = ["shared/account-locked"];
 
 const EXEMPT_TOKENS: readonly string[] = ["Readplace"];
 

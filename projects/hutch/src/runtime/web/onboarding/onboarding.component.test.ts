@@ -249,7 +249,6 @@ describe("OnboardingChecklist", () => {
 		{ platform: "iphone", open: false },
 		{ platform: "chrome", open: true },
 		{ platform: "firefox", open: true },
-		{ platform: "other", open: true },
 	] as const)("sets the guide's default fold for $platform", ({ platform, open }) => {
 		const doc = parse(checklist(contextWith({ platform })));
 		const fold = container(doc).querySelector(".setup-guide__fold");

@@ -27,11 +27,12 @@ import { transcriptNoticeOf } from "../../shared/article-reader/reader-view";
 import { renderReaderDownloadsOob, renderReaderDownloadsSlotOob } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollHighlights, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import {
+	requireCspNonce,
 	sendComponent,
 	toRelativeOrDate,
 } from "@packages/web-shell";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { CacheableComponent, } from "../../conditional-get";
+import { FreshForComponent } from "../../conditional-get";
 import {
 	NO_READER_VIEW_FAILED_OOB,
 	extensionSuggestionBannerOob,
@@ -68,7 +69,7 @@ const HTMX_STOP_POLLING_STATUS = 286;
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent" | "getEffectiveAccess"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "getEffectiveAccess"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -141,7 +142,11 @@ export function initReaderPanelRoutes(
 			highlights: await pollHighlightsFor(req, article),
 		});
 		res.vary("User-Agent");
-		sendComponent(req, res, CacheableComponent(component, req));
+		sendComponent(req, res, FreshForComponent(component, {
+			ifNoneMatch: req.get("If-None-Match"),
+			cspNonce: requireCspNonce(req),
+			cacheControl: "private, no-cache",
+		}));
 	});
 
 	router.get("/:id/reader", async (req: Request, res: Response) => {
@@ -182,7 +187,11 @@ export function initReaderPanelRoutes(
 			highlights: await pollHighlightsFor(req, article),
 		});
 		res.vary("User-Agent");
-		sendComponent(req, res, CacheableComponent(component, req));
+		sendComponent(req, res, FreshForComponent(component, {
+			ifNoneMatch: req.get("If-None-Match"),
+			cspNonce: requireCspNonce(req),
+			cacheControl: "private, no-cache",
+		}));
 	});
 
 	router.get("/:id/related", async (req: Request, res: Response) => {
@@ -234,7 +243,11 @@ export function initReaderPanelRoutes(
 			returnTo: readerReturnPath(req, article.id.value),
 			readerPathFor: readerPathForReadlist(req),
 		});
-		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
+		sendComponent(req, res, FreshForComponent(HtmlPage(html), {
+			ifNoneMatch: req.get("If-None-Match"),
+			cspNonce: requireCspNonce(req),
+			cacheControl: "private, no-cache",
+		}));
 	});
 
 	router.post("/:id/related-dismiss", async (req: Request, res: Response) => {
@@ -375,7 +388,11 @@ export function initReaderPanelRoutes(
 			res.status(HTMX_STOP_POLLING_STATUS).type("html").send(html);
 			return;
 		}
-		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
+		sendComponent(req, res, FreshForComponent(HtmlPage(html), {
+			ifNoneMatch: req.get("If-None-Match"),
+			cspNonce: requireCspNonce(req),
+			cacheControl: "private, no-cache",
+		}));
 	});
 
 	// The worker fingerprint-guards, so re-firing on every visit is cheap when

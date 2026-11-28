@@ -1,6 +1,6 @@
 import { authDiagnosticContext, type AuthDiagnosticContext } from "./record";
 
-const clients: Record<string, Pick<AuthDiagnosticContext, "client" | "surface">> = {
+export const clients: Record<string, Pick<AuthDiagnosticContext, "client" | "surface">> = {
 	"hutch-chrome-extension": { client: "chrome", surface: "background" },
 	"hutch-firefox-extension": { client: "firefox", surface: "background" },
 	"ios-app": { client: "ios", surface: "app" },

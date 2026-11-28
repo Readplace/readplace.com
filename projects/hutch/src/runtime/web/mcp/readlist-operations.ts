@@ -44,11 +44,9 @@ export function initMcpReadlistOperations(deps: {
 		addToReadlist: async ({ userId, id, target }) => {
 			const owned = await deps.resolveOwnedArticle({ userId, id });
 			if (!owned) return { status: "article_not_found" };
-			let readlist: McpReadlist | undefined;
+			let readlist: McpReadlist;
 			if (target.kind === "existing") {
-				readlist = (await listReadlists({ userId }))
-					.find((candidate) => candidate.id === target.readlist);
-				if (!readlist) return { status: "readlist_not_found" };
+				readlist = target.readlist;
 			} else {
 				const result = await createReadlist({ userId, name: target.name });
 				if (result.status !== "created" && result.status !== "exists") return result;

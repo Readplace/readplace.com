@@ -30,16 +30,4 @@ describe("contentSignalMiddleware", () => {
 		expect(response.headers["content-signal"]).toBeUndefined();
 		expect(response.headers.vary).toBeUndefined();
 	});
-
-	it("skips non-GET requests", async () => {
-		const response = await request(serve(appUnderTest())).post("/blog");
-		expect(response.headers["content-signal"]).toBeUndefined();
-	});
-
-	it("always calls next", async () => {
-		const page = await request(serve(appUnderTest())).get("/blog");
-		const sitemap = await request(serve(appUnderTest())).get("/blog/sitemap.xml");
-		expect(page.status).toBe(200);
-		expect(sitemap.status).toBe(200);
-	});
 });

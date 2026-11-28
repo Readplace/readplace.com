@@ -26,9 +26,9 @@ import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "../../shared/client-icons";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { buildShareDemoVideo } from "../../shared/share-demo-video";
-import type { ShareDemoVideo } from "../../shared/share-demo-video";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
-import type { ExtensionDemoBrowser, ExtensionDemoVideo } from "../../shared/extension-demo-video";
+import type { ExtensionDemoBrowser } from "../../shared/extension-demo-video";
+import type { DemoVideo } from "../../shared/demo-video";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
 import { GEMINI_MCP_ADD_COMMAND } from "../../shared/mcp-connect-commands";
 
@@ -353,7 +353,7 @@ interface BrowserExtension {
 	downloadUrl: string | null;
 	ctaLabel: string;
 	ctaTestId: string;
-	demo: ExtensionDemoVideo & { ariaLabel: string; caption: string };
+	demo: DemoVideo & { ariaLabel: string; caption: string };
 }
 
 interface AiAssistant {
@@ -371,7 +371,7 @@ interface NativeApp {
 	title: string;
 	lead: string;
 	cta: { href: string; label: string; testId: string };
-	demo: ShareDemoVideo & { ariaLabel: string; caption: string };
+	demo: DemoVideo & { ariaLabel: string; caption: string };
 	outro: string;
 	outroTestId: string;
 }

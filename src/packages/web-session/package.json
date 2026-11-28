@@ -17,7 +17,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/web-session:check",
-    "check-infra": "echo 'No infrastructure — shared library'"
+    "check-infra": "echo 'No infrastructure \u2014 shared library'"
   },
   "dependencies": {
     "@packages/domain": "workspace:*",
@@ -27,10 +27,15 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@packages/web-test-harness": "workspace:*",
+    "@types/express": "5.0.6",
     "@types/jest": "30.0.0",
+    "@types/supertest": "7.2.0",
     "c8": "11.0.0",
     "concurrently": "10.0.7",
+    "express": "5.3.0",
     "jest": "30.5.2",
+    "supertest": "7.2.2",
     "typescript": "6.0.3"
   }
 }

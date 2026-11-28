@@ -1,9 +1,8 @@
 import type { RequestHandler } from "express";
-import { sendComponent } from "@packages/web-shell";
+import { AccountLockedPage, sendComponent } from "@packages/web-shell";
 import type { BuildBannerState } from "../banner-state";
 import { Base } from "../base.component";
 import { isNonBoostedHtmxRequest } from "../is-non-boosted-htmx-request";
-import { AccountLockedPage } from "../pages/account-locked/account-locked.component";
 
 /**
  * Save-gate for a locked account (unverified past its 7-day window, flagged by
@@ -32,6 +31,6 @@ export function initRequireNotLocked(deps: { buildBannerState: BuildBannerState 
 				"HX-Reswap": "outerHTML show:none",
 			});
 		}
-		sendComponent(req, res, Base(AccountLockedPage(), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(AccountLockedPage({ logoutTrackSource: "inbox-account-locked" }), await deps.buildBannerState(req)));
 	};
 }

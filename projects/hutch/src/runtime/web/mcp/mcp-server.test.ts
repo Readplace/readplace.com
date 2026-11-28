@@ -2331,7 +2331,7 @@ describe("MCP readlist tools", () => {
 		expect(addToReadlist).toHaveBeenCalledWith({
 			userId,
 			id: article.id,
-			target: { kind: "existing", readlist: work.id },
+			target: { kind: "existing", readlist: work },
 		});
 	});
 
@@ -2352,10 +2352,6 @@ describe("MCP readlist tools", () => {
 	});
 
 	it.each<{ outcome: AddToReadlistResult; message: string }>([
-		{
-			outcome: { status: "readlist_not_found" },
-			message: "No readlist with id default",
-		},
 		{
 			outcome: { status: "invalid_name" },
 			message: "A readlist name must be 1–24 characters",

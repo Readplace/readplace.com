@@ -5,6 +5,7 @@ import type {
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
+	READLIST_LABEL_MAX_LENGTH,
 } from "@packages/domain/readlist";
 import type {
 	SortField,
@@ -21,8 +22,38 @@ import {
 	ListReadlistArticlesArgs,
 	SAVE_LINK_TOOL,
 } from "../tool-definitions";
-import type { McpReadlist, McpServerDeps, McpRequestContext } from "../mcp-ports.types";
+import type { CreateReadlistResult, McpReadlist, McpServerDeps, McpRequestContext } from "../mcp-ports.types";
 import { type ToolOutputs, type ToolResult, data, toolError, notFoundResult, formatArticle } from "../tool-result";
+
+export function unknownReadlistError(id: string, suffix = ""): ToolResult {
+	return toolError(
+		`No readlist with id ${id}. Call list_readlists and pass one of the ids it returns.${suffix}`,
+	);
+}
+
+type ReadlistRefusal = Extract<
+	CreateReadlistResult,
+	{ status: "access_denied" | "invalid_name" | "reserved_name" | "limit_reached" }
+>;
+
+function readlistRefusal(result: ReadlistRefusal, limitSuffix: string): ToolResult {
+	switch (result.status) {
+		case "access_denied":
+			return toolError(result.message);
+		case "invalid_name":
+			return toolError(
+				`A readlist name must be 1–${READLIST_LABEL_MAX_LENGTH} characters after trimming. Pick a shorter name.`,
+			);
+		case "reserved_name":
+			return toolError(
+				`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
+			);
+		case "limit_reached":
+			return toolError(
+				`This reader already has the maximum of ${result.limit} readlists${limitSuffix}. Ask them to delete one in the Readplace app, or file into an existing one.`,
+			);
+	}
+}
 
 export function requestedSortOrder(rawArgs: unknown): SortOrder | undefined {
 	const args = ListReadlistArticlesArgs.safeParse(rawArgs);
@@ -117,9 +148,7 @@ export function initReadlistTools(
 					requestedReadlist,
 				]);
 				if (!resolved.ok) {
-					return toolError(
-						`No readlist with id ${resolved.unknownId}. Call list_readlists and pass one of the ids it returns.`,
-					);
+					return unknownReadlistError(resolved.unknownId);
 				}
 				selectedReadlist = resolved.readlists[0];
 			}
@@ -237,19 +266,10 @@ export function initReadlistTools(
 						result,
 					);
 				case "access_denied":
-					return toolError(result.message);
 				case "invalid_name":
-					return toolError(
-						"A readlist name must be 1–24 characters after trimming. Pick a shorter name.",
-					);
 				case "reserved_name":
-					return toolError(
-						`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
-					);
 				case "limit_reached":
-					return toolError(
-						`This reader already has the maximum of ${result.limit} readlists. Ask them to delete one in the Readplace app, or file into an existing one.`,
-					);
+					return readlistRefusal(result, "");
 			}
 		} catch (error) {
 			return unexpectedFailure(
@@ -277,11 +297,9 @@ export function initReadlistTools(
 					args.data.readlist,
 				]);
 				if (!resolved.ok) {
-					return toolError(
-						`No readlist with id ${resolved.unknownId}. Call list_readlists and pass one of the ids it returns.`,
-					);
+					return unknownReadlistError(resolved.unknownId);
 				}
-				target = { kind: "existing", readlist: resolved.readlists[0].id };
+				target = { kind: "existing", readlist: resolved.readlists[0] };
 			} else {
 				assert(args.data.create_name !== undefined);
 				target = { kind: "create", name: args.data.create_name };
@@ -308,24 +326,11 @@ export function initReadlistTools(
 				}
 				case "article_not_found":
 					return notFoundResult(args.data.id);
-				case "readlist_not_found":
-					return toolError(
-						`No readlist with id ${args.data.readlist}. Call list_readlists and pass one of the ids it returns.`,
-					);
 				case "access_denied":
-					return toolError(result.message);
 				case "invalid_name":
-					return toolError(
-						"A readlist name must be 1–24 characters after trimming. Pick a shorter name.",
-					);
 				case "reserved_name":
-					return toolError(
-						`"${result.readlist.name}" is reserved because All already receives every save. Use its id from list_readlists to file an article back into it, or choose a different name.`,
-					);
 				case "limit_reached":
-					return toolError(
-						`This reader already has the maximum of ${result.limit} readlists, so a new one can't be created. Ask them to delete one in the Readplace app, or file into an existing one.`,
-					);
+					return readlistRefusal(result, ", so a new one can't be created");
 			}
 		} catch (error) {
 			return unexpectedFailure(

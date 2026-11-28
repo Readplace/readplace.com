@@ -6,7 +6,8 @@ import {
 	hasEnoughSavesForNextRead,
 } from "@packages/domain/article";
 import { CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
-import { buildExtensionInstallUrl, type PitchablePlatform } from "./extension-install";
+import type { AdvertisedClientNameInCategory } from "@packages/supported-clients";
+import { buildExtensionInstallUrl } from "./extension-install";
 import type {
 	OnboardingContext,
 	OnboardingAction,
@@ -17,13 +18,15 @@ import { INTEGRATIONS_PATH } from "../pages/integrations/gmail-connect.url";
 
 const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
+type AdvertisedPlatform = AdvertisedClientNameInCategory<"contentCapture">;
+
 interface StepCopy {
 	title: string;
 	description: string;
 	actions: OnboardingAction[];
 }
 
-function installAction(platform: PitchablePlatform): OnboardingAction {
+function installAction(platform: AdvertisedPlatform): OnboardingAction {
 	return {
 		key: "install",
 		method: "GET",
@@ -33,7 +36,7 @@ function installAction(platform: PitchablePlatform): OnboardingAction {
 	};
 }
 
-function saveArticleAction(platform: PitchablePlatform): OnboardingAction {
+function saveArticleAction(platform: AdvertisedPlatform): OnboardingAction {
 	return {
 		key: "save-article",
 		method: "GET",
@@ -43,20 +46,12 @@ function saveArticleAction(platform: PitchablePlatform): OnboardingAction {
 	};
 }
 
-const CHOOSE_BROWSER_ACTION: OnboardingAction = {
-	key: "choose-browser",
-	method: "GET",
-	href: buildExtensionInstallUrl("other"),
-	label: "Choose browser",
-	variant: "primary",
-};
-
 const INSTALL_BROWSER_DESCRIPTION =
 	"Add Readplace to your browser and log-in so you can save any page with one click.";
 
 const SAVE_BROWSER_DESCRIPTION = "Use the browser extension to save your first article for later.";
 
-const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
+const INSTALL_COPY: Record<AdvertisedPlatform, StepCopy> = {
 	firefox: {
 		title: "Install the Firefox browser extension",
 		description: INSTALL_BROWSER_DESCRIPTION,
@@ -79,14 +74,9 @@ const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
 			"Add the Readplace Android app and sign in so you can save any page from the Android share sheet.",
 		actions: [installAction("android")],
 	},
-	other: {
-		title: "Install a browser extension",
-		description: INSTALL_BROWSER_DESCRIPTION,
-		actions: [CHOOSE_BROWSER_ACTION],
-	},
 };
 
-const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
+const SAVE_COPY: Record<AdvertisedPlatform, StepCopy> = {
 	firefox: {
 		title: "Save your first article using the browser extension",
 		description: SAVE_BROWSER_DESCRIPTION,
@@ -108,11 +98,6 @@ const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
 		description:
 			"Open any page in your browser, tap Share, and choose Readplace to save it for later.",
 		actions: [saveArticleAction("android")],
-	},
-	other: {
-		title: "Save your first article using a browser extension",
-		description: SAVE_BROWSER_DESCRIPTION,
-		actions: [CHOOSE_BROWSER_ACTION],
 	},
 };
 

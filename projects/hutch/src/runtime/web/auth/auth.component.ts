@@ -5,7 +5,6 @@ import {
 	render,
 	renderAlert,
 	renderInFlightDots,
-	VERIFICATION_CONTACT_EMAIL,
 	withInternalTracking,
 } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
@@ -23,7 +22,6 @@ import type { LastAuthProvider } from "../last-auth-provider";
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");
 const SIGNUP_TEMPLATE = readFileSync(join(__dirname, "signup.template.html"), "utf-8");
 const VERIFY_EMAIL_TEMPLATE = readFileSync(join(__dirname, "verify-email.template.html"), "utf-8");
-const ACCOUNT_LOCKED_TEMPLATE = readFileSync(join(__dirname, "account-locked.template.html"), "utf-8");
 const FORGOT_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "forgot-password.template.html"), "utf-8");
 const RESET_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "reset-password.template.html"), "utf-8");
 const CHANGE_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "change-password.template.html"), "utf-8");
@@ -142,21 +140,6 @@ export function VerifyEmailPage(data: { success: boolean; error?: string }): Pag
 		bodyClass: "page-verify-email",
 		content: { html: content },
 		statusCode: data.success ? 200 : 400,
-	};
-}
-
-export function AccountLockedPage(): PageBody {
-	return {
-		seo: {
-			title: "Account locked — Readplace",
-			description: "This Readplace account is locked pending email verification.",
-			canonicalUrl: "/queue",
-			robots: "noindex, nofollow",
-		},
-		styles: AUTH_STYLES,
-		bodyClass: "page-account-locked",
-		content: { html: render(ACCOUNT_LOCKED_TEMPLATE, { contactEmail: VERIFICATION_CONTACT_EMAIL }) },
-		statusCode: 403,
 	};
 }
 

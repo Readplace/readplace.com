@@ -39,8 +39,8 @@ import { saveClientOf } from "../../shared/save-client";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
-import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
-import { CacheableComponent } from "../../conditional-get";
+import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, requireCspNonce, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
+import { FreshForComponent } from "../../conditional-get";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReader } from "@packages/translations/hutch-reader";
 import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT } from "../../price-statement";
@@ -694,7 +694,11 @@ function handleViewPoll(deps: ViewDependencies, poll: ReturnType<typeof initArti
 				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
 		});
 		res.vary("User-Agent");
-		sendComponent(req, res, CacheableComponent(component, req));
+		sendComponent(req, res, FreshForComponent(component, {
+			ifNoneMatch: req.get("If-None-Match"),
+			cspNonce: requireCspNonce(req),
+			cacheControl: "private, no-cache",
+		}));
 	};
 }
 

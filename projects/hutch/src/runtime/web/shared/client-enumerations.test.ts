@@ -7,7 +7,6 @@ import {
 	BROWSER_EXTENSIONS_AND,
 	BROWSER_EXTENSIONS_OR,
 	NATIVE_APP_DEVICES_OR,
-	orPhrase,
 } from "./client-enumerations";
 
 describe("client enumerations", () => {
@@ -24,10 +23,6 @@ describe("client enumerations", () => {
 		assert.equal(AI_ASSISTANTS_LISTED, "ChatGPT, Gemini, Claude");
 		assert.equal(AI_ASSISTANTS_OR, "ChatGPT, Gemini, or Claude");
 		assert.equal(AI_ASSISTANT_SAVE_KEYWORDS, "save from ChatGPT, save from Gemini, save from Claude");
-	});
-
-	it("names a lone client without a joiner", () => {
-		assert.equal(orPhrase(["Claude"]), "Claude");
 	});
 
 	it("names each advertised phone app as a device the visitor might own", () => {

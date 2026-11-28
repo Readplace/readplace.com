@@ -7,7 +7,7 @@ export function readlistDependenciesFrom(
 	deps: Pick<AppDependencies, "setSessionReadlistFilter" | "findSessionReadlistFilter" | "validateSaveableUrl" | "findUserById" | "findArticlesByUser" | "countArticlesByUser" | "findArticleById" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "findArticleUrlById" | "saveArticle" | "saveArticleKeepingPosition" | "changePersonalPick" | "deleteArticle" | "updateArticleStatus" | "markArticleViewed" | "findReadlistArticles" | "countReadlistArticles" | "findReadlistArticleById" | "updateArticleStatusAcrossReadlists" | "deleteReadlistArticle" | "purgeReadlistArticle" | "markReadlistArticleViewed" | "listUserSavesForUrl" | "countSmartReadlistArticles" | "listUserSavesForUrls" | "deleteArticleHighlights" | "listArticleHighlights" | "readCanonicalSnapshot" | "deleteHighlight" | "updateHighlightNote" | "moveReadlistArticles" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "setSmartReadlistRule" | "turnOffSmartReadlistMatching" | "purgeReadlistFitOverrides" | "listReadlistFitOverrides" | "deleteReadlistFitOverride" | "listInboxAddresses" | "setInboxAddressReadlist" | "createRoutedInboxAddress" | "markSummaryToggled" | "recordEngagementActivity" | "markRelatedDismissed" | "publishLinkSaved" | "publishLinkQueued" | "publishLinkDequeued" | "publishQueueEntryCreated" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "requestResolutionOnView" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "findRelatedArticles" | "findPastReads" | "listReceivedSenders" | "bulkArticles" | "listSenderIssues" | "resolveCanonicalIdentity" | "listIssueLinks" | "findIssueLink" | "findIssueLinkSaveStates" | "publishRemoveMyContent" | "publishSaveLinkRawHtmlCommand" | "publishSaveLinkRawPdfCommand" | "putPendingHtml" | "putPendingPdf" | "createUploadSlot" | "statPendingUpload" | "readPendingUploadPrefix" | "findGeneratedSummary" | "findGeneratedSummaries" | "markSummaryPending" | "findArticleCrawlStatus" | "findArticleCrawlStatuses" | "markCrawlPending" | "refreshArticleIfStale" | "refreshArticleIfStaleStored" | "publishSubmitLink" | "allocateSavedAt" | "allocateSavedAtSequence" | "findSavedUrls" | "resolveFirstVisitIdentity" | "pinContentSource" | "publishUpdateFetchTimestamp" | "readArticleContent" | "getOnboardingSignals" | "recordNativeAppAnyActivity" | "recordNativeAppSavedArticle" | "recordSmartReadlistMinimumReached" | "recordNextReadMinimumReached" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "recordOnboardingOutstandingVersion" | "recordMarkReadAcrossQueuesAcknowledged" | "recordDeleteArticleAcknowledged" | "setKeepOfferDismissed" | "presignMediaImage" | "logError" | "salt" | "now" | "presignEnclosure" | "readerSectionThresholdBytes" | "readArticleImage" | "findHomeReadlist" | "setHomeReadlist">,
 	built: Pick<
 		ReadlistDependencies,
-		"createReaderHighlight" | "keepOffer" | "validateNewSaveUrl" | "appOrigin" | "secureCookies" | "saveArticleWithoutActivity" | "addArticleToReadlist" | "fileArticleIntoReadlist" | "upsertReadlist" | "deleteReadlistDefinition" | "markdownBearerAuth" | "resolveOwnedArticle" | "resolveVerificationStatus" | "requirePaidFeatures" | "canSaveContent" | "getEffectiveAccess" | "claimDailySaves" | "hasNoOcrPagesLeft" | "buildBannerState" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent"
+		"createReaderHighlight" | "keepOffer" | "validateNewSaveUrl" | "appOrigin" | "secureCookies" | "saveArticleWithoutActivity" | "addArticleToReadlist" | "fileArticleIntoReadlist" | "upsertReadlist" | "deleteReadlistDefinition" | "markdownBearerAuth" | "resolveOwnedArticle" | "resolveVerificationStatus" | "requirePaidFeatures" | "getEffectiveAccess" | "claimDailySaves" | "hasNoOcrPagesLeft" | "buildBannerState" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent"
 	> & {
 		readerProvenanceNewsletters: Parameters<typeof initResolveReaderProvenance>[0]["detectNewsletters"];
 		gmailIntegration: ReadlistDependencies["gmail"];
@@ -32,7 +32,6 @@ export function readlistDependenciesFrom(
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requirePaidFeatures,
-		canSaveContent,
 		getEffectiveAccess,
 		claimDailySaves,
 		hasNoOcrPagesLeft,
@@ -166,7 +165,6 @@ export function readlistDependenciesFrom(
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requirePaidFeatures,
-		canSaveContent,
 		getEffectiveAccess,
 		claimDailySaves,
 		hasNoOcrPagesLeft,

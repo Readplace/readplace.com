@@ -77,7 +77,6 @@ export type AddToReadlistResult =
 			readonly article: McpArticle;
 		}
 	| { readonly status: "article_not_found" }
-	| { readonly status: "readlist_not_found" }
 	| { readonly status: "invalid_name" }
 	| { readonly status: "reserved_name"; readonly readlist: McpReadlist }
 	| { readonly status: "limit_reached"; readonly limit: number }
@@ -210,7 +209,7 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 		target:
-			| { readonly kind: "existing"; readonly readlist: ReadlistSlug }
+			| { readonly kind: "existing"; readonly readlist: McpReadlist }
 			| { readonly kind: "create"; readonly name: string };
 	}) => Promise<AddToReadlistResult>;
 	getArticle: (params: {

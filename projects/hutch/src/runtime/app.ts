@@ -15,7 +15,7 @@ import { initFetchFirefoxDownloadUrl } from "./web/pages/install";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/reader-slot/section-pages";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
-import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
 import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";

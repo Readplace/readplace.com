@@ -27,16 +27,6 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE }).emailVerified).toBeUndefined();
 	});
 
-	it("carries per-request script markup through to the shell", () => {
-		expect(bannerStateFromRequest({ requestScripts: "<script>x()</script>", cspNonce: CSP_NONCE }).requestScripts).toBe(
-			"<script>x()</script>",
-		);
-	});
-
-	it("leaves requestScripts undefined for a site that computes none", () => {
-		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE }).requestScripts).toBeUndefined();
-	});
-
 	it("copies originalUrl to currentPath so the changelog dismiss form can post a return path", () => {
 		expect(
 			bannerStateFromRequest({ originalUrl: "/blog/x?utm_source=changelog-banner", cspNonce: CSP_NONCE }).currentPath,

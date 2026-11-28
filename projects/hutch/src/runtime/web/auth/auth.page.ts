@@ -13,10 +13,11 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	VerifyCredentials,
+	BotDefenseEvent,
 } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
-import { AccessTokenSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { getBuiltInClient } from "@packages/domain/oauth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
@@ -94,15 +95,13 @@ import {
 	type SubscriptionLogEvent,
 } from "../../observability/subscription-events";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
+import { requireValidBearer } from "./require-valid-bearer";
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 const CheckoutSuccessQuerySchema = z.looseObject({ session_id: z.string().min(1) });
 const SignupQuerySchema = z.looseObject({ email: z.string().email() });
 
 const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
-
-import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
-export type { BotDefenseEvent };
 
 interface AuthDependencies {
 	hashPassword: (password: string) => Promise<string>;
@@ -645,16 +644,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 	 * endpoint validates the bearer itself; 204 with no redirect keeps it free of
 	 * an open-redirect surface and reusable for any future authenticated webview. */
 	router.post("/auth/session", async (req: Request, res: Response) => {
-		const header = req.headers.authorization;
-		if (!header?.startsWith("Bearer ")) {
-			res.status(401).set("WWW-Authenticate", "Bearer").end();
-			return;
-		}
-		const validated = await deps.validateAccessToken(AccessTokenSchema.parse(header.slice(7)));
-		if (!validated) {
-			res.status(401).set("WWW-Authenticate", 'Bearer error="invalid_token"').end();
-			return;
-		}
+		const validated = await requireValidBearer({ req, res, validateAccessToken: deps.validateAccessToken });
+		if (!validated) return;
 		const binding = getBuiltInClient(validated.oauthClientId) ? validated.oauthGrantId : undefined;
 		if (req.userId === validated.userId) {
 			const presentedSessionId = req.cookies?.[SESSION_COOKIE_NAME];

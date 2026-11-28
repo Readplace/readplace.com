@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+import { createContentSignalMiddleware } from "@packages/web-session";
 import { MCP_RESOURCE_METADATA_PATH } from "./mcp/protocol";
 
 export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=no";
@@ -23,14 +23,4 @@ function isNonPage(path: string): boolean {
 	return NON_PAGE_PREFIXES.some(p => path === p) || path.startsWith(AGENT_SKILLS_NAMESPACE);
 }
 
-export function contentSignalMiddleware(
-	req: Request,
-	res: Response,
-	next: NextFunction,
-): void {
-	if (req.method === "GET" && !isNonPage(req.path)) {
-		res.set("Content-Signal", CONTENT_SIGNAL_VALUE);
-		res.vary("Accept");
-	}
-	next();
-}
+export const contentSignalMiddleware = createContentSignalMiddleware({ value: CONTENT_SIGNAL_VALUE, isNonPage });

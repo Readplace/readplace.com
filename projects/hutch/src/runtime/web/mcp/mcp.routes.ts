@@ -19,6 +19,7 @@ import {
 	SAVE_CLIENTS,
 	SAVE_REFUSAL_CODES,
 } from "@packages/web-analytics";
+import { failure } from "./json-rpc";
 import type { McpServer } from "./mcp-server";
 import { MCP_PROTOCOL_VERSION, MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./protocol";
 
@@ -30,12 +31,6 @@ interface McpRoutesDeps {
 	now: () => Date;
 	salt: string;
 }
-
-const PARSE_ERROR = {
-	jsonrpc: "2.0",
-	id: null,
-	error: { code: -32700, message: "Parse error" },
-};
 
 /**
  * The MCP Streamable HTTP transport. A single `/mcp` endpoint:
@@ -71,7 +66,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 				"WWW-Authenticate",
 				`Bearer resource_metadata="${deps.baseUrl}${MCP_RESOURCE_METADATA_PATH}"`,
 			)
-			.json({ jsonrpc: "2.0", id: null, error: { code: -32001, message } });
+			.json(failure(null, -32001, message));
 	}
 
 	async function requireBearer(
@@ -117,14 +112,13 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 				reason: MCP_REQUEST_REFUSAL_REASONS.unsupportedProtocolVersion,
 				offeredProtocolVersion: offered,
 			});
-			res.status(400).json({
-				jsonrpc: "2.0",
-				id: null,
-				error: {
-					code: -32600,
-					message: `Unsupported MCP-Protocol-Version "${String(offered)}". This server speaks ${MCP_PROTOCOL_VERSION}; send that version or omit the header.`,
-				},
-			});
+			res.status(400).json(
+				failure(
+					null,
+					-32600,
+					`Unsupported MCP-Protocol-Version "${String(offered)}". This server speaks ${MCP_PROTOCOL_VERSION}; send that version or omit the header.`,
+				),
+			);
 			return;
 		}
 		next();
@@ -151,7 +145,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 					reason: MCP_REQUEST_REFUSAL_REASONS.parseError,
 					offeredProtocolVersion: req.headers["mcp-protocol-version"],
 				});
-				res.status(400).json(PARSE_ERROR);
+				res.status(400).json(failure(null, -32700, "Parse error"));
 				return;
 			}
 			const response = await deps.mcpServer.handle(message, {
