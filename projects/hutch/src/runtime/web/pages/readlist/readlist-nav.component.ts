@@ -132,7 +132,6 @@ export interface ReadlistNavItem {
 	linkClass: string;
 	isActive: boolean;
 	smart: boolean;
-	smartLabel: boolean;
 	accessibleName: string;
 }
 
@@ -280,7 +279,6 @@ function navItem(input: {
 		linkClass: classes.link,
 		isActive,
 		smart: readlist.smart === true,
-		smartLabel: readlist.smart === true && isActive,
 		accessibleName: readlist.smart === true ? t("readlistSmart.accessibleName", { name: readlist.label }) : readlist.label,
 		autofocus: input.autofocus,
 		menuHtml: render(MENU_TEMPLATE, {

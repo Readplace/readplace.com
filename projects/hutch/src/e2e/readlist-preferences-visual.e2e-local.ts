@@ -833,30 +833,138 @@ test.describe("Readlist preferences panel", () => {
 		await captureCheckpoint(page, ERROR_INLINE_LIGHT);
 	});
 
-	test("keeps the active Smart Readlist's rail name on one line beside its chip", async ({ page }, testInfo) => {
-		await openSetPreferences(page, `rail-label-${testInfo.workerIndex}-${Date.now()}`);
-		const row = page.locator('[data-test-readlist]:has([data-test-readlist-smart-label])');
-		await expect(row).toHaveCount(1);
-		const label = row.locator("[data-test-readlist-label]");
-		await expect(label).toHaveText("New Readlist");
-		const geometry = await row.evaluate((link) => {
-			const name = link.querySelector("[data-test-readlist-label]");
-			const chip = link.querySelector("[data-test-readlist-smart-label]");
-			if (!name || !chip) return undefined;
-			const nameBox = name.getBoundingClientRect();
-			const chipBox = chip.getBoundingClientRect();
-			return {
-				nameHeight: nameBox.height,
-				lineHeight: Number.parseFloat(getComputedStyle(name).lineHeight),
-				overlaps:
-					nameBox.left < chipBox.right && chipBox.left < nameBox.right && nameBox.top < chipBox.bottom && chipBox.top < nameBox.bottom,
-			};
-		});
-		assert.ok(geometry, "the active Smart Readlist row must render its label and its chip");
-		expect(geometry.nameHeight).toBeLessThanOrEqual(geometry.lineHeight + 1);
-		expect(geometry.overlaps).toBe(false);
-	});
 });
+
+const SMART_NAME = "AI Coding / LLM";
+const LONG_SMART_NAME = "AI Coding / LLM Research";
+const HAND_PICKED_ROW = `${RAIL} [data-test-readlist="~hand-picked"]`;
+const SWITCHER_TOGGLE = `${RAIL} .readlist-nav__switcher-toggle`;
+
+function smartRow(slug: string): string {
+	return `${RAIL} [data-test-readlist="${slug}"]`;
+}
+
+async function openSmartReadlist(page: Page, input: { stamp: string; name: string; home: "all" | "smart" }): Promise<string> {
+	const email = `readlist-preferences-visual-${input.stamp}@example.com`;
+	await createVerifiedUser(page, email);
+	await loginAs(page, email);
+	const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: input.name } });
+	assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+	const slug = new URL(created.url()).searchParams.get("queue");
+	assert.ok(slug, "creating a readlist must land the reader on it");
+	await seedPurpose(page, slug);
+	await setHome(page, input.home === "smart" ? slug : "default");
+	await page.goto(`${BASE_URL}/queue?queue=${slug}`, { waitUntil: "domcontentloaded" });
+	await page.mouse.move(5, 5);
+	return slug;
+}
+
+async function setHome(page: Page, slug: string): Promise<void> {
+	await page.goto(`${BASE_URL}/queue?queue=${slug}`, { waitUntil: "domcontentloaded" });
+	const form = page.locator(`[data-test-readlist-menu="${slug}"] form:has([data-test-action="readlist-set-home"])`).first();
+	const action = await form.getAttribute("action");
+	assert.ok(action, `the "${slug}" readlist's menu must offer set-home`);
+	const returnTo = await form.locator('[name="returnTo"]').inputValue();
+	const saved = await page.request.post(`${BASE_URL}${action}`, { form: { returnTo } });
+	assert.equal(saved.status(), 200, "setting the home readlist must land back on a readlist page");
+}
+
+interface RowGeometry {
+	row: DOMRect;
+	icon: DOMRect;
+	name: DOMRect;
+	nameLineHeight: number;
+	menu: DOMRect;
+	sparkle: DOMRect | null;
+	home: DOMRect | null;
+}
+
+async function rowGeometry(page: Page, link: string): Promise<RowGeometry> {
+	const geometry = await page.locator(link).evaluate((anchor) => {
+		const item = anchor.closest("li");
+		const icon = anchor.querySelector(":scope > .readlist-nav__icon, :scope > svg");
+		const name = anchor.querySelector("[data-test-readlist-label]");
+		const menu = item?.querySelector(":scope > .readlist-nav__menu > summary");
+		if (!item || !icon || !name || !menu) return undefined;
+		const box = (element: Element): DOMRect => element.getBoundingClientRect().toJSON();
+		const sparkle = anchor.querySelector(".readlist-nav__smart");
+		const home = item.querySelector(":scope > .readlist-nav__home");
+		return {
+			row: box(item),
+			icon: box(icon),
+			name: box(name),
+			nameLineHeight: Number.parseFloat(getComputedStyle(name).lineHeight),
+			menu: box(menu),
+			sparkle: sparkle && box(sparkle),
+			home: home && box(home),
+		};
+	});
+	assert.ok(geometry, `"${link}" must render its icon, its name and its overflow menu`);
+	return geometry;
+}
+
+function overlaps(a: DOMRect, b: DOMRect): boolean {
+	return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+function sparkleSitsInTheFolderCorner(geometry: RowGeometry): void {
+	assert.ok(geometry.sparkle, "a Smart Readlist row must draw the sparkle");
+	expect(geometry.icon.width).toBeCloseTo(24, 0);
+	expect(near({ actual: geometry.sparkle.right, expected: geometry.icon.right + 6, within: 1 })).toBe(true);
+	expect(near({ actual: geometry.sparkle.top, expected: geometry.icon.top - 6, within: 1 })).toBe(true);
+	expect(geometry.sparkle.left).toBeGreaterThan(geometry.icon.left + geometry.icon.width / 2 - 1);
+	expect(geometry.sparkle.right).toBeLessThanOrEqual(geometry.name.left);
+}
+
+async function smartRowAlignsWithHandPicked(page: Page, slug: string): Promise<void> {
+	const smart = await rowGeometry(page, smartRow(slug));
+	const handPicked = await rowGeometry(page, HAND_PICKED_ROW);
+	expect(smart.name.height).toBeLessThanOrEqual(smart.nameLineHeight + 1);
+	expect(near({ actual: smart.row.height, expected: handPicked.row.height, within: 0.5 })).toBe(true);
+	expect(near({ actual: smart.icon.left, expected: handPicked.icon.left, within: 0.5 })).toBe(true);
+	expect(near({ actual: smart.name.left, expected: handPicked.name.left, within: 0.5 })).toBe(true);
+	expect(near({ actual: smart.name.left - smart.icon.right, expected: 8, within: 0.5 })).toBe(true);
+	expect(near({ actual: smart.menu.left, expected: handPicked.menu.left, within: 0.5 })).toBe(true);
+	expect(near({ actual: smart.menu.width, expected: handPicked.menu.width, within: 0.5 })).toBe(true);
+	sparkleSitsInTheFolderCorner(smart);
+}
+
+async function longSmartHomeRowKeepsItsPartsApart(page: Page, slug: string): Promise<void> {
+	const smart = await rowGeometry(page, smartRow(slug));
+	assert.ok(smart.home, "the home readlist's row must carry the Home badge");
+	sparkleSitsInTheFolderCorner(smart);
+	expect(overlaps(smart.name, smart.home)).toBe(false);
+	expect(overlaps(smart.name, smart.menu)).toBe(false);
+	expect(overlaps(smart.home, smart.menu)).toBe(false);
+	expect(smart.name.right).toBeLessThanOrEqual(smart.home.left);
+	expect(smart.home.right).toBeLessThanOrEqual(smart.menu.left);
+}
+
+async function phoneSwitcherMarksTheSmartReadlist(page: Page): Promise<void> {
+	const geometry = await page.locator(SWITCHER_TOGGLE).evaluate((toggle) => {
+		const icon = toggle.querySelector(".readlist-nav__icon");
+		const sparkle = toggle.querySelector(".readlist-nav__smart");
+		const name = toggle.querySelector(".readlist-row__label");
+		if (!icon || !sparkle || !name) return undefined;
+		return {
+			icon: icon.getBoundingClientRect().toJSON(),
+			sparkle: sparkle.getBoundingClientRect().toJSON(),
+			name: name.getBoundingClientRect().toJSON(),
+		};
+	});
+	assert.ok(geometry, "the collapsed switcher must mark the current Smart Readlist's folder");
+	expect(near({ actual: geometry.sparkle.right, expected: geometry.icon.right + 6, within: 1 })).toBe(true);
+	expect(geometry.sparkle.right).toBeLessThanOrEqual(geometry.name.left);
+}
+
+async function smartRailSettled(page: Page): Promise<void> {
+	await expect(page.locator(`${RAIL} [data-test-readlist-smart] .readlist-nav__smart svg`).first()).toBeVisible();
+	await expect(page.locator(HAND_PICKED_ROW)).toBeVisible();
+}
+
+async function smartSwitcherSettled(page: Page): Promise<void> {
+	await expect(page.locator(`${SWITCHER_TOGGLE} .readlist-nav__smart svg`)).toBeVisible();
+}
 
 test.describe("Readlist preferences page", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
@@ -1131,4 +1239,55 @@ test.describe("Readlist preferences Gmail newsletters", () => {
 		await expect(page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`)).toBeChecked();
 		await expect(page.locator(`${GMAIL_SENDERS} [id="gmail-sender-crew@morningbrew.com"]`)).toBeChecked();
 	});
+});
+
+test.describe("Smart Readlist in the readlist sidebar", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`marks the folder with a sparkle and keeps "${SMART_NAME}" in line with Hand Picked (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const slug = await openSmartReadlist(page, { stamp: `rail-smart-${theme}-${testInfo.workerIndex}-${Date.now()}`, name: SMART_NAME, home: "all" });
+			await captureCheckpoint(page, {
+				name: `readlist-rail-smart-${theme}`,
+				settled: smartRailSettled,
+				geometry: (settled) => smartRowAlignsWithHandPicked(settled, slug),
+				target: RAIL,
+				capture: "element",
+				pinnedText: [],
+			});
+		});
+	}
+
+	test("keeps a long Smart Readlist name, its Home badge and its menu apart (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const slug = await openSmartReadlist(page, { stamp: `rail-smart-home-${testInfo.workerIndex}-${Date.now()}`, name: LONG_SMART_NAME, home: "smart" });
+		await captureCheckpoint(page, {
+			name: "readlist-rail-smart-home-light",
+			settled: smartRailSettled,
+			geometry: (settled) => longSmartHomeRowKeepsItsPartsApart(settled, slug),
+			target: RAIL,
+			capture: "element",
+			pinnedText: [],
+		});
+	});
+});
+
+test.describe("Smart Readlist in the phone switcher", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	for (const theme of THEMES) {
+		test(`marks the current Smart Readlist's folder in the collapsed switcher (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openSmartReadlist(page, { stamp: `switcher-smart-${theme}-${testInfo.workerIndex}-${Date.now()}`, name: SMART_NAME, home: "all" });
+			await captureCheckpoint(page, {
+				name: `readlist-switcher-smart-${theme}`,
+				settled: smartSwitcherSettled,
+				geometry: phoneSwitcherMarksTheSmartReadlist,
+				target: SWITCHER_TOGGLE,
+				capture: "element",
+				pinnedText: [],
+			});
+		});
+	}
 });
